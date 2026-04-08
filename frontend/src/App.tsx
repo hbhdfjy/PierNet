@@ -69,8 +69,8 @@ const STEP_COLORS: Record<StepColor, { active: string; dot: string }> = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 mb-1 flex items-center gap-1.5">
-      <span className="text-[10px] font-bold uppercase tracking-widest whitespace-nowrap text-slate-400 dark:text-slate-600">{children}</span>
+    <div className="px-2 mb-1.5 flex items-center gap-2">
+      <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap text-slate-400 dark:text-slate-500">{children}</span>
       <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700/30" />
     </div>
   )
@@ -88,13 +88,13 @@ function NavItem({
     <NavLink
       to={to}
       className={({ isActive }) => cn(
-        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
+        'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
         isActive
           ? activeClass + ' font-medium'
           : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
       )}
     >
-      <Icon size={13} className="flex-shrink-0 opacity-70" />
+      <Icon size={16} className="flex-shrink-0 opacity-70" />
       <span className="truncate">{label}</span>
     </NavLink>
   )
@@ -109,23 +109,23 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-[hsl(var(--bg))]">
 
       {/* ── 侧边栏 ── */}
-      <aside className="w-48 flex-shrink-0 bg-[hsl(var(--bg-sub))] border-r border-[hsl(var(--border)/0.6)] flex flex-col select-none">
+      <aside className="w-56 flex-shrink-0 bg-[hsl(var(--bg-sub))] border-r border-[hsl(var(--border)/0.6)] flex flex-col select-none">
 
         {/* Logo */}
-        <div className="px-3 py-3.5 border-b border-[hsl(var(--border)/0.5)]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-900/30">
-              <span className="text-white font-black text-sm">P</span>
+        <div className="px-4 py-4 border-b border-[hsl(var(--border)/0.5)]">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-900/30">
+              <span className="text-white font-black text-base">P</span>
             </div>
             <div>
-              <div className="text-sm font-bold tracking-wide leading-none text-[hsl(var(--text))]">PiERN</div>
-              <div className="text-[10px] mt-0.5 leading-none text-[hsl(var(--text-faint))]">多模拟器数据集</div>
+              <div className="text-base font-bold tracking-wide leading-none text-[hsl(var(--text))]">PiERN</div>
+              <div className="text-xs mt-1 leading-none text-[hsl(var(--text-faint))]">多模拟器数据集</div>
             </div>
           </div>
         </div>
 
         {/* 导航主体 */}
-        <nav className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
+        <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
 
           {/* Stage 1 */}
           <div>
@@ -133,7 +133,7 @@ export default function App() {
             <NavLink
               to="/simulate"
               className={({ isActive }) => cn(
-                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
+                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                 isActive
                   ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 font-medium'
                   : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
@@ -142,10 +142,10 @@ export default function App() {
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all',
+                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
                     isActive ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400' : 'text-slate-400 dark:text-slate-600',
                   )}>
-                    <Zap size={12} />
+                    <Zap size={15} />
                   </div>
                   <span className="flex-1 truncate">仿真运行</span>
                   {isActive && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
@@ -165,7 +165,7 @@ export default function App() {
                     key={to}
                     to={to}
                     className={({ isActive }) => cn(
-                      'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
+                      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                       isActive
                         ? `${colors.active} font-medium`
                         : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
@@ -174,7 +174,7 @@ export default function App() {
                     {({ isActive }) => (
                       <>
                         <div className={cn(
-                          'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-bold transition-all',
+                          'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all',
                           isActive ? 'opacity-90' : 'text-slate-400 dark:text-slate-600',
                         )}>
                           {step}
@@ -182,7 +182,7 @@ export default function App() {
                         <span className="flex-1 truncate">{label}</span>
                         {isActive
                           ? <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', colors.dot)} />
-                          : <Icon size={11} className="flex-shrink-0 opacity-30" />
+                          : <Icon size={14} className="flex-shrink-0 opacity-30" />
                         }
                       </>
                     )}
@@ -198,7 +198,7 @@ export default function App() {
             <NavLink
               to="/fill"
               className={({ isActive }) => cn(
-                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
+                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                 isActive
                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 font-medium'
                   : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
@@ -207,10 +207,10 @@ export default function App() {
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all',
+                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
                     isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600',
                   )}>
-                    <FlaskConical size={12} />
+                    <FlaskConical size={15} />
                   </div>
                   <span className="flex-1 truncate">样本填充</span>
                   {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
@@ -246,20 +246,19 @@ export default function App() {
         </nav>
 
         {/* 底部：主题切换 + 版本 */}
-        <div className="px-3 py-2 border-t border-[hsl(var(--border)/0.5)] flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-[10px] text-[hsl(var(--text-faint))] font-mono">v2.0</span>
+        <div className="px-3 py-2.5 border-t border-[hsl(var(--border)/0.5)] flex items-center justify-between">
+          <div className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-xs text-[hsl(var(--text-faint))] font-mono">v2.0</span>
           </div>
-          {/* 主题切换按钮 */}
           <button
             onClick={toggleTheme}
-            className="flex items-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all duration-150 text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface2))] hover:text-[hsl(var(--text))]"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface2))] hover:text-[hsl(var(--text))]"
             title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
           >
             {theme === 'dark'
-              ? <><Sun size={12} /><span>日间</span></>
-              : <><Moon size={12} /><span>夜间</span></>
+              ? <><Sun size={14} /><span>日间</span></>
+              : <><Moon size={14} /><span>夜间</span></>
             }
           </button>
         </div>
