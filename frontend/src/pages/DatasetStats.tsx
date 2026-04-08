@@ -3,7 +3,6 @@ import { api } from '../lib/api'
 import type { DatasetStats, DatasetInfo } from '../lib/types'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 import {
   formatBytes, LANGUAGE_LABELS, STYLE_LABELS,
@@ -126,55 +125,87 @@ function PieCard({ title, icon, data }: {
 
 // ── 场景横向柱状图 ────────────────────────────────────────────────
 
+// 数值格式化：自动选合适单位
+function fmtCount(v: number): string {
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`
+  return String(v)
+}
+
 function ScenarioBar({ data }: { data: Record<string, number> }) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 22)
+  const maxVal = Math.max(...entries.map(([, v]) => v))
+  const minVal = Math.min(...entries.map(([, v]) => v))
+  // 数据跨度超过 100 倍时用对数轴，避免小值柱子不可见
+  const useLog = maxVal / Math.max(minVal, 1) > 100
+
   const chartData = entries.map(([k, v]) => ({
     name: k.length > 24 ? k.slice(0, 22) + '…' : k,
     count: v,
+    // 对数轴时存 log 值用于渲染，实际 tooltip 仍显示原始值
+    display: useLog ? Math.log10(Math.max(v, 1)) : v,
   }))
-  const maxVal = Math.max(...entries.map(([, v]) => v))
 
   return (
     <div className="card overflow-hidden">
       <div className="card-header">
         <Layers size={15} className="text-slate-400" />
         <span className="font-semibold text-slate-200">按场景分布</span>
-        <span className="ml-auto badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
-          {entries.length} 个场景
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          {useLog && (
+            <span className="badge bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
+              对数轴
+            </span>
+          )}
+          <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
+            {entries.length} 个场景
+          </span>
+        </div>
       </div>
       <div className="p-5">
-        <ResponsiveContainer width="100%" height={Math.max(240, entries.length * 32)}>
-          <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 48, top: 4, bottom: 4 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="rgba(51,65,85,0.4)" horizontal={false} />
-            <XAxis
-              type="number" domain={[0, maxVal * 1.1]}
-              tick={{ fill: '#64748b', fontSize: 12 }}
-              axisLine={false} tickLine={false}
-              tickFormatter={v => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : String(v)}
-            />
-            <YAxis
-              type="category" dataKey="name" width={180}
-              tick={{ fill: '#94a3b8', fontSize: 12 }}
-              axisLine={false} tickLine={false}
-            />
-            <Tooltip
-              {...TOOLTIP_STYLE}
-              formatter={(v: number) => [v.toLocaleString(), '样本数']}
-            />
-            <Bar dataKey="count" radius={[0, 6, 6, 0]} opacity={0.9}
-              fill="url(#barGrad)"
-              label={{ position: 'right', fill: '#64748b', fontSize: 12 }}
-            >
-              <defs>
-                <linearGradient id="barGrad" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#0ea5e9" stopOpacity={0.7} />
-                  <stop offset="100%" stopColor="#38bdf8" stopOpacity={0.95} />
-                </linearGradient>
-              </defs>
-            </Bar>
-          </BarChart>
-        </ResponsiveContainer>
+        {/* 自定义横向条形图（用 div 实现，避免 recharts 对数轴的问题）*/}
+        <div className="space-y-2">
+          {chartData.map(({ name, count }, i) => {
+            const pct = useLog
+              ? (Math.log10(Math.max(count, 1)) / Math.log10(Math.max(maxVal, 1))) * 100
+              : (count / maxVal) * 100
+            return (
+              <div key={name} className="flex items-center gap-3 group">
+                {/* 场景名 */}
+                <div className="w-44 flex-shrink-0 text-right">
+                  <span className="text-sm text-slate-400 group-hover:text-slate-200 transition-colors font-mono truncate block">
+                    {name}
+                  </span>
+                </div>
+                {/* 进度条 */}
+                <div className="flex-1 h-6 bg-slate-800/60 rounded-md overflow-hidden relative">
+                  <div
+                    className="h-full rounded-md transition-all duration-500"
+                    style={{
+                      width: `${Math.max(pct, 1)}%`,
+                      background: `linear-gradient(90deg, #0ea5e9cc, #38bdf8)`,
+                    }}
+                  />
+                  {/* 数值标签叠在条上 */}
+                  <span className="absolute inset-y-0 left-2 flex items-center text-xs font-mono text-white/80 tabular-nums">
+                    {pct > 15 ? fmtCount(count) : ''}
+                  </span>
+                </div>
+                {/* 右侧数值（条短时显示在外面）*/}
+                <div className="w-16 flex-shrink-0 text-left">
+                  <span className="text-xs font-mono tabular-nums text-slate-400">
+                    {pct <= 15 ? fmtCount(count) : ''}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+        {useLog && (
+          <p className="text-xs text-slate-600 mt-3 text-center">
+            * 数据量跨度超过 100 倍，条形长度按对数比例显示
+          </p>
+        )}
       </div>
     </div>
   )
