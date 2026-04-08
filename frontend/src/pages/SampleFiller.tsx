@@ -26,7 +26,7 @@ export default function SampleFiller() {
     useSWR<GenerationConfig>('config', () => api.getConfig())
   const { data: templatesStatus, mutate: refreshTemplates } =
     useSWR<TemplateInfo[]>('templates', () => api.getTemplatesStatus(), { refreshInterval: 5000 })
-  const { data: sampleFiles, mutate: refreshSampleFiles } =
+  const { data: sampleFiles, isLoading: sfLoading, mutate: refreshSampleFiles } =
     useSWR<SampleFileInfo[]>('sample-files', () => api.listSampleFiles(), { refreshInterval: 10000 })
 
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -406,12 +406,26 @@ export default function SampleFiller() {
                 </span>
               )}
             </div>
-            {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+            <div className="flex items-center gap-2">
+              <span
+                className="btn-ghost py-0.5 px-1.5 text-xs"
+                onClick={e => { e.stopPropagation(); refreshSampleFiles() }}
+                title="刷新"
+              >
+                <RefreshCw size={11} className={sfLoading ? 'animate-spin' : ''} />
+              </span>
+              {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+            </div>
           </button>
 
           {filesOpen && (
             <div className="p-3 space-y-2">
-              {(!sampleFiles || sampleFiles.length === 0) ? (
+              {sfLoading ? (
+                <div className="flex items-center justify-center gap-2 py-3 text-slate-500">
+                  <RefreshCw size={12} className="animate-spin" />
+                  <span className="text-xs">加载中…</span>
+                </div>
+              ) : (!sampleFiles || sampleFiles.length === 0) ? (
                 <p className="text-slate-500 text-xs text-center py-3">暂无样本文件</p>
               ) : (
                 <>
