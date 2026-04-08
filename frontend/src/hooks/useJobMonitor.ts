@@ -68,9 +68,16 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     })
   }, [stageKey])
 
+  // 用 ref 记录每个 job 是否已收到终止事件，避免 onerror 与 onmessage 的竞态
+  const terminatedRef = useRef<Set<string>>(new Set())
+
   const connectOne = useCallback((id: string, initialStatus: JobStatus = 'running') => {
     if (esMap.current.has(id)) return
-    setJobStatuses(prev => ({ ...prev, [id]: prev[id] ?? initialStatus }))
+    // 用传入的 initialStatus 初始化，不用 ?? 避免 React 批处理导致旧状态覆盖
+    setJobStatuses(prev => {
+      if (prev[id] !== undefined) return prev   // 已有状态不覆盖（restoreJobs 已预设）
+      return { ...prev, [id]: initialStatus }
+    })
 
     const es = api.openGenerationStream(id)
 
@@ -97,16 +104,18 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             return next.length > 5000 ? next.slice(-5000) : next
           })
         } else if (event.type === 'done') {
+          terminatedRef.current.add(id)   // 先标记，再 setState，防止 onerror 竞态
           setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
           es.close()
           esMap.current.delete(id)
-          // 保留 localStorage，让关闭重开后仍能看到完成状态
         } else if (event.type === 'error') {
+          terminatedRef.current.add(id)
           setJobStatuses(prev => ({ ...prev, [id]: 'error' }))
           setLogs(prev => [...prev, { line: `[ERROR] ${event.message ?? '未知错误'}`, ts: event.ts }])
           es.close()
           esMap.current.delete(id)
         } else if (event.type === 'terminated') {
+          terminatedRef.current.add(id)
           setJobStatuses(prev => ({ ...prev, [id]: 'terminated' }))
           es.close()
           esMap.current.delete(id)
@@ -119,16 +128,17 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     es.onerror = () => {
       es.close()
       esMap.current.delete(id)
-      // 只有 running 状态才标为 error（done/error 状态的历史回放断开不算错误）
-      setJobStatuses(prev => {
-        if (prev[id] === 'running') return { ...prev, [id]: 'error' }
-        return prev
-      })
+      // 已收到终止事件（done/error/terminated）的连接断开不算错误
+      if (!terminatedRef.current.has(id)) {
+        setJobStatuses(prev => {
+          if (prev[id] === 'running') return { ...prev, [id]: 'error' }
+          return prev
+        })
+      }
     }
 
-    // handlers 附加完毕后再存入 map，避免极窄窗口内事件丢失
     esMap.current.set(id, es)
-  }, [removeJob, stageKey])
+  }, [stageKey])
 
   // mount 时：从 localStorage 恢复，查询后端状态决定如何恢复
   useEffect(() => {
@@ -166,15 +176,18 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
         setJobIds(validIds)
         saveStoredJobs(stageKey, validIds)
 
-        // done/error：先标记真实最终状态，避免恢复期间 status 跳到 running 导致按钮消失
-        toRestore.forEach(({ id, status }) => {
-          setJobStatuses(prev => ({ ...prev, [id]: status }))
-        })
+        // done/error：先在 terminatedRef 标记，防止 connectOne 的 onerror 误判为 error
+        toRestore.forEach(({ id }) => terminatedRef.current.add(id))
+
+        // done/error：设置真实最终状态（connectOne 里检测到 prev[id] 已有值会跳过覆盖）
+        const finalStatuses: Record<string, JobStatus> = {}
+        toRestore.forEach(({ id, status }) => { finalStatuses[id] = status })
+        setJobStatuses(prev => ({ ...prev, ...finalStatuses }))
 
         // running：建立 SSE 连接
         toConnect.forEach(id => connectOne(id))
 
-        // done/error：连接 SSE 回放历史日志（后端有缓存），拿完后自动断开
+        // done/error：连接 SSE 回放历史日志，拿完后自动断开
         toRestore.forEach(({ id }) => connectOne(id))
       } else {
         saveStoredJobs(stageKey, [])
@@ -228,6 +241,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   const reset = useCallback(() => {
     esMap.current.forEach(es => es.close())
     esMap.current.clear()
+    terminatedRef.current.clear()
     setJobIds([])
     setJobStatuses({})
     setLogs([])
