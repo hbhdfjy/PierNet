@@ -259,6 +259,7 @@ def run_fill_samples(
     # 合并所有 JSONL
     output_file = cfg.get("output_file", "all_training_data.jsonl")
     merged_path = out_dir / output_file
+    _log(f"\n[合并] 正在合并 {len(all_jsonl)} 个场景文件 → {merged_path.name} …")
     total_merged = 0
     with open(merged_path, "w", encoding="utf-8") as fout:
         for jl_path in all_jsonl:
@@ -271,6 +272,7 @@ def run_fill_samples(
                         fout.write(line + "\n")
                         total_merged += 1
 
+    _log(f"[合并] 完成，共 {total_merged} 条")
     _log("\n" + "=" * 60)
     _log("阶段二完成")
     _log("=" * 60)
