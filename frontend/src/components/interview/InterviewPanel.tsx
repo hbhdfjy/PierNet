@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { AgentTurnResponse, InterviewMessage } from '../../lib/types'
 import {
@@ -692,6 +693,22 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
   const [scenario, setScenario] = useState('')
   const [hdf5Path, setHdf5Path] = useState('')
 
+  // 从 registry 提取已注册的 simulator 列表（用于 scenario 模式的下拉选择）
+  const { data: registry } = useSWR<Record<string, unknown>>(
+    'registry-for-interview',
+    () => api.getRegistry(),
+    { revalidateOnFocus: false },
+  )
+  const registeredSimulators: string[] = (() => {
+    if (!registry) return []
+    const sims = new Set<string>()
+    for (const key of Object.keys(registry)) {
+      // key 格式：'simulator' 或 'simulator/scenario'
+      sims.add(key.split('/')[0])
+    }
+    return Array.from(sims).sort()
+  })()
+
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -1100,13 +1117,31 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
                 Simulator 名称 <span className="text-red-400 normal-case tracking-normal">*</span>
               </label>
-              <input
-                className="input w-full"
-                placeholder="如 modflow、simpeg、fenics"
-                value={simulator}
-                onChange={e => setSimulator(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && mode === 'simulator' && canStart && handleStart()}
-              />
+              {mode === 'scenario' && registeredSimulators.length > 0 ? (
+                <select
+                  className="select w-full"
+                  value={simulator}
+                  onChange={e => { setSimulator(e.target.value); setScenario('') }}
+                >
+                  <option value="">— 选择已注册的 Simulator —</option>
+                  {registeredSimulators.map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="input w-full"
+                  placeholder="如 modflow、simpeg、fenics"
+                  value={simulator}
+                  onChange={e => setSimulator(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && mode === 'simulator' && canStart && handleStart()}
+                />
+              )}
+              {mode === 'scenario' && registeredSimulators.length === 0 && (
+                <p className="text-xs text-amber-400/80 mt-1.5 flex items-center gap-1">
+                  <span>⚠</span> 暂无已注册的 Simulator，请先完成第一步注册
+                </p>
+              )}
             </div>
 
             {mode === 'scenario' && (
