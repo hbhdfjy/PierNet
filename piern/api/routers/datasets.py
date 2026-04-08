@@ -33,7 +33,10 @@ def get_datasets():
         try:
             with open(f, "rb") as fh:
                 content = fh.read()
+                # count newlines; if file doesn't end with \n, last line still counts
                 sample_count = content.count(b"\n")
+                if content and not content.endswith(b"\n"):
+                    sample_count += 1
             with open(f, "r", encoding="utf-8") as fh:
                 first = fh.readline().strip()
                 if first:
@@ -62,35 +65,63 @@ def get_samples(
     language: Optional[str] = Query(None),
     style: Optional[str] = Query(None),
 ):
-    """分页读取指定场景的 JSONL 样本。"""
+    """分页读取指定场景的 JSONL 样本（流式，不全量加载）。"""
     jsonl_path = DATA_DIR / f"{scenario}.jsonl"
     if not jsonl_path.exists():
         raise HTTPException(404, f"场景 {scenario} 的 JSONL 文件不存在")
 
-    all_samples = []
-    try:
-        with open(jsonl_path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    sample = json.loads(line)
-                    meta = sample.get("metadata", {})
-                    if language and meta.get("language") != language:
-                        continue
-                    if style and meta.get("style") != style:
-                        continue
-                    all_samples.append(sample)
-                except json.JSONDecodeError:
-                    continue
-    except Exception as e:
-        raise HTTPException(500, f"读取 JSONL 失败: {e}")
-
-    total = len(all_samples)
+    has_filter = bool(language or style)
     start = page * page_size
     end = start + page_size
-    return {"total": total, "page": page, "page_size": page_size, "items": all_samples[start:end]}
+
+    try:
+        if not has_filter:
+            # 无筛选：两次扫描，第一次只数行数，第二次取目标行
+            total = 0
+            with open(jsonl_path, "rb") as fb:
+                content = fb.read()
+                total = content.count(b"\n")
+                if content and not content.endswith(b"\n"):
+                    total += 1
+
+            items = []
+            with open(jsonl_path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx >= end:
+                        break
+                    if idx < start:
+                        continue
+                    line = line.strip()
+                    if line:
+                        try:
+                            items.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
+            return {"total": total, "page": page, "page_size": page_size, "items": items}
+        else:
+            # 有筛选：必须全量扫描以统计 total，但不在内存中保留全部对象
+            total = 0
+            items_page: list = []
+            with open(jsonl_path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        sample = json.loads(line)
+                        meta = sample.get("metadata", {})
+                        if language and meta.get("language") != language:
+                            continue
+                        if style and meta.get("style") != style:
+                            continue
+                        if start <= total < end:
+                            items_page.append(sample)
+                        total += 1
+                    except json.JSONDecodeError:
+                        continue
+            return {"total": total, "page": page, "page_size": page_size, "items": items_page}
+    except Exception as e:
+        raise HTTPException(500, f"读取 JSONL 失败: {e}")
 
 
 @router.get("/stats")

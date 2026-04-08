@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer, ReferenceLine,
@@ -23,6 +23,11 @@ export default function TimeseriesChart({ sample }: Props) {
   const [visibleChannels, setVisibleChannels] = useState<Set<number>>(
     () => new Set(parsed ? parsed.channels.map((_, i) => i) : [])
   )
+
+  // 当解析结果变化（换了样本）时重置通道选择
+  useEffect(() => {
+    setVisibleChannels(new Set(parsed ? parsed.channels.map((_, i) => i) : []))
+  }, [parsed])
 
   if (!parsed) {
     return (
@@ -122,15 +127,18 @@ export default function TimeseriesChart({ sample }: Props) {
               />
             )}
             {visibleLabels.map((label, i) => {
-              const origIdx = labels.indexOf(label)
+              // use the original channel index for consistent color assignment
+              // find by position in the full labels array to handle duplicate labels
+              const origIdx = labels.findIndex((l, idx) => l === label && visibleChannels.has(idx))
+              const colorIdx = origIdx >= 0 ? origIdx : i
               return (
                 <Line
-                  key={label}
+                  key={`${label}-${i}`}
                   type="monotone"
                   dataKey={label}
-                  stroke={getLineColor(origIdx)}
+                  stroke={getLineColor(colorIdx)}
                   strokeWidth={1.5}
-                  dot={chartData.length <= 20 ? { r: 2.5, fill: getLineColor(origIdx) } : false}
+                  dot={chartData.length <= 20 ? { r: 2.5, fill: getLineColor(colorIdx) } : false}
                   activeDot={{ r: 4, strokeWidth: 0 }}
                 />
               )

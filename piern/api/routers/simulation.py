@@ -248,10 +248,14 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             if not line:
                 continue
             event: dict = {"type": "log", "line": line, "ts": time.time()}
-            m = re.search(r'(?:生成进度|增强进度)[：:]\s*(\d+)/(\d+)', line)
+            # 匹配多种进度格式：
+            #   "生成进度：42/100"  "增强进度: 42/100"
+            #   tqdm: "42/100 [00:01<...]"  或行首 "42/100"
+            m = re.search(r'(?:(?:生成|增强)进度[：:]\s*|(?:^|\s))(\d+)/(\d+)', line)
             if m:
-                done = int(m.group(1))
-                event["progress"] = {"scenario": req.scenario, "done": done, "total": req.n_samples}
+                done, total = int(m.group(1)), int(m.group(2))
+                if total > 0 and done <= total:
+                    event["progress"] = {"scenario": req.scenario, "done": done, "total": total}
             publish(record, event)
 
         proc.wait()

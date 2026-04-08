@@ -36,29 +36,54 @@ def get_template_items(
     if not path.exists():
         raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
 
-    items = []
+    has_filter = bool(language or style)
+    start = page * page_size
+    end = start + page_size
     try:
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    record = json.loads(line)
-                    if language and record.get("language") != language:
+        if not has_filter:
+            # 无筛选：先数行数，再流式取目标行
+            with open(path, "rb") as fb:
+                content = fb.read()
+                total = content.count(b"\n")
+                if content and not content.endswith(b"\n"):
+                    total += 1
+            items = []
+            with open(path, "r", encoding="utf-8") as f:
+                for idx, line in enumerate(f):
+                    if idx >= end:
+                        break
+                    if idx < start:
                         continue
-                    if style and record.get("style") != style:
+                    line = line.strip()
+                    if line:
+                        try:
+                            items.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
+        else:
+            # 有筛选：全量扫描但不在内存中保留全部对象
+            total = 0
+            items = []
+            with open(path, "r", encoding="utf-8") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
                         continue
-                    items.append(record)
-                except json.JSONDecodeError:
-                    continue
+                    try:
+                        record = json.loads(line)
+                        if language and record.get("language") != language:
+                            continue
+                        if style and record.get("style") != style:
+                            continue
+                        if start <= total < end:
+                            items.append(record)
+                        total += 1
+                    except json.JSONDecodeError:
+                        continue
     except Exception as e:
         raise HTTPException(500, f"读取模板文件失败: {e}")
 
-    total = len(items)
-    start = page * page_size
-    end = start + page_size
-    return {"total": total, "page": page, "page_size": page_size, "items": items[start:end]}
+    return {"total": total, "page": page, "page_size": page_size, "items": items}
 
 
 @router.post("/files/templates/{scenario}/trim")
