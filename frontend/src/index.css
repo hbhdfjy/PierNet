@@ -54,7 +54,7 @@
     background-color: hsl(var(--bg));
     color: hsl(var(--text));
     font-family: 'Inter', system-ui, sans-serif;
-    font-size: 17px;
+    font-size: 19px;
     line-height: 1.5;
     @apply antialiased;
     transition: background-color 0.2s ease, color 0.2s ease;

@@ -5,14 +5,14 @@ export default {
   darkMode: 'class',
   theme: {
     fontSize: {
-      xs:   ['0.9375rem', { lineHeight: '1.5rem'   }],   // 15px
-      sm:   ['1.0625rem', { lineHeight: '1.75rem'  }],   // 17px
-      base: ['1.1875rem', { lineHeight: '1.875rem' }],   // 19px
-      lg:   ['1.3125rem', { lineHeight: '2rem'     }],   // 21px
-      xl:   ['1.5rem',    { lineHeight: '2.125rem' }],   // 24px
-      '2xl':['1.75rem',   { lineHeight: '2.375rem' }],   // 28px
-      '3xl':['2.125rem',  { lineHeight: '2.625rem' }],   // 34px
-      '4xl':['2.5rem',    { lineHeight: '3rem'     }],   // 40px
+      xs:   ['1.0625rem', { lineHeight: '1.625rem' }],   // 17px
+      sm:   ['1.1875rem', { lineHeight: '1.875rem' }],   // 19px
+      base: ['1.3125rem', { lineHeight: '2rem'     }],   // 21px
+      lg:   ['1.5rem',    { lineHeight: '2.125rem' }],   // 24px
+      xl:   ['1.6875rem', { lineHeight: '2.375rem' }],   // 27px
+      '2xl':['1.9375rem', { lineHeight: '2.625rem' }],   // 31px
+      '3xl':['2.25rem',   { lineHeight: '2.875rem' }],   // 36px
+      '4xl':['2.75rem',   { lineHeight: '3.25rem'  }],   // 44px
     },
     extend: {
       colors: {
