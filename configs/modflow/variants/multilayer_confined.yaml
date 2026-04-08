@@ -1,0 +1,49 @@
+output_dir: data/modflow
+output_file: multilayer_confined_groundwater_timeseries.h5
+n_samples: 2000
+n_timesteps: 365
+n_wells: 5
+grid:
+  nrow: 20
+  ncol: 20
+  nlay: 3
+  delr: 100.0
+  delc: 100.0
+  top: 30.0
+  botm:
+  - 20.0
+  - 10.0
+  - 0.0
+params:
+  hk_layer1_min: 5.0
+  hk_layer1_max: 80.0
+  hk_layer2_min: 1.0
+  hk_layer2_max: 20.0
+  hk_layer3_min: 0.5
+  hk_layer3_max: 10.0
+  vka_min: 0.5
+  vka_max: 5.0
+  sy_min: 0.05
+  sy_max: 0.30
+  pumping_min: -6000.0
+  pumping_max: -500.0
+  strt_layer1_min: 25.0
+  strt_layer1_max: 28.0
+  strt_layer2_min: 15.0
+  strt_layer2_max: 18.0
+  strt_layer3_min: 5.0
+  strt_layer3_max: 8.0
+  rch_min: 0.001
+  rch_max: 0.03
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 1000
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 35.0
+  min_head_value: -5.0
+seed: 1002

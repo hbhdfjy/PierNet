@@ -1,0 +1,7 @@
+numpy>=1.24
+scipy>=1.10
+tqdm>=4.65
+pyyaml>=6.0
+h5py>=3.8
+# SimPEG (optional, for future 3D FVM forward modeling)
+# simpeg>=0.25

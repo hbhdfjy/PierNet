@@ -1,0 +1,36 @@
+# SimPEG 时域电磁衰减场景配置
+# 方法：1D 中心回线装置，解析正演
+# 输出：归一化感应电动势衰减曲线 (1, 100)
+
+scenario: tem_decay
+output_dir: data/simpeg
+output_file: tem_decay_geophysics_timeseries.h5
+n_samples: 5000
+n_points: 100   # 时间道数（10^-6~10^-2 s 对数均匀）
+seed: 2003
+
+params:
+  sigma_bg_min: 0.001
+  sigma_bg_max: 0.1
+  sigma_anomaly_min: 0.01
+  sigma_anomaly_max: 5.0
+  depth_top_min: 5.0
+  depth_top_max: 100.0
+  depth_bottom_min: 20.0
+  depth_bottom_max: 300.0
+  source_spacing_min: 20.0
+  source_spacing_max: 200.0
+  time_constant_min: 0.001
+  time_constant_max: 0.1
+  noise_level_min: 0.01
+  noise_level_max: 0.05
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 500
+
+validation:
+  min_variance: 1.0e-12

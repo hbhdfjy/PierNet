@@ -1,0 +1,36 @@
+# SimPEG 大地电磁测深场景配置
+# 方法：1D 传递矩阵法
+# 输出：阻抗相位曲线 (1, 100)
+
+scenario: mt_sounding
+output_dir: data/simpeg
+output_file: mt_sounding_geophysics_timeseries.h5
+n_samples: 5000
+n_points: 100   # 频率采样点数（10^-3~10^3 Hz 对数均匀）
+seed: 2002
+
+params:
+  sigma_bg_min: 0.0001
+  sigma_bg_max: 0.01
+  sigma_anomaly_min: 0.001
+  sigma_anomaly_max: 1.0
+  depth_top_min: 100.0
+  depth_top_max: 2000.0
+  depth_bottom_min: 500.0
+  depth_bottom_max: 10000.0
+  noise_level_min: 0.005
+  noise_level_max: 0.03
+  freq_min_min: 0.001
+  freq_min_max: 0.01
+  freq_max_min: 100.0
+  freq_max_max: 1000.0
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 500
+
+validation:
+  min_variance: 1.0e-6

@@ -1,0 +1,38 @@
+# SimPEG 激发极化场景配置
+# 方法：Cole-Cole 模型 + 1D DC 正演
+# 输出：视充电率曲线 (1, 100)
+
+scenario: ip_chargeability
+output_dir: data/simpeg
+output_file: ip_chargeability_geophysics_timeseries.h5
+n_samples: 5000
+n_points: 100   # 极距采样点数（1~1000m 对数均匀）
+seed: 2004
+
+params:
+  sigma_bg_min: 0.001
+  sigma_bg_max: 0.1
+  sigma_anomaly_min: 0.001
+  sigma_anomaly_max: 10.0
+  depth_top_min: 5.0
+  depth_top_max: 50.0
+  depth_bottom_min: 20.0
+  depth_bottom_max: 200.0
+  chargeability_min: 0.01
+  chargeability_max: 0.5
+  time_constant_min: 0.01
+  time_constant_max: 1.0
+  noise_level_min: 0.005
+  noise_level_max: 0.03
+  survey_length_min: 500.0
+  survey_length_max: 2000.0
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 500
+
+validation:
+  min_variance: 1.0e-12

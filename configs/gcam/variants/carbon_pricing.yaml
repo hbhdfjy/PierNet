@@ -1,0 +1,49 @@
+# GCAM简化版：碳定价政策效果场景
+# 仿真类型：动态代数系统
+# 特点：碳税/碳市场对能源结构和排放的影响
+# 输出形状：(5, 16)
+
+scenario_name: carbon_pricing
+output_dir: data/gcam
+output_file: carbon_pricing_gcam_timeseries.h5
+n_samples: 1000
+n_timesteps: 16
+
+params:
+  solar_cost_init_min: 35.0
+  solar_cost_init_max: 120.0
+  cost_learning_rate_min: 0.12
+  cost_learning_rate_max: 0.28
+  carbon_tax_min: 10.0
+  carbon_tax_max: 200.0
+  gdp_growth_min: 1.5
+  gdp_growth_max: 4.0
+  population_growth_min: 0.2
+  population_growth_max: 1.2
+  energy_intensity_min: 0.7
+  energy_intensity_max: 1.3
+  fossil_reserve_min: 0.7
+  fossil_reserve_max: 1.5
+  climate_sensitivity_min: 2.0
+  climate_sensitivity_max: 4.0
+  discount_rate_min: 0.03
+  discount_rate_max: 0.08
+  nuclear_cost_min: 70.0
+  nuclear_cost_max: 200.0
+  ccs_cost_min: 50.0
+  ccs_cost_max: 250.0
+  ev_penetration_min: 0.1
+  ev_penetration_max: 0.9
+  industrial_eff_min: 0.05
+  industrial_eff_max: 0.45
+  land_use_change_min: -1.5
+  land_use_change_max: 3.0
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 0.3
+  augmentation_batch_size: 200
+
+seed: 3002

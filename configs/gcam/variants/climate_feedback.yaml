@@ -1,0 +1,49 @@
+# GCAM简化版：气候-经济反馈场景
+# 仿真类型：动态代数系统（含气候反馈环）
+# 特点：高温对能源需求和排放的正反馈效应
+# 输出形状：(5, 16)
+
+scenario_name: climate_feedback
+output_dir: data/gcam
+output_file: climate_feedback_gcam_timeseries.h5
+n_samples: 1000
+n_timesteps: 16
+
+params:
+  solar_cost_init_min: 35.0
+  solar_cost_init_max: 130.0
+  cost_learning_rate_min: 0.10
+  cost_learning_rate_max: 0.25
+  carbon_tax_min: 0.0
+  carbon_tax_max: 100.0
+  gdp_growth_min: 1.0
+  gdp_growth_max: 5.0
+  population_growth_min: 0.0
+  population_growth_max: 2.0
+  energy_intensity_min: 0.5
+  energy_intensity_max: 2.0
+  fossil_reserve_min: 0.5
+  fossil_reserve_max: 2.0
+  climate_sensitivity_min: 1.5
+  climate_sensitivity_max: 4.5
+  discount_rate_min: 0.03
+  discount_rate_max: 0.10
+  nuclear_cost_min: 50.0
+  nuclear_cost_max: 300.0
+  ccs_cost_min: 50.0
+  ccs_cost_max: 300.0
+  ev_penetration_min: 0.0
+  ev_penetration_max: 1.0
+  industrial_eff_min: 0.0
+  industrial_eff_max: 0.5
+  land_use_change_min: -2.0
+  land_use_change_max: 5.0
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 0.3
+  augmentation_batch_size: 200
+
+seed: 3003

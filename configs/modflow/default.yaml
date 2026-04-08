@@ -1,0 +1,35 @@
+output_dir: data/modflow
+output_file: groundwater_timeseries_v2.h5
+n_samples: 10000
+n_timesteps: 365
+n_wells: 5
+grid:
+  nrow: 20
+  ncol: 20
+  nlay: 1
+  delr: 100.0
+  delc: 100.0
+  top: 10.0
+  botm: 0.0
+params:
+  hk_min: 1.0
+  hk_max: 50.0
+  sy_min: 0.05
+  sy_max: 0.3
+  pumping_min: -500.0
+  pumping_max: -50.0
+  strt_min: 5.0
+  strt_max: 9.0
+  rch_min: 0.0001
+  rch_max: 0.002
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  n_augmented_per_sample: 0.2
+  perturbation_ratio: 0.05
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 15.0
+  min_head_value: -5.0
+seed: 42

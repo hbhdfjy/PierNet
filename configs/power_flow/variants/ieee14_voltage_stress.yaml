@@ -1,0 +1,52 @@
+# IEEE 14节点电压应力场景
+# 仿真类型：稳态潮流（pandapower）
+# 特点：宽电压范围、高无功需求、线路重载，测试电压稳定边界
+
+scenario_name: ieee14_voltage_stress
+simulation_type: powerflow
+output_dir: data/power_system
+output_file: ieee14_voltage_stress_power_timeseries.h5
+n_samples: 10000
+
+params:
+  load_scale_min: 0.8
+  load_scale_max: 1.4
+  P_load_std_min: 20.0
+  P_load_std_max: 120.0
+  Q_load_ratio_min: 0.25
+  Q_load_ratio_max: 0.6
+  grid_voltage_pu_min: 0.90
+  grid_voltage_pu_max: 1.10
+  renewable_ratio_min: 0.0
+  renewable_ratio_max: 0.4
+  fault_duration_min: 0.0
+  fault_duration_max: 0.0
+  inertia_mean_min: 3.0
+  inertia_mean_max: 8.0
+  damping_mean_min: 0.5
+  damping_mean_max: 4.0
+  line_loading_min: 0.5
+  line_loading_max: 0.98
+  freq_dev_min: 0.0
+  freq_dev_max: 0.2
+  seasonal_amp_min: 0.05
+  seasonal_amp_max: 0.30
+  weekly_drop_min: 0.05
+  weekly_drop_max: 0.25
+  noise_std_min: 0.01
+  noise_std_max: 0.08
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 0.1
+  augmentation_batch_size: 500
+
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-8
+  min_head_value: 0.7
+  max_head_value: 1.3
+
+seed: 2013

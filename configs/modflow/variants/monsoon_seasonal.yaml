@@ -1,0 +1,43 @@
+output_dir: data/modflow
+output_file: monsoon_seasonal_groundwater_timeseries.h5
+n_samples: 2000
+n_timesteps: 365
+n_wells: 5
+grid:
+  nrow: 20
+  ncol: 20
+  nlay: 1
+  delr: 100.0
+  delc: 100.0
+  top: 10.0
+  botm: 0.0
+params:
+  hk_min: 2.0
+  hk_max: 80.0
+  sy_min: 0.05
+  sy_max: 0.35
+  pumping_min: -8000.0
+  pumping_max: -200.0
+  strt_min: 4.0
+  strt_max: 9.0
+  rch_wet_season_min: 0.002
+  rch_wet_season_max: 0.015
+  rch_dry_season_min: 5.0e-06
+  rch_dry_season_max: 0.0008
+  wet_season_duration_min: 60
+  wet_season_duration_max: 210
+seasonal:
+  enabled: true
+  pattern: monsoon
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 1000
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 15.0
+  min_head_value: -5.0
+seed: 1006

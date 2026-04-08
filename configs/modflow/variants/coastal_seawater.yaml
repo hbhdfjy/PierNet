@@ -1,0 +1,42 @@
+output_dir: data/modflow
+output_file: coastal_seawater_groundwater_timeseries.h5
+n_samples: 2000
+n_timesteps: 365
+n_wells: 5
+grid:
+  nrow: 20
+  ncol: 40
+  nlay: 1
+  delr: 100.0
+  delc: 100.0
+  top: 5.0
+  botm: -20.0
+params:
+  hk_min: 5.0
+  hk_max: 120.0
+  sy_min: 0.10
+  sy_max: 0.40
+  pumping_min: -10000.0
+  pumping_max: -1000.0
+  strt_min: 0.2
+  strt_max: 4.0
+  rch_min: 0.0005
+  rch_max: 0.015
+  sea_level: 0.0
+  seawater_density_ratio: 1.025
+seawater:
+  enabled: true
+  boundary_location: left
+  ghyben_herzberg_ratio: 40
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 1000
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 5.0
+  min_head_value: -20.0
+seed: 1007

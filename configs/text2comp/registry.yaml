@@ -1,0 +1,535 @@
+modflow:
+  domain_context: 'Groundwater flow simulation (MODFLOW). Parabolic PDE: S_s·∂h/∂t
+    = ∇(K∇h) + W. FDM + PCG solver. Outputs hydraulic head (meters above datum)
+    at 5 observation wells over 365 days.'
+  observation_config:
+    channel_level: row
+    channel_max: 5
+    channel_min: 1
+    channel_name_template: well {i}
+    channel_name_template_zh: 第{i}号观测井
+    fixed_channels:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    fixed_time_mode: monthly
+    time_mode_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    time_modes:
+    - desc_en: monthly (day 15 of each month), 12 time points
+      desc_zh: 月度（每月第15天），共12个时间点
+      indices: monthly
+      name: monthly
+    - desc_en: seasonal (quarterly), 4 time points
+      desc_zh: 季度采样，共4个时间点
+      indices: seasonal
+      name: seasonal
+    - desc_en: weekly (every 7 days), 52 time points
+      desc_zh: 周采样（每7天），共52个时间点
+      indices: weekly
+      name: weekly
+  output_description: '{ch} observation wells × {ts} days of hydraulic head (meters
+    above datum)'
+  output_info:
+  - description: hydraulic head at observation wells
+    name: hydraulic_head
+    name_zh: 水力水头
+    slice:
+    - 0
+    - null
+    unit: m
+  param_info:
+    BC_strength:
+    - boundary condition hydraulic head
+    - m
+    C_concentration:
+    - contaminant concentration (used in transport scenarios, zero otherwise)
+    - mg/L
+    D_dispersion:
+    - hydrodynamic dispersion coefficient (used in transport scenarios, zero otherwise)
+    - m²/d
+    H_initial:
+    - initial hydraulic head
+    - m
+    K_anisotropy:
+    - horizontal-to-vertical hydraulic conductivity anisotropy ratio
+    - dimensionless
+    K_mean:
+    - mean hydraulic conductivity
+    - m/d
+    K_std:
+    - hydraulic conductivity spatial heterogeneity (standard deviation)
+    - m/d
+    Q_pumping:
+    - pumping rate at extraction wells
+    - m³/d
+    R_recharge:
+    - mean recharge rate
+    - m/d
+    R_variation:
+    - recharge seasonal variation amplitude
+    - dimensionless
+    S_storage:
+    - specific storage coefficient
+    - 1/m
+    lambda_decay:
+    - first-order contaminant decay constant (zero for flow-only scenarios)
+    - 1/d
+    n_layers:
+    - number of aquifer layers
+    - dimensionless
+    phi_porosity:
+    - effective porosity
+    - dimensionless
+    rho_density:
+    - fluid density (used in variable-density scenarios, otherwise 1000)
+    - kg/m³
+  scenarios:
+    coastal_seawater: Coastal aquifer subject to saltwater intrusion from the sea
+      boundary; variable-density flow with saline boundary condition
+    heterogeneous_unconfined: Spatially heterogeneous unconfined aquifer with random
+      K field; high K_std drives preferential flow paths
+    lake_interaction: Aquifer-lake interaction with dynamic water table exchange;
+      Cauchy boundary at lake interface
+    monsoon_seasonal: Seasonal monsoon recharge pattern with alternating wet/dry
+      cycles; R_variation is large
+    multilayer_confined: Multi-layer confined aquifer system with interbedded aquitards;
+      n_layers >= 2
+    river_recharge: Aquifer with river boundary recharge (Cauchy-type boundary condition);
+      river stage drives lateral recharge
+    unified_aquifer: Single-layer homogeneous aquifer with uniform hydraulic properties;
+      baseline scenario for benchmarking
+
+power_flow:
+  domain_context: 'Steady-state AC power flow simulation (pandapower, Newton-Raphson).
+    IEEE 14-bus test system. Nonlinear algebraic equations: P_i = Σ V_i V_j (G_ij
+    cosθ_ij + B_ij sinθ_ij). Outputs bus voltages (p.u.), voltage angles (rad), and
+    line active power flows (MW) concatenated into a (43, 365) time series over one
+    year of daily operation.'
+  observation_config:
+    channel_level: output_info
+    channel_max: 3
+    channel_min: 1
+    fixed_channels:
+    - bus_voltages
+    - voltage_angles
+    - line_power_flows
+    fixed_time_mode: monthly
+    time_mode_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    time_modes:
+    - desc_en: monthly (day 15 of each month), 12 time points
+      desc_zh: 月度（每月第15天），共12个时间点
+      indices: monthly
+      name: monthly
+    - desc_en: seasonal (quarterly), 4 time points
+      desc_zh: 季度采样，共4个时间点
+      indices: seasonal
+      name: seasonal
+    - desc_en: weekly (every 7 days), 52 time points
+      desc_zh: 周采样（每7天），共52个时间点
+      indices: weekly
+      name: weekly
+  output_description: 'IEEE 14-bus: 14 bus voltages + 14 voltage angles + 15 line
+    flows = 43 channels × {ts} days'
+  output_info:
+  - description: bus voltage magnitudes (14 buses)
+    name: bus_voltages
+    name_zh: 母线电压幅值
+    slice:
+    - 0
+    - 14
+    unit: p.u.
+  - description: bus voltage angles (14 buses)
+    name: voltage_angles
+    name_zh: 母线电压相角
+    slice:
+    - 14
+    - 28
+    unit: degree
+  - description: line active power flows (15 lines)
+    name: line_power_flows
+    name_zh: 线路有功功率流
+    slice:
+    - 28
+    - 43
+    unit: MW
+  param_info:
+    P_gen_total:
+    - total active power generation
+    - MW
+    P_load_mean:
+    - mean active power load per bus
+    - MW
+    P_load_std:
+    - standard deviation of active power load (daily variation)
+    - MW
+    Q_load_ratio:
+    - ratio of reactive to active load (power factor proxy)
+    - dimensionless
+    V_base_kv:
+    - base voltage of the bus system
+    - kV
+    damping_mean:
+    - mean generator damping coefficient
+    - dimensionless
+    fault_duration:
+    - duration of fault event (zero for steady-state scenarios)
+    - s
+    freq_dev:
+    - frequency deviation from nominal (50/60 Hz)
+    - Hz
+    grid_voltage_pu:
+    - grid voltage setpoint in per-unit
+    - pu
+    inertia_mean:
+    - mean generator inertia constant H
+    - s
+    line_loading:
+    - line loading factor (fraction of thermal limit)
+    - dimensionless
+    load_scale:
+    - global load scaling factor relative to base case
+    - dimensionless
+    n_buses:
+    - number of buses in the system (14 for all IEEE14 scenarios)
+    - dimensionless
+    renewable_ratio:
+    - fraction of total generation from renewable sources
+    - dimensionless
+    voltage_dev:
+    - voltage deviation from nominal (1.0 pu)
+    - pu
+  scenarios:
+    ieee14_baseload: IEEE 14-bus system under typical base load; load_scale [0.7,
+      1.3], low renewable penetration
+    ieee14_renewable: IEEE 14-bus system with moderate-to-high renewable penetration
+      (20-80%); increased voltage variability
+    ieee14_peak: IEEE 14-bus system under peak load conditions (load_scale 1.1-1.5);
+      high line loading, voltage near lower limit
+    ieee14_light: IEEE 14-bus system under light load with high renewable penetration
+      (50-100%); potential voltage rise and reverse power flow
+    ieee14_voltage_stress: IEEE 14-bus system under voltage stress; wide voltage range,
+      high reactive demand (Q_load_ratio 0.25-0.6), heavy line loading
+
+transient:
+  domain_context: 'Transient stability simulation (ANDES DAE solver). IEEE 14-bus
+    test system with 5 generators. DAE system: δ̇=ω, Mω̇=Pm−Pe−Dω, 0=g(x,y). Implicit
+    trapezoidal integration at 100 Hz. Outputs generator rotor angles (rad) over 10
+    seconds following a disturbance event.'
+  observation_config:
+    channel_level: row
+    channel_max: 5
+    channel_min: 1
+    channel_name_template: generator {i}
+    channel_name_template_zh: 第{i}号发电机
+    fixed_channels:
+    - 0
+    - 1
+    - 2
+    - 3
+    - 4
+    fixed_time_mode: full
+    time_mode_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    time_modes:
+    - desc_en: full 10-second trajectory, 1000 time steps at 100 Hz
+      desc_zh: 完整10秒轨迹，100Hz采样共1000个时间步
+      indices: full
+      name: full
+    - desc_en: first 3 seconds (fault period + initial swing), 300 time steps
+      desc_zh: 前3秒（故障期+初始摆动），共300个时间步
+      indices: first_300
+      name: first_3s
+    - desc_en: downsampled at 10 Hz, 100 time steps
+      desc_zh: 降采样至10Hz，共100个时间步
+      indices: every_10
+      name: downsampled_10hz
+  output_description: '5 generator rotor angles (rad) × {ts} time steps (100 Hz,
+    10 s total)'
+  output_info:
+  - description: generator rotor angles relative to reference (5 generators)
+    name: rotor_angles
+    name_zh: 发电机转子角
+    slice:
+    - 0
+    - null
+    unit: rad
+  param_info:
+    P_gen_total:
+    - total active power generation before disturbance
+    - MW
+    P_load_mean:
+    - mean active power load per bus
+    - MW
+    P_load_std:
+    - standard deviation of active power load
+    - MW
+    Q_load_ratio:
+    - ratio of reactive to active load
+    - dimensionless
+    V_base_kv:
+    - base voltage of the bus system
+    - kV
+    damping_mean:
+    - mean generator damping coefficient D
+    - dimensionless
+    fault_duration:
+    - fault clearing time (0 for load-step scenarios, 0.05-0.25s for fault scenarios)
+    - s
+    freq_dev:
+    - pre-disturbance frequency deviation
+    - Hz
+    grid_voltage_pu:
+    - pre-disturbance bus voltage setpoint
+    - pu
+    inertia_mean:
+    - mean generator inertia constant H (scales all generators)
+    - s
+    line_loading:
+    - pre-disturbance line loading factor
+    - dimensionless
+    load_scale:
+    - load scaling factor relative to base case
+    - dimensionless
+    n_buses:
+    - number of buses (14 for all IEEE14 scenarios)
+    - dimensionless
+    renewable_ratio:
+    - fraction of generation from renewables (affects inertia)
+    - dimensionless
+    voltage_dev:
+    - pre-disturbance voltage deviation
+    - pu
+  scenarios:
+    ieee14_load_step: IEEE 14-bus sudden load increase (no fault); observes frequency
+      response and rotor angle deviation; fault_duration=0
+    ieee14_fault: IEEE 14-bus three-phase short-circuit fault with random clearing
+      time (0.05-0.25 s); tests transient stability limit
+    ieee14_gentrip: IEEE 14-bus permanent generator trip; system rebalances active
+      power; tests post-trip rotor angle dynamics
+
+simpeg:
+  domain_context: 'Geophysical inversion simulation (SimPEG). Elliptic PDE: ∇·(σ∇φ)
+    = −Iδ. 1D layered earth model solved analytically (DC/IP) or via transfer-matrix
+    method (MT/TEM). Outputs: apparent resistivity (Ω·m), impedance phase (°), transient
+    EMF (normalized), or apparent chargeability (dimensionless) as a function of
+    electrode spacing / frequency / time.'
+  observation_config:
+    channel_level: row
+    channel_max: 1
+    channel_min: 1
+    channel_name_template: measurement channel {i}
+    channel_name_template_zh: 第{i}号测量通道
+    fixed_channels: null
+    fixed_time_mode: full
+    time_mode_weights:
+    - 0.7
+    - 0.3
+    time_modes:
+    - desc_en: full survey curve, 100 measurement points
+      desc_zh: 完整测量曲线，共100个测量点
+      indices: full
+      name: full
+    - desc_en: sparse sampling (every 2nd point), 50 measurement points
+      desc_zh: 稀疏采样（每隔1个点），共50个测量点
+      indices: every_2
+      name: sparse_50
+  output_description: 1 measurement channel × {ts} points (electrode spacing / frequency
+    / time axis depending on survey type)
+  output_info:
+  - description: geophysical measurement curve (apparent resistivity / impedance phase
+      / transient EMF / apparent chargeability depending on scenario)
+    name: geophysical_response
+    name_zh: 地球物理响应曲线
+    slice:
+    - 0
+    - null
+    unit: Ω·m / ° / normalized / dimensionless
+  param_info:
+    chargeability:
+    - intrinsic chargeability (Cole-Cole model, IP/TEM scenarios)
+    - dimensionless
+    depth_bottom:
+    - bottom depth of the anomaly body
+    - m
+    depth_top:
+    - top depth of the anomaly body
+    - m
+    freq_max:
+    - maximum MT sounding frequency
+    - Hz
+    freq_min:
+    - minimum MT sounding frequency
+    - Hz
+    mu_r:
+    - relative magnetic permeability
+    - dimensionless
+    n_layers:
+    - number of horizontal earth layers in the model
+    - dimensionless
+    noise_level:
+    - relative measurement noise level (fraction of signal)
+    - dimensionless
+    sigma_anomaly:
+    - electrical conductivity of the anomaly body
+    - S/m
+    sigma_bg:
+    - background electrical conductivity of the host rock
+    - S/m
+    source_spacing:
+    - transmitter-receiver electrode spacing (DC/IP) or loop radius (TEM)
+    - m
+    survey_length:
+    - total survey profile length
+    - m
+    time_constant:
+    - Cole-Cole relaxation time constant (IP) or TEM decay time constant
+    - s
+    width_x:
+    - horizontal width of the anomaly body
+    - m
+    width_z:
+    - vertical thickness of the anomaly body
+    - m
+  scenarios:
+    dc_resistivity: DC resistivity survey (Wenner array) over a 3-layer earth model;
+      apparent resistivity vs. electrode spacing
+    ip_chargeability: Induced polarization (IP) survey with Cole-Cole polarization
+      model; apparent chargeability vs. electrode spacing
+    mt_sounding: Magnetotelluric (MT) sounding over a 3-layer resistivity structure;
+      impedance phase and apparent resistivity vs. frequency
+    tem_decay: Time-domain electromagnetic (TEM) central-loop decay measurement;
+      normalized dB/dt vs. time after transmitter turn-off
+
+gcam:
+  domain_context: 'Energy-climate optimization simulation (PyPSA + HiGHS LP solver).
+    Multi-period linear program minimizing total system cost over 2025-2100 (16 five-year
+    steps). Outputs 5 energy/climate variables: coal share, renewable share, CO2
+    emissions, electricity price, and global mean temperature.'
+  observation_config:
+    channel_level: output_info
+    channel_max: 5
+    channel_min: 1
+    fixed_channels:
+    - coal_share
+    - renewable_share
+    - co2_emissions
+    - electricity_price
+    - temperature
+    fixed_time_mode: full
+    time_mode_weights:
+    - 0.5
+    - 0.3
+    - 0.2
+    time_modes:
+    - desc_en: full trajectory 2025-2100, 16 five-year steps
+      desc_zh: 完整轨迹2025-2100年，共16个5年步长
+      indices: full
+      name: full
+    - desc_en: near-term focus 2025-2060, 8 five-year steps
+      desc_zh: 近期聚焦2025-2060年，共8个5年步长
+      indices: first_8
+      name: near_term
+    - desc_en: second half of century 2060-2100, 8 five-year steps
+      desc_zh: 世纪后半段2060-2100年，共8个5年步长
+      indices: last_8
+      name: far_term
+  output_description: '5 energy/climate variables × {ts} five-year steps (2025-2100)'
+  output_info:
+  - description: coal generation share of total electricity (fraction)
+    name: coal_share
+    name_zh: 煤炭发电占比
+    slice:
+    - 0
+    - 1
+    unit: dimensionless
+  - description: renewable generation share of total electricity (fraction)
+    name: renewable_share
+    name_zh: 可再生能源发电占比
+    slice:
+    - 1
+    - 2
+    unit: dimensionless
+  - description: total CO2 emissions including land-use change
+    name: co2_emissions
+    name_zh: 二氧化碳排放量
+    slice:
+    - 2
+    - 3
+    unit: GtCO2/yr
+  - description: average electricity price weighted by dispatch
+    name: electricity_price
+    name_zh: 电力平均价格
+    slice:
+    - 3
+    - 4
+    unit: $/MWh
+  - description: global mean temperature anomaly above pre-industrial baseline
+    name: temperature
+    name_zh: 全球平均气温异常
+    slice:
+    - 4
+    - 5
+    unit: °C
+  param_info:
+    carbon_tax:
+    - carbon tax or CO2 price
+    - $/tCO2
+    ccs_cost:
+    - carbon capture and storage cost
+    - $/tCO2
+    climate_sensitivity:
+    - equilibrium climate sensitivity (ECS)
+    - °C per doubling CO2
+    cost_learning_rate:
+    - learning rate for renewable cost reduction (fraction per doubling capacity)
+    - dimensionless
+    discount_rate:
+    - social discount rate for cost optimization
+    - dimensionless
+    energy_intensity:
+    - energy intensity of GDP (energy per unit output)
+    - EJ/trillion USD
+    ev_penetration:
+    - electric vehicle market penetration rate
+    - dimensionless
+    fossil_reserve:
+    - remaining fossil fuel reserve factor relative to baseline
+    - dimensionless
+    gdp_growth:
+    - annual GDP growth rate
+    - dimensionless
+    industrial_eff:
+    - industrial energy efficiency improvement rate
+    - dimensionless
+    land_use_change:
+    - land-use change CO2 emissions
+    - GtCO2/yr
+    n_regions:
+    - number of modeled world regions
+    - dimensionless
+    nuclear_cost:
+    - nuclear power plant capital cost
+    - $/MWh
+    population_growth:
+    - annual population growth rate
+    - dimensionless
+    solar_cost_init:
+    - initial solar PV capital cost
+    - $/MWh
+  scenarios:
+    energy_transition: Baseline energy transition scenario; moderate carbon tax,
+      standard learning rates, 2°C-compatible pathway
+    carbon_pricing: High carbon pricing scenario (carbon_tax 50-200 $/tCO2); accelerated
+      coal phase-out and renewable deployment
+    climate_feedback: Strong climate feedback scenario (high climate_sensitivity 3-6
+      °C); explores tail risks of temperature overshoot

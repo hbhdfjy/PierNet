@@ -1,0 +1,41 @@
+# Stage 2 Text-to-Computation 任务配置
+# 生成超参数（LLM、并发、语言、变换等）统一在 generation.yaml 中管理
+
+# 引用生成超参数配置（pipeline 启动时自动合并）
+generation_config: configs/text2comp/generation.yaml
+
+# 数据源：每个目录声明 simulator 类型和文件名后缀清理规则
+# simulator:    该目录下文件对应的 simulator 类型（写入 metadata，用于查 registry）
+# file_suffix:  从文件名中去掉的后缀，提取场景名（如 "unified_aquifer_groundwater_timeseries" → "unified_aquifer"）
+data_dirs:
+  modflow:
+    path: data/modflow
+    simulator: modflow
+    file_suffix: _groundwater_timeseries
+  power_flow:
+    path: data/power_system
+    simulator: power_flow
+    file_suffix: _power_timeseries
+    # 白名单：只取 IEEE14 潮流场景
+    include_keywords: [ieee14_baseload, ieee14_renewable, ieee14_peak, ieee14_light, ieee14_voltage_stress]
+  transient:
+    path: data/power_system
+    simulator: transient
+    file_suffix: _power_timeseries
+    # 白名单：只取 IEEE14 暂态场景
+    include_keywords: [ieee14_fault, ieee14_gentrip, ieee14_load_step]
+  simpeg:
+    path: data/simpeg
+    simulator: simpeg
+    file_suffix: _geophysics_timeseries
+  gcam:
+    path: data/gcam
+    simulator: gcam
+    file_suffix: _gcam_timeseries
+
+# 元数据注册表（auto_register 生成，包含所有领域知识）
+registry: configs/text2comp/registry.yaml
+
+# 输出
+output_dir: data/text2comp
+output_file: all_training_data.jsonl

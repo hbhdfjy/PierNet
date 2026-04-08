@@ -1,0 +1,44 @@
+# extends: configs/global.yaml
+# 覆盖项：output_file, n_samples, seed, params, validation
+
+output_dir: data/modflow
+output_file: unified_aquifer_groundwater_timeseries.h5
+n_samples: 2000
+n_timesteps: 365
+n_wells: 5
+
+grid:
+  nrow: 20
+  ncol: 20
+  nlay: 1
+  delr: 100.0
+  delc: 100.0
+  top: 10.0
+  botm: 0.0
+
+params:
+  hk_min: 0.1
+  hk_max: 100.0
+  sy_min: 0.01
+  sy_max: 0.35
+  pumping_min: -10000.0
+  pumping_max: 5000.0
+  strt_min: 4.0
+  strt_max: 9.0
+  rch_min: 0.0001
+  rch_max: 0.08
+
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 1000
+
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 15.0
+  min_head_value: -5.0
+
+seed: 1001

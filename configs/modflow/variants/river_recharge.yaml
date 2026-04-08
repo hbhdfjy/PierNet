@@ -1,0 +1,44 @@
+output_dir: data/modflow
+output_file: river_recharge_groundwater_timeseries.h5
+n_samples: 2000
+n_timesteps: 365
+n_wells: 5
+grid:
+  nrow: 20
+  ncol: 30
+  nlay: 1
+  delr: 100.0
+  delc: 100.0
+  top: 10.0
+  botm: 0.0
+params:
+  hk_min: 2.0
+  hk_max: 100.0
+  sy_min: 0.05
+  sy_max: 0.35
+  pumping_min: -6000.0
+  pumping_max: -200.0
+  strt_min: 4.0
+  strt_max: 9.0
+  rch_min: 0.0005
+  rch_max: 0.03
+  river_stage_min: 6.0
+  river_stage_max: 12.0
+  river_cond_min: 50.0
+  river_cond_max: 2000.0
+river:
+  enabled: true
+  location: left
+  width: 2
+augmentation:
+  enabled: true
+  method: parameter_sampling
+  perturbation_ratio: 0.05
+  seed_ratio: 1.0
+  augmentation_batch_size: 1000
+validation:
+  max_nan_ratio: 0.05
+  min_variance: 1.0e-06
+  max_head_value: 15.0
+  min_head_value: -5.0
+seed: 1004

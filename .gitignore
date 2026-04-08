@@ -1,0 +1,55 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+venv/
+env/
+
+# data/text2comp/*.jsonl 样本填充结果体积过大（>100MB），不追踪
+data/text2comp/*.jsonl
+data/**/*.pt
+data/**/*.pth
+data/**/*.ckpt
+data/**/*.nc
+data/**/*.npy
+data/**/*.npz
+*.pt
+*.pth
+*.ckpt
+
+# Logs & outputs
+outputs/
+logs/
+wandb/
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Temporary files
+*.tmp
+*.bak
+*~
+
+# Test output
+data/text2comp/test/
+
+# ANDES simulation output files
+*.lst
+*.npz
+
+# Migration and backup directories
+migration_backup/
+
+# Environment variables (API keys, secrets)
+.env
