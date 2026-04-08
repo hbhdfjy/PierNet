@@ -88,7 +88,42 @@ export function parseTimeseries(
     return { channels: matrix, labels, unit }
   }
 
-  // 多矩阵路径：target 里有多个 [[...]] 块，每块对应一个 output_info 条目（gcam 等）
+  // 多矩阵路径：target 里有多个 [[...]] 块
+  // 情况A：每个块行数 == output_info 对应 slice 的行数（gcam：每块1行，对应1个变量）
+  // 情况B：每个块都是完整时序（power_flow：4个占位符各填了完整43行），取第一个块按 slice 分段
+  const firstBlock = blocks[0]
+  const hasSlice = outputInfo.length > 0 && outputInfo[0].slice != null
+
+  // 判断是否为 power_flow 类型：块数 > output_info 条数，或块的行数等于所有 slice 的总行数
+  const totalSliceRows = hasSlice
+    ? outputInfo.reduce((s, o) => s + ((o.slice?.[1] ?? firstBlock.length) - (o.slice?.[0] ?? 0)), 0)
+    : 0
+  const isPowerFlowStyle = hasSlice && firstBlock.length === totalSliceRows
+
+  if (isPowerFlowStyle) {
+    // 取第一个块，按 output_info slice 分段标注
+    const channels: number[][] = []
+    const labels: string[] = []
+    const units: string[] = []
+    for (const info of outputInfo) {
+      const [s, e] = info.slice ?? [0, null]
+      const rows = firstBlock.slice(s, e ?? firstBlock.length)
+      const nameZh = info.name_zh ?? info.name ?? 'output'
+      const unit = info.unit ?? ''
+      for (let r = 0; r < rows.length; r++) {
+        channels.push(rows[r])
+        labels.push(rows.length === 1
+          ? (unit ? `${nameZh} (${unit})` : nameZh)
+          : (unit ? `${nameZh}[${r + 1}] (${unit})` : `${nameZh}[${r + 1}]`)
+        )
+        units.push(unit)
+      }
+    }
+    if (channels.length === 0) return null
+    return { channels, labels, unit: units[0] ?? '' }
+  }
+
+  // 每块对应一个 output_info 条目（gcam：5个块，每块1行）
   const channels: number[][] = []
   const labels: string[] = []
   const units: string[] = []

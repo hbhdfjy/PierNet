@@ -70,6 +70,19 @@ export default function TimeseriesChart({ sample }: Props) {
               {i + 1}
             </button>
           ))}
+          <div className="w-px bg-slate-700/60 self-stretch mx-0.5" />
+          <button
+            onClick={() => setVisibleChannels(new Set(labels.map((_, i) => i)))}
+            className="text-xs px-2 py-0.5 rounded-full border border-slate-600/60 text-slate-400 hover:border-slate-400 hover:text-slate-200 transition-all duration-150"
+          >
+            全选
+          </button>
+          <button
+            onClick={() => setVisibleChannels(new Set([0]))}
+            className="text-xs px-2 py-0.5 rounded-full border border-slate-600/60 text-slate-400 hover:border-slate-400 hover:text-slate-200 transition-all duration-150"
+          >
+            仅第1
+          </button>
         </div>
       )}
 

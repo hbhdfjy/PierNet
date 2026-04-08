@@ -210,7 +210,7 @@ export default function App() {
 
         {/* 底部版本信息 */}
         <div className="px-4 py-2.5 border-t border-slate-700/40 flex items-center justify-between">
-          <span className="text-xs text-slate-700 font-mono">ICML 2026</span>
+          <span className="text-xs text-slate-700 font-mono">PiERN</span>
           <div className="flex items-center gap-1">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 animate-pulse" />
             <span className="text-xs text-slate-700">v2</span>

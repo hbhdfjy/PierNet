@@ -1,8 +1,6 @@
 # PiERN 多模拟器数据合成管线
 
-**PiERN**（Physically-isolated Experts Routing Network）论文数据合成代码，投稿 ICML 2026。
-
-> *"PiERN-Dataset is the first large-scale simulation dataset spanning three physical domains and five mathematical structures: parabolic PDEs (MODFLOW), elliptic PDEs (SimPEG), nonlinear algebraic systems (pandapower), differential-algebraic equations (ANDES), and dynamic algebraic systems (GCAM). All simulators share a unified 18-dimensional parameter representation."*
+**PiERN**（Physically-isolated Experts Routing Network）多模拟器数据合成管线。
 
 ---
 
