@@ -2,15 +2,16 @@ import type { Config } from 'tailwindcss'
 
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  darkMode: 'class',
   theme: {
     fontSize: {
-      xs:   ['0.875rem',  { lineHeight: '1.375rem' }],   // 14px
-      sm:   ['1rem',      { lineHeight: '1.625rem' }],   // 16px
-      base: ['1.125rem',  { lineHeight: '1.875rem' }],   // 18px
-      lg:   ['1.25rem',   { lineHeight: '2rem'     }],   // 20px
-      xl:   ['1.4375rem', { lineHeight: '2.125rem' }],   // 23px
-      '2xl':['1.6875rem', { lineHeight: '2.375rem' }],   // 27px
-      '3xl':['2.0625rem', { lineHeight: '2.625rem' }],   // 33px
+      xs:   ['0.8125rem', { lineHeight: '1.25rem'  }],   // 13px
+      sm:   ['0.9375rem', { lineHeight: '1.5rem'   }],   // 15px
+      base: ['1.0625rem', { lineHeight: '1.75rem'  }],   // 17px
+      lg:   ['1.1875rem', { lineHeight: '1.875rem' }],   // 19px
+      xl:   ['1.375rem',  { lineHeight: '2rem'     }],   // 22px
+      '2xl':['1.625rem',  { lineHeight: '2.25rem'  }],   // 26px
+      '3xl':['2rem',      { lineHeight: '2.5rem'   }],   // 32px
       '4xl':['2.5rem',    { lineHeight: '3rem'     }],   // 40px
     },
     extend: {
