@@ -61,6 +61,26 @@ def get_template_items(
     return {"total": total, "page": page, "page_size": page_size, "items": items[start:end]}
 
 
+@router.post("/files/templates/{scenario}/trim")
+def trim_template_file(scenario: str, n: int = Query(..., ge=1, description="保留的模板条数")):
+    """将指定场景的模板文件截断到 n 条。"""
+    path = TEMPLATES_DIR / f"{scenario}_templates.jsonl"
+    if not path.exists():
+        raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            lines = [l for l in f if l.strip()]
+        original = len(lines)
+        if n >= original:
+            return {"ok": True, "scenario": scenario, "before": original, "after": original, "changed": False}
+        with open(path, "w", encoding="utf-8") as f:
+            for line in lines[:n]:
+                f.write(line if line.endswith("\n") else line + "\n")
+        return {"ok": True, "scenario": scenario, "before": original, "after": n, "changed": True}
+    except Exception as e:
+        raise HTTPException(500, f"截断失败: {e}")
+
+
 @router.delete("/files/templates/{scenario}")
 def delete_template_file(scenario: str):
     """删除指定场景的模板文件。"""

@@ -169,8 +169,8 @@ def run_generate_templates(
         already_have = 0
         if append_existing and out_path.exists():
             try:
-                with open(out_path, "rb") as f:
-                    already_have = f.read().count(b"\n")
+                with open(out_path, "r", encoding="utf-8") as f:
+                    already_have = sum(1 for l in f if l.strip())
             except Exception:
                 already_have = 0
             if already_have >= n_per_scenario:
@@ -227,7 +227,17 @@ def run_generate_templates(
                 progress_callback=_make_progress_cb(scenario_name, already_have),
             )
 
-        total_now = already_have + len(templates)
+        # 截断到精确目标行数（并发写入可能超出）
+        with open(out_path, "r", encoding="utf-8") as f:
+            lines = [l for l in f if l.strip()]
+        actual = len(lines)
+        if actual > n_per_scenario:
+            with open(out_path, "w", encoding="utf-8") as f:
+                f.writelines(lines[:n_per_scenario])
+            _log(f"  截断 {actual} → {n_per_scenario} 条")
+            actual = n_per_scenario
+
+        total_now = actual
         _log(f"  已保存 {len(templates)} 条模板 → {out_path.name}（共 {total_now} 条）")
         stats["total"] += len(templates)
         stats[simulator] += len(templates)

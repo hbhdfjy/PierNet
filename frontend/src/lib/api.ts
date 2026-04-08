@@ -230,6 +230,12 @@ export const api = {
   listSampleFiles: (): Promise<SampleFileInfo[]> =>
     get('/files/samples'),
 
+  trimTemplateFile: async (scenario: string, n: number): Promise<{ before: number; after: number }> => {
+    const res = await fetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}/trim?n=${n}`, { method: 'POST' })
+    if (!res.ok) throw new Error(`截断失败 (${res.status})`)
+    return res.json()
+  },
+
   deleteTemplateFile: async (scenario: string): Promise<void> => {
     const res = await fetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
     if (!res.ok) throw new Error(`删除失败 (${res.status})`)

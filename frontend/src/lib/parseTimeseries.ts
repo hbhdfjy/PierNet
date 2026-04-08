@@ -38,44 +38,70 @@ export function parseTimeseries(
   if (blocks.length === 0) return null
 
   const obs = meta.observation
-  const outputInfo = meta.output_info
+  const outputInfo = meta.output_info as Array<{ name: string; name_zh?: string; unit?: string; slice?: [number, number | null] }>
 
-  // row-level 降采样（modflow, power_transient）：只有1个 output_info 条目
-  // blocks[0] 就是 ts_obs，形状 [n_sel_channels][n_time_points]
-  if (obs.channel_indices !== null || outputInfo.length === 1) {
+  // 单矩阵路径：target 里只有 1 个 [[...]] 块（modflow, transient, power_flow 等）
+  // 直接用 output_info 的 slice 信息为每段通道生成标签
+  if (blocks.length === 1 || obs.channel_indices !== null) {
     const matrix = blocks[0]
     if (!matrix || matrix.length === 0) return null
 
+    // 有明确通道索引：按索引生成标签（modflow/transient）
+    if (obs.channel_indices !== null) {
+      const chanIndices = obs.channel_indices
+      const unit = outputInfo[0]?.unit ?? ''
+      const nameZh = outputInfo[0]?.name_zh ?? outputInfo[0]?.name ?? 'output'
+      const labels = chanIndices.map((idx) => unit ? `${nameZh}[${idx + 1}] (${unit})` : `${nameZh}[${idx + 1}]`)
+      return { channels: matrix, labels, unit }
+    }
+
+    // 无通道索引：按 output_info 的 slice 分段标注（power_flow: V/θ/P 三段）
+    if (outputInfo.length > 1) {
+      const channels: number[][] = []
+      const labels: string[] = []
+      const units: string[] = []
+      for (const info of outputInfo) {
+        const [s, e] = info.slice ?? [0, null]
+        const rows = matrix.slice(s, e ?? matrix.length)
+        const nameZh = info.name_zh ?? info.name ?? 'output'
+        const unit = info.unit ?? ''
+        for (let r = 0; r < rows.length; r++) {
+          channels.push(rows[r])
+          labels.push(rows.length === 1
+            ? (unit ? `${nameZh} (${unit})` : nameZh)
+            : (unit ? `${nameZh}[${r + 1}] (${unit})` : `${nameZh}[${r + 1}]`)
+          )
+          units.push(unit)
+        }
+      }
+      if (channels.length === 0) return null
+      return { channels, labels, unit: units[0] ?? '' }
+    }
+
+    // 单 output_info 条目（simpeg 等）
     const unit = outputInfo[0]?.unit ?? ''
     const nameZh = outputInfo[0]?.name_zh ?? outputInfo[0]?.name ?? 'output'
-    const chanIndices = obs.channel_indices ?? matrix.map((_, i) => i)
-
-    const labels = chanIndices.map((idx) => unit ? `${nameZh}[${idx + 1}] (${unit})` : `${nameZh}[${idx + 1}]`)
-
+    const labels = matrix.map((_, r) => matrix.length === 1
+      ? (unit ? `${nameZh} (${unit})` : nameZh)
+      : (unit ? `${nameZh}[${r + 1}] (${unit})` : `${nameZh}[${r + 1}]`)
+    )
     return { channels: matrix, labels, unit }
   }
 
-  // output_info 级别降采样（power_flow, gcam, simpeg）：
-  // blocks 可能有多个，每个对应一个 output_info 条目
-  const selected = obs.selected_output_names
+  // 多矩阵路径：target 里有多个 [[...]] 块，每块对应一个 output_info 条目（gcam 等）
   const channels: number[][] = []
   const labels: string[] = []
   const units: string[] = []
 
-  for (let i = 0; i < selected.length; i++) {
-    const info = outputInfo.find((o) => o.name === selected[i]) ?? outputInfo[i]
+  for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i]
-    if (!block) continue
-
-    // block 形状：[n_rows][n_time_points]，n_rows 由 slice 决定
-    const [s, e] = info?.slice ?? [0, null]
-    const n_rows = e !== null ? e - s : block.length
-
-    for (let r = 0; r < Math.min(n_rows, block.length); r++) {
+    const info = outputInfo[i]
+    if (!block || !info) continue
+    const nameZh = info.name_zh ?? info.name ?? `output${i}`
+    const unit = info.unit ?? ''
+    for (let r = 0; r < block.length; r++) {
       channels.push(block[r])
-      const nameZh = info?.name_zh ?? info?.name ?? selected[i]
-      const unit = info?.unit ?? ''
-      labels.push(n_rows === 1
+      labels.push(block.length === 1
         ? (unit ? `${nameZh} (${unit})` : nameZh)
         : (unit ? `${nameZh}[${r + 1}] (${unit})` : `${nameZh}[${r + 1}]`)
       )

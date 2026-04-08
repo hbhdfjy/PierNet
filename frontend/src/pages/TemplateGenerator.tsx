@@ -40,6 +40,8 @@ export default function TemplateGenerator() {
   const [filesOpen, setFilesOpen] = useState(false)
   const [deletingFile, setDeletingFile] = useState<string | null>(null)
   const [clearingAll, setClearingAll] = useState(false)
+  const [trimmingFile, setTrimmingFile] = useState<string | null>(null)
+  const [trimTarget, setTrimTarget] = useState<Record<string, string>>({})
 
   const [languageMix, setLanguageMix] = useState<number | null>(null)
   const [transformProb, setTransformProb] = useState<number | null>(null)
@@ -107,6 +109,20 @@ export default function TemplateGenerator() {
       setError(e instanceof Error ? e.message : '删除失败')
     } finally {
       setDeletingFile(null)
+    }
+  }
+
+  const handleTrimTemplate = async (scenario: string) => {
+    const n = parseInt(trimTarget[scenario] ?? '', 10)
+    if (isNaN(n) || n < 1) { setError('请输入有效的目标数量'); return }
+    setTrimmingFile(scenario)
+    try {
+      const res = await api.trimTemplateFile(scenario, n)
+      if (res.changed) refreshTemplateFiles()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '截断失败')
+    } finally {
+      setTrimmingFile(null)
     }
   }
 
@@ -469,6 +485,7 @@ export default function TemplateGenerator() {
                         <th className="px-3 py-1.5 text-left label">场景</th>
                         <th className="px-3 py-1.5 text-right label">模板数</th>
                         <th className="px-3 py-1.5 text-right label">大小</th>
+                        <th className="px-3 py-1.5 text-right label">截断至</th>
                         <th className="px-3 py-1.5 text-right label">操作</th>
                       </tr>
                     </thead>
@@ -478,6 +495,24 @@ export default function TemplateGenerator() {
                           <td className="px-3 py-1.5 font-mono text-slate-300">{f.scenario}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-violet-400">{f.template_count.toLocaleString()}</td>
                           <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{formatBytes(f.file_size_bytes)}</td>
+                          <td className="px-3 py-1.5 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                type="number" min={1}
+                                placeholder={String(f.template_count)}
+                                value={trimTarget[f.scenario] ?? ''}
+                                onChange={e => setTrimTarget(prev => ({ ...prev, [f.scenario]: e.target.value }))}
+                                className="w-24 bg-slate-800 border border-slate-600/60 rounded-lg px-2 py-0.5 text-xs text-slate-200 text-right focus:outline-none focus:border-sky-500/50"
+                              />
+                              <button
+                                className="btn-ghost py-0.5 px-1.5 text-amber-400 hover:text-amber-300 text-xs"
+                                onClick={() => handleTrimTemplate(f.scenario)}
+                                disabled={trimmingFile === f.scenario || !trimTarget[f.scenario]}
+                                title="截断到指定数量">
+                                {trimmingFile === f.scenario ? <RefreshCw size={10} className="animate-spin" /> : '截断'}
+                              </button>
+                            </div>
+                          </td>
                           <td className="px-3 py-1.5 text-right">
                             <button className="btn-ghost py-0.5 px-1.5 text-red-400 hover:text-red-300"
                               onClick={() => handleDeleteTemplate(f.scenario)}
