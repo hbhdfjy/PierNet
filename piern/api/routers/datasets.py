@@ -126,20 +126,26 @@ def get_samples(
 
 @router.get("/stats")
 def get_stats():
-    """统计 all_training_data.jsonl 中的样本分布。"""
+    """统计各场景 JSONL 文件的样本分布（始终从独立文件汇总，忽略 all_training_data.jsonl）。"""
     global _stats_cache, _stats_cache_mtime
 
-    merged = DATA_DIR / "all_training_data.jsonl"
-    if not merged.exists():
-        return _compute_stats_from_individual()
+    # 用所有独立 JSONL 文件的最新 mtime 作为缓存 key
+    if DATA_DIR.exists():
+        mtimes = [
+            f.stat().st_mtime
+            for f in DATA_DIR.glob("*.jsonl")
+            if f.name != "all_training_data.jsonl"
+        ]
+        latest_mtime = max(mtimes) if mtimes else 0.0
+    else:
+        latest_mtime = 0.0
 
-    mtime = merged.stat().st_mtime
-    if _stats_cache is not None and mtime <= _stats_cache_mtime:
+    if _stats_cache is not None and latest_mtime <= _stats_cache_mtime:
         return _stats_cache
 
-    stats = _compute_stats(merged)
+    stats = _compute_stats_from_individual()
     _stats_cache = stats
-    _stats_cache_mtime = mtime
+    _stats_cache_mtime = latest_mtime
     return stats
 
 
