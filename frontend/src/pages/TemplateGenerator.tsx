@@ -118,7 +118,7 @@ export default function TemplateGenerator() {
     setTrimmingFile(scenario)
     try {
       const res = await api.trimTemplateFile(scenario, n)
-      if (res.changed) refreshTemplateFiles()
+      if (res.after !== res.before) refreshTemplateFiles()
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '截断失败')
     } finally {

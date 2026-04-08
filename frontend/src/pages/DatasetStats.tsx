@@ -6,7 +6,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
 } from 'recharts'
 import { formatBytes, LANGUAGE_LABELS, STYLE_LABELS, SIMULATOR_LABELS } from '../lib/utils'
-import { RefreshCw, Database, Layers, TrendingUp, Globe } from 'lucide-react'
+import { RefreshCw, Database, Layers, TrendingUp, Globe, BarChart2 } from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 
 const COLORS = ['#38bdf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c']
@@ -140,42 +140,51 @@ export default function DatasetStats() {
   const loading = sLoading || dLoading
 
   return (
-    <div className="flex-1 overflow-y-auto p-6">
+    <div className="flex-1 flex flex-col overflow-hidden">
       {/* 页头 */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h1 className="text-xl font-semibold text-white">数据集统计</h1>
-          <p className="text-sm text-slate-400 mt-0.5">Stage 2 生成样本的分布概览</p>
+      <div className="page-header flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-sky-500/15 border border-sky-500/25 flex items-center justify-center flex-shrink-0">
+            <BarChart2 size={13} className="text-sky-400" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-white leading-none">数据集统计</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Stage 3 生成样本的分布概览</p>
+          </div>
         </div>
         <button
-          className="btn-ghost"
+          className="btn-ghost py-1 px-2"
           onClick={() => { refreshStats(); refreshDatasets() }}
         >
-          <RefreshCw size={13} className={loading ? 'animate-spin' : ''} />
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           刷新
         </button>
       </div>
+      <div className="flex-1 overflow-y-auto p-5">
 
       {loading && !stats && (
         <div className="flex items-center justify-center gap-2 h-48 text-slate-500">
-          <RefreshCw size={16} className="animate-spin" />
-          <span className="text-sm">加载中…</span>
+          <RefreshCw size={14} className="animate-spin" />
+          <span className="text-xs">加载中…</span>
         </div>
       )}
 
       {stats && (
         <>
           {/* 汇总卡片 */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
             {[
-              { label: '总样本数', value: stats.total_samples.toLocaleString(), color: 'text-sky-400', sub: '条训练样本' },
-              { label: '场景数',   value: Object.keys(stats.by_scenario).length,  color: 'text-emerald-400', sub: '个仿真场景' },
-              { label: 'Simulator', value: Object.keys(stats.by_simulator).length, color: 'text-amber-400', sub: '种仿真器' },
-              { label: '时序形状', value: Object.keys(stats.timeseries_shapes).length, color: 'text-purple-400', sub: '种输出形状' },
-            ].map(({ label, value, color, sub }) => (
-              <div key={label} className="card-hover p-4 cursor-default">
-                <div className="text-xs text-slate-500 mb-1">{label}</div>
-                <div className={`text-2xl font-bold font-mono tabular-nums ${color}`}>{value}</div>
+              { label: '总样本数', value: stats.total_samples.toLocaleString(), color: 'text-sky-400', sub: '条训练样本', dotColor: 'bg-sky-500' },
+              { label: '场景数',   value: Object.keys(stats.by_scenario).length,  color: 'text-emerald-400', sub: '个仿真场景', dotColor: 'bg-emerald-500' },
+              { label: 'Simulator', value: Object.keys(stats.by_simulator).length, color: 'text-amber-400', sub: '种仿真器', dotColor: 'bg-amber-500' },
+              { label: '时序形状', value: Object.keys(stats.timeseries_shapes).length, color: 'text-purple-400', sub: '种输出形状', dotColor: 'bg-purple-500' },
+            ].map(({ label, value, color, sub, dotColor }) => (
+              <div key={label} className="card-hover px-4 py-3.5 cursor-default">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <div className={`w-1.5 h-1.5 rounded-full ${dotColor}`} />
+                  <span className="text-xs text-slate-500">{label}</span>
+                </div>
+                <div className={`text-xl font-bold font-mono tabular-nums ${color}`}>{value}</div>
                 <div className="text-xs text-slate-600 mt-0.5">{sub}</div>
               </div>
             ))}
@@ -244,6 +253,7 @@ export default function DatasetStats() {
           description="请先在「注册数据集」页面注册 Simulator，然后「启动生成」运行 Stage 2"
         />
       )}
+      </div>
     </div>
   )
 }

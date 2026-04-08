@@ -9,7 +9,7 @@ import {
 import {
   BookTemplate, ChevronLeft, ChevronRight, Filter,
   RefreshCw, Hash, AlignLeft, Target, Info, ChevronDown,
-  ArrowRightLeft, Clock, Layers,
+  ArrowRightLeft, Clock, Layers, FileCode,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 
@@ -258,27 +258,40 @@ export default function TemplateViewer() {
   const totalPages = templatesData ? Math.ceil(templatesData.total / PAGE_SIZE) : 0
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="flex-1 flex flex-col overflow-hidden">
+      {/* 页头 */}
+      <div className="page-header flex-shrink-0">
+        <div className="flex items-center gap-2.5">
+          <div className="w-6 h-6 rounded-lg bg-violet-500/15 border border-violet-500/25 flex items-center justify-center flex-shrink-0">
+            <FileCode size={13} className="text-violet-400" />
+          </div>
+          <div>
+            <h1 className="text-sm font-semibold text-white leading-none">模板浏览</h1>
+            <p className="text-xs text-slate-500 mt-0.5">Stage 2 生成的语言模板</p>
+          </div>
+        </div>
+      </div>
+      <div className="flex-1 flex overflow-hidden">
 
       {/* ── 左侧场景列表 ── */}
-      <div className="w-60 flex-shrink-0 border-r border-slate-700/40 overflow-y-auto bg-slate-900/60 flex flex-col">
-        <div className="px-5 py-4 border-b border-slate-700/40 flex-shrink-0">
+      <div className="w-52 flex-shrink-0 border-r border-slate-700/40 overflow-y-auto bg-slate-900/40 flex flex-col">
+        <div className="px-4 py-3 border-b border-slate-700/40 flex-shrink-0">
           <div className="flex items-center gap-2">
-            <BookTemplate size={14} className="text-violet-400" />
-            <span className="label text-slate-300">模板库</span>
+            <BookTemplate size={13} className="text-violet-400" />
+            <span className="label">模板库</span>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
           {filesLoading && (
-            <div className="flex items-center gap-2 px-4 py-4 text-slate-500 text-sm">
-              <RefreshCw size={13} className="animate-spin" /> 加载中…
+            <div className="flex items-center gap-2 px-3 py-4 text-slate-500 text-xs">
+              <RefreshCw size={12} className="animate-spin" /> 加载中…
             </div>
           )}
           {Object.entries(grouped).map(([sim, files]) => {
             const badge = SIMULATOR_BADGE[sim]
             return (
               <div key={sim}>
-                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border-b border-slate-800/60', badge?.text ?? 'text-slate-500')}>
+                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
                   <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                   {SIMULATOR_LABELS[sim] ?? sim}
                 </div>
@@ -287,14 +300,14 @@ export default function TemplateViewer() {
                     key={f.scenario}
                     onClick={() => { setScenario(f.scenario); setPage(0) }}
                     className={cn(
-                      'w-full text-left px-5 py-2.5 text-sm transition-all duration-150 border-b border-slate-800/40',
+                      'w-full text-left px-3 py-2 text-xs transition-all duration-150 border-b border-slate-800/30',
                       selectedScenario === f.scenario
-                        ? 'bg-violet-500/10 text-violet-300 border-l-2 border-l-violet-500'
-                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-l-2 border-l-transparent',
+                        ? 'bg-violet-500/8 text-violet-300 border-l-2 border-l-violet-500'
+                        : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border-l-2 border-l-transparent',
                     )}
                   >
-                    <div className="font-medium truncate text-xs">{f.scenario}</div>
-                    <div className="text-slate-600 mt-0.5 text-xs tabular-nums">
+                    <div className="font-medium truncate">{f.scenario}</div>
+                    <div className="text-slate-600 mt-0.5 tabular-nums">
                       {f.template_count.toLocaleString()} 条
                     </div>
                   </button>
@@ -315,10 +328,10 @@ export default function TemplateViewer() {
       <div className="flex-1 flex flex-col overflow-hidden">
 
         {/* 工具栏 */}
-        <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-slate-700/40 bg-slate-900/30 flex-shrink-0">
-          <Filter size={13} className="text-slate-500 flex-shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/40 bg-slate-900/20 flex-shrink-0">
+          <Filter size={12} className="text-slate-600 flex-shrink-0" />
           <select
-            className="select text-sm py-1 w-28"
+            className="select text-xs py-1 px-2 w-24 h-7"
             value={language}
             onChange={e => { setLanguage(e.target.value); setPage(0) }}
           >
@@ -327,7 +340,7 @@ export default function TemplateViewer() {
             <option value="en">English</option>
           </select>
           <select
-            className="select text-sm py-1 w-28"
+            className="select text-xs py-1 px-2 w-24 h-7"
             value={style}
             onChange={e => { setStyle(e.target.value); setPage(0) }}
           >
@@ -347,23 +360,23 @@ export default function TemplateViewer() {
 
           {/* 翻页 */}
           {totalPages > 1 && (
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button
-                className="btn-ghost py-1 px-2"
+                className="btn-ghost py-1 px-1.5"
                 onClick={() => setPage(p => Math.max(0, p - 1))}
                 disabled={page === 0}
               >
-                <ChevronLeft size={14} />
+                <ChevronLeft size={13} />
               </button>
               <span className="text-xs text-slate-500 tabular-nums px-1">
                 {page + 1} / {totalPages}
               </span>
               <button
-                className="btn-ghost py-1 px-2"
+                className="btn-ghost py-1 px-1.5"
                 onClick={() => setPage(p => Math.min(totalPages - 1, p + 1))}
                 disabled={page >= totalPages - 1}
               >
-                <ChevronRight size={14} />
+                <ChevronRight size={13} />
               </button>
             </div>
           )}
@@ -425,6 +438,7 @@ export default function TemplateViewer() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   )

@@ -42,9 +42,9 @@ const STEP_COLORS: Record<StepColor, { active: string; dot: string }> = {
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 mb-1.5 flex items-center gap-2">
-      <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{children}</span>
-      <div className="flex-1 h-px bg-slate-700/40" />
+    <div className="px-2 mb-1 flex items-center gap-1.5">
+      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest whitespace-nowrap">{children}</span>
+      <div className="flex-1 h-px bg-slate-700/30" />
     </div>
   )
 }
@@ -53,7 +53,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function NavItem({
   to, icon: Icon, label,
-  activeClass = 'bg-slate-700/60 text-slate-200',
+  activeClass = 'bg-slate-700/50 text-slate-200',
 }: {
   to: string; icon: React.ElementType; label: string; activeClass?: string
 }) {
@@ -61,11 +61,11 @@ function NavItem({
     <NavLink
       to={to}
       className={({ isActive }) => cn(
-        'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-all duration-150',
-        isActive ? activeClass + ' font-medium' : 'text-slate-500 hover:bg-slate-800/60 hover:text-slate-300',
+        'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
+        isActive ? activeClass + ' font-medium' : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
       )}
     >
-      <Icon size={14} className="flex-shrink-0" />
+      <Icon size={13} className="flex-shrink-0 opacity-70" />
       <span className="truncate">{label}</span>
     </NavLink>
   )
@@ -78,23 +78,23 @@ export default function App() {
     <div className="flex h-screen overflow-hidden bg-slate-950">
 
       {/* ── 侧边栏 ── */}
-      <aside className="w-52 flex-shrink-0 bg-slate-900/98 border-r border-slate-700/40 flex flex-col select-none">
+      <aside className="w-48 flex-shrink-0 bg-slate-950 border-r border-slate-800/80 flex flex-col select-none">
 
         {/* Logo */}
-        <div className="px-4 py-4 border-b border-slate-700/40">
+        <div className="px-3 py-3.5 border-b border-slate-800/80">
           <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500/30 to-blue-600/20 border border-sky-500/40 flex items-center justify-center flex-shrink-0">
-              <span className="text-sky-400 font-black text-sm">P</span>
+            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-900/40">
+              <span className="text-white font-black text-sm">P</span>
             </div>
             <div>
               <div className="text-white font-bold text-sm tracking-wide leading-none">PiERN</div>
-              <div className="text-slate-600 text-xs mt-0.5">多模拟器数据集</div>
+              <div className="text-slate-600 text-[10px] mt-0.5 leading-none">多模拟器数据集</div>
             </div>
           </div>
         </div>
 
         {/* 导航主体 */}
-        <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+        <nav className="flex-1 overflow-y-auto px-2 py-2.5 space-y-3">
 
           {/* Stage 1 */}
           <div>
@@ -102,21 +102,22 @@ export default function App() {
             <NavLink
               to="/simulate"
               className={({ isActive }) => cn(
-                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-all duration-150 border',
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
                 isActive
-                  ? 'bg-amber-500/15 text-amber-300 border-amber-500/25 font-medium'
-                  : 'text-slate-500 border-transparent hover:bg-slate-800/60 hover:text-slate-300',
+                  ? 'bg-amber-500/15 text-amber-300 font-medium'
+                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
               )}
             >
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'bg-amber-500 text-white' : 'bg-slate-700/60 text-slate-500',
+                    'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 transition-all',
+                    isActive ? 'bg-amber-500/20 text-amber-400' : 'text-slate-600',
                   )}>
-                    <Zap size={11} />
+                    <Zap size={12} />
                   </div>
                   <span className="flex-1 truncate">仿真运行</span>
+                  {isActive && <div className="w-1 h-1 rounded-full bg-amber-400 flex-shrink-0" />}
                 </>
               )}
             </NavLink>
@@ -133,22 +134,25 @@ export default function App() {
                     key={to}
                     to={to}
                     className={({ isActive }) => cn(
-                      'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-all duration-150 border',
+                      'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
                       isActive
                         ? `${colors.active} font-medium`
-                        : 'text-slate-500 border-transparent hover:bg-slate-800/60 hover:text-slate-300',
+                        : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
                     )}
                   >
                     {({ isActive }) => (
                       <>
                         <div className={cn(
-                          'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all',
-                          isActive ? colors.dot + ' text-white' : 'bg-slate-700/60 text-slate-500',
+                          'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-bold transition-all',
+                          isActive ? 'opacity-90' : 'text-slate-600',
                         )}>
                           {step}
                         </div>
                         <span className="flex-1 truncate">{label}</span>
-                        <Icon size={12} className="flex-shrink-0 opacity-50" />
+                        {isActive
+                          ? <div className={cn('w-1 h-1 rounded-full flex-shrink-0', colors.dot)} />
+                          : <Icon size={11} className="flex-shrink-0 opacity-30" />
+                        }
                       </>
                     )}
                   </NavLink>
@@ -163,22 +167,22 @@ export default function App() {
             <NavLink
               to="/fill"
               className={({ isActive }) => cn(
-                'flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm transition-all duration-150 border',
+                'flex items-center gap-2 px-2 py-1.5 rounded-md text-xs transition-all duration-150',
                 isActive
-                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25 font-medium'
-                  : 'text-slate-500 border-transparent hover:bg-slate-800/60 hover:text-slate-300',
+                  ? 'bg-emerald-500/15 text-emerald-300 font-medium'
+                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
               )}
             >
               {({ isActive }) => (
                 <>
                   <div className={cn(
-                    'w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all',
-                    isActive ? 'bg-emerald-500 text-white' : 'bg-slate-700/60 text-slate-500',
+                    'w-5 h-5 rounded flex items-center justify-center flex-shrink-0 text-[10px] font-bold transition-all',
+                    isActive ? 'text-emerald-400' : 'text-slate-600',
                   )}>
-                    01
+                    <FlaskConical size={12} />
                   </div>
                   <span className="flex-1 truncate">样本填充</span>
-                  <FlaskConical size={12} className="flex-shrink-0 opacity-50" />
+                  {isActive && <div className="w-1 h-1 rounded-full bg-emerald-400 flex-shrink-0" />}
                 </>
               )}
             </NavLink>
@@ -201,7 +205,7 @@ export default function App() {
               {SETTINGS_ITEMS.map(({ to, icon, label, color }) => (
                 <NavItem
                   key={to} to={to} icon={icon} label={label}
-                  activeClass={color === 'amber' ? 'bg-amber-500/15 text-amber-300' : 'bg-sky-500/15 text-sky-300'}
+                  activeClass={color === 'amber' ? 'bg-amber-500/10 text-amber-300' : 'bg-slate-700/50 text-slate-200'}
                 />
               ))}
             </div>
@@ -209,11 +213,11 @@ export default function App() {
         </nav>
 
         {/* 底部版本信息 */}
-        <div className="px-4 py-2.5 border-t border-slate-700/40 flex items-center justify-between">
-          <span className="text-xs text-slate-700 font-mono">PiERN</span>
+        <div className="px-3 py-2 border-t border-slate-800/80 flex items-center justify-between">
+          <span className="text-[10px] text-slate-700 font-mono">v2.0</span>
           <div className="flex items-center gap-1">
-            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500/60 animate-pulse" />
-            <span className="text-xs text-slate-700">v2</span>
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] text-slate-600">online</span>
           </div>
         </div>
       </aside>

@@ -16,8 +16,8 @@
   body {
     @apply bg-slate-900 text-slate-200 antialiased;
     font-family: 'Inter', system-ui, sans-serif;
-    font-size: 18px;
-    line-height: 1.6;
+    font-size: 14px;
+    line-height: 1.5;
   }
 
   @keyframes bounce {
@@ -43,18 +43,18 @@
 
 @layer components {
   .card {
-    @apply bg-slate-800/80 border border-slate-700/60 rounded-2xl backdrop-blur-sm;
+    @apply bg-slate-800/80 border border-slate-700/60 rounded-xl backdrop-blur-sm;
   }
   .card-header {
-    @apply px-5 py-3.5 border-b border-slate-700/40 flex items-center gap-2.5;
+    @apply px-4 py-3 border-b border-slate-700/40 flex items-center gap-2;
   }
   .badge {
-    @apply inline-flex items-center px-2.5 py-1 rounded-md text-sm font-medium leading-none;
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium leading-none;
   }
   .btn {
-    @apply inline-flex items-center gap-2 px-4 py-2 rounded-xl text-base font-medium
+    @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium
            transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed
-           active:scale-95;
+           active:scale-[0.98];
   }
   .btn-primary {
     @apply btn bg-sky-600 hover:bg-sky-500 text-white shadow-sm shadow-sky-900/30;
@@ -66,7 +66,7 @@
     @apply btn bg-red-700/80 hover:bg-red-600 text-white;
   }
   .input {
-    @apply bg-slate-900/80 border border-slate-600/70 rounded-xl px-4 py-2.5 text-base
+    @apply bg-slate-900/80 border border-slate-600/70 rounded-lg px-3 py-2 text-sm
            text-slate-200 transition-all duration-150
            focus:outline-none focus:ring-2 focus:ring-sky-500/60 focus:border-sky-500/50
            placeholder:text-slate-500;
@@ -75,10 +75,10 @@
     @apply input appearance-none cursor-pointer;
   }
   .label {
-    @apply text-sm font-semibold text-slate-500 uppercase tracking-widest;
+    @apply text-xs font-semibold text-slate-500 uppercase tracking-wider;
   }
   .mono {
-    @apply font-mono text-base;
+    @apply font-mono text-sm;
   }
   .divider {
     @apply border-t border-slate-700/40;
@@ -94,5 +94,9 @@
     background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
+  }
+  /* 页面顶部 header 统一样式 */
+  .page-header {
+    @apply flex items-center justify-between px-5 py-3.5 border-b border-slate-700/40 flex-shrink-0 bg-slate-900/40;
   }
 }

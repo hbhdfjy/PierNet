@@ -553,7 +553,7 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
               { id: 'params', icon: <Tag size={13} />,      label: `参数 (${Object.keys(params).length})`, disabled: !hasParams },
               { id: 'raw',    icon: <FileText size={13} />, label: 'Raw JSON', disabled: false },
             ] as const).map(t => (
-              <button key={t.id} disabled={t.disabled} onClick={() => { setTab(t.id); setEditing(null) }}
+              <button key={t.id} disabled={t.disabled} onClick={() => { setTab(t.id) }}
                 className={cn('flex items-center gap-1.5 px-4 py-2.5 text-sm transition-colors border-b-2 whitespace-nowrap flex-shrink-0',
                   tab === t.id && !t.disabled ? 'border-sky-500 text-sky-300 bg-sky-500/5'
                   : t.disabled ? 'border-transparent text-slate-700 cursor-not-allowed'
