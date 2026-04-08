@@ -12,7 +12,7 @@ interface Props {
   sample: SampleRecord
 }
 
-const MAX_CHANNELS_DEFAULT = 8
+const MAX_CHANNELS_DEFAULT = 1
 
 export default function TimeseriesChart({ sample }: Props) {
   const parsed = useMemo(
@@ -21,7 +21,7 @@ export default function TimeseriesChart({ sample }: Props) {
   )
 
   const [visibleChannels, setVisibleChannels] = useState<Set<number>>(
-    () => new Set(parsed ? parsed.channels.map((_, i) => i).slice(0, MAX_CHANNELS_DEFAULT) : [])
+    () => new Set(parsed ? parsed.channels.map((_, i) => i) : [])
   )
 
   if (!parsed) {

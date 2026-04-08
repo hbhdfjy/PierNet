@@ -24,6 +24,7 @@ class FillSamplesRequest(BaseModel):
     templates_dir: str = ""
     output_dir: str = ""
     seed: Optional[int] = None
+    precision: int = Field(4, ge=1, le=10)
 
 
 class JobStartResponse(BaseModel):

@@ -112,6 +112,7 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
             output_dir=req.output_dir or None,
             skip_existing=req.skip_existing,
             seed=req.seed,
+            precision=req.precision,
             on_scenario_start=on_scenario_start,
             on_progress=on_progress,
             on_log=on_log,

@@ -172,6 +172,7 @@ def fill_sample(
     timeseries_obs: np.ndarray,
     sample_idx: int,
     output_info: list = None,
+    precision: int = 4,
 ) -> dict:
     """
     阶段二：将实际数值填入模板，生成最终训练样本。
@@ -203,7 +204,7 @@ def fill_sample(
                 ensure_ascii=False,
             )
         else:
-            val_str = f"{float(val):.5g}"
+            val_str = f"{float(val):.{precision}g}"
         input_text = input_text.replace(ph, val_str)
 
     # ── 填充 target：替换 {output_N} ─────────────────────────
@@ -211,8 +212,10 @@ def fill_sample(
     target_text = template.target_template
     for slot in template.output_schema:
         ph = f"{{output_{slot.index}}}"
+        # 按 precision 截断时序数值的小数位数
+        rounded = np.round(timeseries_obs, precision).tolist()
         target_text = target_text.replace(
-            ph, json.dumps(timeseries_obs.tolist(), ensure_ascii=False)
+            ph, json.dumps(rounded, ensure_ascii=False)
         )
 
     # ── 组装最终样本 ──────────────────────────────────────────

@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { DatasetInfo, SamplesResponse } from '../lib/types'
 import SampleCard from '../components/sample/SampleCard'
 import EmptyState from '../components/ui/EmptyState'
 import { ChevronLeft, ChevronRight, Filter, Database, RefreshCw } from 'lucide-react'
-import { cn } from '../lib/utils'
+import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../lib/utils'
 
 const PAGE_SIZE = 10
 
@@ -17,6 +17,16 @@ export default function SampleViewer() {
 
   const { data: datasets, isLoading: dLoading } =
     useSWR<DatasetInfo[]>('datasets', () => api.getDatasets())
+
+  const grouped = useMemo(() => {
+    const g: Record<string, DatasetInfo[]> = {}
+    for (const d of datasets ?? []) {
+      const sim = d.simulator || 'unknown'
+      if (!g[sim]) g[sim] = []
+      g[sim].push(d)
+    }
+    return g
+  }, [datasets])
 
   const selectedScenario = scenario || datasets?.[0]?.name || ''
 
@@ -41,25 +51,34 @@ export default function SampleViewer() {
               <RefreshCw size={13} className="animate-spin" /> 加载中…
             </div>
           )}
-          {datasets?.map((d) => (
-            <button
-              key={d.name}
-              onClick={() => { setScenario(d.name); setPage(0) }}
-              className={cn(
-                'w-full text-left px-5 py-3.5 text-sm transition-all duration-150 border-b border-slate-800/40',
-                selectedScenario === d.name
-                  ? 'bg-sky-500/10 text-sky-300 border-l-2 border-l-sky-500'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-l-2 border-l-transparent',
-              )}
-            >
-              <div className="font-medium truncate">{d.name}</div>
-              <div className="text-slate-500 mt-0.5 text-xs flex items-center gap-1.5">
-                <span className="truncate">{d.simulator}</span>
-                <span>·</span>
-                <span className="tabular-nums">{d.sample_count}</span>
+          {Object.entries(grouped).map(([sim, items]) => {
+            const badge = SIMULATOR_BADGE[sim]
+            return (
+              <div key={sim}>
+                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border-b border-slate-800/60', badge?.text ?? 'text-slate-500')}>
+                  <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
+                  {SIMULATOR_LABELS[sim] ?? sim}
+                </div>
+                {items.map(d => (
+                  <button
+                    key={d.name}
+                    onClick={() => { setScenario(d.name); setPage(0) }}
+                    className={cn(
+                      'w-full text-left px-5 py-2.5 text-sm transition-all duration-150 border-b border-slate-800/40',
+                      selectedScenario === d.name
+                        ? 'bg-sky-500/10 text-sky-300 border-l-2 border-l-sky-500'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-l-2 border-l-transparent',
+                    )}
+                  >
+                    <div className="font-medium truncate text-xs">{d.name}</div>
+                    <div className="text-slate-600 mt-0.5 text-xs tabular-nums">
+                      {d.sample_count.toLocaleString()} 条
+                    </div>
+                  </button>
+                ))}
               </div>
-            </button>
-          ))}
+            )
+          })}
           {!dLoading && (!datasets || datasets.length === 0) && (
             <div className="px-4 py-8 text-slate-600 text-sm flex flex-col items-center gap-2">
               <Database size={22} className="opacity-30" />

@@ -58,6 +58,7 @@ def run_fill_samples(
     output_dir: str = None,
     skip_existing: bool = False,
     seed: int = None,
+    precision: int = 4,
     on_scenario_start=None,  # (scenario: str, total: int) -> None
     on_progress=None,        # (scenario: str, done: int) -> None
     on_log=None,             # (line: str) -> None
@@ -225,7 +226,7 @@ def run_fill_samples(
                     continue
 
                 try:
-                    sample = fill_sample(template, p, ts_obs, sample_idx=d_idx, output_info=output_info_list)
+                    sample = fill_sample(template, p, ts_obs, sample_idx=d_idx, output_info=output_info_list, precision=precision)
                     fout.write(json.dumps(sample, ensure_ascii=False) + "\n")
                     written += 1
                     # 每 50 条上报一次进度，避免事件洪泛
@@ -295,6 +296,7 @@ def main():
     parser.add_argument("--output-dir", default=None, help="输出目录（默认 data/text2comp/）")
     parser.add_argument("--skip-existing", action="store_true")
     parser.add_argument("--seed", type=int, default=None)
+    parser.add_argument("--precision", type=int, default=4, help="数值小数位数（默认4位）")
     args = parser.parse_args()
 
     run_fill_samples(
@@ -305,6 +307,7 @@ def main():
         output_dir=args.output_dir,
         skip_existing=args.skip_existing,
         seed=args.seed,
+        precision=args.precision,
     )
 
 

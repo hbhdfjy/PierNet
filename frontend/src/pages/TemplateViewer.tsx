@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import type { TemplateFileInfo, TemplateRecord, TemplatesResponse } from '../lib/types'
+import type { TemplateFileInfo, TemplateRecord, TemplatesResponse, Text2CompScenariosConfig } from '../lib/types'
 import {
   LANGUAGE_LABELS, STYLE_LABELS, getSimulatorBadgeClass,
-  LANGUAGE_BADGE, STYLE_BADGE,
+  LANGUAGE_BADGE, STYLE_BADGE, SIMULATOR_BADGE, SIMULATOR_LABELS,
 } from '../lib/utils'
 import {
   BookTemplate, ChevronLeft, ChevronRight, Filter,
@@ -223,6 +223,30 @@ export default function TemplateViewer() {
   const { data: templateFiles, isLoading: filesLoading } =
     useSWR<TemplateFileInfo[]>('template-files-viewer', () => api.listTemplateFiles())
 
+  const { data: scenariosCfg } =
+    useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios())
+
+  // 场景名 → simulator 映射
+  const scenarioSimMap = useMemo(() => {
+    const m: Record<string, string> = {}
+    if (scenariosCfg) {
+      for (const items of Object.values(scenariosCfg))
+        for (const s of items) m[s.name] = s.simulator
+    }
+    return m
+  }, [scenariosCfg])
+
+  // 按 simulator 分组
+  const grouped = useMemo(() => {
+    const g: Record<string, TemplateFileInfo[]> = {}
+    for (const f of templateFiles ?? []) {
+      const sim = scenarioSimMap[f.scenario] ?? 'unknown'
+      if (!g[sim]) g[sim] = []
+      g[sim].push(f)
+    }
+    return g
+  }, [templateFiles, scenarioSimMap])
+
   const selectedScenario = scenario || templateFiles?.[0]?.scenario || ''
 
   const { data: templatesData, isLoading: tLoading } = useSWR<TemplatesResponse>(
@@ -250,23 +274,34 @@ export default function TemplateViewer() {
               <RefreshCw size={13} className="animate-spin" /> 加载中…
             </div>
           )}
-          {templateFiles?.map(f => (
-            <button
-              key={f.scenario}
-              onClick={() => { setScenario(f.scenario); setPage(0) }}
-              className={cn(
-                'w-full text-left px-5 py-3.5 text-sm transition-all duration-150 border-b border-slate-800/40',
-                selectedScenario === f.scenario
-                  ? 'bg-violet-500/10 text-violet-300 border-l-2 border-l-violet-500'
-                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-l-2 border-l-transparent',
-              )}
-            >
-              <div className="font-medium truncate">{f.scenario}</div>
-              <div className="text-slate-500 mt-0.5 text-xs flex items-center gap-1.5 tabular-nums">
-                <span>{f.template_count.toLocaleString()} 条模板</span>
+          {Object.entries(grouped).map(([sim, files]) => {
+            const badge = SIMULATOR_BADGE[sim]
+            return (
+              <div key={sim}>
+                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold border-b border-slate-800/60', badge?.text ?? 'text-slate-500')}>
+                  <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
+                  {SIMULATOR_LABELS[sim] ?? sim}
+                </div>
+                {files.map(f => (
+                  <button
+                    key={f.scenario}
+                    onClick={() => { setScenario(f.scenario); setPage(0) }}
+                    className={cn(
+                      'w-full text-left px-5 py-2.5 text-sm transition-all duration-150 border-b border-slate-800/40',
+                      selectedScenario === f.scenario
+                        ? 'bg-violet-500/10 text-violet-300 border-l-2 border-l-violet-500'
+                        : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200 border-l-2 border-l-transparent',
+                    )}
+                  >
+                    <div className="font-medium truncate text-xs">{f.scenario}</div>
+                    <div className="text-slate-600 mt-0.5 text-xs tabular-nums">
+                      {f.template_count.toLocaleString()} 条
+                    </div>
+                  </button>
+                ))}
               </div>
-            </button>
-          ))}
+            )
+          })}
           {!filesLoading && (!templateFiles || templateFiles.length === 0) && (
             <div className="px-4 py-8 text-slate-600 text-sm flex flex-col items-center gap-2">
               <BookTemplate size={22} className="opacity-30" />

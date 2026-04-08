@@ -175,6 +175,7 @@ export interface FillSamplesRequest {
   skip_existing: boolean
   config: string
   seed?: number
+  precision?: number      // 数值小数位数，默认4
 }
 
 export interface JobStartResponse {

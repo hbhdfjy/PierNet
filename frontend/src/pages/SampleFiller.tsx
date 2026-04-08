@@ -33,6 +33,7 @@ export default function SampleFiller() {
   const [nSamples, setNSamples] = useState(100)
   const [skipExisting, setSkipExisting] = useState(false)
   const [seed, setSeed] = useState<number>(42)
+  const [precision, setPrecision] = useState(4)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [filesOpen, setFilesOpen] = useState(false)
@@ -85,6 +86,7 @@ export default function SampleFiller() {
         skip_existing: skipExisting,
         config: 'configs/text2comp/default.yaml',
         seed,
+        precision,
       })
       monitor.start(result.job_id)
     } catch (e: unknown) {
@@ -255,6 +257,15 @@ export default function SampleFiller() {
                 <label className="label block mb-1 text-xs">随机种子</label>
                 <input type="number" className="input w-full text-xs py-1.5 px-3" value={seed}
                   min={0} onChange={e => setSeed(parseInt(e.target.value) || 0)} />
+              </div>
+              <div>
+                <label className="label block mb-1 text-xs">数值精度（小数位）</label>
+                <select className="select w-full text-xs py-1.5 px-3" value={precision}
+                  onChange={e => setPrecision(parseInt(e.target.value))}>
+                  {[2, 3, 4, 5, 6, 8].map(p => (
+                    <option key={p} value={p}>{p} 位</option>
+                  ))}
+                </select>
               </div>
               <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/40 rounded-xl border border-slate-700/30">
                 <input id="skip-f" type="checkbox" className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0"
