@@ -209,14 +209,19 @@ def fill_sample(
 
     # ── 填充 target：替换 {output_N} ─────────────────────────
     # timeseries_obs 已在阶段一按 channel_indices 和 time_indices 切好，直接填入
+    # 用与 input 相同的有效数字精度（:.{precision}g）格式化每个数值
     target_text = template.target_template
-    for slot in template.output_schema:
-        ph = f"{{output_{slot.index}}}"
-        # 按 precision 截断时序数值的小数位数
-        rounded = np.round(timeseries_obs, precision).tolist()
-        target_text = target_text.replace(
-            ph, json.dumps(rounded, ensure_ascii=False)
-        )
+    if template.output_schema:
+        # 预先将整个矩阵按有效数字截断，避免在循环内重复计算
+        ts_list = timeseries_obs.tolist()
+        ts_rounded = [
+            [float(f"{x:.{precision}g}") for x in row]
+            for row in ts_list
+        ]
+        ts_json = json.dumps(ts_rounded, ensure_ascii=False)
+        for slot in template.output_schema:
+            ph = f"{{output_{slot.index}}}"
+            target_text = target_text.replace(ph, ts_json)
 
     # ── 组装最终样本 ──────────────────────────────────────────
     return {
