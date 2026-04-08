@@ -232,8 +232,9 @@ def _compute_stats_from_individual() -> dict:
                         obs = meta.get("observation", {})
                         by_time_mode[obs.get("time_mode", "?")] += 1
                         shape_obs = meta.get("timeseries_shape_obs")
-                        if shape_obs and sc not in timeseries_shapes:
-                            timeseries_shapes[sc] = shape_obs
+                        sim = meta.get("simulator", "unknown")
+                        if shape_obs and sim not in timeseries_shapes:
+                            timeseries_shapes[sim] = shape_obs
                     except Exception:
                         continue
         except Exception:

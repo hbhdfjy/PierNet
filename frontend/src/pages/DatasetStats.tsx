@@ -227,21 +227,29 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-700/40 bg-slate-800/30">
-              <th className="px-5 py-3 text-left label">场景</th>
+              <th className="px-5 py-3 text-left label">Simulator</th>
               <th className="px-5 py-3 text-right label">通道数</th>
               <th className="px-5 py-3 text-right label">时间点</th>
+              <th className="px-5 py-3 text-right label">形状</th>
               <th className="px-5 py-3 text-right label">总元素</th>
             </tr>
           </thead>
           <tbody>
-            {entries.map(([sc, [ch, ts]], i) => (
-              <tr key={sc} className={cn(
+            {entries.map(([sim, [ch, ts]], i) => (
+              <tr key={sim} className={cn(
                 'border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors',
                 i % 2 === 0 ? '' : 'bg-slate-800/10',
               )}>
-                <td className="px-5 py-3 font-mono text-slate-300 text-sm">{sc}</td>
+                <td className="px-5 py-3">
+                  <span className={cn('badge border', getSimulatorBadgeClass(sim))}>
+                    {SIMULATOR_LABELS[sim] ?? sim}
+                  </span>
+                </td>
                 <td className="px-5 py-3 text-right tabular-nums text-slate-400">{ch}</td>
                 <td className="px-5 py-3 text-right tabular-nums text-slate-400">{ts}</td>
+                <td className="px-5 py-3 text-right font-mono text-slate-500">
+                  ({ch}, {ts})
+                </td>
                 <td className="px-5 py-3 text-right tabular-nums font-semibold text-sky-400">
                   {(ch * ts).toLocaleString()}
                 </td>
