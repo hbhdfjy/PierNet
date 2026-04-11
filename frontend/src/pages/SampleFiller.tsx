@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSeed } from '../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, SampleFileInfo } from '../lib/types'
@@ -29,10 +30,10 @@ export default function SampleFiller() {
   const { data: sampleFiles, isLoading: sfLoading, mutate: refreshSampleFiles } =
     useSWR<SampleFileInfo[]>('sample-files', () => api.listSampleFiles(), { refreshInterval: 10000 })
 
+  const { seed } = useSeed()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nSamples, setNSamples] = useState(100)
   const [skipExisting, setSkipExisting] = useState(false)
-  const [seed, setSeed] = useState<number>(42)
   const [precision, setPrecision] = useState(4)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -247,16 +248,11 @@ export default function SampleFiller() {
               <Settings size={12} className="text-slate-500" />
               <span className="text-xs font-medium text-slate-400">参数</span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="label block mb-1 text-xs">每场景样本数</label>
                 <input type="number" className="input w-full text-xs py-1.5 px-3" value={nSamples}
                   min={1} max={100000} onChange={e => setNSamples(parseInt(e.target.value) || 1)} />
-              </div>
-              <div>
-                <label className="label block mb-1 text-xs">随机种子</label>
-                <input type="number" className="input w-full text-xs py-1.5 px-3" value={seed}
-                  min={0} onChange={e => setSeed(parseInt(e.target.value) || 0)} />
               </div>
               <div>
                 <label className="label block mb-1 text-xs">数值精度（小数位）</label>

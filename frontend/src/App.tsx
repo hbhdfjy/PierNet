@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, createContext, useContext } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate, KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network } from 'lucide-react'
+import { Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate, KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network, Shuffle } from 'lucide-react'
 import { cn } from './lib/utils'
+import { SeedContext } from './lib/seedContext'
 import SampleViewer from './pages/SampleViewer'
 import DatasetStats from './pages/DatasetStats'
 import RegisterSimulator from './pages/RegisterSimulator'
@@ -105,10 +106,26 @@ function NavItem({
 
 // ── 主应用 ────────────────────────────────────────────────────────
 
+function useSeedState(): [number, (v: number) => void] {
+  const [seed, setSeedRaw] = useState<number>(() => {
+    const saved = localStorage.getItem('piern-seed')
+    const n = saved !== null ? parseInt(saved, 10) : 42
+    return isNaN(n) ? 42 : Math.max(0, n)
+  })
+  const setSeed = (v: number) => {
+    setSeedRaw(v)
+    localStorage.setItem('piern-seed', String(v))
+  }
+  return [seed, setSeed]
+}
+
 export default function App() {
   const [theme, toggleTheme] = useTheme()
+  const [seed, setSeed] = useSeedState()
+  const [seedInput, setSeedInput] = useState(String(seed))
 
   return (
+    <SeedContext.Provider value={{ seed, setSeed }}>
     <div className="flex h-screen overflow-hidden bg-[hsl(var(--bg))]">
 
       {/* ── 侧边栏 ── */}
@@ -275,22 +292,52 @@ export default function App() {
           </div>
         </nav>
 
-        {/* 底部：主题切换 + 版本 */}
-        <div className="px-3 py-2.5 border-t border-[hsl(var(--border)/0.5)] flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="text-xs text-[hsl(var(--text-faint))] font-mono">v2.0</span>
+        {/* 底部：随机种子 + 主题切换 */}
+        <div className="border-t border-[hsl(var(--border)/0.5)] flex-shrink-0">
+          {/* 随机种子 */}
+          <div className="px-3 pt-2.5 pb-2">
+            <div className="flex items-center justify-between mb-1.5">
+              <div className="flex items-center gap-1.5 text-[hsl(var(--text-faint))]">
+                <Shuffle size={11} />
+                <span className="text-xs">随机种子</span>
+              </div>
+              <span className="text-xs font-mono text-[hsl(var(--text-faint))]">全局</span>
+            </div>
+            <input
+              type="number"
+              min={0}
+              value={seedInput}
+              onChange={e => {
+                setSeedInput(e.target.value)
+                const n = parseInt(e.target.value, 10)
+                if (!isNaN(n) && n >= 0) setSeed(n)
+              }}
+              onBlur={() => {
+                const n = parseInt(seedInput, 10)
+                const v = isNaN(n) ? 42 : Math.max(0, n)
+                setSeed(v)
+                setSeedInput(String(v))
+              }}
+              className="w-full bg-[hsl(var(--surface2))] border border-[hsl(var(--border)/0.6)] rounded-lg px-2.5 py-1.5 text-xs font-mono text-[hsl(var(--text))] focus:outline-none focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500/40 transition-all"
+            />
           </div>
-          <button
-            onClick={toggleTheme}
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface2))] hover:text-[hsl(var(--text))]"
-            title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
-          >
-            {theme === 'dark'
-              ? <><Sun size={14} /><span>日间</span></>
-              : <><Moon size={14} /><span>夜间</span></>
-            }
-          </button>
+          {/* 主题切换 + 版本 */}
+          <div className="px-3 pb-2.5 flex items-center justify-between">
+            <div className="flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="text-xs text-[hsl(var(--text-faint))] font-mono">v2.0</span>
+            </div>
+            <button
+              onClick={toggleTheme}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface2))] hover:text-[hsl(var(--text))]"
+              title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
+            >
+              {theme === 'dark'
+                ? <><Sun size={14} /><span>日间</span></>
+                : <><Moon size={14} /><span>夜间</span></>
+              }
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -316,5 +363,6 @@ export default function App() {
         </Routes>
       </main>
     </div>
+    </SeedContext.Provider>
   )
 }

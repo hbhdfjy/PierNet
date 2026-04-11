@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSeed } from '../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { SimulationScenario, SimulationHistoryRecord } from '../lib/types'
@@ -202,8 +203,7 @@ export default function SimulationRunner() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nSamples, setNSamples] = useState(100)
   const [nSamplesInput, setNSamplesInput] = useState('100')
-  const [seed, setSeed] = useState(42)
-  const [seedInput, setSeedInput] = useState('42')
+  const { seed } = useSeed()
   const [skipExisting, setSkipExisting] = useState(false)
   const [parallel, setParallel] = useState(false)
   const [maxWorkers, setMaxWorkers] = useState(4)
@@ -434,45 +434,24 @@ export default function SimulationRunner() {
 
           {/* 参数行 */}
           <div className="px-4 py-3 space-y-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="label block mb-1">样本数 / 场景</label>
-                <input
-                  type="number"
-                  className="input w-full text-xs py-1.5 px-3"
-                  value={nSamplesInput}
-                  min={1} max={100000}
-                  onChange={e => {
-                    setNSamplesInput(e.target.value)
-                    const n = parseInt(e.target.value, 10)
-                    if (!isNaN(n) && n >= 1) setNSamples(n)
-                  }}
-                  onBlur={() => {
-                    const n = parseInt(nSamplesInput, 10)
-                    const v = isNaN(n) ? 1 : Math.max(1, Math.min(100000, n))
-                    setNSamples(v); setNSamplesInput(String(v))
-                  }}
-                />
-              </div>
-              <div>
-                <label className="label block mb-1">随机种子</label>
-                <input
-                  type="number"
-                  className="input w-full text-xs py-1.5 px-3"
-                  value={seedInput}
-                  min={0}
-                  onChange={e => {
-                    setSeedInput(e.target.value)
-                    const n = parseInt(e.target.value, 10)
-                    if (!isNaN(n) && n >= 0) setSeed(n)
-                  }}
-                  onBlur={() => {
-                    const n = parseInt(seedInput, 10)
-                    const v = isNaN(n) ? 42 : Math.max(0, n)
-                    setSeed(v); setSeedInput(String(v))
-                  }}
-                />
-              </div>
+            <div>
+              <label className="label block mb-1">样本数 / 场景</label>
+              <input
+                type="number"
+                className="input w-full text-xs py-1.5 px-3"
+                value={nSamplesInput}
+                min={1} max={100000}
+                onChange={e => {
+                  setNSamplesInput(e.target.value)
+                  const n = parseInt(e.target.value, 10)
+                  if (!isNaN(n) && n >= 1) setNSamples(n)
+                }}
+                onBlur={() => {
+                  const n = parseInt(nSamplesInput, 10)
+                  const v = isNaN(n) ? 1 : Math.max(1, Math.min(100000, n))
+                  setNSamples(v); setNSamplesInput(String(v))
+                }}
+              />
             </div>
 
             {/* skip-existing 开关 */}

@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useSeed } from '../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { RouterStatus, RouterScenarioInfo } from '../lib/types'
@@ -90,7 +91,7 @@ export default function RouterDataBuilder() {
     useSWR<RouterStatus>('router-status', () => api.getRouterStatus(), { refreshInterval: 10000 })
 
   // 参数
-  const [seed, setSeed] = useState(42)
+  const { seed } = useSeed()
   const [negRatio, setNegRatio] = useState(1)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
