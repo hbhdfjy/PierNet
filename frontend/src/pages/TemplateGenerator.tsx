@@ -160,7 +160,7 @@ export default function TemplateGenerator() {
                 <Cpu size={14} className="text-violet-400" />
               </div>
               <h1 className="text-base font-bold text-white">模板生成</h1>
-              <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs">阶段二</span>
+              <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs">Stage 2</span>
             </div>
             {totalTemplates > 0 && (
               <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -169,7 +169,7 @@ export default function TemplateGenerator() {
               </div>
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-1.5 ml-9">调用 LLM 生成语言模板，可被阶段三反复复用</p>
+          <p className="text-slate-500 text-xs mt-1.5 ml-9">调用 LLM 生成语言模板，可被 Stage 3 反复复用</p>
         </div>
 
         {/* 中部：场景选择（flex-1，独立滚动）*/}
