@@ -389,6 +389,52 @@ export interface BatchSimulateRequest {
   max_workers: number
 }
 
+// ── Stage 4 Token Router ──────────────────────────────────────────
+
+export interface RouterSplitInfo {
+  exists: boolean
+  count: number
+  file_size_bytes: number
+  mtime: number
+}
+
+export interface RouterScenarioInfo {
+  scenario: string
+  simulator: string
+  source_count: number          // Stage 3 样本数
+  router_count?: number         // Router 已生成条数（未生成时不存在）
+  file_size_bytes?: number
+  mtime?: number
+}
+
+export interface RouterStatus {
+  splits: Record<'train' | 'val' | 'test', RouterSplitInfo>
+  total: number
+  label_counts: Record<number, number>
+  scenarios: RouterScenarioInfo[]
+  source_count: number
+  source_by_scenario: Record<string, number>
+  router_dir: string
+}
+
+export interface RouterSample {
+  context: string
+  label: 0 | 1
+  metadata: {
+    simulator: string
+    scenario: string
+    language: string
+    trigger_prefix: string
+  }
+}
+
+export interface RouterSamplesResponse {
+  total: number
+  page: number
+  page_size: number
+  items: RouterSample[]
+}
+
 export interface SimulationHistoryRecord {
   job_id: string
   simulator: string

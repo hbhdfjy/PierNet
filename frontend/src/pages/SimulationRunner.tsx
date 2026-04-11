@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../lib/api'
 import type { SimulationScenario, SimulationHistoryRecord } from '../lib/types'
@@ -177,6 +178,7 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
 // ── 主页面 ────────────────────────────────────────────────────────
 
 export default function SimulationRunner() {
+  const navigate = useNavigate()
   const monitor = useJobMonitor('simulate')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
     defaultWidth: 520,
@@ -312,14 +314,14 @@ export default function SimulationRunner() {
         style={{ width: sidebarWidth }}
       >
         {/* 页头 */}
-        <div className="flex-shrink-0 px-4 pt-3.5 pb-2.5 border-b border-slate-700/30">
+        <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-slate-700/30">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
-                <Zap size={12} className="text-amber-400" />
+            <div className="flex items-center gap-2.5">
+              <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
+                <Zap size={14} className="text-amber-400" />
               </div>
-              <h1 className="text-sm font-bold text-white">仿真运行</h1>
-              <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs py-0.5">Stage 1</span>
+              <h1 className="text-base font-bold text-white">仿真运行</h1>
+              <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs">Stage 1</span>
             </div>
             <button
               className="btn-ghost py-1 px-2 text-xs"
@@ -332,11 +334,11 @@ export default function SimulationRunner() {
               <RefreshCw size={11} className={isLoading ? 'animate-spin' : ''} />
             </button>
           </div>
-          <p className="text-slate-500 text-xs mt-1 ml-8">物理仿真 → HDF5 数据集</p>
+          <p className="text-slate-500 text-xs mt-1.5 ml-9">物理仿真 → HDF5 数据集</p>
         </div>
 
         {/* 场景筛选标签 */}
-        <div className="flex-shrink-0 flex items-center gap-1 px-3 pt-2 pb-1.5 border-b border-slate-700/20 overflow-x-auto">
+        <div className="flex-shrink-0 flex items-center gap-1 px-4 pt-2 pb-1.5 border-b border-slate-700/20 overflow-x-auto">
           <button
             onClick={() => setFilterSim(null)}
             className={cn(
@@ -370,7 +372,7 @@ export default function SimulationRunner() {
         </div>
 
         {/* 场景列表工具栏 */}
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-1.5 border-b border-slate-700/20">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-700/20">
           <div className="flex items-center gap-1">
             {selected.size > 0 && (
               <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs py-0.5">
@@ -388,7 +390,7 @@ export default function SimulationRunner() {
         </div>
 
         {/* 场景列表（可滚动）*/}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3 min-h-0">
+        <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 min-h-0">
           {isLoading && (
             <div className="flex items-center gap-2 text-slate-500 text-xs py-3 px-1">
               <RefreshCw size={11} className="animate-spin text-amber-500" /> 扫描配置目录…
@@ -431,13 +433,13 @@ export default function SimulationRunner() {
         <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/40">
 
           {/* 参数行 */}
-          <div className="px-3 pt-2.5 pb-2 space-y-2">
+          <div className="px-4 py-3 space-y-3">
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="label block mb-1">样本数 / 场景</label>
                 <input
                   type="number"
-                  className="input w-full text-xs py-1 px-2.5"
+                  className="input w-full text-xs py-1.5 px-3"
                   value={nSamplesInput}
                   min={1} max={100000}
                   onChange={e => {
@@ -456,7 +458,7 @@ export default function SimulationRunner() {
                 <label className="label block mb-1">随机种子</label>
                 <input
                   type="number"
-                  className="input w-full text-xs py-1 px-2.5"
+                  className="input w-full text-xs py-1.5 px-3"
                   value={seedInput}
                   min={0}
                   onChange={e => {
@@ -556,17 +558,17 @@ export default function SimulationRunner() {
           </div>
 
           {error && (
-            <div className="mx-3 mb-2 flex items-start gap-1.5 bg-red-500/8 border border-red-500/20 rounded-lg px-2.5 py-1.5 text-red-300">
-              <AlertCircle size={12} className="flex-shrink-0 mt-0.5" />
+            <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
+              <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
               <span className="text-xs">{error}</span>
             </div>
           )}
 
           {canLaunch && (
-            <div className="px-3 pb-3 space-y-1.5">
+            <div className="px-4 pb-4 space-y-1.5">
               <button
                 className={cn(
-                  'btn w-full py-2 text-sm justify-center shadow-lg',
+                  'btn w-full py-2.5 text-sm justify-center shadow-lg',
                   selected.size > 0 && !launching
                     ? 'bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white'
                     : 'bg-slate-700/60 text-slate-500 cursor-not-allowed',
@@ -575,14 +577,14 @@ export default function SimulationRunner() {
                 disabled={launching || selected.size === 0}
               >
                 {launching
-                  ? <><RefreshCw size={13} className="animate-spin" /> 启动中…</>
+                  ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
                   : selected.size > 1
-                  ? <><Play size={13} /> 批量仿真（{selected.size} 个场景）</>
-                  : <><Zap size={13} /> 开始仿真{selected.size === 1 ? `（${[...selected][0]}）` : ''}</>
+                  ? <><Play size={14} /> 批量仿真（{selected.size} 个场景）</>
+                  : <><Zap size={14} /> 开始仿真{selected.size === 1 ? `（${[...selected][0]}）` : ''}</>
                 }
               </button>
               {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
-                <button className="btn-ghost w-full py-1 justify-center text-xs" onClick={monitor.reset}>
+                <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
                   重新配置
                 </button>
               )}
@@ -597,13 +599,13 @@ export default function SimulationRunner() {
         className="w-1 flex-shrink-0 cursor-col-resize group relative hover:bg-amber-500/40 active:bg-amber-500/60 transition-colors"
       >
         <div className="absolute inset-y-0 left-0 w-px bg-slate-700/60 group-hover:bg-amber-500/50 transition-colors" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-7 rounded-full bg-slate-700/80 border border-slate-600/60 group-hover:bg-amber-500/60 transition-all flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-slate-700/80 border border-slate-600/60 group-hover:bg-amber-500/60 group-hover:border-amber-400/50 transition-all flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
           {[0,1,2].map(i => <div key={i} className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />)}
         </div>
       </div>
 
       {/* ── 右栏 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 min-w-0">
+      <div className="flex-1 flex flex-col overflow-y-auto p-5 space-y-4 min-w-0">
 
         {/* 数据总览卡片 */}
         {scenarios && scenarios.length > 0 && (
@@ -623,13 +625,15 @@ export default function SimulationRunner() {
           jobIds={monitor.jobIds}
           stageLabel="物理仿真"
           stageColor="text-amber-400"
-          accentColor="sky"
+          accentColor="amber"
+          onDone={() => navigate('/register')}
+          doneLabel="去生成模板"
         />
 
         {monitor.status === 'idle' && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-12">
-            <div className="w-12 h-12 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
-              <Zap size={20} className="text-amber-400/60" />
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-16">
+            <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
+              <Zap size={24} className="text-amber-400/60" />
             </div>
             <div>
               <p className="text-slate-400 text-sm font-medium">尚未启动仿真</p>
@@ -642,7 +646,7 @@ export default function SimulationRunner() {
         <div className="card overflow-hidden animate-fade-in">
           <button
             onClick={() => setTableOpen(o => !o)}
-            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-2.5"
+            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-3"
           >
             <div className="flex items-center gap-2">
               <Database size={13} className="text-slate-400" />
@@ -660,7 +664,7 @@ export default function SimulationRunner() {
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
-                  <tr className="border-b border-slate-700/40 bg-slate-800/40">
+                  <tr className="border-b border-slate-700/40">
                     <th className="px-3 py-2 text-left label">模拟器</th>
                     <th className="px-3 py-2 text-left label">场景</th>
                     <th className="px-3 py-2 text-right label">已有</th>
@@ -716,7 +720,7 @@ export default function SimulationRunner() {
         <div className="card overflow-hidden">
           <button
             onClick={() => setHistoryOpen(o => !o)}
-            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-2.5"
+            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-3"
           >
             <div className="flex items-center gap-2">
               <History size={13} className="text-slate-400" />

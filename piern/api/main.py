@@ -14,6 +14,7 @@ from piern.api.routers import (
     files,
     interview,
     simulation,
+    router_data,
 )
 
 app = FastAPI(title="PiERN 多模拟器数据集 API", version="2.0")
@@ -40,6 +41,7 @@ for _router in [
     files.router,
     interview.router,
     simulation.router,
+    router_data.router,
 ]:
     app.include_router(_router, prefix="/api")
 

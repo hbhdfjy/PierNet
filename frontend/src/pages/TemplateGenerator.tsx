@@ -142,6 +142,7 @@ export default function TemplateGenerator() {
 
   const totalTemplates = Object.values(templateMap).reduce((s, t) => s + t.template_count, 0)
   const canLaunch = !monitor.status || monitor.status === 'idle' || monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated'
+  const llmReady = llmCfg?.has_api_key === true
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -388,12 +389,14 @@ export default function TemplateGenerator() {
             <div className="px-4 pb-4 space-y-1.5">
               <button
                 className="btn-primary w-full py-2.5 text-sm justify-center shadow-lg"
-                style={{ background: selected.size > 0 && !launching ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : undefined }}
+                style={{ background: selected.size > 0 && !launching && llmReady ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : undefined }}
                 onClick={handleLaunch}
-                disabled={launching || selected.size === 0}
+                disabled={launching || selected.size === 0 || !llmReady}
               >
                 {launching
                   ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
+                  : !llmReady
+                  ? <><AlertCircle size={14} /> 请先配置 LLM API Key</>
                   : <><Cpu size={14} /> 开始生成{selected.size > 0 ? `（${selected.size} 个场景）` : ''}</>
                 }
               </button>

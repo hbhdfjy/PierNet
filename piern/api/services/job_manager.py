@@ -8,12 +8,15 @@
 """
 
 import asyncio
+import logging
 import subprocess
 import threading
 import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -32,6 +35,8 @@ class JobRecord:
     future: Optional[asyncio.Task] = None
     # 当前运行的子进程（仿真任务用），terminate 时 kill
     proc: Optional[subprocess.Popen] = None
+    # 停止信号：线程任务通过 stop_event.is_set() 检查是否应终止
+    stop_event: threading.Event = field(default_factory=threading.Event)
 
 
 # 全局 job 注册表
@@ -121,17 +126,20 @@ def terminate_job(job_id: str) -> bool:
     # 先改 status，再 publish：subscribe() 检查 status=="running" 才注册订阅者，
     # 改完后新连接不会被加入订阅列表，terminated 事件仍通过历史回放可见
     record.status = "terminated"
+    # 设置停止信号，线程任务的回调里会检查并抛出 InterruptedError
+    record.stop_event.set()
     publish(record, {"type": "terminated", "ts": time.time()})
     # kill 子进程（仿真任务）
     if record.proc is not None:
         try:
             import os, signal
             os.killpg(os.getpgid(record.proc.pid), signal.SIGKILL)
-        except Exception:
+        except Exception as e:
+            logger.warning(f"killpg 失败（job={record.job_id}）: {e}，尝试 proc.kill()")
             try:
                 record.proc.kill()
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.error(f"proc.kill() 也失败（job={record.job_id}）: {e2}")
         record.proc = None
     if record.future and not record.future.done():
         record.future.cancel()

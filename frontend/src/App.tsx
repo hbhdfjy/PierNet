@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate, KeyRound, FolderOpen, FileText, Zap, Sun, Moon } from 'lucide-react'
+import { Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate, KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network } from 'lucide-react'
 import { cn } from './lib/utils'
 import SampleViewer from './pages/SampleViewer'
 import DatasetStats from './pages/DatasetStats'
@@ -12,6 +12,8 @@ import LLMConfigPage from './pages/LLMConfig'
 import DataDirsConfig from './pages/DataDirsConfig'
 import RegistryPage from './pages/RegistryPage'
 import SimulationRunner from './pages/SimulationRunner'
+import RouterDataBuilder from './pages/RouterDataBuilder'
+import RouterViewer from './pages/RouterViewer'
 
 // ── 主题 ────────────────────────────────────────────────────────
 
@@ -49,6 +51,7 @@ const STAGE2_STEPS = [
 const DATA_ITEMS = [
   { to: '/template-viewer', icon: BookTemplate, label: '模板浏览' },
   { to: '/samples',         icon: Database,     label: '样本浏览' },
+  { to: '/router-viewer',   icon: Network,      label: '路由浏览' },
   { to: '/stats',           icon: BarChart2,    label: '数据统计' },
 ] as const
 
@@ -219,6 +222,33 @@ export default function App() {
             </NavLink>
           </div>
 
+          {/* Stage 4 */}
+          <div>
+            <SectionLabel>Stage 4 · 路由数据</SectionLabel>
+            <NavLink
+              to="/router"
+              className={({ isActive }) => cn(
+                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+                isActive
+                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 font-medium'
+                  : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+              )}
+            >
+              {({ isActive }) => (
+                <>
+                  <div className={cn(
+                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
+                    isActive ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400 dark:text-slate-600',
+                  )}>
+                    <GitBranch size={15} />
+                  </div>
+                  <span className="flex-1 truncate">路由数据</span>
+                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 flex-shrink-0" />}
+                </>
+              )}
+            </NavLink>
+          </div>
+
           {/* 数据查看 */}
           <div>
             <SectionLabel>数据查看</SectionLabel>
@@ -272,8 +302,10 @@ export default function App() {
           <Route path="/register"  element={<RegisterSimulator />} />
           <Route path="/templates" element={<TemplateGenerator />} />
           <Route path="/fill"      element={<SampleFiller />} />
+          <Route path="/router"    element={<RouterDataBuilder />} />
           <Route path="/template-viewer" element={<TemplateViewer />} />
           <Route path="/samples"         element={<SampleViewer />} />
+          <Route path="/router-viewer"   element={<RouterViewer />} />
           <Route path="/stats"      element={<DatasetStats />} />
           <Route path="/registry"   element={<RegistryPage />} />
           <Route path="/data-dirs"  element={<DataDirsConfig />} />

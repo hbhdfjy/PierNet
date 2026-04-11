@@ -8,6 +8,7 @@ import type {
   TemplateFileInfo, SampleFileInfo, JobStartResponse,
   TemplatesResponse, DataDirEntry,
   SimulationScenario, SimulateRequest, BatchSimulateRequest, SimulationHistoryRecord,
+  RouterStatus, RouterSamplesResponse,
 } from './types'
 
 const BASE = '/api'
@@ -292,6 +293,48 @@ export const api = {
   clearSimulationHistory: async (): Promise<void> => {
     const res = await fetch(`${BASE}/simulation/history`, { method: 'DELETE' })
     if (!res.ok) throw new Error(`清空历史失败 (${res.status})`)
+  },
+
+  // ── Stage 4 Token Router ─────────────────────────────────────────
+  getRouterStatus: (): Promise<RouterStatus> =>
+    get('/router/status'),
+
+  buildRouterData: async (seed = 42, valRatio = 0.1, testRatio = 0.1, scenarios: string[] = [], negRatio = 1): Promise<{ job_id: string; status: string }> => {
+    const params = new URLSearchParams({
+      seed: String(seed),
+      val_ratio: String(valRatio),
+      test_ratio: String(testRatio),
+      neg_ratio: String(negRatio),
+    })
+    if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))
+    const res = await fetch(`${BASE}/router/build?${params}`, { method: 'POST' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`启动路由数据生成失败 (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
+  deleteRouterScenario: async (scenario: string): Promise<void> => {
+    const res = await fetch(`${BASE}/router/scenario/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`删除失败 (${res.status})`)
+  },
+
+  deleteAllRouterData: async (): Promise<void> => {
+    const res = await fetch(`${BASE}/router/all`, { method: 'DELETE' })
+    if (!res.ok) throw new Error(`清空失败 (${res.status})`)
+  },
+
+  getRouterSamples: (
+    split: 'train' | 'val' | 'test' = 'train',
+    page = 0,
+    pageSize = 20,
+    label = -1,
+    scenario = '',
+  ): Promise<RouterSamplesResponse> => {
+    const p: Record<string, string | number> = { split, page, page_size: pageSize, label }
+    if (scenario) p.scenario = scenario
+    return get('/router/samples', p)
   },
 
   startRegister: async (req: RegisterRequest): Promise<{ job_id: string }> => {

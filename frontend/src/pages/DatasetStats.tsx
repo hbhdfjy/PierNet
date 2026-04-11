@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import type { DatasetStats, DatasetInfo } from '../lib/types'
+import type { DatasetStats, DatasetInfo, RouterStatus } from '../lib/types'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -8,7 +8,7 @@ import {
   formatBytes, LANGUAGE_LABELS, STYLE_LABELS,
   SIMULATOR_LABELS, SIMULATOR_BADGE, getSimulatorBadgeClass,
 } from '../lib/utils'
-import { RefreshCw, Database, Layers, TrendingUp, Globe, BarChart2, FileText } from 'lucide-react'
+import { RefreshCw, Database, Layers, TrendingUp, Globe, BarChart2, FileText, GitBranch } from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 import { cn } from '../lib/utils'
 
@@ -269,6 +269,8 @@ export default function DatasetStats() {
     useSWR<DatasetStats>('stats', () => api.getStats(), { refreshInterval: 30000 })
   const { data: datasets, isLoading: dLoading, mutate: refreshDatasets } =
     useSWR<DatasetInfo[]>('datasets', () => api.getDatasets(), { refreshInterval: 30000 })
+  const { data: routerStatus, mutate: refreshRouter } =
+    useSWR<RouterStatus>('router-status', () => api.getRouterStatus(), { refreshInterval: 30000 })
 
   const loading = sLoading || dLoading
 
@@ -288,7 +290,7 @@ export default function DatasetStats() {
         </div>
         <button
           className="btn-ghost"
-          onClick={() => { refreshStats(); refreshDatasets() }}
+          onClick={() => { refreshStats(); refreshDatasets(); refreshRouter() }}
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           刷新
@@ -390,6 +392,84 @@ export default function DatasetStats() {
                       </td>
                       <td className="px-5 py-3 text-right text-slate-500">
                         {new Date(d.mtime * 1000).toLocaleString('zh-CN')}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {/* Stage 4 Router 数据 */}
+        {routerStatus && routerStatus.scenarios.length > 0 && (
+          <div className="card overflow-hidden">
+            <div className="card-header">
+              <GitBranch size={15} className="text-rose-400" />
+              <span className="font-semibold text-slate-200">路由训练数据</span>
+              <div className="ml-auto flex items-center gap-2">
+                <span className="badge bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  总计 {routerStatus.total.toLocaleString()} 条
+                </span>
+                <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
+                  {routerStatus.scenarios.length} 个场景
+                </span>
+              </div>
+            </div>
+            {/* train/val/test 汇总行 */}
+            <div className="px-5 py-3 border-b border-slate-700/40 flex items-center gap-6 bg-slate-800/20">
+              {(['train', 'val', 'test'] as const).map((s, i) => {
+                const info = routerStatus.splits[s]
+                const colors = ['text-sky-400', 'text-violet-400', 'text-amber-400']
+                return (
+                  <div key={s} className="flex items-center gap-2">
+                    <span className="text-xs text-slate-500 uppercase font-bold">{s}</span>
+                    <span className={cn('text-sm font-mono font-semibold', colors[i])}>
+                      {info.count.toLocaleString()}
+                    </span>
+                  </div>
+                )
+              })}
+              <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
+                <span>正样本 <span className="text-emerald-400 font-mono">{(routerStatus.label_counts[1] ?? 0).toLocaleString()}</span></span>
+                <span>负样本 <span className="text-slate-400 font-mono">{(routerStatus.label_counts[0] ?? 0).toLocaleString()}</span></span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700/40 bg-slate-800/30">
+                    <th className="px-5 py-3 text-left label">场景</th>
+                    <th className="px-5 py-3 text-left label">Simulator</th>
+                    <th className="px-5 py-3 text-right label">样本数（正+负）</th>
+                    <th className="px-5 py-3 text-right label">源数据</th>
+                    <th className="px-5 py-3 text-right label">文件大小</th>
+                    <th className="px-5 py-3 text-right label">修改时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {routerStatus.scenarios.map((sc, i) => (
+                    <tr key={sc.scenario} className={cn(
+                      'border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors',
+                      i % 2 === 0 ? '' : 'bg-slate-800/10',
+                    )}>
+                      <td className="px-5 py-3 font-mono text-slate-200">{sc.scenario}</td>
+                      <td className="px-5 py-3">
+                        <span className={cn('badge border', getSimulatorBadgeClass(sc.simulator))}>
+                          {SIMULATOR_LABELS[sc.simulator] ?? sc.simulator}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-rose-400 font-semibold">
+                        {(sc.router_count ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-400">
+                        {(routerStatus.source_by_scenario[sc.scenario] ?? 0).toLocaleString()}
+                      </td>
+                      <td className="px-5 py-3 text-right tabular-nums text-slate-400">
+                        {formatBytes(sc.file_size_bytes)}
+                      </td>
+                      <td className="px-5 py-3 text-right text-slate-500">
+                        {new Date(sc.mtime * 1000).toLocaleString('zh-CN')}
                       </td>
                     </tr>
                   ))}

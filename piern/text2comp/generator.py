@@ -500,9 +500,7 @@ class LLMTextGenerator:
         # 线程本地存储：每个线程持有独立的 LLMClient（requests.Session 非线程安全）
         self._thread_local = threading.local()
 
-        # target_template 缓存：key=(scenario, language, style)，同组合只生成一次
-        self._target_template_cache: dict[tuple, str] = {}
-        self._target_cache_lock = threading.Lock()
+
 
     def _get_thread_llm(self) -> LLMClient:
         """获取当前线程的 LLMClient，不存在则克隆一个。"""
@@ -1054,11 +1052,23 @@ class LLMTextGenerator:
                 "popular": "accessible to a general audience, use analogies where helpful",
                 "concise": "concise and direct, minimal background explanation",
             }
-            style_desc = style_map.get(style, "technical")
+            length_map = {
+                "technical": "4-6 sentences",
+                "popular":   "4-7 sentences",
+                "concise":   "2-3 sentences",
+            }
+            style_desc  = style_map.get(style, "technical")
+            length_desc = length_map.get(style, "3-5 sentences")
             obs_section = (
-                f"[Observation conditions — MUST appear in text]\n"
+                f"[Observation setup — weave naturally into text where appropriate]\n"
                 f"- Time sampling: {obs_spec.time_desc_en}\n"
                 f"- Channels observed: {obs_spec.channel_desc_en}"
+            )
+            ending_examples = (
+                "e.g. \"Please predict the resulting time series.\", "
+                "\"Forecast the system response over this period.\", "
+                "\"What does the model output look like?\", "
+                "\"Estimate the evolution of these quantities.\""
             )
             prompt = f"""Write a natural language instruction for the following physics simulation prediction task.
 
@@ -1068,11 +1078,8 @@ class LLMTextGenerator:
 [Scenario]
 {scenario_desc}
 
-[Parameters — {n_params} placeholders total: {all_ph_en}]
+[Parameters — {n_params} placeholders: {all_ph_en}]
 {param_text}
-
-[Converted parameters — these values have been numerically adjusted from their raw form]
-{transformed_section_en}
 
 [Output to predict]
 {output_desc}
@@ -1082,11 +1089,11 @@ class LLMTextGenerator:
 [Requirements]
 - Language: English
 - Style: {style_desc}
-- Length: 3-8 sentences
-- PLACEHOLDER RULES (critical): There are exactly {n_params} placeholders: {all_ph_en}. You MUST include ALL of them verbatim — do not replace, skip, or invent any.
-- For converted parameters: acknowledge the conversion naturally in context — avoid mechanical phrases like "multiplied by 3" or "divided by 10". Instead use expressions a domain expert would say, e.g. "scaled by a factor of 3", "at roughly 3× the baseline", "expressed relative to the reference", "adjusted upward by ~58 units". The exact wording is flexible as long as it reads naturally.
-- Naturally mention the time sampling frequency and the observed channels.
-- End with a clear request to predict the time series.
+- Length: {length_desc}
+- PLACEHOLDER RULES (critical): Exactly {n_params} placeholders — {all_ph_en}. Include ALL verbatim; do not replace, skip, or invent any.
+- For converted parameters (marked ← converted): describe the conversion naturally as a domain expert would — e.g. "scaled by a factor of 3", "at roughly 3× the baseline", "adjusted upward by ~58 units". Avoid mechanical phrasing like "multiplied by 3". Do not mention the original raw value.
+- Observation setup: mention time sampling and observed channels naturally if it fits the style; omit if it would feel forced (especially for concise style).
+- Ending: close with a prediction request in your own words — vary the phrasing across samples. ({ending_examples})
 """
         else:
             style_map = {
@@ -1094,11 +1101,20 @@ class LLMTextGenerator:
                 "popular": "科普风格，适合普通读者，适当使用类比",
                 "concise": "简洁直接风格，减少背景铺垫",
             }
-            style_desc = style_map.get(style, "专业技术风格")
+            length_map = {
+                "technical": "4-6句话",
+                "popular":   "4-7句话",
+                "concise":   "2-3句话",
+            }
+            style_desc  = style_map.get(style, "专业技术风格")
+            length_desc = length_map.get(style, "3-5句话")
             obs_section = (
-                f"【观测条件——必须在文中提及】\n"
+                f"【观测设置——根据风格自然融入，不必逐字照搬】\n"
                 f"- 时间采样：{obs_spec.time_desc_zh}\n"
                 f"- 观测通道：{obs_spec.channel_desc_zh}"
+            )
+            ending_examples = (
+                "例如「请预测该系统的时序输出」、「请给出模型的预测结果」、「该系统的演变趋势如何」、「请估算上述量的时间序列」"
             )
             prompt = f"""请为以下物理仿真预测任务撰写一段自然语言指令。
 
@@ -1111,9 +1127,6 @@ class LLMTextGenerator:
 【参数列表——共 {n_params} 个占位符：{all_ph_zh}】
 {param_text}
 
-【已换算的参数——这些参数的数值相对原始值做了调整】
-{transformed_section_zh}
-
 【预测目标】
 {output_desc}
 
@@ -1122,11 +1135,11 @@ class LLMTextGenerator:
 【写作要求】
 - 语言：中文
 - 风格：{style_desc}
-- 长度：3-8句话
-- 占位符规则（关键）：共有 {n_params} 个占位符：{all_ph_zh}。必须将所有占位符原样保留在输出中，不得替换为数字、不得遗漏、不得凭空增加。
-- 对已换算的参数：用领域专家的自然表达方式融入文中，避免机械地说"乘以3"或"减去58"。可以用"约为参考值的3倍"、"较基准偏高约58"、"换算后约为"、"相当于标准值的3倍"等表达——措辞灵活，以读来自然为准，不要提及原始值。
-- 自然提及时间采样频率和观测通道。
-- 以明确的预测请求结尾，要求预测时间序列。
+- 长度：{length_desc}
+- 占位符规则（关键）：共 {n_params} 个占位符——{all_ph_zh}，必须全部原样保留，不得替换为数字、不得遗漏、不得凭空增加。
+- 对已换算的参数（标注了"已换算"的）：用领域专家的自然表达融入文中，如"约为参考值的3倍"、"较基准偏高约58"、"换算后约为标准值的3倍"，避免机械说"乘以3"或"减去58"，不要提及原始值。
+- 观测设置：根据风格自然提及时间采样和观测通道；简洁风格可省略，不必强制出现。
+- 结尾：以预测请求收尾，措辞自由发挥，不同样本应有所变化。（{ending_examples}）
 """
         return prompt, placeholder_index
 
@@ -1175,112 +1188,145 @@ class LLMTextGenerator:
     @staticmethod
     def _build_target_prompt(
         output_info: list,
-        ts_shape: tuple,
         language: str,
         style: str,
+        scenario_desc: str = "",
     ) -> str:
         """
-        构建生成 target 模板的 prompt。
+        构建生成 target_template 的 LLM prompt。
 
-        每个输出通道对应一个 {output_N} 占位符，LLM 知道每个占位符的物理含义，
-        生成自然语言将所有占位符融入文本，位置不限。
+        格式规则（Token Router 强制要求）：
+          ┌─ 单输出（n=1）─────────────────────────────────────────┐
+          │  引导语紧接 {output_0}，之间无空格，之后无任何文字       │
+          │  例："本次仿真输出了水力水头{output_0}"                 │
+          └────────────────────────────────────────────────────────┘
+          ┌─ 多输出（n>1）─────────────────────────────────────────┐
+          │  引导语中列举所有物理量名称，所有占位符紧挨着放在末尾    │
+          │  占位符之间无任何文字，最后一个占位符后无任何文字        │
+          │  例（3输出）："本次仿真输出母线电压幅值、相角及线路      │
+          │               有功功率流，数值依次为{output_0}{output_1}{output_2}" │
+          └────────────────────────────────────────────────────────┘
+
+        Token Router 触发点 = 引导语末尾（紧接第一个占位符之前的最后几个字）。
+        触发后专家模型一次性输出所有占位符对应的数值矩阵。
         """
         n_outputs = len(output_info)
+        ph_seq = "".join(f"{{output_{i}}}" for i in range(n_outputs))  # 占位符序列（紧挨）
 
-        ph_list_en = ", ".join(f"{{output_{i}}}" for i in range(n_outputs))
-        ph_list_zh = "、".join(f"{{output_{i}}}" for i in range(n_outputs))
-
-        if language == "en":
+        if language == "zh":
             style_map = {
-                "technical": "technical and precise",
+                "technical": "专业技术风格，使用领域专业术语",
+                "popular": "科普风格，适合普通读者",
+                "concise": "简洁直接风格",
+            }
+            style_desc = style_map.get(style, "专业技术风格")
+
+            output_lines = "\n".join(
+                f"  {{output_{i}}}: {o.get('name_zh', o.get('name', '仿真输出'))}（{o.get('unit', '-')}）"
+                for i, o in enumerate(output_info)
+            )
+
+            # 所有物理量名称，用于引导语中列举
+            names_zh = "、".join(o.get("name_zh", o.get("name", f"输出{i}")) for i, o in enumerate(output_info))
+
+            scenario_line = f"\n【仿真场景】{scenario_desc}\n" if scenario_desc else ""
+
+            if n_outputs == 1:
+                name0 = output_info[0].get("name_zh", output_info[0].get("name", "仿真输出"))
+                examples = (
+                    f"  \"本次仿真输出了{name0}{{output_0}}\"\n"
+                    f"  \"模型计算得到的{name0}为{{output_0}}\"\n"
+                    f"  \"仿真结果中{name0}数据为{{output_0}}\"\n"
+                    f"  \"以下为{name0}的预测时序{{output_0}}\""
+                )
+                rule_multi = ""
+            else:
+                examples = (
+                    f"  \"本次仿真输出{names_zh}，数值依次为{ph_seq}\"\n"
+                    f"  \"模型计算得到的{names_zh}结果为{ph_seq}\"\n"
+                    f"  \"仿真输出了{names_zh}，各量时序依次为{ph_seq}\""
+                )
+                rule_multi = (
+                    f"7. 【多输出专项规则】所有占位符必须【紧挨着】集中放在引导语末尾，"
+                    f"占位符之间不得插入任何文字或标点。\n"
+                    f"   正确：...数值依次为{ph_seq}\n"
+                    f"   错误：...电压为{{output_0}}，相角为{{output_1}}，功率为{{output_2}}\n"
+                )
+
+            return (
+                f"请为物理仿真任务的输出结果写一段【引导语】，将以下占位符自然地融入其中。"
+                f"{scenario_line}\n"
+                f"【必须使用的占位符（共 {n_outputs} 个）】\n"
+                f"{ph_seq}\n\n"
+                f"【各占位符含义】\n{output_lines}\n\n"
+                f"【格式硬性规则——违反任意一条则输出无效】\n"
+                f"1. 每个占位符恰好出现一次，不得重复，不得遗漏。\n"
+                f"2. 引导语最后一个字符后面直接是第一个占位符 {{output_0}}，中间不能有空格或任何字符。\n"
+                f"3. 最后一个占位符之后【不得有任何文字】，整段输出必须以占位符结尾。\n"
+                f"4. 占位符原样保留，不得替换为数字或文字描述。\n"
+                f"5. 不得凭空创造规定范围之外的占位符。\n"
+                f"6. 只输出引导语本身，不要加引号、不要加解释。\n"
+                f"{rule_multi}\n"
+                f"【风格：{style_desc}】\n\n"
+                f"【示例（不要照抄，仅供格式参考）】\n"
+                f"{examples}"
+            )
+        else:
+            style_map = {
+                "technical": "technical and precise, use domain terminology",
                 "popular": "accessible to a general audience",
                 "concise": "concise and direct",
             }
             style_desc = style_map.get(style, "technical")
 
             output_lines = "\n".join(
-                f"  {{output_{i}}}: {o['description']} ({o['unit']})"
+                f"  {{output_{i}}}: {o.get('name', 'output')} ({o.get('unit', '-')})"
                 for i, o in enumerate(output_info)
             )
 
+            names_en = ", ".join(o.get("name", f"output{i}") for i, o in enumerate(output_info))
+            scenario_line = f"\n[Scenario] {scenario_desc}\n" if scenario_desc else ""
+
             if n_outputs == 1:
+                name0 = output_info[0].get("name", "simulation output")
                 examples = (
-                    f"  \"The simulation yields {{output_0}}, capturing the full temporal evolution.\"\n"
-                    f"  \"Running the model produces {{output_0}}.\"\n"
-                    f"  \"{{output_0}} — the modeled time series based on the given parameters.\""
+                    f"  \"The simulation result for {name0} is{{output_0}}\"\n"
+                    f"  \"The predicted {name0} time series:{{output_0}}\"\n"
+                    f"  \"Model output for {name0}:{{output_0}}\"\n"
+                    f"  \"The computed {name0} values are{{output_0}}\""
                 )
-            elif n_outputs == 2:
-                examples = (
-                    f"  \"The model produces {{output_0}} and {{output_1}}.\"\n"
-                    f"  \"Simulation results: {{output_0}} for the first quantity and {{output_1}} for the second.\"\n"
-                    f"  \"{{output_0}} and {{output_1}} are the two outputs of this run.\""
-                )
+                rule_multi = ""
             else:
                 examples = (
-                    f"  \"The simulation produces: {ph_list_en}.\"\n"
-                    f"  \"" + " and ".join(f"{{output_{i}}}" for i in range(n_outputs)) + f" are the model outputs.\"\n"
-                    f"  \"Results — {ph_list_en}.\""
+                    f"  \"The simulation produces {names_en}, values in order:{ph_seq}\"\n"
+                    f"  \"Model outputs for {names_en} are as follows:{ph_seq}\"\n"
+                    f"  \"The computed {names_en} time series are:{ph_seq}\""
+                )
+                rule_multi = (
+                    f"7. [Multi-output rule] ALL placeholders must be placed TOGETHER at the end, "
+                    f"with NO text or punctuation between them.\n"
+                    f"   Correct:  ...values in order:{ph_seq}\n"
+                    f"   Wrong:    ...voltage is{{output_0}}, angle is{{output_1}}, power is{{output_2}}\n"
                 )
 
             return (
-                f"Write ONE sentence (not a list, not multiple sentences) that naturally incorporates "
-                f"all {n_outputs} simulation output placeholder(s) listed below.\n\n"
-                f"[Placeholders to use — ALL {n_outputs} of them]\n"
-                f"{ph_list_en}\n\n"
+                f"Write a natural language lead-in phrase for the outputs of a physics simulation, "
+                f"incorporating all placeholders below."
+                f"{scenario_line}\n"
+                f"[Placeholders — ALL {n_outputs}, placed together at the end]\n"
+                f"{ph_seq}\n\n"
                 f"[What each placeholder represents]\n{output_lines}\n\n"
-                f"[Hard rules — violating any rule makes your output unusable]\n"
-                f"1. Use EVERY placeholder exactly once. Never repeat a placeholder. Never omit one.\n"
-                f"2. Output ONE sentence only. No bullet points, no lists, no line breaks.\n"
-                f"3. Do NOT replace placeholders with numbers or descriptions — keep them verbatim.\n"
-                f"4. Do NOT invent placeholders beyond {ph_list_en}.\n\n"
+                f"[Hard format rules — violating any rule makes your output unusable]\n"
+                f"1. Use EVERY placeholder exactly once. Never repeat or omit one.\n"
+                f"2. The last character of the lead-in text must be immediately followed by {{output_0}} "
+                f"— no space or any character in between.\n"
+                f"3. There must be NO text after the last placeholder — the output ends with a placeholder.\n"
+                f"4. Keep placeholders verbatim — do not replace with numbers or descriptions.\n"
+                f"5. Do NOT invent placeholders beyond the listed ones.\n"
+                f"6. Output only the lead-in phrase itself, no quotes, no explanation.\n"
+                f"{rule_multi}\n"
                 f"[Style: {style_desc}]\n\n"
-                f"[Examples — do not copy verbatim]\n"
-                f"{examples}"
-            )
-        else:
-            style_map = {
-                "technical": "专业技术风格",
-                "popular": "科普风格",
-                "concise": "简洁直接",
-            }
-            style_desc = style_map.get(style, "专业技术风格")
-
-            output_lines = "\n".join(
-                f"  {{output_{i}}}: {o.get('name_zh', o['description'])}（{o['unit']}）"
-                for i, o in enumerate(output_info)
-            )
-
-            if n_outputs == 1:
-                examples = (
-                    f"  \"根据上述参数，模型给出的时序结果为 {{output_0}}。\"\n"
-                    f"  \"将参数代入模型，得到预测结果 {{output_0}}。\"\n"
-                    f"  \"{{output_0}} 即为该系统在模拟期内的演变数据。\""
-                )
-            elif n_outputs == 2:
-                examples = (
-                    f"  \"模型输出 {{output_0}} 和 {{output_1}}。\"\n"
-                    f"  \"仿真结果为 {{output_0}} 与 {{output_1}}。\"\n"
-                    f"  \"{{output_0}} 及 {{output_1}} 是本次运行的两个输出量。\""
-                )
-            else:
-                examples = (
-                    f"  \"仿真输出包括：{ph_list_zh}。\"\n"
-                    f"  \"模型计算结果：{ph_list_zh}。\"\n"
-                    f"  \"{ph_list_zh} 为本次仿真的全部输出。\""
-                )
-
-            return (
-                f"请写一句话（不是列表，不是多句），自然地将以下 {n_outputs} 个仿真输出占位符全部融入其中。\n\n"
-                f"【必须使用的占位符（共 {n_outputs} 个，全部用上）】\n"
-                f"{ph_list_zh}\n\n"
-                f"【各占位符含义】\n{output_lines}\n\n"
-                f"【硬性规则——违反任意一条则输出无效】\n"
-                f"1. 每个占位符恰好出现一次，不得重复，不得遗漏。\n"
-                f"2. 只输出一句话，不得分行、不得用列表。\n"
-                f"3. 占位符原样保留，不得替换为数字或文字描述。\n"
-                f"4. 不得凭空创造 {ph_list_zh} 之外的占位符。\n\n"
-                f"【风格：{style_desc}】\n\n"
-                f"【示例（不要照抄）】\n"
+                f"[Examples — for format reference only, do not copy]\n"
                 f"{examples}"
             )
 
@@ -1377,25 +1423,18 @@ class LLMTextGenerator:
             max_tokens=self.max_tokens,
         ).strip()
 
-        # ── LLM 调用：生成 target_template（带缓存）────────────
+        # ── LLM 调用：生成 target_template（每次独立调用，保证多样性）────
+        # 格式要求：引导语紧接{output_N}，无空格，无后缀（Token Router 友好）
+        _scenario_desc = domain["scenarios"].get(scenario_name, "")
         target_prompt = self._build_target_prompt(
-            obs_spec.selected_output_info, ts_obs_shape, language, style
+            obs_spec.selected_output_info, language, style, _scenario_desc
         )
-        cache_key = (
-            scenario_name, language, style,
-            tuple(o["name"] for o in obs_spec.selected_output_info),
-        )
-        with self._target_cache_lock:
-            target_template = self._target_template_cache.get(cache_key)
-        if target_template is None:
-            target_template = self.llm.generate(
-                prompt=target_prompt,
-                system_prompt=SYSTEM_PROMPT,
-                temperature=self.temperature,
-                max_tokens=200,
-            ).strip()
-            with self._target_cache_lock:
-                self._target_template_cache[cache_key] = target_template
+        target_template = self.llm.generate(
+            prompt=target_prompt,
+            system_prompt=SYSTEM_PROMPT,
+            temperature=self.temperature,
+            max_tokens=200,
+        ).strip()
 
         # ── 校验占位符完整性 ──────────────────────────────────
         # 复用现有校验逻辑（只校验结构，不填值）
@@ -1413,13 +1452,32 @@ class LLMTextGenerator:
             raise ValueError(f"LLM 丢弃了 {len(missing)} 个占位符: {missing}")
 
         n_out = len(obs_spec.selected_output_info)
+        last_ph = f"{{output_{n_out - 1}}}"
+        # 校验每个占位符恰好出现一次
         for i in range(n_out):
             ph = f"{{output_{i}}}"
             count = target_template.count(ph)
             if count == 0:
-                raise ValueError(f"LLM 丢弃了输出占位符: {{output_{i}}}")
+                raise ValueError(f"target_template 缺少输出占位符: {{output_{i}}}")
             if count > 1:
-                raise ValueError(f"输出占位符 {{output_{i}}} 出现了 {count} 次")
+                raise ValueError(f"target_template 中输出占位符 {{output_{i}}} 出现了 {count} 次")
+        # 格式校验1：最后一个占位符后面不能有文字（Token Router 要求）
+        pos = target_template.rfind(last_ph)
+        if pos == -1:
+            raise ValueError(f"target_template 缺少末尾占位符: {last_ph}")
+        trailing = target_template[pos + len(last_ph):].strip()
+        if trailing:
+            raise ValueError(
+                f"target_template 末尾有多余文字（Token Router 要求以占位符结尾）: '{trailing}'"
+            )
+        # 格式校验2（多输出）：所有占位符必须紧挨着集中在末尾，之间不能有任何文字
+        if n_out > 1:
+            ph_seq = "".join(f"{{output_{i}}}" for i in range(n_out))
+            if ph_seq not in target_template:
+                raise ValueError(
+                    f"target_template 多输出占位符未紧挨集中（Token Router 要求）: "
+                    f"期望末尾包含 '{ph_seq}'，实际: '{target_template}'"
+                )
 
         # ── 组装 TemplateRecord ───────────────────────────────
         return TemplateRecord(

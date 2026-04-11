@@ -6,7 +6,7 @@ llm:
   max_tokens: 8196
   max_retries: 5
   timeout: 60
-  base_url: null
+  base_url: ''
 generation:
   n_samples_per_scenario: 1000
   max_workers: 5

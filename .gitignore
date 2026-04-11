@@ -11,8 +11,11 @@ build/
 venv/
 env/
 
-# data/text2comp/*.jsonl 样本填充结果体积过大（>100MB），不追踪
-data/text2comp/*.jsonl
+# Stage 3：样本填充结果（体积过大，不追踪）
+data/text2comp/
+
+# Stage 4：路由训练数据（体积过大，不追踪）
+data/router/
 data/**/*.pt
 data/**/*.pth
 data/**/*.ckpt
@@ -41,8 +44,7 @@ wandb/
 *.bak
 *~
 
-# Test output
-data/text2comp/test/
+# (data/text2comp/ already excluded above)
 
 # ANDES simulation output files
 *.lst

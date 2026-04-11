@@ -209,7 +209,7 @@ def run_generate_templates(
         def _make_progress_cb(sc_name, offset):
             def _cb(done: int):
                 if on_progress:
-                    on_progress(sc_name, offset + done)
+                    on_progress(sc_name, offset + done)  # 若已终止，on_progress 会抛 InterruptedError
             return _cb
 
         write_mode = "a" if (append_existing and out_path.exists()) else "w"

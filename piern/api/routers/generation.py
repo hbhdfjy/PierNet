@@ -33,6 +33,8 @@ def _run_generate_templates(record: JobRecord, req: GenerateTemplatesRequest) ->
     current_scenario: list[str] = [""]   # 用列表包装以在闭包中可写
 
     def on_scenario_start(scenario: str, total: int) -> None:
+        if record.stop_event.is_set():
+            raise InterruptedError("任务已终止")
         current_scenario[0] = scenario
         if scenario not in scenario_totals:
             scenario_totals[scenario] = total
@@ -41,6 +43,8 @@ def _run_generate_templates(record: JobRecord, req: GenerateTemplatesRequest) ->
         publish(record, {"type": "log", "line": f"[处理] {scenario}（共 {total} 条）", "ts": time.time()})
 
     def on_progress(scenario: str, done: int) -> None:
+        if record.stop_event.is_set():
+            raise InterruptedError("任务已终止")
         total = scenario_totals.get(scenario, 0)
         publish(record, {
             "type": "log",
@@ -66,16 +70,20 @@ def _run_generate_templates(record: JobRecord, req: GenerateTemplatesRequest) ->
             on_progress=on_progress,
             on_log=on_log,
         )
-        record.status = "done"
-        publish(record, {"type": "done", "ts": time.time(), "message": "模板生成完成"})
+        if not record.stop_event.is_set():
+            record.status = "done"
+            publish(record, {"type": "done", "ts": time.time(), "message": "模板生成完成"})
+    except InterruptedError:
+        pass  # 已由 terminate_job 设置 status="terminated" 并 publish terminated 事件
     except Exception as e:
-        record.status = "error"
-        publish(record, {
-            "type": "error",
-            "ts": time.time(),
-            "message": str(e),
-            "scenario": current_scenario[0] or None,
-        })
+        if not record.stop_event.is_set():
+            record.status = "error"
+            publish(record, {
+                "type": "error",
+                "ts": time.time(),
+                "message": str(e),
+                "scenario": current_scenario[0] or None,
+            })
 
 
 def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
@@ -84,6 +92,8 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
     current_scenario: list[str] = [""]
 
     def on_scenario_start(scenario: str, total: int) -> None:
+        if record.stop_event.is_set():
+            raise InterruptedError("任务已终止")
         current_scenario[0] = scenario
         if scenario not in scenario_totals:
             scenario_totals[scenario] = total
@@ -92,6 +102,8 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
         publish(record, {"type": "log", "line": f"[处理] {scenario}（共 {total} 条）", "ts": time.time()})
 
     def on_progress(scenario: str, done: int) -> None:
+        if record.stop_event.is_set():
+            raise InterruptedError("任务已终止")
         total = scenario_totals.get(scenario, 0)
         publish(record, {
             "type": "log",
@@ -117,16 +129,20 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
             on_progress=on_progress,
             on_log=on_log,
         )
-        record.status = "done"
-        publish(record, {"type": "done", "ts": time.time(), "message": "样本填充完成"})
+        if not record.stop_event.is_set():
+            record.status = "done"
+            publish(record, {"type": "done", "ts": time.time(), "message": "样本填充完成"})
+    except InterruptedError:
+        pass  # 已由 terminate_job 设置 status="terminated" 并 publish terminated 事件
     except Exception as e:
-        record.status = "error"
-        publish(record, {
-            "type": "error",
-            "ts": time.time(),
-            "message": str(e),
-            "scenario": current_scenario[0] or None,
-        })
+        if not record.stop_event.is_set():
+            record.status = "error"
+            publish(record, {
+                "type": "error",
+                "ts": time.time(),
+                "message": str(e),
+                "scenario": current_scenario[0] or None,
+            })
 
 
 @router.post("/generate-templates", response_model=JobStartResponse)

@@ -148,8 +148,6 @@ def run_fill_samples(
         _log(f"\n[处理] {scenario_name}")
         _log(f"  模板: {tmpl_path.name}")
         _log(f"  数据: {h5_path.name}")
-        if on_scenario_start:
-            on_scenario_start(scenario_name, n_per_scenario)
 
         # 从 registry 提取完整 output_info（含 name_zh、unit）
         output_info_list = None
@@ -176,10 +174,14 @@ def run_fill_samples(
 
         n_avail_t = len(templates)
         n_avail_d = len(params)
-        n = min(n_per_scenario, n_avail_t * n_avail_d)  # 不超过可组合数量上限
-        n = max(n, min(n_per_scenario, n_avail_t))       # 至少尽量达到目标数
+        # 模板和 HDF5 数据均通过取模循环复用，直接以目标数为循环上限
+        n = n_per_scenario
 
         _log(f"  模板数: {n_avail_t}，HDF5样本数: {n_avail_d}，目标: {n_per_scenario}，实际: {n}")
+
+        # on_scenario_start 传实际循环次数 n，前端以此为分母
+        if on_scenario_start:
+            on_scenario_start(scenario_name, n)
 
         rng = np.random.default_rng(_seed)
         written = 0
@@ -229,10 +231,10 @@ def run_fill_samples(
                     sample = fill_sample(template, p, ts_obs, sample_idx=d_idx, output_info=output_info_list, precision=precision)
                     fout.write(json.dumps(sample, ensure_ascii=False) + "\n")
                     written += 1
-                    # 每 50 条上报一次进度，避免事件洪泛
-                    if on_progress and written % 50 == 0 and written != last_reported:
-                        on_progress(scenario_name, written)
-                        last_reported = written
+                    # 每 50 条上报一次进度（以处理轮次 i+1 为分子，与 total=n 对齐）
+                    if on_progress and (i + 1) % 50 == 0 and (i + 1) != last_reported:
+                        on_progress(scenario_name, i + 1)
+                        last_reported = i + 1
                 except Exception as e:
                     logger.warning(f"样本 {i} 填充失败: {e}")
                     skipped += 1
@@ -248,9 +250,9 @@ def run_fill_samples(
             else:
                 logger.info(f"  {scenario_name}: 跳过 {nan_skipped} 个 NaN/Inf 样本")
 
-        # 最终进度（去重：避免与循环内最后一次回调重复）
-        if on_progress and written > 0 and written != last_reported:
-            on_progress(scenario_name, written)
+        # 最终进度：上报 n（总轮次），让前端进度条到达 100%
+        if on_progress and n != last_reported:
+            on_progress(scenario_name, n)
         _log(f"  已写入 {written} 条，跳过 {skipped} 条 → {out_path.name}")
         stats["total"] += written
         stats[simulator] += written

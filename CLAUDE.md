@@ -211,6 +211,14 @@ Stage 3  数值填充（不调 LLM）
   输入: data/templates/ + HDF5（读取实际数值）+ registry.yaml
   运行: scripts/text2comp/fill_samples.py
   输出: data/text2comp/{scenario}.jsonl（最终训练样本，5字段）
+
+Stage 4  Token Router 数据生成（不调 LLM）
+  输入: data/text2comp/*.jsonl（Stage 3 输出）
+  运行: scripts/router/build_router_data.py
+  输出: data/router/train.jsonl, val.jsonl, test.jsonl
+  格式: {"context": str, "label": 0|1, "metadata": {...}}
+  说明: label=1（input+引导语，触发专家），label=0（input 随机截断，继续 LLM）
+        正负比例 1:1，按 8:1:1 划分 train/val/test
 ```
 
 ## 最终训练样本格式（5字段）
@@ -253,4 +261,4 @@ Stage 3  数值填充（不调 LLM）
 - [ ] 电力暂态：3个场景各生成5,000样本
 - [ ] GCAM：3个场景各生成1,000样本
 - [ ] Stage 2/3：全量生成（每场景10,000条语言模板 + 对应训练样本）
-- [ ] Stage 4：Token Router 数据生成（待实现）
+- [ ] Stage 4：运行 scripts/router/build_router_data.py 生成 Router 训练数据
