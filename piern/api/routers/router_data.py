@@ -33,26 +33,26 @@ def _count_lines(path: Path) -> int:
 def get_router_status():
     """返回 Router 数据目录的整体状态 + 按场景统计。"""
 
-    # train/val/test 汇总
+    # train 汇总（只有 train，不再划分 val/test）
     splits = {}
     total = 0
-    for split in ("train", "val", "test"):
-        path = ROUTER_DIR / f"{split}.jsonl"
-        if path.exists():
-            stat = path.stat()
-            count = _count_lines(path)
-            splits[split] = {
-                "exists": True,
-                "count": count,
-                "file_size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-            }
-            total += count
-        else:
-            splits[split] = {"exists": False, "count": 0, "file_size_bytes": 0, "mtime": 0}
+    path = ROUTER_DIR / "train.jsonl"
+    if path.exists():
+        stat = path.stat()
+        count = _count_lines(path)
+        splits["train"] = {
+            "exists": True,
+            "count": count,
+            "file_size_bytes": stat.st_size,
+            "mtime": stat.st_mtime,
+        }
+        total = count
+    else:
+        splits["train"] = {"exists": False, "count": 0, "file_size_bytes": 0, "mtime": 0}
 
     # 正负样本分布（从 train 统计）
-    label_counts = {0: 0, 1: 0}
+    # 注意：JSON 序列化会将 int key 转为 string，前端用字符串 key 访问
+    label_counts = {"0": 0, "1": 0}
     train_path = ROUTER_DIR / "train.jsonl"
     if train_path.exists():
         try:
@@ -61,8 +61,9 @@ def get_router_status():
                     line = line.strip()
                     if line:
                         label = json.loads(line).get("label", -1)
-                        if label in label_counts:
-                            label_counts[label] += 1
+                        key = str(label)
+                        if key in label_counts:
+                            label_counts[key] += 1
         except Exception:
             pass
 
@@ -138,8 +139,6 @@ def get_router_status():
 @router.post("/router/build")
 async def build_router_data(
     seed: int = Query(42),
-    val_ratio: float = Query(0.1),
-    test_ratio: float = Query(0.1),
     neg_ratio: int = Query(1, ge=1, le=10),
     scenarios: str = Query(""),   # 逗号分隔的场景名，空=全部
 ):
@@ -157,8 +156,6 @@ async def build_router_data(
                 "--data-dir",   "data/text2comp",
                 "--output-dir", "data/router",
                 "--seed",       str(seed),
-                "--val-ratio",  str(val_ratio),
-                "--test-ratio", str(test_ratio),
                 "--neg-ratio",  str(neg_ratio),
             ]
             if scenario_list:
@@ -168,20 +165,71 @@ async def build_router_data(
                 text=True, cwd=str(PROJECT_ROOT),
             )
             record.proc = proc
+
+            scenario_totals: dict[str, int] = {}
+
             for line in proc.stdout:
                 line = line.rstrip()
-                if line:
-                    publish(record, {"type": "log", "line": line, "ts": time.time()})
+                if not line:
+                    continue
+
+                # PROGRESS_INIT:场景名:预期总条数 — 初始化进度
+                if line.startswith("PROGRESS_INIT:"):
+                    parts = line.split(":", 2)
+                    if len(parts) == 3:
+                        sc_name, total_str = parts[1], parts[2]
+                        try:
+                            total = int(total_str)
+                        except ValueError:
+                            total = 0
+                        scenario_totals[sc_name] = total
+                        record.scenario_totals[sc_name] = total
+                        publish(record, {
+                            "type": "init",
+                            "scenario_totals": dict(record.scenario_totals),
+                            "ts": time.time(),
+                        })
+                        publish(record, {
+                            "type": "log",
+                            "line": f"[场景] {sc_name}（预计 {total} 条）",
+                            "ts": time.time(),
+                        })
+                    continue
+
+                # PROGRESS_DONE:场景名:实际条数:预期条数 — 场景完成
+                if line.startswith("PROGRESS_DONE:"):
+                    parts = line.split(":", 3)
+                    if len(parts) >= 3:
+                        sc_name = parts[1]
+                        try:
+                            done = int(parts[2])
+                            total = int(parts[3]) if len(parts) == 4 else scenario_totals.get(sc_name, done)
+                        except ValueError:
+                            done, total = 0, 0
+                        publish(record, {
+                            "type": "log",
+                            "line": f"  {sc_name}: {done}/{total}",
+                            "ts": time.time(),
+                            "progress": {"scenario": sc_name, "done": done, "total": total},
+                        })
+                    continue
+
+                # 普通日志行
+                publish(record, {"type": "log", "line": line, "ts": time.time()})
+
             proc.wait()
-            if proc.returncode == 0:
+            if record.stop_event.is_set():
+                pass
+            elif proc.returncode == 0:
                 record.status = "done"
                 publish(record, {"type": "done", "ts": time.time(), "message": "Router 数据生成完成"})
             else:
                 record.status = "error"
                 publish(record, {"type": "error", "ts": time.time(), "message": f"脚本退出码 {proc.returncode}"})
         except Exception as e:
-            record.status = "error"
-            publish(record, {"type": "error", "ts": time.time(), "message": str(e)})
+            if not record.stop_event.is_set():
+                record.status = "error"
+                publish(record, {"type": "error", "ts": time.time(), "message": str(e)})
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": record.job_id, "status": "running"}
@@ -207,11 +255,10 @@ def delete_all_router_data():
         for f in SCENARIO_DIR.glob("*.jsonl"):
             f.unlink()
             deleted += 1
-    for split in ("train", "val", "test"):
-        p = ROUTER_DIR / f"{split}.jsonl"
-        if p.exists():
-            p.unlink()
-            deleted += 1
+    p = ROUTER_DIR / "train.jsonl"
+    if p.exists():
+        p.unlink()
+        deleted += 1
     return {"ok": True, "deleted": deleted}
 
 

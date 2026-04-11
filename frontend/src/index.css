@@ -7,47 +7,32 @@
 
   /* 夜间（默认） */
   :root, :root.dark {
-    --bg:           220 26% 7%;
-    --bg-sub:       220 20% 11%;
-    --surface:      220 18% 15%;
-    --surface2:     220 16% 20%;
-    --border:       220 14% 26%;
-    --border-sub:   220 12% 21%;
-    --text:         214 32% 91%;
-    --text-muted:   215 20% 65%;
-    --text-faint:   215 14% 42%;
+    --bg:           222 24% 8%;
+    --bg-sub:       222 22% 10%;
+    --surface:      222 20% 14%;
+    --surface2:     222 18% 19%;
+    --border:       220 16% 24%;
+    --border-sub:   220 14% 19%;
+    --text:         214 30% 92%;
+    --text-muted:   215 18% 62%;
+    --text-faint:   215 13% 40%;
     --accent:       199 89% 48%;
-    --scrollbar:    215 20% 40%;
+    --scrollbar:    215 18% 38%;
   }
 
-  /* 日间 */
+  /* 日间：白色附近 */
   :root.light {
-    --bg:           210 40% 97%;
-    --bg-sub:       210 40% 100%;
+    --bg:           210 20% 98%;
+    --bg-sub:       210 20% 96%;
     --surface:      0   0%  100%;
-    --surface2:     210 40% 96%;
-    --border:       214 32% 84%;
-    --border-sub:   214 32% 91%;
-    --text:         222 47% 13%;
-    --text-muted:   215 25% 38%;
-    --text-faint:   215 20% 62%;
-    --accent:       199 89% 40%;
+    --surface2:     210 16% 93%;
+    --border:       214 32% 82%;
+    --border-sub:   214 32% 88%;
+    --text:         222 47% 11%;
+    --text-muted:   215 25% 35%;
+    --text-faint:   215 20% 55%;
+    --accent:       199 89% 38%;
     --scrollbar:    215 20% 72%;
-  }
-
-  /* light 模式下覆盖 Tailwind slate 色板，使所有 slate-* 工具类自动适配 */
-  :root.light {
-    --tw-slate-50:  248 250 252;
-    --tw-slate-100: 241 245 249;
-    --tw-slate-200: 226 232 240;
-    --tw-slate-300: 203 213 225;
-    --tw-slate-400: 148 163 184;
-    --tw-slate-500: 100 116 139;
-    --tw-slate-600: 71  85  105;
-    --tw-slate-700: 51  65  85;
-    --tw-slate-800: 30  41  59;
-    --tw-slate-900: 15  23  42;
-    --tw-slate-950: 2   6   23;
   }
 
   body {
@@ -60,48 +45,227 @@
     transition: background-color 0.2s ease, color 0.2s ease;
   }
 
-  /* light 模式：反转 slate 色板（950→50, 900→100, ...）用于背景类 */
-  .light .bg-slate-950  { background-color: rgb(248 250 252) !important; }
-  .light .bg-slate-900  { background-color: rgb(241 245 249) !important; }
-  .light .bg-slate-800  { background-color: rgb(255 255 255) !important; }
-  .light .bg-slate-750  { background-color: rgb(248 250 252) !important; }
-  .light .bg-slate-700  { background-color: rgb(241 245 249) !important; }
+  /* ════════════════════════════════════════════════════════════════
+     日间模式覆盖规则
+     原则：深色 slate 类 → 浅色等价物，完全反转层次
+     ════════════════════════════════════════════════════════════════ */
 
-  /* 透明度变体 */
-  .light .bg-slate-950\/\[0\.98\],
-  .light .bg-slate-950\/98 { background-color: rgba(248,250,252,0.98) !important; }
-  .light .bg-slate-900\/60 { background-color: rgba(241,245,249,0.6) !important; }
-  .light .bg-slate-900\/40 { background-color: rgba(241,245,249,0.4) !important; }
-  .light .bg-slate-900\/30 { background-color: rgba(241,245,249,0.3) !important; }
-  .light .bg-slate-900\/20 { background-color: rgba(241,245,249,0.2) !important; }
-  .light .bg-slate-800\/80 { background-color: rgba(255,255,255,0.9) !important; }
-  .light .bg-slate-800\/60 { background-color: rgba(255,255,255,0.8) !important; }
-  .light .bg-slate-800\/40 { background-color: rgba(248,250,252,0.6) !important; }
-  .light .bg-slate-800\/30 { background-color: rgba(248,250,252,0.4) !important; }
-  .light .bg-slate-700\/60 { background-color: rgba(241,245,249,0.8) !important; }
-  .light .bg-slate-700\/40 { background-color: rgba(241,245,249,0.6) !important; }
-  .light .bg-slate-700\/20 { background-color: rgba(241,245,249,0.4) !important; }
+  /* ── 1. 布局容器背景 ── */
+  .light aside  { background-color: #f1f5f9 !important; border-color: rgba(203,213,225,0.7) !important; }
+  .light main   { background-color: #f8fafc !important; }
 
-  /* border 颜色 */
-  .light .border-slate-700\/40 { border-color: rgba(203,213,225,0.7) !important; }
-  .light .border-slate-700\/60 { border-color: rgba(203,213,225,0.9) !important; }
-  .light .border-slate-700\/30 { border-color: rgba(203,213,225,0.5) !important; }
-  .light .border-slate-700\/20 { border-color: rgba(203,213,225,0.3) !important; }
-  .light .border-slate-800\/40 { border-color: rgba(226,232,240,0.6) !important; }
-  .light .border-slate-800\/60 { border-color: rgba(226,232,240,0.8) !important; }
-  .light .border-slate-800\/80 { border-color: rgba(203,213,225,0.9) !important; }
-  .light .border-slate-600\/70 { border-color: rgba(148,163,184,0.8) !important; }
+  /* ── 2. 纯色背景类 ── */
+  .light .bg-slate-950 { background-color: #edf2f7 !important; }
+  .light .bg-slate-900 { background-color: #f8fafc !important; }
+  .light .bg-slate-800 { background-color: #ffffff !important; }
+  .light .bg-slate-700 { background-color: #f1f5f9 !important; }
+  .light .bg-slate-600 { background-color: #e2e8f0 !important; }
 
-  /* 文字颜色 */
-  .light .text-slate-200 { color: rgb(15 23 42) !important; }
-  .light .text-slate-300 { color: rgb(30 41 59) !important; }
-  .light .text-slate-400 { color: rgb(71 85 105) !important; }
-  .light .text-slate-500 { color: rgb(100 116 139) !important; }
-  .light .text-slate-600 { color: rgb(148 163 184) !important; }
-  .light .text-slate-700 { color: rgb(203 213 225) !important; }
+  /* ── 3. 透明度背景：bg-slate-900/XX ── */
+  .light .bg-slate-900\/80 { background-color: rgba(248,250,252,0.92) !important; }
+  .light .bg-slate-900\/60 { background-color: rgba(248,250,252,0.70) !important; }
+  .light .bg-slate-900\/50 { background-color: rgba(248,250,252,0.60) !important; }
+  .light .bg-slate-900\/40 { background-color: rgba(248,250,252,0.50) !important; }
+  .light .bg-slate-900\/30 { background-color: rgba(248,250,252,0.40) !important; }
+  .light .bg-slate-900\/20 { background-color: rgba(248,250,252,0.28) !important; }
 
-  /* input/select 背景 */
-  .light .bg-slate-900\/80 { background-color: rgba(248,250,252,0.95) !important; }
+  /* ── 4. 透明度背景：bg-slate-800/XX ── */
+  .light .bg-slate-800\/90 { background-color: rgba(255,255,255,0.95) !important; }
+  .light .bg-slate-800\/80 { background-color: rgba(255,255,255,0.90) !important; }
+  .light .bg-slate-800\/70 { background-color: rgba(255,255,255,0.82) !important; }
+  .light .bg-slate-800\/60 { background-color: rgba(255,255,255,0.75) !important; }
+  .light .bg-slate-800\/50 { background-color: rgba(255,255,255,0.65) !important; }
+  .light .bg-slate-800\/40 { background-color: rgba(255,255,255,0.55) !important; }
+  .light .bg-slate-800\/30 { background-color: rgba(255,255,255,0.40) !important; }
+  .light .bg-slate-800\/20 { background-color: rgba(255,255,255,0.28) !important; }
+
+  /* ── 5. 透明度背景：bg-slate-700/XX ── */
+  .light .bg-slate-700\/80 { background-color: rgba(241,245,249,0.85) !important; }
+  .light .bg-slate-700\/60 { background-color: rgba(241,245,249,0.70) !important; }
+  .light .bg-slate-700\/50 { background-color: rgba(241,245,249,0.60) !important; }
+  .light .bg-slate-700\/40 { background-color: rgba(241,245,249,0.50) !important; }
+  .light .bg-slate-700\/30 { background-color: rgba(241,245,249,0.40) !important; }
+  .light .bg-slate-700\/20 { background-color: rgba(241,245,249,0.30) !important; }
+
+  /* ── 6. hover 背景 ── */
+  .light .hover\:bg-slate-800\/50:hover { background-color: rgba(226,232,240,0.65) !important; }
+  .light .hover\:bg-slate-800\/30:hover { background-color: rgba(226,232,240,0.50) !important; }
+  .light .hover\:bg-slate-700\/60:hover { background-color: rgba(226,232,240,0.75) !important; }
+  .light .hover\:bg-slate-700\/30:hover { background-color: rgba(226,232,240,0.55) !important; }
+  .light .hover\:bg-slate-700\/20:hover { background-color: rgba(226,232,240,0.45) !important; }
+  .light .hover\:bg-slate-800\/90:hover { background-color: rgba(255,255,255,0.95) !important; }
+
+  /* ── 7. 边框类 ── */
+  .light .border-slate-800\/80 { border-color: rgba(203,213,225,0.85) !important; }
+  .light .border-slate-800\/60 { border-color: rgba(203,213,225,0.65) !important; }
+  .light .border-slate-800\/40 { border-color: rgba(203,213,225,0.48) !important; }
+  .light .border-slate-800\/30 { border-color: rgba(203,213,225,0.36) !important; }
+  .light .border-slate-700    { border-color: rgb(203,213,225)         !important; }
+  .light .border-slate-700\/60 { border-color: rgba(186,200,218,0.70) !important; }
+  .light .border-slate-700\/50 { border-color: rgba(186,200,218,0.58) !important; }
+  .light .border-slate-700\/40 { border-color: rgba(186,200,218,0.48) !important; }
+  .light .border-slate-700\/30 { border-color: rgba(186,200,218,0.36) !important; }
+  .light .border-slate-700\/20 { border-color: rgba(186,200,218,0.24) !important; }
+  .light .border-slate-600    { border-color: rgb(186,200,218)         !important; }
+  .light .border-slate-600\/70 { border-color: rgba(148,163,184,0.75) !important; }
+  .light .border-slate-600\/60 { border-color: rgba(148,163,184,0.65) !important; }
+  .light .border-slate-600\/50 { border-color: rgba(148,163,184,0.55) !important; }
+  .light .border-slate-600\/40 { border-color: rgba(148,163,184,0.45) !important; }
+  .light .border-slate-600\/30 { border-color: rgba(148,163,184,0.35) !important; }
+
+  /* ── 8. 文字类（深色 → 浅色背景上的深色文字）── */
+  /* text-white：仅在非按钮场景覆盖为深色；按钮类单独在 @layer components 处理 */
+  .light .text-white { color: #0f172a !important; }
+
+  .light .text-slate-100   { color: #0f172a !important; }
+  .light .text-slate-200   { color: #1e293b !important; }
+  .light .text-slate-300   { color: #334155 !important; }
+  .light .text-slate-400   { color: #475569 !important; }
+  /* text-slate-500 保持不变（#64748b，在两种模式下都可读） */
+  .light .text-slate-600   { color: #94a3b8 !important; }
+  .light .text-slate-700   { color: #cbd5e1 !important; }
+
+  /* ── 9. hover 文字 ── */
+  .light .hover\:text-slate-200:hover { color: #1e293b !important; }
+  .light .hover\:text-slate-300:hover { color: #334155 !important; }
+
+  /* ── 10. 彩色文字（亮色 → 深色，保证浅背景可读）── */
+  /* 纯色 */
+  .light .text-sky-400       { color: #0369a1 !important; }
+  .light .text-sky-300       { color: #0284c7 !important; }
+  .light .text-sky-200       { color: #0369a1 !important; }
+  .light .text-sky-100       { color: #0369a1 !important; }
+  .light .text-emerald-400   { color: #047857 !important; }
+  .light .text-emerald-300   { color: #059669 !important; }
+  .light .text-emerald-200   { color: #047857 !important; }
+  .light .text-amber-400     { color: #b45309 !important; }
+  .light .text-amber-300     { color: #d97706 !important; }
+  .light .text-rose-400      { color: #be123c !important; }
+  .light .text-rose-300      { color: #e11d48 !important; }
+  .light .text-rose-500      { color: #9f1239 !important; }
+  .light .text-violet-400    { color: #6d28d9 !important; }
+  .light .text-violet-300    { color: #7c3aed !important; }
+  .light .text-violet-200    { color: #6d28d9 !important; }
+  .light .text-red-400       { color: #b91c1c !important; }
+  .light .text-red-300       { color: #dc2626 !important; }
+  .light .text-blue-400      { color: #1d4ed8 !important; }
+  .light .text-blue-300      { color: #2563eb !important; }
+  .light .text-purple-400    { color: #7e22ce !important; }
+  .light .text-purple-300    { color: #9333ea !important; }
+  .light .text-teal-400      { color: #0f766e !important; }
+  .light .text-orange-400    { color: #c2410c !important; }
+  .light .text-green-400     { color: #15803d !important; }
+  .light .text-indigo-400    { color: #4338ca !important; }
+  .light .text-pink-400      { color: #be185d !important; }
+
+  /* 透明度变体（/60 /70 /80 /90 等）— 映射到对应深色的 rgba */
+  .light .text-sky-400\/60   { color: rgba(3,105,161,0.75)  !important; }
+  .light .text-sky-400\/70   { color: rgba(3,105,161,0.80)  !important; }
+  .light .text-sky-400\/80   { color: rgba(3,105,161,0.88)  !important; }
+  .light .text-sky-300\/80   { color: rgba(2,132,199,0.88)  !important; }
+  .light .text-sky-300\/90   { color: rgba(2,132,199,0.92)  !important; }
+  .light .text-sky-500\/60   { color: rgba(3,105,161,0.70)  !important; }
+  .light .text-sky-500\/70   { color: rgba(3,105,161,0.78)  !important; }
+  .light .text-emerald-400\/60 { color: rgba(4,120,87,0.75) !important; }
+  .light .text-emerald-500\/80 { color: rgba(4,120,87,0.88) !important; }
+  .light .text-emerald-400\/70 { color: rgba(4,120,87,0.82) !important; }
+  .light .text-amber-400\/80  { color: rgba(180,83,9,0.88)  !important; }
+  .light .text-amber-400\/90  { color: rgba(180,83,9,0.93)  !important; }
+  .light .text-amber-300\/80  { color: rgba(217,119,6,0.88) !important; }
+  .light .text-amber-500\/70  { color: rgba(180,83,9,0.78)  !important; }
+  .light .text-violet-400\/60 { color: rgba(109,40,217,0.75) !important; }
+  .light .text-violet-400\/70 { color: rgba(109,40,217,0.82) !important; }
+  .light .text-violet-300\/90 { color: rgba(124,58,237,0.92) !important; }
+  .light .text-rose-400\/70   { color: rgba(190,18,60,0.82)  !important; }
+
+  /* ── 11. 彩色背景（浅色背景下适当加深透明度）── */
+  .light .bg-sky-500\/15      { background-color: rgba(14,165,233,0.12)  !important; }
+  .light .bg-emerald-500\/5   { background-color: rgba(16,185,129,0.07)  !important; }
+  .light .bg-emerald-500\/8   { background-color: rgba(16,185,129,0.10)  !important; }
+  .light .bg-amber-500\/8     { background-color: rgba(245,158,11,0.10)  !important; }
+  .light .bg-amber-500\/12    { background-color: rgba(245,158,11,0.12)  !important; }
+  .light .bg-rose-500\/8      { background-color: rgba(244,63,94,0.08)   !important; }
+  .light .bg-red-500\/8       { background-color: rgba(239,68,68,0.08)   !important; }
+
+  /* ── 12. 组件级覆盖 ── */
+
+  /* card */
+  .light .card {
+    background-color: #ffffff !important;
+    border-color: rgba(203,213,225,0.8) !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04) !important;
+  }
+  .light .card-hover:hover {
+    background-color: #f8fafc !important;
+    border-color: rgba(186,200,218,0.9) !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
+  }
+
+  /* page-header */
+  .light .page-header {
+    background-color: rgba(248,250,252,0.85) !important;
+    border-color: rgba(203,213,225,0.7) !important;
+    backdrop-filter: blur(8px);
+  }
+
+  /* btn-ghost */
+  .light .btn-ghost {
+    color: #475569 !important;
+  }
+  .light .btn-ghost:hover {
+    background-color: rgba(226,232,240,0.7) !important;
+    color: #1e293b !important;
+  }
+  .light .btn-ghost:disabled {
+    color: #94a3b8 !important;
+  }
+
+  /* input / select */
+  .light .input,
+  .light .select {
+    background-color: #ffffff !important;
+    border-color: rgba(186,200,218,0.9) !important;
+    color: #1e293b !important;
+  }
+  .light .input::placeholder,
+  .light .select::placeholder {
+    color: #94a3b8 !important;
+  }
+  .light .input:focus,
+  .light .select:focus {
+    border-color: rgba(14,165,233,0.5) !important;
+    box-shadow: 0 0 0 2px rgba(14,165,233,0.15) !important;
+  }
+
+  /* label */
+  .light .label {
+    color: #64748b !important;
+  }
+
+  /* divider */
+  .light .divider {
+    border-color: rgba(203,213,225,0.6) !important;
+  }
+
+  /* ── 13. 进度环 SVG 背景圆（JSX 硬编码 stroke 属性）── */
+  .light circle[stroke="rgba(51,65,85,0.6)"] {
+    stroke: rgba(203,213,225,0.8) !important;
+  }
+
+  /* ── 14. skeleton 动画 ── */
+  .light .skeleton {
+    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%) !important;
+    background-size: 200% 100% !important;
+    animation: shimmer 1.5s infinite !important;
+  }
+
+  /* ── 15. scrollbar ── */
+  .light ::-webkit-scrollbar-thumb {
+    background: rgba(148,163,184,0.45);
+  }
+  .light ::-webkit-scrollbar-thumb:hover {
+    background: rgba(100,116,139,0.6);
+  }
 
   @keyframes bounce {
     0%, 80%, 100% { transform: translateY(0); opacity: 0.4; }
@@ -136,7 +300,7 @@
   .card {
     @apply bg-slate-800/80 border border-slate-700/60 rounded-xl;
     backdrop-filter: blur(4px);
-    transition: background-color 0.2s ease, border-color 0.2s ease;
+    transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .card-header {
     @apply px-4 py-3 border-b border-slate-700/40 flex items-center gap-2;
@@ -159,6 +323,9 @@
   .btn-primary {
     @apply btn bg-sky-600 hover:bg-sky-500 text-white shadow-sm shadow-sky-900/30;
   }
+  /* 日间模式：彩色按钮文字强制白色（覆盖 @layer base 的 .light .text-white） */
+  .light .btn-primary { color: #ffffff !important; }
+  .light .btn-danger  { color: #ffffff !important; }
   .btn-ghost {
     @apply btn text-slate-400 hover:bg-slate-700/60 hover:text-slate-200;
   }
@@ -204,9 +371,5 @@
     background: linear-gradient(90deg, #1e293b 25%, #273449 50%, #1e293b 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
-  }
-  .light .skeleton {
-    background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
-    background-size: 200% 100%;
   }
 }

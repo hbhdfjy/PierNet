@@ -25,8 +25,10 @@ function RouterScenarioButton({
   // router_count 合法范围：(0, source_count * 20]，超出视为脏数据
   const rc = item.router_count ?? 0
   const hasRouter = rc > 0 && rc <= item.source_count * 20
+  // 进度背景：以 source_count（1:1 时的正样本数）为基准，
+  // 实际生成条数 / source_count 即可感知"至少覆盖了多少源样本"
   const pct = item.source_count > 0 && hasRouter
-    ? Math.min(100, (rc / (item.source_count * 2)) * 100)
+    ? Math.min(100, (rc / item.source_count) * 100)
     : 0
 
   return (
@@ -89,8 +91,6 @@ export default function RouterDataBuilder() {
 
   // 参数
   const [seed, setSeed] = useState(42)
-  const [valRatio, setValRatio] = useState(0.1)
-  const [testRatio, setTestRatio] = useState(0.1)
   const [negRatio, setNegRatio] = useState(1)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -134,7 +134,7 @@ export default function RouterDataBuilder() {
     setError(null)
     setLaunching(true)
     try {
-      const res = await api.buildRouterData(seed, valRatio, testRatio, Array.from(selected), negRatio)
+      const res = await api.buildRouterData(seed, Array.from(selected), negRatio)
       monitor.start(res.job_id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -171,7 +171,7 @@ export default function RouterDataBuilder() {
   const canLaunch = !monitor.status || monitor.status === 'idle' || monitor.status === 'done'
     || monitor.status === 'error' || monitor.status === 'terminated'
 
-  const posCount = status?.label_counts[1] ?? 0
+  const posCount = status?.label_counts['1'] ?? 0
   const trainTotal = status?.splits.train.count ?? 0
 
   return (
@@ -271,22 +271,6 @@ export default function RouterDataBuilder() {
               <Settings size={12} className="text-slate-500" />
               <span className="text-xs font-medium text-slate-400">参数</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: '验证集', value: Math.round(valRatio * 100), min: 5, max: 30, fmt: (v: number) => `${v}%`, set: (v: number) => setValRatio(v / 100) },
-                { label: '测试集', value: Math.round(testRatio * 100), min: 5, max: 30, fmt: (v: number) => `${v}%`, set: (v: number) => setTestRatio(v / 100) },
-              ].map(({ label, value, min, max, fmt, set }) => (
-                <div key={label}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="label text-xs">{label}</span>
-                    <span className="text-xs text-slate-500 tabular-nums">{fmt(value)}</span>
-                  </div>
-                  <input type="range" className="w-full accent-rose-500 h-1"
-                    min={min} max={max} value={value}
-                    onChange={e => set(parseInt(e.target.value))} />
-                </div>
-              ))}
-            </div>
             {/* 负样本倍数 */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -383,11 +367,9 @@ export default function RouterDataBuilder() {
 
         {/* 汇总 */}
         {hasRouterData && (
-          <div className="grid grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             {[
-              { label: 'Train', count: status!.splits.train.count, color: 'text-sky-400' },
-              { label: 'Val',   count: status!.splits.val.count,   color: 'text-violet-400' },
-              { label: 'Test',  count: status!.splits.test.count,  color: 'text-amber-400' },
+              { label: '总样本数', count: status!.splits.train.count, color: 'text-sky-400' },
               { label: '正样本', count: posCount, color: 'text-emerald-400' },
             ].map(({ label, count, color }) => (
               <div key={label} className="card-hover px-4 py-3 cursor-default">

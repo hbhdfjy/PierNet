@@ -416,23 +416,17 @@ export default function DatasetStats() {
                 </span>
               </div>
             </div>
-            {/* train/val/test 汇总行 */}
+            {/* 汇总行 */}
             <div className="px-5 py-3 border-b border-slate-700/40 flex items-center gap-6 bg-slate-800/20">
-              {(['train', 'val', 'test'] as const).map((s, i) => {
-                const info = routerStatus.splits[s]
-                const colors = ['text-sky-400', 'text-violet-400', 'text-amber-400']
-                return (
-                  <div key={s} className="flex items-center gap-2">
-                    <span className="text-xs text-slate-500 uppercase font-bold">{s}</span>
-                    <span className={cn('text-sm font-mono font-semibold', colors[i])}>
-                      {info.count.toLocaleString()}
-                    </span>
-                  </div>
-                )
-              })}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 uppercase font-bold">总计</span>
+                <span className="text-sm font-mono font-semibold text-sky-400">
+                  {(routerStatus.splits.train.count).toLocaleString()}
+                </span>
+              </div>
               <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
-                <span>正样本 <span className="text-emerald-400 font-mono">{(routerStatus.label_counts[1] ?? 0).toLocaleString()}</span></span>
-                <span>负样本 <span className="text-slate-400 font-mono">{(routerStatus.label_counts[0] ?? 0).toLocaleString()}</span></span>
+                <span>正样本 <span className="text-emerald-400 font-mono">{(routerStatus.label_counts['1'] ?? 0).toLocaleString()}</span></span>
+                <span>负样本 <span className="text-slate-400 font-mono">{(routerStatus.label_counts['0'] ?? 0).toLocaleString()}</span></span>
               </div>
             </div>
             <div className="overflow-x-auto">

@@ -63,9 +63,9 @@ const SETTINGS_ITEMS = [
 
 type StepColor = 'sky' | 'violet' | 'emerald'
 const STEP_COLORS: Record<StepColor, { active: string; dot: string }> = {
-  sky:     { active: 'bg-sky-500/15 text-sky-600 dark:text-sky-300',           dot: 'bg-sky-500'     },
-  violet:  { active: 'bg-violet-500/15 text-violet-600 dark:text-violet-300',  dot: 'bg-violet-500'  },
-  emerald: { active: 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300', dot: 'bg-emerald-500' },
+  sky:     { active: 'bg-sky-500/15 text-sky-400',     dot: 'bg-sky-500'     },
+  violet:  { active: 'bg-violet-500/15 text-violet-400', dot: 'bg-violet-500'  },
+  emerald: { active: 'bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-500' },
 }
 
 // ── 侧边栏区块标题 ────────────────────────────────────────────────
@@ -73,8 +73,8 @@ const STEP_COLORS: Record<StepColor, { active: string; dot: string }> = {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="px-2 mb-1.5 flex items-center gap-2">
-      <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap text-slate-400 dark:text-slate-500">{children}</span>
-      <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700/30" />
+      <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap text-slate-500">{children}</span>
+      <div className="flex-1 h-px bg-slate-700/40" />
     </div>
   )
 }
@@ -83,7 +83,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function NavItem({
   to, icon: Icon, label,
-  activeClass = 'bg-slate-200/80 dark:bg-slate-700/50 text-slate-900 dark:text-slate-200',
+  activeClass = 'bg-slate-700/50 text-slate-200',
 }: {
   to: string; icon: React.ElementType; label: string; activeClass?: string
 }) {
@@ -94,7 +94,7 @@ function NavItem({
         'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
         isActive
           ? activeClass + ' font-medium'
-          : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+          : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
       )}
     >
       <Icon size={16} className="flex-shrink-0 opacity-70" />
@@ -138,15 +138,15 @@ export default function App() {
               className={({ isActive }) => cn(
                 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                 isActive
-                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-300 font-medium'
-                  : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+                  ? 'bg-amber-500/15 text-amber-400 font-medium'
+                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
               )}
             >
               {({ isActive }) => (
                 <>
                   <div className={cn(
                     'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'bg-amber-500/20 text-amber-500 dark:text-amber-400' : 'text-slate-400 dark:text-slate-600',
+                    isActive ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500',
                   )}>
                     <Zap size={15} />
                   </div>
@@ -171,7 +171,7 @@ export default function App() {
                       'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                       isActive
                         ? `${colors.active} font-medium`
-                        : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+                        : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
                     )}
                   >
                     {({ isActive }) => (
@@ -203,15 +203,15 @@ export default function App() {
               className={({ isActive }) => cn(
                 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                 isActive
-                  ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-300 font-medium'
-                  : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+                  ? 'bg-emerald-500/15 text-emerald-400 font-medium'
+                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
               )}
             >
               {({ isActive }) => (
                 <>
                   <div className={cn(
                     'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'text-emerald-500 dark:text-emerald-400' : 'text-slate-400 dark:text-slate-600',
+                    isActive ? 'text-emerald-400' : 'text-slate-500',
                   )}>
                     <FlaskConical size={15} />
                   </div>
@@ -230,15 +230,15 @@ export default function App() {
               className={({ isActive }) => cn(
                 'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
                 isActive
-                  ? 'bg-rose-500/15 text-rose-600 dark:text-rose-300 font-medium'
-                  : 'text-slate-500 dark:text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800/50 hover:text-slate-700 dark:hover:text-slate-300',
+                  ? 'bg-rose-500/15 text-rose-400 font-medium'
+                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
               )}
             >
               {({ isActive }) => (
                 <>
                   <div className={cn(
                     'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'text-rose-500 dark:text-rose-400' : 'text-slate-400 dark:text-slate-600',
+                    isActive ? 'text-rose-400' : 'text-slate-500',
                   )}>
                     <GitBranch size={15} />
                   </div>
@@ -267,8 +267,8 @@ export default function App() {
                 <NavItem
                   key={to} to={to} icon={icon} label={label}
                   activeClass={color === 'amber'
-                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-300'
-                    : 'bg-slate-200/80 dark:bg-slate-700/50 text-slate-900 dark:text-slate-200'}
+                    ? 'bg-amber-500/10 text-amber-400'
+                    : 'bg-slate-700/50 text-slate-200'}
                 />
               ))}
             </div>

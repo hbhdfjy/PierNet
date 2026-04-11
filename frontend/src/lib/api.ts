@@ -299,11 +299,9 @@ export const api = {
   getRouterStatus: (): Promise<RouterStatus> =>
     get('/router/status'),
 
-  buildRouterData: async (seed = 42, valRatio = 0.1, testRatio = 0.1, scenarios: string[] = [], negRatio = 1): Promise<{ job_id: string; status: string }> => {
+  buildRouterData: async (seed = 42, scenarios: string[] = [], negRatio = 1): Promise<{ job_id: string; status: string }> => {
     const params = new URLSearchParams({
       seed: String(seed),
-      val_ratio: String(valRatio),
-      test_ratio: String(testRatio),
       neg_ratio: String(negRatio),
     })
     if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))

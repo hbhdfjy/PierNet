@@ -123,36 +123,14 @@ def _write_jsonl(samples: list[dict], path: Path) -> None:
             f.write(json.dumps(s, ensure_ascii=False) + "\n")
 
 
-def _split_and_write(
-    samples: list[dict],
-    output_dir: Path,
-    val_ratio: float,
-    test_ratio: float,
-    seed: int,
-) -> dict[str, int]:
-    """打乱后按比例划分 train/val/test，写入合并文件。"""
+def _write_all(samples: list[dict], output_dir: Path, seed: int) -> int:
+    """打乱后写入单个 train.jsonl。"""
     rng = random.Random(seed)
     rng.shuffle(samples)
-
-    n = len(samples)
-    n_test = max(1, int(n * test_ratio))
-    n_val = max(1, int(n * val_ratio))
-    n_train = n - n_val - n_test
-
-    splits = {
-        "train": samples[:n_train],
-        "val":   samples[n_train: n_train + n_val],
-        "test":  samples[n_train + n_val:],
-    }
-
-    counts = {}
-    for split_name, split_samples in splits.items():
-        out_path = output_dir / f"{split_name}.jsonl"
-        _write_jsonl(split_samples, out_path)
-        counts[split_name] = len(split_samples)
-        print(f"  [{split_name}] {len(split_samples)} 条 → {out_path}")
-
-    return counts
+    out_path = output_dir / "train.jsonl"
+    _write_jsonl(samples, out_path)
+    print(f"  [train] {len(samples)} 条 → {out_path}")
+    return len(samples)
 
 
 # ── 主函数 ────────────────────────────────────────────────────────
@@ -162,8 +140,6 @@ def main():
     parser.add_argument("--data-dir",   type=str,   default="data/text2comp")
     parser.add_argument("--output-dir", type=str,   default="data/router")
     parser.add_argument("--seed",       type=int,   default=42)
-    parser.add_argument("--val-ratio",  type=float, default=0.1)
-    parser.add_argument("--test-ratio", type=float, default=0.1)
     parser.add_argument("--scenarios",  nargs="*",  default=None,
                         help="只处理指定场景（空=全部），例：--scenarios unified_aquifer ieee14_baseload")
     parser.add_argument("--neg-ratio",  type=int,   default=1,
@@ -197,6 +173,21 @@ def main():
 
     print(f"[Router 数据生成] 扫描到 {len(jsonl_files)} 个场景文件")
 
+    # 预统计各场景源样本数，用于进度上报
+    scenario_source_counts: dict[str, int] = {}
+    for f in jsonl_files:
+        try:
+            count = sum(1 for line in open(f, "rb") if line.strip())
+        except Exception:
+            count = 0
+        scenario_source_counts[f.stem] = count
+
+    # 发送 init 事件：告知前端各场景的预期生成条数
+    # 格式：PROGRESS_INIT:场景名:预期总条数（= source * (1 + neg_ratio)）
+    for f in jsonl_files:
+        expected = scenario_source_counts[f.stem] * (1 + args.neg_ratio)
+        print(f"PROGRESS_INIT:{f.stem}:{expected}", flush=True)
+
     rng = random.Random(args.seed)
     new_samples: list[dict] = []
     processed_scenarios: set[str] = set()
@@ -204,11 +195,15 @@ def main():
     # 处理本次指定的场景
     for jsonl_path in jsonl_files:
         scenario_name = jsonl_path.stem
-        print(f"  处理：{jsonl_path.name} ...", end=" ", flush=True)
+        print(f"  处理：{jsonl_path.name} ...", flush=True)
         samples = _build_samples_from_file(jsonl_path, rng, neg_ratio=args.neg_ratio)
         n_pos = sum(1 for s in samples if s["label"] == 1)
         n_neg = len(samples) - n_pos
-        print(f"{len(samples)} 条（正={n_pos}, 负={n_neg}）")
+        print(f"  完成：{len(samples)} 条（正={n_pos}, 负={n_neg}）", flush=True)
+
+        # 发送进度完成事件
+        expected = scenario_source_counts[scenario_name] * (1 + args.neg_ratio)
+        print(f"PROGRESS_DONE:{scenario_name}:{len(samples)}:{expected}", flush=True)
 
         # 写入场景独立文件（覆盖）
         _write_jsonl(samples, scenario_dir / f"{scenario_name}.jsonl")
@@ -239,13 +234,8 @@ def main():
     n_pos_total = sum(1 for s in all_samples if s["label"] == 1)
     print(f"\n  总计：{len(all_samples)} 条（正={n_pos_total}, 负={len(all_samples)-n_pos_total}）")
 
-    print(f"\n[划分] train/val/test = "
-          f"{1-args.val_ratio-args.test_ratio:.0%}/"
-          f"{args.val_ratio:.0%}/{args.test_ratio:.0%}")
-    counts = _split_and_write(all_samples, output_dir, args.val_ratio, args.test_ratio, args.seed)
-
-    print(f"\n[完成] 共 {sum(counts.values())} 条 → {output_dir}")
-    print(f"       train={counts['train']}, val={counts['val']}, test={counts['test']}")
+    total = _write_all(all_samples, output_dir, args.seed)
+    print(f"\n[完成] 共 {total} 条 → {output_dir}/train.jsonl")
 
 
 if __name__ == "__main__":

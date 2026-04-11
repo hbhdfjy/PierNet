@@ -323,72 +323,33 @@ export default function SampleFiller() {
       {/* ── 右栏：监控 + 文件管理 ── */}
       <div className="flex-1 flex flex-col overflow-y-auto p-5 space-y-4 min-w-0">
 
-        {monitor.status === 'running' && (
-          <JobMonitorPanel
-            status={monitor.status}
-            logs={monitor.logs}
-            progress={monitor.progress}
-            stats={monitor.stats}
-            autoScroll={monitor.autoScroll}
-            onAutoScrollChange={monitor.setAutoScroll}
-            onStop={monitor.stop}
-            onDone={() => navigate('/samples')}
-            doneLabel="查看样本"
-            jobId={monitor.jobId}
-            jobIds={monitor.jobIds}
-            stageLabel="样本填充"
-            stageColor="text-emerald-400"
-            accentColor="emerald"
-          />
-        )}
+        <JobMonitorPanel
+          status={monitor.status}
+          logs={monitor.logs}
+          progress={monitor.progress}
+          stats={monitor.stats}
+          autoScroll={monitor.autoScroll}
+          onAutoScrollChange={monitor.setAutoScroll}
+          onStop={monitor.stop}
+          onDone={() => navigate('/samples')}
+          doneLabel="查看样本"
+          jobId={monitor.jobId}
+          jobIds={monitor.jobIds}
+          stageLabel="样本填充"
+          stageColor="text-emerald-400"
+          accentColor="emerald"
+        />
 
-        {(monitor.status === 'idle' || monitor.status === 'done') && (
+        {monitor.status === 'idle' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-16">
-            {monitor.status === 'done' ? (
-              <>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <FlaskConical size={24} className="text-emerald-400" />
-                </div>
-                <div>
-                  <p className="text-slate-300 text-sm font-medium">填充完成</p>
-                  <p className="text-slate-500 text-xs mt-1">样本已写入 data/text2comp/</p>
-                </div>
-                <div className="flex gap-2 mt-1">
-                  <button className="btn-ghost py-1.5 px-3 text-xs" onClick={monitor.reset}>重新配置</button>
-                  <button className="btn py-1.5 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white" onClick={() => navigate('/samples')}>查看样本 →</button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
-                  <FlaskConical size={24} className="text-emerald-400/60" />
-                </div>
-                <div>
-                  <p className="text-slate-400 text-sm font-medium">尚未启动任务</p>
-                  <p className="text-slate-600 text-xs mt-1">在左侧选择场景并配置参数，点击「开始填充」</p>
-                </div>
-              </>
-            )}
+            <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
+              <FlaskConical size={24} className="text-emerald-400/60" />
+            </div>
+            <div>
+              <p className="text-slate-400 text-sm font-medium">尚未启动任务</p>
+              <p className="text-slate-600 text-xs mt-1">在左侧选择场景并配置参数，点击「开始填充」</p>
+            </div>
           </div>
-        )}
-
-        {(monitor.status === 'error' || monitor.status === 'terminated') && (
-          <JobMonitorPanel
-            status={monitor.status}
-            logs={monitor.logs}
-            progress={monitor.progress}
-            stats={monitor.stats}
-            autoScroll={monitor.autoScroll}
-            onAutoScrollChange={monitor.setAutoScroll}
-            onStop={monitor.stop}
-            onDone={() => navigate('/samples')}
-            doneLabel="查看样本"
-            jobId={monitor.jobId}
-            jobIds={monitor.jobIds}
-            stageLabel="样本填充"
-            stageColor="text-emerald-400"
-            accentColor="emerald"
-          />
         )}
 
         {/* 文件管理 */}

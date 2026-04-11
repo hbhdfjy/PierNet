@@ -408,9 +408,9 @@ export interface RouterScenarioInfo {
 }
 
 export interface RouterStatus {
-  splits: Record<'train' | 'val' | 'test', RouterSplitInfo>
+  splits: Record<'train', RouterSplitInfo>
   total: number
-  label_counts: Record<number, number>
+  label_counts: Record<string, number>
   scenarios: RouterScenarioInfo[]
   source_count: number
   source_by_scenario: Record<string, number>

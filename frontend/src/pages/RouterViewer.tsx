@@ -61,7 +61,6 @@ function SampleCard({ sample, index }: { sample: RouterSample; index: number }) 
 
 export default function RouterViewer() {
   const [scenario, setScenario] = useState('')
-  const [split, setSplit] = useState<'train' | 'val' | 'test'>('train')
   const [labelFilter, setLabelFilter] = useState<-1 | 0 | 1>(-1)
   const [page, setPage] = useState(0)
 
@@ -86,8 +85,8 @@ export default function RouterViewer() {
   const activeScenario = scenario || Object.values(grouped).flat()[0]?.scenario || ''
 
   const { data: samplesResp, isLoading: samplesLoading } = useSWR(
-    activeScenario ? ['router-samples', activeScenario, split, labelFilter, page] : null,
-    () => api.getRouterSamples(split, page, PAGE_SIZE, labelFilter, activeScenario),
+    activeScenario ? ['router-samples', activeScenario, labelFilter, page] : null,
+    () => api.getRouterSamples('train', page, PAGE_SIZE, labelFilter, activeScenario),
     { revalidateOnFocus: false },
   )
 
@@ -182,18 +181,6 @@ export default function RouterViewer() {
             <>
               {/* 工具栏 */}
               <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-slate-700/40 flex-wrap">
-                {/* Split 切换 */}
-                <div className="flex rounded-lg overflow-hidden border border-slate-700/50">
-                  {(['train', 'val', 'test'] as const).map(s => (
-                    <button key={s}
-                      className={cn('px-3 py-1.5 text-xs font-medium transition-colors',
-                        split === s
-                          ? 'bg-slate-700 text-white'
-                          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/50')}
-                      onClick={() => { setSplit(s); setPage(0) }}
-                    >{s}</button>
-                  ))}
-                </div>
                 {/* Label 筛选 */}
                 <div className="flex rounded-lg overflow-hidden border border-slate-700/50">
                   {([[-1, '全部'], [1, 'label=1 专家'], [0, 'label=0 LLM']] as const).map(([v, lbl]) => (
