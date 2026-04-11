@@ -38,6 +38,7 @@ wandb/
 
 # OS
 .DS_Store
+**/.DS_Store
 
 # Temporary files
 *.tmp
