@@ -1,6 +1,10 @@
-import { useState, useEffect, createContext, useContext } from 'react'
+import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
-import { Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate, KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network, Shuffle } from 'lucide-react'
+import {
+  Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
+  KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network,
+  Shuffle, ChevronRight,
+} from 'lucide-react'
 import { cn } from './lib/utils'
 import { SeedContext } from './lib/seedContext'
 import SampleViewer from './pages/SampleViewer'
@@ -16,108 +20,134 @@ import SimulationRunner from './pages/SimulationRunner'
 import RouterDataBuilder from './pages/RouterDataBuilder'
 import RouterViewer from './pages/RouterViewer'
 
-// ── 主题 ────────────────────────────────────────────────────────
+// ── 主题 ──────────────────────────────────────────────────────────
 
 type Theme = 'dark' | 'light'
 
 function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('piern-theme') as Theme | null
-    return saved ?? 'dark'
+    return (localStorage.getItem('piern-theme') as Theme) ?? 'dark'
   })
-
   useEffect(() => {
     const root = document.documentElement
-    if (theme === 'light') {
-      root.classList.add('light')
-      root.classList.remove('dark')
-    } else {
-      root.classList.remove('light')
-      root.classList.add('dark')
-    }
+    root.classList.toggle('light', theme === 'light')
+    root.classList.toggle('dark',  theme === 'dark')
     localStorage.setItem('piern-theme', theme)
   }, [theme])
-
-  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
-  return [theme, toggle]
+  return [theme, () => setTheme(t => t === 'dark' ? 'light' : 'dark')]
 }
 
-// ── 侧边栏导航项定义 ──────────────────────────────────────────────
-
-const STAGE2_STEPS = [
-  { to: '/register',  icon: BookOpen, label: '注册数据集', step: '01', color: 'sky'    },
-  { to: '/templates', icon: Cpu,      label: '模板生成',   step: '02', color: 'violet' },
-] as const
-
-const DATA_ITEMS = [
-  { to: '/template-viewer', icon: BookTemplate, label: '模板浏览' },
-  { to: '/samples',         icon: Database,     label: '样本浏览' },
-  { to: '/router-viewer',   icon: Network,      label: '路由浏览' },
-  { to: '/stats',           icon: BarChart2,    label: '数据统计' },
-] as const
-
-const SETTINGS_ITEMS = [
-  { to: '/registry',   icon: FileText,   label: '注册信息', color: 'sky'   },
-  { to: '/data-dirs',  icon: FolderOpen, label: '数据目录', color: 'sky'   },
-  { to: '/llm-config', icon: KeyRound,   label: 'LLM 配置', color: 'amber' },
-] as const
-
-type StepColor = 'sky' | 'violet' | 'emerald'
-const STEP_COLORS: Record<StepColor, { active: string; dot: string }> = {
-  sky:     { active: 'bg-sky-500/15 text-sky-400',     dot: 'bg-sky-500'     },
-  violet:  { active: 'bg-violet-500/15 text-violet-400', dot: 'bg-violet-500'  },
-  emerald: { active: 'bg-emerald-500/15 text-emerald-400', dot: 'bg-emerald-500' },
+function useSeedState(): [number, (v: number) => void] {
+  const [seed, setSeedRaw] = useState<number>(() => {
+    const n = parseInt(localStorage.getItem('piern-seed') ?? '42', 10)
+    return isNaN(n) ? 42 : Math.max(0, n)
+  })
+  const setSeed = (v: number) => { setSeedRaw(v); localStorage.setItem('piern-seed', String(v)) }
+  return [seed, setSeed]
 }
+
+// ── 侧边栏常量 ────────────────────────────────────────────────────
+
+// Stage 颜色配置
+const STAGE_COLORS = {
+  amber:   { active: 'text-amber-400',   bg: 'bg-amber-500/10',   dot: 'bg-amber-400',   border: 'border-amber-500/30'   },
+  sky:     { active: 'text-sky-400',     bg: 'bg-sky-500/10',     dot: 'bg-sky-400',     border: 'border-sky-500/30'     },
+  violet:  { active: 'text-violet-400',  bg: 'bg-violet-500/10',  dot: 'bg-violet-400',  border: 'border-violet-500/30'  },
+  emerald: { active: 'text-emerald-400', bg: 'bg-emerald-500/10', dot: 'bg-emerald-400', border: 'border-emerald-500/30' },
+  rose:    { active: 'text-rose-400',    bg: 'bg-rose-500/10',    dot: 'bg-rose-400',    border: 'border-rose-500/30'    },
+} as const
+
+type StageColor = keyof typeof STAGE_COLORS
 
 // ── 侧边栏区块标题 ────────────────────────────────────────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
-    <div className="px-2 mb-1.5 flex items-center gap-2">
-      <span className="text-xs font-bold uppercase tracking-wider whitespace-nowrap text-slate-500">{children}</span>
-      <div className="flex-1 h-px bg-slate-700/40" />
+    <div className="flex items-center gap-2 px-2 mb-1">
+      <span className="label text-[10px] whitespace-nowrap">{children}</span>
+      <div className="flex-1 h-px" style={{ background: 'hsl(var(--border) / 0.4)' }} />
     </div>
   )
 }
 
-// ── 通用导航链接 ──────────────────────────────────────────────────
+// ── 单个导航链接 ──────────────────────────────────────────────────
 
 function NavItem({
-  to, icon: Icon, label,
-  activeClass = 'bg-slate-700/50 text-slate-200',
+  to,
+  icon: Icon,
+  label,
+  color,
+  step,
+  rightIcon,
 }: {
-  to: string; icon: React.ElementType; label: string; activeClass?: string
+  to: string
+  icon: React.ElementType
+  label: string
+  color?: StageColor
+  step?: string
+  rightIcon?: React.ElementType
 }) {
+  const c = color ? STAGE_COLORS[color] : null
+
   return (
     <NavLink
       to={to}
       className={({ isActive }) => cn(
-        'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
+        'group relative flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm',
+        'transition-all duration-150 select-none',
         isActive
-          ? activeClass + ' font-medium'
-          : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
+          ? cn('font-medium', c ? c.active : 'text-slate-200', c ? c.bg : 'bg-slate-700/40')
+          : 'text-slate-500 hover:text-slate-300 hover:bg-slate-800/40',
       )}
     >
-      <Icon size={16} className="flex-shrink-0 opacity-70" />
-      <span className="truncate">{label}</span>
+      {({ isActive }) => (
+        <>
+          {/* 左侧 active 指示条 */}
+          {isActive && (
+            <span
+              className={cn(
+                'absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-4 rounded-full',
+                c ? c.dot : 'bg-slate-400',
+              )}
+            />
+          )}
+
+          {/* 图标区域 */}
+          <div className={cn(
+            'w-5 h-5 flex items-center justify-center flex-shrink-0 rounded-md transition-all',
+            step
+              ? cn(
+                  'text-xs font-bold',
+                  isActive
+                    ? cn(c?.active ?? 'text-slate-200')
+                    : 'text-slate-600',
+                )
+              : isActive
+              ? cn(c?.active ?? 'text-slate-300')
+              : 'text-slate-600 group-hover:text-slate-400',
+          )}>
+            {step ? step : <Icon size={14} />}
+          </div>
+
+          {/* 标签 */}
+          <span className="flex-1 truncate text-[13px]">{label}</span>
+
+          {/* 右侧图标（仅 inactive 时显示） */}
+          {!isActive && rightIcon && (
+            <span className="opacity-0 group-hover:opacity-40 transition-opacity flex-shrink-0">
+              {React.createElement(rightIcon, { size: 11 })}
+            </span>
+          )}
+        </>
+      )}
     </NavLink>
   )
 }
 
 // ── 主应用 ────────────────────────────────────────────────────────
 
-function useSeedState(): [number, (v: number) => void] {
-  const [seed, setSeedRaw] = useState<number>(() => {
-    const saved = localStorage.getItem('piern-seed')
-    const n = saved !== null ? parseInt(saved, 10) : 42
-    return isNaN(n) ? 42 : Math.max(0, n)
-  })
-  const setSeed = (v: number) => {
-    setSeedRaw(v)
-    localStorage.setItem('piern-seed', String(v))
-  }
-  return [seed, setSeed]
-}
+// 需要手动 import React 因为 createElement
+import React from 'react'
 
 export default function App() {
   const [theme, toggleTheme] = useTheme()
@@ -126,243 +156,194 @@ export default function App() {
 
   return (
     <SeedContext.Provider value={{ seed, setSeed }}>
-    <div className="flex h-screen overflow-hidden bg-[hsl(var(--bg))]">
+      <div className="flex h-screen overflow-hidden" style={{ backgroundColor: 'hsl(var(--bg))' }}>
 
-      {/* ── 侧边栏 ── */}
-      <aside className="w-56 flex-shrink-0 bg-[hsl(var(--bg-sub))] border-r border-[hsl(var(--border)/0.6)] flex flex-col select-none">
-
-        {/* Logo */}
-        <div className="px-4 py-4 border-b border-[hsl(var(--border)/0.5)]">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-sky-900/30">
-              <span className="text-white font-black text-base">P</span>
+        {/* ════════════════════════════════════════════
+            侧边栏
+            ════════════════════════════════════════════ */}
+        <aside
+          className="w-52 flex-shrink-0 flex flex-col select-none"
+          style={{
+            backgroundColor: 'hsl(var(--bg-sub))',
+            borderRight: '1px solid hsl(var(--border) / 0.5)',
+          }}
+        >
+          {/* Logo */}
+          <div
+            className="flex items-center gap-3 px-4 py-4 flex-shrink-0"
+            style={{ borderBottom: '1px solid hsl(var(--border) / 0.4)' }}
+          >
+            {/* Logo 图标 */}
+            <div className="relative flex-shrink-0">
+              <div className="w-8 h-8 rounded-xl flex items-center justify-center"
+                style={{
+                  background: 'linear-gradient(135deg, hsl(199 89% 42%), hsl(220 90% 48%))',
+                  boxShadow: '0 2px 8px rgba(14,165,233,0.35)',
+                }}>
+                <span className="text-white font-black text-sm tracking-tight">P</span>
+              </div>
+              {/* 状态点 */}
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border-2"
+                style={{ borderColor: 'hsl(var(--bg-sub))' }} />
             </div>
             <div>
-              <div className="text-base font-bold tracking-wide leading-none text-[hsl(var(--text))]">PiERN</div>
-              <div className="text-xs mt-1 leading-none text-[hsl(var(--text-faint))]">多模拟器数据集</div>
-            </div>
-          </div>
-        </div>
-
-        {/* 导航主体 */}
-        <nav className="flex-1 overflow-y-auto px-2.5 py-3 space-y-4">
-
-          {/* Stage 1 */}
-          <div>
-            <SectionLabel>Stage 1 · 物理仿真</SectionLabel>
-            <NavLink
-              to="/simulate"
-              className={({ isActive }) => cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-                isActive
-                  ? 'bg-amber-500/15 text-amber-400 font-medium'
-                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
-              )}
-            >
-              {({ isActive }) => (
-                <>
-                  <div className={cn(
-                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'bg-amber-500/20 text-amber-400' : 'text-slate-500',
-                  )}>
-                    <Zap size={15} />
-                  </div>
-                  <span className="flex-1 truncate">仿真运行</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-amber-500 flex-shrink-0" />}
-                </>
-              )}
-            </NavLink>
-          </div>
-
-          {/* Stage 2 */}
-          <div>
-            <SectionLabel>Stage 2 · 语言模板</SectionLabel>
-            <div className="space-y-0.5">
-              {STAGE2_STEPS.map(({ to, icon: Icon, label, step, color }) => {
-                const colors = STEP_COLORS[color]
-                return (
-                  <NavLink
-                    key={to}
-                    to={to}
-                    className={({ isActive }) => cn(
-                      'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-                      isActive
-                        ? `${colors.active} font-medium`
-                        : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
-                    )}
-                  >
-                    {({ isActive }) => (
-                      <>
-                        <div className={cn(
-                          'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all',
-                          isActive ? 'opacity-90' : 'text-slate-500',
-                        )}>
-                          {step}
-                        </div>
-                        <span className="flex-1 truncate">{label}</span>
-                        {isActive
-                          ? <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', colors.dot)} />
-                          : <Icon size={14} className="flex-shrink-0 opacity-30" />
-                        }
-                      </>
-                    )}
-                  </NavLink>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Stage 3 */}
-          <div>
-            <SectionLabel>Stage 3 · 样本填充</SectionLabel>
-            <NavLink
-              to="/fill"
-              className={({ isActive }) => cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-                isActive
-                  ? 'bg-emerald-500/15 text-emerald-400 font-medium'
-                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
-              )}
-            >
-              {({ isActive }) => (
-                <>
-                  <div className={cn(
-                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'text-emerald-400' : 'text-slate-500',
-                  )}>
-                    <FlaskConical size={15} />
-                  </div>
-                  <span className="flex-1 truncate">样本填充</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />}
-                </>
-              )}
-            </NavLink>
-          </div>
-
-          {/* Stage 4 */}
-          <div>
-            <SectionLabel>Stage 4 · 路由数据</SectionLabel>
-            <NavLink
-              to="/router"
-              className={({ isActive }) => cn(
-                'flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-all duration-150',
-                isActive
-                  ? 'bg-rose-500/15 text-rose-400 font-medium'
-                  : 'text-slate-500 hover:bg-slate-800/50 hover:text-slate-300',
-              )}
-            >
-              {({ isActive }) => (
-                <>
-                  <div className={cn(
-                    'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 transition-all',
-                    isActive ? 'text-rose-400' : 'text-slate-500',
-                  )}>
-                    <GitBranch size={15} />
-                  </div>
-                  <span className="flex-1 truncate">路由数据</span>
-                  {isActive && <div className="w-1.5 h-1.5 rounded-full bg-rose-500 flex-shrink-0" />}
-                </>
-              )}
-            </NavLink>
-          </div>
-
-          {/* 数据查看 */}
-          <div>
-            <SectionLabel>数据查看</SectionLabel>
-            <div className="space-y-0.5">
-              {DATA_ITEMS.map(({ to, icon, label }) => (
-                <NavItem key={to} to={to} icon={icon} label={label} />
-              ))}
-            </div>
-          </div>
-
-          {/* 设置 */}
-          <div>
-            <SectionLabel>设置</SectionLabel>
-            <div className="space-y-0.5">
-              {SETTINGS_ITEMS.map(({ to, icon, label, color }) => (
-                <NavItem
-                  key={to} to={to} icon={icon} label={label}
-                  activeClass={color === 'amber'
-                    ? 'bg-amber-500/10 text-amber-400'
-                    : 'bg-slate-700/50 text-slate-200'}
-                />
-              ))}
-            </div>
-          </div>
-        </nav>
-
-        {/* 底部：随机种子 + 主题切换 */}
-        <div className="border-t border-[hsl(var(--border)/0.5)] flex-shrink-0">
-          {/* 随机种子 */}
-          <div className="px-3 pt-2.5 pb-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <div className="flex items-center gap-1.5 text-[hsl(var(--text-faint))]">
-                <Shuffle size={11} />
-                <span className="text-xs">随机种子</span>
+              <div className="text-sm font-bold tracking-tight leading-none"
+                style={{ color: 'hsl(var(--text))' }}>
+                PiERN
               </div>
-              <span className="text-xs font-mono text-[hsl(var(--text-faint))]">全局</span>
+              <div className="text-[11px] mt-0.5 leading-none"
+                style={{ color: 'hsl(var(--text-faint))' }}>
+                多模拟器数据集
+              </div>
             </div>
-            <input
-              type="number"
-              min={0}
-              value={seedInput}
-              onChange={e => {
-                setSeedInput(e.target.value)
-                const n = parseInt(e.target.value, 10)
-                if (!isNaN(n) && n >= 0) setSeed(n)
-              }}
-              onBlur={() => {
-                const n = parseInt(seedInput, 10)
-                const v = isNaN(n) ? 42 : Math.max(0, n)
-                setSeed(v)
-                setSeedInput(String(v))
-              }}
-              className="w-full bg-[hsl(var(--surface2))] border border-[hsl(var(--border)/0.6)] rounded-lg px-2.5 py-1.5 text-xs font-mono text-[hsl(var(--text))] focus:outline-none focus:ring-1 focus:ring-sky-500/50 focus:border-sky-500/40 transition-all"
-            />
           </div>
-          {/* 主题切换 + 版本 */}
-          <div className="px-3 pb-2.5 flex items-center justify-between">
-            <div className="flex items-center gap-1.5">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-xs text-[hsl(var(--text-faint))] font-mono">v2.0</span>
-            </div>
-            <button
-              onClick={toggleTheme}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-150 text-[hsl(var(--text-muted))] hover:bg-[hsl(var(--surface2))] hover:text-[hsl(var(--text))]"
-              title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
-            >
-              {theme === 'dark'
-                ? <><Sun size={14} /><span>日间</span></>
-                : <><Moon size={14} /><span>夜间</span></>
-              }
-            </button>
-          </div>
-        </div>
-      </aside>
 
-      {/* ── 主内容区 ── */}
-      <main className="flex-1 overflow-hidden flex flex-col bg-[hsl(var(--bg))]">
-        <Routes>
-          <Route path="/"          element={<Navigate to="/simulate" replace />} />
-          <Route path="/simulate"  element={<SimulationRunner />} />
-          <Route path="/register"  element={<RegisterSimulator />} />
-          <Route path="/templates" element={<TemplateGenerator />} />
-          <Route path="/fill"      element={<SampleFiller />} />
-          <Route path="/router"    element={<RouterDataBuilder />} />
-          <Route path="/template-viewer" element={<TemplateViewer />} />
-          <Route path="/samples"         element={<SampleViewer />} />
-          <Route path="/router-viewer"   element={<RouterViewer />} />
-          <Route path="/stats"      element={<DatasetStats />} />
-          <Route path="/registry"   element={<RegistryPage />} />
-          <Route path="/data-dirs"  element={<DataDirsConfig />} />
-          <Route path="/llm-config" element={<LLMConfigPage />} />
-          <Route path="/monitor"    element={<Navigate to="/templates" replace />} />
-          <Route path="/launch"     element={<Navigate to="/templates" replace />} />
-          <Route path="*"           element={<Navigate to="/simulate" replace />} />
-        </Routes>
-      </main>
-    </div>
+          {/* 导航 */}
+          <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
+
+            {/* Stage 1 */}
+            <div>
+              <SectionLabel>Stage 1 · 物理仿真</SectionLabel>
+              <NavItem to="/simulate" icon={Zap} label="仿真运行" color="amber" />
+            </div>
+
+            {/* Stage 2 */}
+            <div>
+              <SectionLabel>Stage 2 · 语言模板</SectionLabel>
+              <div className="space-y-0.5">
+                <NavItem to="/register"  icon={BookOpen} label="注册数据集" color="sky"    step="01" />
+                <NavItem to="/templates" icon={Cpu}      label="模板生成"   color="violet" step="02" />
+              </div>
+            </div>
+
+            {/* Stage 3 */}
+            <div>
+              <SectionLabel>Stage 3 · 样本填充</SectionLabel>
+              <NavItem to="/fill" icon={FlaskConical} label="样本填充" color="emerald" />
+            </div>
+
+            {/* Stage 4 */}
+            <div>
+              <SectionLabel>Stage 4 · 路由数据</SectionLabel>
+              <NavItem to="/router" icon={GitBranch} label="路由数据" color="rose" />
+            </div>
+
+            {/* 数据查看 */}
+            <div>
+              <SectionLabel>数据查看</SectionLabel>
+              <div className="space-y-0.5">
+                <NavItem to="/template-viewer" icon={BookTemplate} label="模板浏览"  rightIcon={ChevronRight} />
+                <NavItem to="/samples"         icon={Database}     label="样本浏览"  rightIcon={ChevronRight} />
+                <NavItem to="/router-viewer"   icon={Network}      label="路由浏览"  rightIcon={ChevronRight} />
+                <NavItem to="/stats"           icon={BarChart2}    label="数据统计"  rightIcon={ChevronRight} />
+              </div>
+            </div>
+
+            {/* 设置 */}
+            <div>
+              <SectionLabel>设置</SectionLabel>
+              <div className="space-y-0.5">
+                <NavItem to="/registry"   icon={FileText}   label="注册信息" />
+                <NavItem to="/data-dirs"  icon={FolderOpen} label="数据目录" />
+                <NavItem to="/llm-config" icon={KeyRound}   label="LLM 配置" color="amber" />
+              </div>
+            </div>
+          </nav>
+
+          {/* 底部：种子 + 主题 */}
+          <div
+            className="flex-shrink-0"
+            style={{ borderTop: '1px solid hsl(var(--border) / 0.4)' }}
+          >
+            {/* 随机种子 */}
+            <div className="px-3 pt-2.5 pb-2">
+              <div className="flex items-center justify-between mb-1.5">
+                <div className="flex items-center gap-1.5" style={{ color: 'hsl(var(--text-faint))' }}>
+                  <Shuffle size={10} />
+                  <span className="text-[11px]">全局随机种子</span>
+                </div>
+              </div>
+              <input
+                type="number"
+                min={0}
+                value={seedInput}
+                onChange={e => {
+                  setSeedInput(e.target.value)
+                  const n = parseInt(e.target.value, 10)
+                  if (!isNaN(n) && n >= 0) setSeed(n)
+                }}
+                onBlur={() => {
+                  const n = parseInt(seedInput, 10)
+                  const v = isNaN(n) ? 42 : Math.max(0, n)
+                  setSeed(v); setSeedInput(String(v))
+                }}
+                className="w-full text-xs font-mono px-2.5 py-1.5 rounded-lg outline-none transition-all duration-150"
+                style={{
+                  backgroundColor: 'hsl(var(--surface2))',
+                  border: '1px solid hsl(var(--border) / 0.6)',
+                  color: 'hsl(var(--text))',
+                }}
+                onFocus={e => {
+                  e.currentTarget.style.borderColor = 'hsl(199 89% 48% / 0.5)'
+                  e.currentTarget.style.boxShadow = '0 0 0 2px hsl(199 89% 48% / 0.12)'
+                }}
+              />
+            </div>
+
+            {/* 主题 + 版本 */}
+            <div className="px-3 pb-3 flex items-center justify-between">
+              <span className="text-[11px] font-mono" style={{ color: 'hsl(var(--text-ghost))' }}>
+                v2.0
+              </span>
+              <button
+                onClick={toggleTheme}
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all duration-150"
+                style={{ color: 'hsl(var(--text-muted))' }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.backgroundColor = 'hsl(var(--surface2))'
+                  e.currentTarget.style.color = 'hsl(var(--text))'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = 'hsl(var(--text-muted))'
+                }}
+              >
+                {theme === 'dark'
+                  ? <><Sun size={12} /><span>日间</span></>
+                  : <><Moon size={12} /><span>夜间</span></>
+                }
+              </button>
+            </div>
+          </div>
+        </aside>
+
+        {/* ════════════════════════════════════════════
+            主内容区
+            ════════════════════════════════════════════ */}
+        <main
+          className="flex-1 overflow-hidden flex flex-col"
+          style={{ backgroundColor: 'hsl(var(--bg))' }}
+        >
+          <Routes>
+            <Route path="/"               element={<Navigate to="/simulate" replace />} />
+            <Route path="/simulate"       element={<SimulationRunner />} />
+            <Route path="/register"       element={<RegisterSimulator />} />
+            <Route path="/templates"      element={<TemplateGenerator />} />
+            <Route path="/fill"           element={<SampleFiller />} />
+            <Route path="/router"         element={<RouterDataBuilder />} />
+            <Route path="/template-viewer" element={<TemplateViewer />} />
+            <Route path="/samples"        element={<SampleViewer />} />
+            <Route path="/router-viewer"  element={<RouterViewer />} />
+            <Route path="/stats"          element={<DatasetStats />} />
+            <Route path="/registry"       element={<RegistryPage />} />
+            <Route path="/data-dirs"      element={<DataDirsConfig />} />
+            <Route path="/llm-config"     element={<LLMConfigPage />} />
+            <Route path="/monitor"        element={<Navigate to="/templates" replace />} />
+            <Route path="/launch"         element={<Navigate to="/templates" replace />} />
+            <Route path="*"               element={<Navigate to="/simulate" replace />} />
+          </Routes>
+        </main>
+      </div>
     </SeedContext.Provider>
   )
 }

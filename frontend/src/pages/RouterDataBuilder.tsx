@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn, formatBytes, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
+import ResizeHandle from '../components/ui/ResizeHandle'
 import { useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
@@ -266,7 +267,7 @@ export default function RouterDataBuilder() {
         </div>
 
         {/* 底部：参数 + 按钮（固定）*/}
-        <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/30">
+        <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/20">
           <div className="px-4 py-3 space-y-3">
             <div className="flex items-center gap-1.5">
               <Settings size={12} className="text-slate-500" />
@@ -322,21 +323,10 @@ export default function RouterDataBuilder() {
         </div>
       </div>
 
-      {/* ── 拖拽手柄 ── */}
-      <div
-        onMouseDown={onResizeStart}
-        className="w-1 flex-shrink-0 cursor-col-resize group relative hover:bg-rose-500/40 active:bg-rose-500/60 transition-colors"
-      >
-        <div className="absolute inset-y-0 left-0 w-px bg-slate-700/60 group-hover:bg-rose-500/50 transition-colors" />
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-slate-700/80 border border-slate-600/60 group-hover:bg-rose-500/60 group-hover:border-rose-400/50 transition-all flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-        </div>
-      </div>
+      <ResizeHandle onMouseDown={onResizeStart} color="rose" />
 
       {/* ── 右栏 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-5 space-y-4 min-w-0">
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 min-w-0">
 
         {/* Job 监控 */}
         <JobMonitorPanel

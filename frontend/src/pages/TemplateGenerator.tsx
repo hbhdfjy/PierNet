@@ -7,6 +7,7 @@ import { Cpu, Settings, Layers, RefreshCw, AlertCircle, Sparkles, ChevronDown, C
 import { cn, formatBytes } from '../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
+import ResizeHandle from '../components/ui/ResizeHandle'
 import { useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
@@ -260,7 +261,7 @@ export default function TemplateGenerator() {
         </div>
 
         {/* 底部：参数 + 按钮（固定，不滚动）*/}
-        <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/30">
+        <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/20">
 
           {/* 参数区 */}
           <div className="px-4 py-3 space-y-3">
@@ -410,24 +411,10 @@ export default function TemplateGenerator() {
         </div>
       </div>
 
-      {/* ── 拖拽手柄 ── */}
-      <div
-        onMouseDown={onResizeStart}
-        className="w-1 flex-shrink-0 cursor-col-resize group relative hover:bg-violet-500/40 active:bg-violet-500/60 transition-colors"
-        title="拖动调整宽度"
-      >
-        {/* 中心指示线 */}
-        <div className="absolute inset-y-0 left-0 w-px bg-slate-700/60 group-hover:bg-violet-500/50 transition-colors" />
-        {/* 中心抓取点 */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-3 h-8 rounded-full bg-slate-700/80 border border-slate-600/60 group-hover:bg-violet-500/60 group-hover:border-violet-400/50 transition-all flex flex-col items-center justify-center gap-0.5 opacity-0 group-hover:opacity-100">
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-          <div className="w-0.5 h-0.5 rounded-full bg-slate-300/80" />
-        </div>
-      </div>
+      <ResizeHandle onMouseDown={onResizeStart} color="violet" />
 
       {/* ── 右栏：监控 + 文件管理 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-5 space-y-4 min-w-0">
+      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 min-w-0">
 
         <JobMonitorPanel
           status={monitor.status}

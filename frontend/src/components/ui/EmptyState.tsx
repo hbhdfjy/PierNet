@@ -11,18 +11,29 @@ interface Props {
 }
 
 export default function EmptyState({ icon: Icon, title, description, action, className, size = 'md' }: Props) {
-  const sizes = {
-    sm: { icon: 24, title: 'text-sm', desc: 'text-xs', gap: 'gap-2', py: 'py-8' },
-    md: { icon: 36, title: 'text-base', desc: 'text-sm', gap: 'gap-3', py: 'py-12' },
-    lg: { icon: 48, title: 'text-lg', desc: 'text-base', gap: 'gap-4', py: 'py-16' },
-  }
-  const s = sizes[size]
+  const s = {
+    sm: { iconSize: 20, iconBox: 'w-10 h-10 rounded-xl', py: 'py-8',  gap: 'gap-2.5', title: 'text-sm'  },
+    md: { iconSize: 28, iconBox: 'w-14 h-14 rounded-2xl', py: 'py-14', gap: 'gap-3',   title: 'text-base' },
+    lg: { iconSize: 36, iconBox: 'w-18 h-18 rounded-2xl', py: 'py-20', gap: 'gap-4',   title: 'text-lg'  },
+  }[size]
+
   return (
-    <div className={cn(`flex flex-col items-center justify-center ${s.py} ${s.gap}`, className)}>
-      <Icon size={s.icon} className="text-slate-600 opacity-60" />
-      <div className="text-center">
+    <div className={cn(
+      `flex flex-col items-center justify-center text-center ${s.py} ${s.gap}`,
+      className,
+    )}>
+      <div className={cn(
+        s.iconBox,
+        'flex items-center justify-center',
+        'bg-slate-800/50 border border-slate-700/30',
+      )}>
+        <Icon size={s.iconSize} className="text-slate-600" />
+      </div>
+      <div>
         <p className={cn('font-medium text-slate-400', s.title)}>{title}</p>
-        {description && <p className={cn('text-slate-600 mt-1', s.desc)}>{description}</p>}
+        {description && (
+          <p className="text-xs text-slate-600 mt-1 max-w-xs leading-relaxed">{description}</p>
+        )}
       </div>
       {action && <div className="mt-1">{action}</div>}
     </div>
