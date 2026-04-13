@@ -373,8 +373,8 @@ export default function RouterDataBuilder() {
               { label: '总样本数', count: status!.splits.train.count, color: 'text-sky-400' },
               { label: '正样本', count: posCount, color: 'text-emerald-400' },
             ].map(({ label, count, color }) => (
-              <div key={label} className="card-hover px-4 py-3 cursor-default">
-                <div className="text-xs text-slate-500 mb-1 font-medium uppercase">{label}</div>
+              <div key={label} className="card px-4 py-3">
+                <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{label}</div>
                 <div className={cn('text-xl font-bold font-mono tabular-nums', color)}>
                   {count.toLocaleString()}
                 </div>
@@ -399,10 +399,10 @@ export default function RouterDataBuilder() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <span className="btn-ghost py-0.5 px-1.5 text-xs"
+              <button className="btn-ghost py-0.5 px-1.5 text-xs"
                 onClick={e => { e.stopPropagation(); refreshStatus() }}>
                 <RefreshCw size={11} className={isLoading ? 'animate-spin' : ''} />
-              </span>
+              </button>
               {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
             </div>
           </button>

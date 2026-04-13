@@ -195,7 +195,7 @@ export default function App() {
                       <>
                         <div className={cn(
                           'w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 text-xs font-bold transition-all',
-                          isActive ? 'opacity-90' : 'text-slate-400 dark:text-slate-600',
+                          isActive ? 'opacity-90' : 'text-slate-500',
                         )}>
                           {step}
                         </div>

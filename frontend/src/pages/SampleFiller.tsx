@@ -15,9 +15,9 @@ export default function SampleFiller() {
   const navigate = useNavigate()
   const monitor = useJobMonitor('fill')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
-    defaultWidth: 600,
+    defaultWidth: 520,
     minWidth: 300,
-    maxWidth: 600,
+    maxWidth: 640,
     storageKey: 'piern_fill_sidebar_width',
   })
 
@@ -122,8 +122,7 @@ export default function SampleFiller() {
     }
   }
 
-  const isRunning = monitor.status === 'running'
-  const canLaunch = !isRunning
+  const canLaunch = !monitor.status || ['idle', 'done', 'error', 'terminated'].includes(monitor.status)
 
   return (
     <div className="flex-1 flex overflow-hidden">
@@ -263,13 +262,25 @@ export default function SampleFiller() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center gap-2 px-3 py-2 bg-slate-900/40 rounded-xl border border-slate-700/30">
-                <input id="skip-f" type="checkbox" className="w-3.5 h-3.5 accent-emerald-500 flex-shrink-0"
-                  checked={skipExisting} onChange={e => setSkipExisting(e.target.checked)} />
-                <label htmlFor="skip-f" className="text-xs text-slate-400 cursor-pointer leading-snug">
-                  跳过已有
-                </label>
+            </div>
+            {/* 断点续跑开关 */}
+            <div
+              className="flex items-center gap-2 cursor-pointer"
+              onClick={() => setSkipExisting(v => !v)}
+            >
+              <div className={cn(
+                'relative w-8 h-4 rounded-full transition-all duration-200 flex-shrink-0',
+                skipExisting ? 'bg-emerald-500' : 'bg-slate-700',
+              )}>
+                <div
+                  className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all duration-200"
+                  style={{ left: skipExisting ? '18px' : '2px' }}
+                />
               </div>
+              <span className="text-xs text-slate-300 font-medium flex-1">断点续跑</span>
+              <span className="text-xs text-slate-600">
+                {skipExisting ? '已有样本时补齐到目标数' : '忽略已有样本重新生成'}
+              </span>
             </div>
           </div>
 
@@ -281,7 +292,7 @@ export default function SampleFiller() {
           )}
 
           {canLaunch && (
-            <div className="px-4 pb-4">
+            <div className="px-4 pb-4 space-y-1.5">
               <button
                 className={cn(
                   'w-full py-2.5 text-sm justify-center shadow-lg btn',
@@ -297,6 +308,11 @@ export default function SampleFiller() {
                   : <><FlaskConical size={14} /> 开始填充{selected.size > 0 ? `（${selected.size} 个场景）` : ''}</>
                 }
               </button>
+              {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
+                <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
+                  重新配置
+                </button>
+              )}
             </div>
           )}
         </div>

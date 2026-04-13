@@ -51,6 +51,10 @@ export default function SampleViewer() {
             <p className="text-xs text-slate-500 mt-0.5">Stage 3 生成的训练样本</p>
           </div>
         </div>
+        <button className="btn-ghost" onClick={() => mutate()}>
+          <RefreshCw size={14} className={sLoading ? 'animate-spin' : ''} />
+          刷新
+        </button>
       </div>
       <div className="flex-1 flex overflow-hidden">
       {/* ── 左侧场景列表 ── */}

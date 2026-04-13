@@ -14,9 +14,9 @@ export default function TemplateGenerator() {
   const navigate = useNavigate()
   const monitor = useJobMonitor('templates')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
-    defaultWidth: 600,
+    defaultWidth: 520,
     minWidth: 300,
-    maxWidth: 600,
+    maxWidth: 640,
     storageKey: 'piern_template_sidebar_width',
   })
 
@@ -313,7 +313,7 @@ export default function TemplateGenerator() {
                     )}
                   >
                     <span className="text-xs font-medium leading-tight">{label}</span>
-                    <span className="text-xs opacity-60 leading-tight mt-0.5">{desc}</span>
+                    <span className="text-xs text-slate-500 leading-tight mt-0.5">{desc}</span>
                   </button>
                 ))}
               </div>
