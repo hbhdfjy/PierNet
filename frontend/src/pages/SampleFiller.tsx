@@ -139,10 +139,10 @@ export default function SampleFiller() {
             <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center flex-shrink-0">
               <FlaskConical size={14} className="text-emerald-400" />
             </div>
-            <h1 className="text-base font-bold text-white">样本填充</h1>
+            <h1 className="text-lg font-bold text-white">样本填充</h1>
             <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">Stage 3</span>
           </div>
-          <p className="text-slate-500 text-xs mt-1.5 ml-9">
+          <p className="text-slate-500 text-sm mt-1 ml-9">
             将模板库与 HDF5 数值结合，生成最终训练样本。
             <span className="text-emerald-500/80"> 不调用 LLM</span>
           </p>
@@ -183,7 +183,7 @@ export default function SampleFiller() {
           <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-700/20">
             <div className="flex items-center gap-2">
               <Layers size={12} className="text-slate-400" />
-              <span className="font-medium text-slate-300 text-xs">选择场景</span>
+              <span className="font-medium text-slate-300 text-sm">选择场景</span>
               {selected.size > 0 && (
                 <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs py-0.5">
                   {selected.size} 已选
@@ -191,11 +191,11 @@ export default function SampleFiller() {
               )}
             </div>
             <div className="flex items-center gap-0.5">
-              <button className="btn-ghost py-0.5 px-2 text-xs"
+              <button className="btn-ghost py-0.5 px-2 text-sm"
                 onClick={() => setSelected(new Set(scenariosWithTemplates.map(s => s.name)))}>
                 全选
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs" onClick={() => setSelected(new Set())}>清空</button>
+              <button className="btn-ghost py-0.5 px-2 text-sm" onClick={() => setSelected(new Set())}>清空</button>
               <button className="btn-ghost py-0.5 px-1.5" onClick={() => { refreshScenarios(); refreshTemplates() }}>
                 <RefreshCw size={11} className={scLoading ? 'animate-spin' : ''} />
               </button>
@@ -211,7 +211,7 @@ export default function SampleFiller() {
             )}
             {scenariosCfg && Object.entries(scenariosCfg).map(([dirKey, list]) => (
               <div key={dirKey}>
-                <div className="label mb-2 text-xs">{dirKey}</div>
+                <div className="label mb-2 text-sm">{dirKey}</div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {list.map(s => (
                     <ScenarioButton
@@ -230,7 +230,7 @@ export default function SampleFiller() {
                 <Layers size={20} className="text-slate-700" />
                 <div>
                   <p className="text-slate-500 text-xs font-medium">暂无有模板的场景</p>
-                  <p className="text-slate-600 text-xs mt-1">请先在「模板生成」页面生成语言模板</p>
+                  <p className="text-slate-600 text-sm mt-1">请先在「模板生成」页面生成语言模板</p>
                 </div>
                 <button className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
                   onClick={() => navigate('/templates')}>
@@ -246,16 +246,16 @@ export default function SampleFiller() {
           <div className="px-4 py-3 space-y-3">
             <div className="flex items-center gap-1.5">
               <Settings size={12} className="text-slate-500" />
-              <span className="text-xs font-medium text-slate-400">参数</span>
+              <span className="text-sm font-medium text-slate-400">参数</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="label block mb-1 text-xs">每场景样本数</label>
+                <label className="label block mb-1 text-sm">每场景样本数</label>
                 <input type="number" className="input w-full text-xs py-1.5 px-3" value={nSamples}
                   min={1} max={100000} onChange={e => setNSamples(parseInt(e.target.value) || 1)} />
               </div>
               <div>
-                <label className="label block mb-1 text-xs">数值精度（小数位）</label>
+                <label className="label block mb-1 text-sm">数值精度（小数位）</label>
                 <select className="select w-full text-xs py-1.5 px-3" value={precision}
                   onChange={e => setPrecision(parseInt(e.target.value))}>
                   {[2, 3, 4, 5, 6, 8].map(p => (
@@ -278,7 +278,7 @@ export default function SampleFiller() {
                   style={{ left: skipExisting ? '18px' : '2px' }}
                 />
               </div>
-              <span className="text-xs text-slate-300 font-medium flex-1">断点续跑</span>
+              <span className="text-sm text-slate-300 font-medium flex-1">断点续跑</span>
               <span className="text-xs text-slate-600">
                 {skipExisting ? '已有样本时补齐到目标数' : '忽略已有样本重新生成'}
               </span>
@@ -288,7 +288,7 @@ export default function SampleFiller() {
           {error && (
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-              <span className="text-xs">{error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
@@ -347,8 +347,8 @@ export default function SampleFiller() {
               <FlaskConical size={24} className="text-emerald-400/60" />
             </div>
             <div>
-              <p className="text-slate-400 text-sm font-medium">尚未启动任务</p>
-              <p className="text-slate-600 text-xs mt-1">在左侧选择场景并配置参数，点击「开始填充」</p>
+              <p className="text-slate-400 text-base font-medium">尚未启动任务</p>
+              <p className="text-slate-600 text-sm mt-1">在左侧选择场景并配置参数，点击「开始填充」</p>
             </div>
           </div>
         )}
@@ -361,7 +361,7 @@ export default function SampleFiller() {
           >
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-sm">样本文件管理</span>
+              <span className="font-medium text-slate-200 text-base">样本文件管理</span>
               {sampleFiles && sampleFiles.length > 0 && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
                   {sampleFiles.length} 个场景

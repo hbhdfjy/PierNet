@@ -124,7 +124,7 @@ function EntryCard({
         {/* 行1：键名 + 路径 */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label block mb-1.5 text-xs">
+            <label className="label block mb-1.5 text-sm">
               配置键名 <span className="text-red-400 normal-case tracking-normal font-normal">必填</span>
             </label>
             <input
@@ -136,7 +136,7 @@ function EntryCard({
             <p className="text-xs text-slate-600 mt-1">唯一标识，前端分组标题</p>
           </div>
           <div>
-            <label className="label block mb-1.5 text-xs">
+            <label className="label block mb-1.5 text-sm">
               数据目录 <span className="text-red-400 normal-case tracking-normal font-normal">必填</span>
             </label>
             <div className="relative">
@@ -155,7 +155,7 @@ function EntryCard({
         {/* 行2：Simulator 类型（tag 按钮组）+ 后缀 */}
         <div className="grid grid-cols-2 gap-4">
           <div>
-            <label className="label block mb-1.5 text-xs">Simulator 类型</label>
+            <label className="label block mb-1.5 text-sm">Simulator 类型</label>
             <div className="flex flex-wrap gap-1.5">
               {SIMULATOR_OPTIONS.map(s => (
                 <button
@@ -194,7 +194,7 @@ function EntryCard({
             )}
           </div>
           <div>
-            <label className="label block mb-1.5 text-xs">文件名后缀去除</label>
+            <label className="label block mb-1.5 text-sm">文件名后缀去除</label>
             <div className="relative">
               <Hash size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
               <input
@@ -232,7 +232,7 @@ function EntryCard({
           {advanced && (
             <div className="px-4 py-3 grid grid-cols-2 gap-3 border-t border-slate-700/30 bg-slate-900/20">
               <div>
-                <label className="label block mb-1.5 text-xs">暂态 Simulator 类型</label>
+                <label className="label block mb-1.5 text-sm">暂态 Simulator 类型</label>
                 <input
                   className="input w-full text-sm py-1.5 font-mono"
                   placeholder="如 power_transient"
@@ -241,7 +241,7 @@ function EntryCard({
                 />
               </div>
               <div>
-                <label className="label block mb-1.5 text-xs">触发关键词 <span className="text-slate-600 normal-case tracking-normal font-normal">（逗号分隔）</span></label>
+                <label className="label block mb-1.5 text-sm">触发关键词 <span className="text-slate-600 normal-case tracking-normal font-normal">（逗号分隔）</span></label>
                 <input
                   className="input w-full text-sm py-1.5 font-mono"
                   placeholder="fault, trip, load_step"
@@ -335,7 +335,7 @@ export default function DataDirsConfig() {
               <Database size={16} className="text-sky-400" />
             </div>
             <div>
-              <h1 className="text-base font-bold text-white">数据目录</h1>
+              <h1 className="text-lg font-bold text-white">数据目录</h1>
               <p className="text-slate-500 text-xs">HDF5 数据源配置</p>
             </div>
           </div>

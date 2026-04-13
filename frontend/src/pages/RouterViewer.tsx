@@ -102,8 +102,8 @@ export default function RouterViewer() {
             <GitBranch size={13} className="text-rose-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white leading-none">路由样本浏览</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Stage 4 Token 路由训练数据</p>
+            <h1 className="text-lg font-bold text-white leading-none">路由样本浏览</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Stage 4 Token 路由训练数据</p>
           </div>
         </div>
         <button className="btn-ghost" onClick={() => refresh()}>
@@ -133,7 +133,7 @@ export default function RouterViewer() {
               return (
                 <div key={sim}>
                   <div className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30',
+                    'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30',
                     badge?.text ?? 'text-slate-500',
                   )}>
                     <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
@@ -144,14 +144,14 @@ export default function RouterViewer() {
                       key={item.scenario}
                       onClick={() => { setScenario(item.scenario); setPage(0) }}
                       className={cn(
-                        'w-full text-left px-3 py-2 text-xs transition-all duration-150 border-b border-slate-800/30',
+                        'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
                         activeScenario === item.scenario
                           ? 'bg-rose-500/8 text-rose-300 font-medium'
                           : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
                       )}
                     >
                       <div className="truncate">{item.scenario}</div>
-                      <div className="text-[10px] mt-0.5 font-mono text-slate-600">
+                      <div className="text-xs mt-0.5 font-mono text-slate-600">
                         {item.router_count != null
                           ? `${item.router_count.toLocaleString()} 条`
                           : `源 ${item.source_count.toLocaleString()} 条`}

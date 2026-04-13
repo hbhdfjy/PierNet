@@ -160,7 +160,7 @@ export default function TemplateGenerator() {
               <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
                 <Cpu size={14} className="text-violet-400" />
               </div>
-              <h1 className="text-base font-bold text-white">模板生成</h1>
+              <h1 className="text-lg font-bold text-white">模板生成</h1>
               <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs">Stage 2</span>
             </div>
             {totalTemplates > 0 && (
@@ -170,7 +170,7 @@ export default function TemplateGenerator() {
               </div>
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-1.5 ml-9">调用 LLM 生成语言模板，可被 Stage 3 反复复用</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">调用 LLM 生成语言模板，可被 Stage 3 反复复用</p>
         </div>
 
         {/* 中部：场景选择（flex-1，独立滚动）*/}
@@ -179,7 +179,7 @@ export default function TemplateGenerator() {
           <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-700/20">
             <div className="flex items-center gap-2">
               <Layers size={12} className="text-slate-400" />
-              <span className="font-medium text-slate-300 text-xs">选择场景</span>
+              <span className="font-medium text-slate-300 text-sm">选择场景</span>
               {selected.size > 0 && (
                 <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs py-0.5">
                   {selected.size} 已选
@@ -188,7 +188,7 @@ export default function TemplateGenerator() {
             </div>
             <div className="flex items-center gap-0.5">
               {(['全选', '无模板', '清空'] as const).map((label, i) => (
-                <button key={label} className="btn-ghost py-0.5 px-2 text-xs"
+                <button key={label} className="btn-ghost py-0.5 px-2 text-sm"
                   onClick={[
                     () => setSelected(new Set(scenariosWithData.map(s => s.name))),
                     () => setSelected(new Set(scenariosWithData.filter(s => !templateMap[s.name]).map(s => s.name))),
@@ -230,7 +230,7 @@ export default function TemplateGenerator() {
 
             {scenariosCfg && Object.entries(scenariosCfg).map(([dirKey, list]) => (
               <div key={dirKey}>
-                <div className="label mb-2 text-xs">{dirKey}</div>
+                <div className="label mb-2 text-sm">{dirKey}</div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {list.map(s => (
                     <ScenarioButton
@@ -249,7 +249,7 @@ export default function TemplateGenerator() {
                 <Layers size={20} className="text-slate-700" />
                 <div>
                   <p className="text-slate-500 text-xs font-medium">未找到任何场景</p>
-                  <p className="text-slate-600 text-xs mt-1">请先配置数据目录或运行 Stage 1 物理仿真</p>
+                  <p className="text-slate-600 text-sm mt-1">请先配置数据目录或运行 Stage 1 物理仿真</p>
                 </div>
                 <button className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 transition-colors"
                   onClick={() => navigate('/data-dirs')}>
@@ -267,12 +267,12 @@ export default function TemplateGenerator() {
           <div className="px-4 py-3 space-y-3">
             <div className="flex items-center gap-1.5">
               <Settings size={12} className="text-slate-500" />
-              <span className="text-xs font-medium text-slate-400">参数</span>
+              <span className="text-sm font-medium text-slate-400">参数</span>
             </div>
 
             {/* 模板数 */}
             <div>
-              <label className="label block mb-1 text-xs">每场景目标模板数</label>
+              <label className="label block mb-1 text-sm">每场景目标模板数</label>
               <input
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
@@ -294,7 +294,7 @@ export default function TemplateGenerator() {
 
             {/* 生成模式三选一 */}
             <div>
-              <label className="label block mb-1.5 text-xs">已有模板时的处理方式</label>
+              <label className="label block mb-1.5 text-sm">已有模板时的处理方式</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {([
                   { value: 'append',    label: '继续生成', desc: '补齐到目标数量', color: 'emerald' },
@@ -381,7 +381,7 @@ export default function TemplateGenerator() {
           {error && (
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-              <span className="text-xs">{error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
@@ -439,8 +439,8 @@ export default function TemplateGenerator() {
               <Cpu size={24} className="text-violet-400/60" />
             </div>
             <div>
-              <p className="text-slate-400 text-sm font-medium">尚未启动任务</p>
-              <p className="text-slate-600 text-xs mt-1">在左侧选择场景并配置参数，点击「开始生成」</p>
+              <p className="text-slate-400 text-base font-medium">尚未启动任务</p>
+              <p className="text-slate-600 text-sm mt-1">在左侧选择场景并配置参数，点击「开始生成」</p>
             </div>
           </div>
         )}
@@ -453,7 +453,7 @@ export default function TemplateGenerator() {
           >
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-sm">模板文件管理</span>
+              <span className="font-medium text-slate-200 text-base">模板文件管理</span>
               {templateFiles && templateFiles.length > 0 && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
                   {templateFiles.length} 个场景

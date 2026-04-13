@@ -191,7 +191,7 @@ export default function RouterDataBuilder() {
               <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center flex-shrink-0">
                 <GitBranch size={14} className="text-rose-400" />
               </div>
-              <h1 className="text-base font-bold text-white">路由数据生成</h1>
+              <h1 className="text-lg font-bold text-white">路由数据生成</h1>
               <span className="badge bg-rose-500/15 text-rose-300 border border-rose-500/20 text-xs">Stage 4</span>
             </div>
             {hasRouterData && (
@@ -200,7 +200,7 @@ export default function RouterDataBuilder() {
               </div>
             )}
           </div>
-          <p className="text-slate-500 text-xs mt-1.5 ml-9">从 Stage 3 样本构建 Token 路由二分类训练数据</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">从 Stage 3 样本构建 Token 路由二分类训练数据</p>
         </div>
 
         {/* 场景选择（flex-1，独立滚动）*/}
@@ -209,7 +209,7 @@ export default function RouterDataBuilder() {
           <div className="flex-shrink-0 flex items-center justify-between px-4 py-2.5 border-b border-slate-700/20">
             <div className="flex items-center gap-2">
               <Layers size={12} className="text-slate-400" />
-              <span className="font-medium text-slate-300 text-xs">选择场景</span>
+              <span className="font-medium text-slate-300 text-sm">选择场景</span>
               {selected.size > 0 && (
                 <span className="badge bg-rose-500/15 text-rose-300 border border-rose-500/20 text-xs py-0.5">
                   {selected.size} 已选
@@ -218,7 +218,7 @@ export default function RouterDataBuilder() {
             </div>
             <div className="flex items-center gap-0.5">
               {(['全选', '清空'] as const).map((label, i) => (
-                <button key={label} className="btn-ghost py-0.5 px-2 text-xs"
+                <button key={label} className="btn-ghost py-0.5 px-2 text-sm"
                   onClick={[
                     () => setSelected(new Set(allScenarios.map(s => s.scenario))),
                     () => setSelected(new Set()),
@@ -244,13 +244,13 @@ export default function RouterDataBuilder() {
                 <Layers size={20} className="text-slate-700" />
                 <div>
                   <p className="text-slate-500 text-xs font-medium">未找到 Stage 3 数据</p>
-                  <p className="text-slate-600 text-xs mt-1">请先完成 Stage 3 样本填充</p>
+                  <p className="text-slate-600 text-sm mt-1">请先完成 Stage 3 样本填充</p>
                 </div>
               </div>
             )}
             {Object.entries(grouped).map(([sim, items]) => (
               <div key={sim}>
-                <div className="label mb-2 text-xs">{SIMULATOR_LABELS[sim] ?? sim}</div>
+                <div className="label mb-2 text-sm">{SIMULATOR_LABELS[sim] ?? sim}</div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {items.map(item => (
                     <RouterScenarioButton
@@ -271,7 +271,7 @@ export default function RouterDataBuilder() {
           <div className="px-4 py-3 space-y-3">
             <div className="flex items-center gap-1.5">
               <Settings size={12} className="text-slate-500" />
-              <span className="text-xs font-medium text-slate-400">参数</span>
+              <span className="text-sm font-medium text-slate-400">参数</span>
             </div>
             {/* 负样本倍数 */}
             <div>
@@ -287,7 +287,7 @@ export default function RouterDataBuilder() {
               <input type="range" className="w-full accent-rose-500 h-1"
                 min={1} max={10} value={negRatio}
                 onChange={e => setNegRatio(parseInt(e.target.value))} />
-              <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
+              <div className="flex justify-between text-xs text-slate-600 mt-0.5">
                 <span>1:1</span><span>1:5</span><span>1:10</span>
               </div>
             </div>
@@ -296,7 +296,7 @@ export default function RouterDataBuilder() {
           {error && (
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-              <span className="text-xs">{error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
@@ -350,8 +350,8 @@ export default function RouterDataBuilder() {
               <GitBranch size={24} className="text-rose-400/60" />
             </div>
             <div>
-              <p className="text-slate-400 text-sm font-medium">尚未生成路由数据</p>
-              <p className="text-slate-600 text-xs mt-1">在左侧选择场景，点击「生成路由数据」</p>
+              <p className="text-slate-400 text-base font-medium">尚未生成路由数据</p>
+              <p className="text-slate-600 text-sm mt-1">在左侧选择场景，点击「生成路由数据」</p>
             </div>
           </div>
         )}
@@ -365,7 +365,7 @@ export default function RouterDataBuilder() {
             ].map(({ label, count, color }) => (
               <div key={label} className="card px-4 py-3">
                 <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{label}</div>
-                <div className={cn('text-xl font-bold font-mono tabular-nums', color)}>
+                <div className={cn('text-2xl font-bold font-mono tabular-nums', color)}>
                   {count.toLocaleString()}
                 </div>
               </div>
@@ -381,7 +381,7 @@ export default function RouterDataBuilder() {
           >
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-sm">路由数据文件管理</span>
+              <span className="font-medium text-slate-200 text-base">路由数据文件管理</span>
               {(status?.scenarios?.filter(s => (s.router_count ?? 0) > 0).length ?? 0) > 0 && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
                   {status!.scenarios.filter(s => (s.router_count ?? 0) > 0).length} 个场景

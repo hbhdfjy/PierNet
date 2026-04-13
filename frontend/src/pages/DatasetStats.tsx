@@ -65,7 +65,7 @@ function PieCard({ title, icon, data }: {
     <div className="card overflow-hidden">
       <div className="card-header gap-2">
         <span className="text-slate-400">{icon}</span>
-        <span className="font-semibold text-slate-200">{title}</span>
+        <span className="text-base font-semibold text-slate-200">{title}</span>
         <span className="ml-auto badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
           {entries.length} 项
         </span>
@@ -150,7 +150,7 @@ function ScenarioBar({ data }: { data: Record<string, number> }) {
     <div className="card overflow-hidden">
       <div className="card-header">
         <Layers size={15} className="text-slate-400" />
-        <span className="font-semibold text-slate-200">按场景分布</span>
+        <span className="text-base font-semibold text-slate-200">按场景分布</span>
         <div className="ml-auto flex items-center gap-2">
           {useLog && (
             <span className="badge bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
@@ -221,7 +221,7 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
     <div className="card overflow-hidden">
       <div className="card-header">
         <TrendingUp size={15} className="text-slate-400" />
-        <span className="font-semibold text-slate-200">时序形状（观测后）</span>
+        <span className="text-base font-semibold text-slate-200">时序形状（观测后）</span>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
@@ -284,8 +284,8 @@ export default function DatasetStats() {
             <BarChart2 size={16} className="text-sky-400" />
           </div>
           <div>
-            <h1 className="font-semibold text-white leading-none">数据集统计</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Stage 3 生成样本的分布概览</p>
+            <h1 className="text-lg font-bold text-white leading-none">数据集统计</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Stage 3 生成样本的分布概览</p>
           </div>
         </div>
         <button
@@ -356,7 +356,7 @@ export default function DatasetStats() {
           <div className="card overflow-hidden">
             <div className="card-header">
               <Database size={15} className="text-slate-400" />
-              <span className="font-semibold text-slate-200">JSONL 文件</span>
+              <span className="text-base font-semibold text-slate-200">JSONL 文件</span>
               <span className="ml-auto badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
                 {datasets.length} 个文件
               </span>
@@ -406,7 +406,7 @@ export default function DatasetStats() {
           <div className="card overflow-hidden">
             <div className="card-header">
               <GitBranch size={15} className="text-rose-400" />
-              <span className="font-semibold text-slate-200">路由训练数据</span>
+              <span className="text-base font-semibold text-slate-200">路由训练数据</span>
               <div className="ml-auto flex items-center gap-2">
                 <span className="badge bg-rose-500/10 text-rose-400 border border-rose-500/20">
                   总计 {routerStatus.total.toLocaleString()} 条

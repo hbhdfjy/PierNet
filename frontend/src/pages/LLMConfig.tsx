@@ -173,7 +173,7 @@ export default function LLMConfig() {
           {/* Provider */}
           <div className="card p-4 space-y-4">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-slate-200 text-sm">API 提供商</span>
+              <span className="font-medium text-slate-200 text-base">API 提供商</span>
             </div>
             <div className="grid grid-cols-2 gap-2">
               {Object.entries(PROVIDER_LABELS).map(([key, info]) => (
@@ -195,7 +195,7 @@ export default function LLMConfig() {
 
           {/* 模型 */}
           <div className="card p-4 space-y-3">
-            <label className="font-medium text-slate-200 text-sm block">模型名称</label>
+            <label className="font-medium text-slate-200 text-base block">模型名称</label>
             <input
               type="text"
               className="input w-full"
@@ -229,7 +229,7 @@ export default function LLMConfig() {
           {/* API Key */}
           <div className="card p-4 space-y-3">
             <div>
-              <label className="font-medium text-slate-200 text-sm block mb-1">API Key</label>
+              <label className="font-medium text-slate-200 text-base block mb-1">API Key</label>
               {llmCfg?.has_api_key && (
                 <p className="text-xs text-slate-500 mb-2">
                   当前：<span className="font-mono text-slate-400">{llmCfg.api_key_masked}</span>
@@ -258,7 +258,7 @@ export default function LLMConfig() {
 
             {/* Base URL */}
             <div>
-              <label className="font-medium text-slate-200 text-sm block mb-1">
+              <label className="font-medium text-slate-200 text-base block mb-1">
                 Base URL
                 <span className="ml-2 text-slate-600 font-normal text-xs">（可选，用于代理或自部署）</span>
               </label>
@@ -278,7 +278,7 @@ export default function LLMConfig() {
           {/* 高级参数 */}
           <div className="card p-4 space-y-3">
             <div className="flex items-center gap-2 mb-1">
-              <span className="font-medium text-slate-200 text-sm">生成参数</span>
+              <span className="font-medium text-slate-200 text-base">生成参数</span>
               <span className="badge bg-slate-700/50 text-slate-500 border border-slate-600/30 text-xs">高级</span>
             </div>
             <div className="grid grid-cols-2 gap-4">

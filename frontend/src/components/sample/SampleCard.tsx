@@ -24,7 +24,7 @@ function Section({ icon, title, children, defaultOpen = true }: {
         className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-700/20 transition-colors group"
       >
         <span className="text-slate-500 group-hover:text-slate-400 transition-colors">{icon}</span>
-        <span className="text-sm font-medium text-slate-300 flex-1">{title}</span>
+        <span className="text-base font-medium text-slate-300 flex-1">{title}</span>
         <span className={cn('text-slate-600 transition-transform duration-200', open && 'rotate-180')}>
           <ChevronDown size={13} />
         </span>
@@ -43,7 +43,7 @@ function TargetSection({ target }: { target: string }) {
     <div className="border-b border-slate-700/30 last:border-0">
       <div className="flex items-center gap-2 px-4 py-2.5">
         <span className="text-slate-500"><Target size={13} /></span>
-        <span className="text-sm font-medium text-slate-300 flex-1">Target</span>
+        <span className="text-base font-medium text-slate-300 flex-1">Target</span>
         {isLong && (
           <button
             onClick={() => setExpanded(e => !e)}

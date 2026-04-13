@@ -28,7 +28,7 @@ function Section({ icon, title, children, defaultOpen = true }: {
         className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-700/20 transition-colors group"
       >
         <span className="text-slate-500 group-hover:text-slate-400 transition-colors">{icon}</span>
-        <span className="text-sm font-medium text-slate-300 flex-1">{title}</span>
+        <span className="text-base font-medium text-slate-300 flex-1">{title}</span>
         <ChevronDown size={13} className={cn('text-slate-600 transition-transform duration-200', open && 'rotate-180')} />
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
@@ -266,8 +266,8 @@ export default function TemplateViewer() {
             <FileCode size={13} className="text-violet-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white leading-none">模板浏览</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Stage 2 生成的语言模板</p>
+            <h1 className="text-lg font-bold text-white leading-none">模板浏览</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Stage 2 生成的语言模板</p>
           </div>
         </div>
       </div>
@@ -291,7 +291,7 @@ export default function TemplateViewer() {
             const badge = SIMULATOR_BADGE[sim]
             return (
               <div key={sim}>
-                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
+                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
                   <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                   {SIMULATOR_LABELS[sim] ?? sim}
                 </div>

@@ -754,7 +754,7 @@ export default function RegistryPage() {
         <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
           <FileText size={14} className="text-sky-400" />
         </div>
-        <span className="font-semibold text-white text-sm">注册信息</span>
+        <span className="text-lg font-bold text-white">注册信息</span>
         <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30">
           {totalSimulators} 个 simulator · {totalScenarios} 个场景
         </span>

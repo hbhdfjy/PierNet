@@ -379,7 +379,7 @@
 
   /* ── 标签文字 ── */
   .label {
-    @apply text-xs font-semibold uppercase tracking-wider;
+    @apply text-sm font-semibold uppercase tracking-wider;
     color: hsl(var(--text-faint));
     letter-spacing: 0.06em;
   }

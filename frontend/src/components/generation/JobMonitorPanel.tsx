@@ -157,7 +157,7 @@ function OverallRing({
               <span className="text-base font-bold text-white tabular-nums leading-none">
                 {pct.toFixed(0)}
               </span>
-              <span className="text-[10px] text-slate-500 mt-0.5">%</span>
+              <span className="text-xs text-slate-500 mt-0.5">%</span>
             </>
           )}
         </div>
@@ -167,7 +167,7 @@ function OverallRing({
           {totalDone.toLocaleString()}
           {totalTarget > 0 && <span className="text-slate-600"> / {totalTarget.toLocaleString()}</span>}
         </div>
-        <div className="text-[11px] text-slate-500 mt-0.5">
+        <div className="text-xs text-slate-500 mt-0.5">
           {{ running: '处理中', done: '已完成', error: '出错', terminated: '已终止', idle: '' }[status]}
         </div>
       </div>
@@ -227,7 +227,7 @@ export default function JobMonitorPanel({
             {isRunning && <Loader2 size={13} className="animate-spin" />}
             {isDone    && <CheckCircle size={13} />}
             {(status === 'error' || status === 'terminated') && <XCircle size={13} />}
-            <span className="font-medium text-xs">
+            <span className="font-medium text-sm">
               {{ running: '运行中', done: '已完成', error: '出错', terminated: '已终止', idle: '' }[status]}
             </span>
           </div>
@@ -242,7 +242,7 @@ export default function JobMonitorPanel({
           {displayIds.length > 0 && (
             <div className="flex gap-1">
               {displayIds.map(id => (
-                <span key={id} className="text-[10px] text-slate-600 font-mono">#{id.slice(0, 8)}</span>
+                <span key={id} className="text-xs text-slate-600 font-mono">#{id.slice(0, 8)}</span>
               ))}
             </div>
           )}
@@ -253,7 +253,7 @@ export default function JobMonitorPanel({
               <div className="flex items-center gap-1 text-sky-400/80">
                 <Zap size={11} />
                 <span className="font-mono tabular-nums">{stats.samples_per_sec.toFixed(1)}</span>
-                <span className="text-slate-600 text-[10px]">条/s</span>
+                <span className="text-slate-600 text-xs">条/s</span>
               </div>
               <div className="flex items-center gap-1 text-slate-500">
                 <Clock size={11} />
@@ -398,7 +398,7 @@ export default function JobMonitorPanel({
           >
             <Terminal size={12} />
             <span className="text-xs">详细日志</span>
-            <span className="text-[11px] text-slate-600 tabular-nums">{logs.length} 行</span>
+            <span className="text-xs text-slate-600 tabular-nums">{logs.length} 行</span>
             <div className="flex-1" />
             <button
               className={cn(

@@ -64,7 +64,7 @@ type StageColor = keyof typeof STAGE_COLORS
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-2 px-2 mb-1">
-      <span className="label text-[10px] whitespace-nowrap">{children}</span>
+      <span className="label text-xs whitespace-nowrap">{children}</span>
       <div className="flex-1 h-px" style={{ background: 'hsl(var(--border) / 0.4)' }} />
     </div>
   )
@@ -130,7 +130,7 @@ function NavItem({
           </div>
 
           {/* 标签 */}
-          <span className="flex-1 truncate text-[13px]">{label}</span>
+          <span className="flex-1 truncate text-sm">{label}</span>
 
           {/* 右侧图标（仅 inactive 时显示） */}
           {!isActive && rightIcon && (
@@ -187,11 +187,11 @@ export default function App() {
                 style={{ borderColor: 'hsl(var(--bg-sub))' }} />
             </div>
             <div>
-              <div className="text-sm font-bold tracking-tight leading-none"
+              <div className="text-base font-bold tracking-tight leading-none"
                 style={{ color: 'hsl(var(--text))' }}>
                 PiERN
               </div>
-              <div className="text-[11px] mt-0.5 leading-none"
+              <div className="text-sm mt-0.5 leading-none"
                 style={{ color: 'hsl(var(--text-faint))' }}>
                 多模拟器数据集
               </div>
@@ -260,7 +260,7 @@ export default function App() {
               <div className="flex items-center justify-between mb-1.5">
                 <div className="flex items-center gap-1.5" style={{ color: 'hsl(var(--text-faint))' }}>
                   <Shuffle size={10} />
-                  <span className="text-[11px]">全局随机种子</span>
+                  <span className="text-sm">全局随机种子</span>
                 </div>
               </div>
               <input
@@ -292,12 +292,12 @@ export default function App() {
 
             {/* 主题 + 版本 */}
             <div className="px-3 pb-3 flex items-center justify-between">
-              <span className="text-[11px] font-mono" style={{ color: 'hsl(var(--text-ghost))' }}>
+              <span className="text-xs font-mono" style={{ color: 'hsl(var(--text-ghost))' }}>
                 v2.0
               </span>
               <button
                 onClick={toggleTheme}
-                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all duration-150"
+                className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-sm transition-all duration-150"
                 style={{ color: 'hsl(var(--text-muted))' }}
                 onMouseEnter={e => {
                   e.currentTarget.style.backgroundColor = 'hsl(var(--surface2))'

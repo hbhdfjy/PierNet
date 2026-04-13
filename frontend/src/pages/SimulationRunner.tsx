@@ -169,7 +169,7 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
             <Icon size={12} className={color} />
             <span className="label text-xs">{label}</span>
           </div>
-          <div className={cn('text-base font-bold tabular-nums', color)}>{value}</div>
+          <div className={cn('text-xl font-bold tabular-nums', color)}>{value}</div>
           <div className="text-xs text-slate-600 mt-0.5">{sub}</div>
         </div>
       ))}
@@ -321,7 +321,7 @@ export default function SimulationRunner() {
               <div className="w-7 h-7 rounded-lg bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
                 <Zap size={14} className="text-amber-400" />
               </div>
-              <h1 className="text-base font-bold text-white">仿真运行</h1>
+              <h1 className="text-lg font-bold text-white">仿真运行</h1>
               <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs">Stage 1</span>
             </div>
             <button
@@ -335,7 +335,7 @@ export default function SimulationRunner() {
               <RefreshCw size={11} className={isLoading ? 'animate-spin' : ''} />
             </button>
           </div>
-          <p className="text-slate-500 text-xs mt-1.5 ml-9">物理仿真 → HDF5 数据集</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">物理仿真 → HDF5 数据集</p>
         </div>
 
         {/* 场景筛选标签 */}
@@ -382,11 +382,11 @@ export default function SimulationRunner() {
             )}
           </div>
           <div className="flex items-center gap-0.5">
-            <button className="btn-ghost py-0.5 px-2 text-xs" onClick={selectAll}>全选</button>
-            <button className="btn-ghost py-0.5 px-2 text-xs" onClick={selectIncomplete} title="选择样本数不足目标的场景">
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectAll}>全选</button>
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectIncomplete} title="选择样本数不足目标的场景">
               <SkipForward size={10} className="mr-0.5" />未满
             </button>
-            <button className="btn-ghost py-0.5 px-2 text-xs" onClick={clearAll}>清空</button>
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={clearAll}>清空</button>
           </div>
         </div>
 
@@ -411,8 +411,8 @@ export default function SimulationRunner() {
               <div key={sim}>
                 <div className="flex items-center gap-1.5 mb-1.5 px-1">
                   <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', meta.dot)} />
-                  <span className={cn('text-xs font-semibold', meta.color)}>{meta.label}</span>
-                  <span className="text-xs text-slate-600">{list.length} 个</span>
+                  <span className={cn('text-sm font-semibold', meta.color)}>{meta.label}</span>
+                  <span className="text-sm text-slate-500">{list.length} 个</span>
                 </div>
                 <div className="space-y-1">
                   {list.map(s => (
@@ -470,8 +470,8 @@ export default function SimulationRunner() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-xs text-slate-300 font-medium">断点续跑</span>
-                <span className="text-xs text-slate-600 ml-1.5">
+                <span className="text-sm text-slate-300 font-medium">断点续跑</span>
+                <span className="text-sm text-slate-600 ml-1.5">
                   {skipExisting ? '已有样本时补齐到目标数' : '忽略已有样本重新生成'}
                 </span>
               </div>
@@ -493,7 +493,7 @@ export default function SimulationRunner() {
                 />
               </div>
               <span
-                className="text-xs text-slate-300 font-medium flex-1 cursor-pointer"
+                className="text-sm text-slate-300 font-medium flex-1 cursor-pointer"
                 onClick={() => setParallel(v => !v)}
               >
                 多核并行
@@ -540,7 +540,7 @@ export default function SimulationRunner() {
           {error && (
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
-              <span className="text-xs">{error}</span>
+              <span className="text-sm">{error}</span>
             </div>
           )}
 
@@ -607,8 +607,8 @@ export default function SimulationRunner() {
               <Zap size={24} className="text-amber-400/60" />
             </div>
             <div>
-              <p className="text-slate-400 text-sm font-medium">尚未启动仿真</p>
-              <p className="text-slate-600 text-xs mt-1">在左侧选择场景 → 配置参数 → 点击启动</p>
+              <p className="text-slate-400 text-base font-medium">尚未启动仿真</p>
+              <p className="text-slate-600 text-sm mt-1">在左侧选择场景 → 配置参数 → 点击启动</p>
             </div>
           </div>
         )}
@@ -621,7 +621,7 @@ export default function SimulationRunner() {
           >
             <div className="flex items-center gap-2">
               <Database size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-sm">HDF5 文件详情</span>
+              <span className="font-medium text-slate-200 text-base">HDF5 文件详情</span>
               {scenarios && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs py-0.5">
                   {scenarios.filter(s => s.h5_path).length} / {scenarios.length}
@@ -695,7 +695,7 @@ export default function SimulationRunner() {
           >
             <div className="flex items-center gap-2">
               <History size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-sm">历史运行记录</span>
+              <span className="font-medium text-slate-200 text-base">历史运行记录</span>
               {history && history.length > 0 && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs py-0.5">
                   {history.length}
@@ -705,7 +705,7 @@ export default function SimulationRunner() {
             <div className="flex items-center gap-2">
               {historyOpen && history && history.length > 0 && (
                 <button
-                  className="btn-ghost py-0.5 px-2 text-xs text-red-400/70 hover:text-red-400"
+                  className="btn-ghost py-0.5 px-2 text-sm text-red-400/70 hover:text-red-400"
                   onClick={async e => {
                     e.stopPropagation()
                     await api.clearSimulationHistory()

@@ -51,7 +51,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
         {/* 场景名 + 状态 */}
         <div className="flex items-center justify-between gap-1 mb-1.5">
           <span className={cn(
-            'font-medium text-xs truncate leading-none',
+            'font-medium text-sm truncate leading-none',
             active ? 'text-sky-300' : noData ? 'text-slate-500' : 'text-slate-200',
           )}>
             {s.name}
@@ -64,7 +64,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
         <div className="flex items-center gap-1.5 flex-wrap">
           {/* simulator */}
           <span className={cn(
-            'text-[10px] flex items-center gap-1',
+            'text-xs flex items-center gap-1',
             active ? 'text-sky-400/70' : (c?.text ?? 'text-slate-500'),
           )}>
             <span className={cn('w-1 h-1 rounded-full flex-shrink-0', c?.dot ?? 'bg-slate-600')} />
@@ -73,43 +73,43 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
 
           {/* 样本数 */}
           {s.has_h5 ? (
-            <span className="text-[10px] text-slate-600 tabular-nums flex items-center gap-0.5">
+            <span className="text-xs text-slate-600 tabular-nums flex items-center gap-0.5">
               <Database size={9} />{s.sample_count.toLocaleString()}
             </span>
           ) : (
-            <span className="text-[10px] text-amber-600/70 flex items-center gap-0.5">
+            <span className="text-xs text-amber-600/70 flex items-center gap-0.5">
               <Database size={9} />无数据
             </span>
           )}
 
           {/* 输出形状 */}
           {s.output_shape && (
-            <span className="text-[10px] text-slate-600 font-mono">
+            <span className="text-xs text-slate-600 font-mono">
               {s.output_shape.join('×')}
             </span>
           )}
 
           {/* 注册状态 */}
           {s.registered ? (
-            <span className="text-[10px] text-emerald-600/60 flex items-center gap-0.5">
+            <span className="text-xs text-emerald-600/60 flex items-center gap-0.5">
               <Tag size={9} />已注册
             </span>
           ) : (
-            <span className="text-[10px] text-red-500/50 flex items-center gap-0.5">
+            <span className="text-xs text-red-500/50 flex items-center gap-0.5">
               <Tag size={9} />未注册
             </span>
           )}
 
           {/* 模板数 */}
           {templateCount !== undefined && templateCount > 0 && (
-            <span className="text-[10px] text-sky-500/80 tabular-nums flex items-center gap-0.5">
+            <span className="text-xs text-sky-500/80 tabular-nums flex items-center gap-0.5">
               <Sparkles size={9} />{templateCount.toLocaleString()}
             </span>
           )}
 
           {/* 已有 JSONL */}
           {s.has_jsonl && (
-            <span className="text-[10px] text-emerald-500/70 tabular-nums">
+            <span className="text-xs text-emerald-500/70 tabular-nums">
               ✓{s.existing_jsonl_count}
             </span>
           )}
@@ -117,10 +117,10 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
 
         {/* 提示文字 */}
         {noData && (
-          <p className="text-[10px] text-slate-600 mt-1 leading-tight">需先运行 Stage 1 生成 HDF5</p>
+          <p className="text-xs text-slate-600 mt-1 leading-tight">需先运行 Stage 1 生成 HDF5</p>
         )}
         {!noData && unregistered && (
-          <p className="text-[10px] text-amber-600/60 mt-1 leading-tight">未注册元数据，生成可能失败</p>
+          <p className="text-xs text-amber-600/60 mt-1 leading-tight">未注册元数据，生成可能失败</p>
         )}
       </div>
     </button>

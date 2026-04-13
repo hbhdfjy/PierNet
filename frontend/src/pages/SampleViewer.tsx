@@ -47,8 +47,8 @@ export default function SampleViewer() {
             <FileText size={13} className="text-emerald-400" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-white leading-none">样本浏览</h1>
-            <p className="text-xs text-slate-500 mt-0.5">Stage 3 生成的训练样本</p>
+            <h1 className="text-lg font-bold text-white leading-none">样本浏览</h1>
+            <p className="text-sm text-slate-500 mt-0.5">Stage 3 生成的训练样本</p>
           </div>
         </div>
         <button className="btn-ghost" onClick={() => mutate()}>
@@ -72,7 +72,7 @@ export default function SampleViewer() {
             const badge = SIMULATOR_BADGE[sim]
             return (
               <div key={sim}>
-                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
+                <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
                   <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                   {SIMULATOR_LABELS[sim] ?? sim}
                 </div>
@@ -81,7 +81,7 @@ export default function SampleViewer() {
                     key={d.name}
                     onClick={() => { setScenario(d.name); setPage(0) }}
                     className={cn(
-                      'w-full text-left px-3 py-2 text-xs transition-all duration-150 border-b border-slate-800/30',
+                      'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
                       selectedScenario === d.name
                         ? 'bg-emerald-500/8 text-emerald-300 border-l-2 border-l-emerald-500'
                         : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border-l-2 border-l-transparent',
