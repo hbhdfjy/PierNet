@@ -28,7 +28,7 @@ def _load_registry_raw() -> dict:
 def _save_registry_raw(data: dict) -> None:
     REGISTRY_PATH.parent.mkdir(parents=True, exist_ok=True)
     with open(REGISTRY_PATH, "w", encoding="utf-8") as f:
-        yaml.dump(data, f, allow_unicode=True, sort_keys=True, indent=2)
+        yaml.dump(data, f, allow_unicode=True, sort_keys=False, indent=2)
 
 
 @router.get("/registry")

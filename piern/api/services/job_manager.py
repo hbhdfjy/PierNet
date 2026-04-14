@@ -92,20 +92,25 @@ def subscribe(record: JobRecord) -> asyncio.Queue:
     SSE 端点调用：返回一个新 queue，预填所有历史事件，再注册为订阅者。
     必须在 async 上下文（event loop 线程）中调用。
 
-    注意：先注册订阅者，再回放历史，避免在持锁期间做大量 put_nowait 阻塞 event loop。
-    注册后发布的新事件会进入 queue，历史事件回放时可能有少量重复（幂等处理）。
+    策略：先回放历史（锁内拿快照，锁外 put），再注册为订阅者。
+    这样历史和新事件之间不会有重复：注册之前的事件已在快照中，
+    注册之后的新事件才会被推入 queue。
     """
     q: asyncio.Queue = asyncio.Queue(maxsize=10000)
 
-    # 第一步：在锁内注册订阅者 + 拿历史快照（锁持有时间极短）
+    # 第一步：在锁内拿历史快照（不注册订阅者）
     with record._lock:
-        snapshot = list(record.events)          # 浅拷贝，O(n) 但不做 IO
-        if record.status == "running":
-            record._subscribers.append(q)       # 注册后的新事件会推入 q
+        snapshot = list(record.events)
 
-    # 第二步：在锁外回放历史（不阻塞后台线程的 publish）
+    # 第二步：在锁外回放历史
     for event in snapshot:
         q.put_nowait(event)
+
+    # 第三步：在锁内注册订阅者（只有 running 状态才有新事件）
+    # 注册后 publish 的新事件才会进入 q，不会与历史重复
+    with record._lock:
+        if record.status == "running":
+            record._subscribers.append(q)
 
     return q
 

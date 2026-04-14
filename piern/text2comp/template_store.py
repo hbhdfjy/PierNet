@@ -323,7 +323,10 @@ def fill_dataset(
 
             # 按模板记录的 time_indices 和 channel_indices 切片
             ts_time = ts[:, np.array(template.time_indices)]
-            ts_obs = ts_time[np.array(template.channel_indices), :]
+            if template.channel_indices is not None:
+                ts_obs = ts_time[np.array(template.channel_indices), :]
+            else:
+                ts_obs = ts_time
 
             # NaN/Inf 检查
             if not np.isfinite(ts_obs).all():

@@ -5,32 +5,34 @@ import yaml
 from fastapi import APIRouter, HTTPException
 
 from piern.api.deps import CONFIG_DIR, CONFIGS_ROOT, PROJECT_ROOT
-from piern.api.schemas.config import LLMConfigRequest, DataDirEntry, DataDirsRequest
+from piern.api.schemas.config import LLMConfigRequest
 
 router = APIRouter()
 
 
 @router.get("/config")
 def get_config():
-    """读取 generation.yaml 配置。"""
-    gen_yaml = CONFIG_DIR / "generation.yaml"
-    if not gen_yaml.exists():
+    """读取 default.yaml 的 generation 节配置。"""
+    default_yaml = CONFIG_DIR / "default.yaml"
+    if not default_yaml.exists():
         return {}
     try:
-        with open(gen_yaml, "r", encoding="utf-8") as f:
-            return yaml.safe_load(f) or {}
+        with open(default_yaml, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+        # 只返回 generation 超参数节，不暴露 llm（含 api_key）
+        return {k: v for k, v in cfg.items() if k not in ("llm",)}
     except Exception as e:
         raise HTTPException(500, f"读取配置失败: {e}")
 
 
 @router.get("/llm-config")
 def get_llm_config():
-    """读取当前 LLM 配置（generation.yaml 的 llm 节），api_key 脱敏返回。"""
-    gen_yaml = CONFIG_DIR / "generation.yaml"
+    """读取当前 LLM 配置（default.yaml 的 llm 节），api_key 脱敏返回。"""
+    default_yaml = CONFIG_DIR / "default.yaml"
     try:
         cfg = {}
-        if gen_yaml.exists():
-            with open(gen_yaml, "r", encoding="utf-8") as f:
+        if default_yaml.exists():
+            with open(default_yaml, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
         llm = cfg.get("llm", {})
 
@@ -57,12 +59,12 @@ def get_llm_config():
 
 @router.post("/llm-config")
 def save_llm_config(req: LLMConfigRequest):
-    """保存 LLM 配置到 generation.yaml 的 llm 节。api_key 为空时保持原有值不变。"""
-    gen_yaml = CONFIG_DIR / "generation.yaml"
+    """保存 LLM 配置到 default.yaml 的 llm 节。api_key 为空时保持原有值不变。"""
+    default_yaml = CONFIG_DIR / "default.yaml"
     try:
         cfg: dict = {}
-        if gen_yaml.exists():
-            with open(gen_yaml, "r", encoding="utf-8") as f:
+        if default_yaml.exists():
+            with open(default_yaml, "r", encoding="utf-8") as f:
                 cfg = yaml.safe_load(f) or {}
 
         llm = cfg.get("llm", {})
@@ -78,8 +80,8 @@ def save_llm_config(req: LLMConfigRequest):
         llm["max_tokens"] = req.max_tokens
         cfg["llm"] = llm
 
-        gen_yaml.parent.mkdir(parents=True, exist_ok=True)
-        with open(gen_yaml, "w", encoding="utf-8") as f:
+        default_yaml.parent.mkdir(parents=True, exist_ok=True)
+        with open(default_yaml, "w", encoding="utf-8") as f:
             yaml.dump(cfg, f, allow_unicode=True, sort_keys=False, indent=2)
 
         return {"ok": True}
@@ -96,13 +98,13 @@ def test_llm_config(req: LLMConfigRequest):
     """
     from piern.core.llm_client import LLMClient
 
-    gen_yaml = CONFIG_DIR / "generation.yaml"
+    default_yaml = CONFIG_DIR / "default.yaml"
 
     # 若 api_key 未传入，从已保存配置中补全
     api_key = req.api_key
-    if not api_key and gen_yaml.exists():
+    if not api_key and default_yaml.exists():
         try:
-            with open(gen_yaml, "r", encoding="utf-8") as f:
+            with open(default_yaml, "r", encoding="utf-8") as f:
                 saved = yaml.safe_load(f) or {}
             api_key = saved.get("llm", {}).get("api_key", "")
         except Exception:
@@ -162,12 +164,8 @@ _T2C_TTL = 10.0  # seconds
 @router.get("/config/text2comp-scenarios")
 def get_text2comp_scenarios():
     """
-    返回 Stage 2 可用场景列表（按 data_dirs key 分组）。
-
-    每个场景包含：
-      - has_h5: 是否有 HDF5 数据文件（可直接生成）
-      - registered: 是否在 registry.yaml 中有注册信息
-      - sample_count: HDF5 中的样本数（无 HDF5 时为 0）
+    返回 Stage 2 可用场景列表（按 simulator 子目录分组）。
+    约定：data/{simulator}/{simulator}_{scenario}.h5
     """
     if _t2c_cache["result"] is not None and time.time() - _t2c_cache["ts"] < _T2C_TTL:
         return _t2c_cache["result"]
@@ -179,12 +177,12 @@ def get_text2comp_scenarios():
     with open(default_yaml, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
 
-    data_dirs = cfg.get("data_dirs", {})
+    data_root = PROJECT_ROOT / cfg.get("data_root", "data")
 
     # 加载 registry
     registry_path_str = cfg.get("registry", "configs/text2comp/registry.yaml")
-    registry_path = PROJECT_ROOT / registry_path_str
     registry: dict = {}
+    registry_path = PROJECT_ROOT / registry_path_str
     if registry_path.exists():
         try:
             with open(registry_path, "r", encoding="utf-8") as f:
@@ -195,43 +193,25 @@ def get_text2comp_scenarios():
     from piern.api.deps import DATA_DIR as _DATA_DIR
     import h5py
 
+    # 收集所有 simulator 名（来自 data/ 子目录 + registry 顶层 key）
+    sim_dirs = {d.name for d in data_root.iterdir() if d.is_dir()} if data_root.exists() else set()
+    reg_sims = set(registry.keys())
+    # 排除非 simulator 目录（templates、text2comp 等）
+    skip = {"templates", "text2comp", "router"}
+    all_sims = sorted((sim_dirs | reg_sims) - skip)
+
     result: dict = {}
 
-    for dir_key, dir_cfg in data_dirs.items():
-        if isinstance(dir_cfg, str):
-            dir_path = PROJECT_ROOT / dir_cfg
-            simulator = dir_key
-            file_suffix = None
-            transient_simulator = None
-            transient_keywords: list = []
-            include_keywords: list = []
-        else:
-            dir_path = PROJECT_ROOT / dir_cfg["path"]
-            simulator = dir_cfg.get("simulator", dir_key)
-            file_suffix = dir_cfg.get("file_suffix", None)
-            transient_simulator = dir_cfg.get("transient_simulator", None)
-            transient_keywords = dir_cfg.get("transient_keywords", [])
-            include_keywords: list = dir_cfg.get("include_keywords", [])
+    for simulator in all_sims:
+        dir_path = data_root / simulator
+        scenarios_map: dict = {}
 
-        scenarios_map: dict = {}  # scenario_name -> entry
-
-        # 1. 扫描 HDF5 文件
+        # 1. 扫描 HDF5 文件：文件名格式 {simulator}_{scenario}.h5
         if dir_path.exists():
+            prefix = simulator + "_"
             for h5_file in sorted(dir_path.glob("*.h5")):
                 stem = h5_file.stem
-
-                # 白名单过滤
-                if include_keywords and not any(kw.lower() in stem.lower() for kw in include_keywords):
-                    continue
-
-                scenario_name = stem
-                if file_suffix and stem.endswith(file_suffix):
-                    scenario_name = stem[: -len(file_suffix)]
-
-                sim_type = simulator
-                if transient_simulator and transient_keywords:
-                    if any(kw in stem.lower() for kw in transient_keywords):
-                        sim_type = transient_simulator
+                scenario_name = stem[len(prefix):] if stem.startswith(prefix) else stem
 
                 sample_count = 0
                 output_shape = None
@@ -256,25 +236,21 @@ def get_text2comp_scenarios():
 
                 scenarios_map[scenario_name] = {
                     "name": scenario_name,
-                    "simulator": sim_type,
+                    "simulator": simulator,
                     "h5_file": h5_file.name,
                     "sample_count": sample_count,
                     "output_shape": output_shape,
                     "existing_jsonl_count": existing_count,
                     "has_jsonl": jsonl_path.exists(),
                     "has_h5": True,
-                    "registered": False,  # 下面补充
+                    "registered": False,
                 }
 
-        # 2. 合并 registry 中已注册的场景（可能没有 HDF5）
+        # 2. 合并 registry 中已注册但无 HDF5 的场景
         sim_entry = registry.get(simulator, {})
         reg_scenarios = sim_entry.get("scenarios", {}) if isinstance(sim_entry, dict) else {}
         for sc_name in reg_scenarios:
-            # 白名单过滤：registry 中的场景也要通过白名单
-            if include_keywords and not any(kw.lower() in sc_name.lower() for kw in include_keywords):
-                continue
             if sc_name not in scenarios_map:
-                # 有注册但无 HDF5
                 scenarios_map[sc_name] = {
                     "name": sc_name,
                     "simulator": simulator,
@@ -291,82 +267,8 @@ def get_text2comp_scenarios():
             scenarios_map[sc_name]["registered"] = sc_name in reg_scenarios
 
         if scenarios_map:
-            result[dir_key] = sorted(scenarios_map.values(), key=lambda x: x["name"])
+            result[simulator] = sorted(scenarios_map.values(), key=lambda x: x["name"])
 
     _t2c_cache["result"] = result
     _t2c_cache["ts"] = time.time()
     return result
-
-
-@router.get("/config/data-dirs", response_model=list[DataDirEntry])
-def get_data_dirs():
-    """读取 default.yaml 的 data_dirs 配置，返回结构化列表。"""
-    default_yaml = CONFIG_DIR / "default.yaml"
-    if not default_yaml.exists():
-        return []
-    try:
-        with open(default_yaml, "r", encoding="utf-8") as f:
-            cfg = yaml.safe_load(f) or {}
-        data_dirs = cfg.get("data_dirs", {})
-        entries = []
-        for key, val in data_dirs.items():
-            if isinstance(val, str):
-                entries.append(DataDirEntry(key=key, path=val, simulator=key))
-            else:
-                entries.append(DataDirEntry(
-                    key=key,
-                    path=val.get("path", ""),
-                    simulator=val.get("simulator", key),
-                    file_suffix=val.get("file_suffix", "") or "",
-                    transient_simulator=val.get("transient_simulator", "") or "",
-                    transient_keywords=val.get("transient_keywords", []) or [],
-                ))
-        return entries
-    except Exception as e:
-        raise HTTPException(500, f"读取 data_dirs 失败: {e}")
-
-
-@router.post("/config/data-dirs")
-def save_data_dirs(req: DataDirsRequest):
-    """保存 data_dirs 配置到 default.yaml，其余字段保持不变。"""
-    default_yaml = CONFIG_DIR / "default.yaml"
-    try:
-        cfg: dict = {}
-        if default_yaml.exists():
-            with open(default_yaml, "r", encoding="utf-8") as f:
-                cfg = yaml.safe_load(f) or {}
-
-        data_dirs: dict = {}
-        for entry in req.entries:
-            has_transient = bool(entry.transient_simulator)
-            has_suffix = bool(entry.file_suffix)
-            has_keywords = bool(entry.transient_keywords)
-
-            if not has_transient and not has_suffix and not has_keywords:
-                # 简单形式：只有 path 和 simulator 相同时可用字符串，但保持 dict 更统一
-                data_dirs[entry.key] = {
-                    "path": entry.path,
-                    "simulator": entry.simulator,
-                }
-            else:
-                d: dict = {
-                    "path": entry.path,
-                    "simulator": entry.simulator,
-                }
-                if has_suffix:
-                    d["file_suffix"] = entry.file_suffix
-                if has_transient:
-                    d["transient_simulator"] = entry.transient_simulator
-                if has_keywords:
-                    d["transient_keywords"] = entry.transient_keywords
-                data_dirs[entry.key] = d
-
-        cfg["data_dirs"] = data_dirs
-        default_yaml.parent.mkdir(parents=True, exist_ok=True)
-        with open(default_yaml, "w", encoding="utf-8") as f:
-            yaml.dump(cfg, f, allow_unicode=True, sort_keys=False, indent=2)
-        # data_dirs 变更后场景列表会变，清空缓存
-        _t2c_cache["result"] = None
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(500, f"保存 data_dirs 失败: {e}")

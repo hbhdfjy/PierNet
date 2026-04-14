@@ -29,11 +29,7 @@ async def stream_job(job_id: str):
         raise HTTPException(404, f"任务 {job_id} 不存在")
 
     async def _generator():
-        # init 必须最先发，让前端拿到 scenario_totals 后再处理历史进度事件
-        if job.scenario_totals:
-            yield _sse({"type": "init", "scenario_totals": job.scenario_totals, "ts": time.time()})
-
-        # subscribe() 预填历史事件并注册订阅者，在 init 之后调用
+        # subscribe() 回放所有历史事件（含 init），再注册为订阅者
         q = subscribe(job)
         try:
             # 消费 queue（历史事件已预填，新事件实时推入）

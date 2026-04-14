@@ -212,7 +212,9 @@ def run_pipeline(
     n_samples = n_samples if n_samples is not None else cfg['n_samples']
     seed = cfg.get('seed', 42)
     output_path = os.path.join(cfg['output_dir'], cfg['output_file'])
-    scenario_name = cfg.get('scenario_name', os.path.basename(cfg_path).replace('.yaml', ''))
+    output_stem = os.path.basename(cfg.get('output_file', 'unknown')).removesuffix('.h5')
+    dir_name = os.path.basename(cfg.get('output_dir', ''))
+    scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + '_') else output_stem
 
     logger.info(f'===== 电力系统数据合成管线启动 =====')
     logger.info(f'场景: {scenario_name}')

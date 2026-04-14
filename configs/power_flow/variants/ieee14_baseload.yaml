@@ -3,8 +3,8 @@
 
 scenario_name: ieee14_baseload
 simulation_type: powerflow
-output_dir: data/power_system
-output_file: ieee14_baseload_power_timeseries.h5
+output_dir: data/power_flow
+output_file: power_flow_ieee14_baseload.h5
 n_samples: 10000
 
 params:

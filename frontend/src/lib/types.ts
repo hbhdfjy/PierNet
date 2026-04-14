@@ -267,14 +267,6 @@ export interface TemplatesResponse {
 
 // ── 数据目录配置 ──────────────────────────────────────────────────
 
-export interface DataDirEntry {
-  key: string
-  path: string
-  simulator: string
-  file_suffix: string
-  transient_simulator: string
-  transient_keywords: string[]
-}
 
 export interface LLMConfig {
   provider: string

@@ -6,7 +6,7 @@ import type {
   GenerateTemplatesRequest, FillSamplesRequest, TemplateInfo,
   LLMConfig, LLMConfigRequest,
   TemplateFileInfo, SampleFileInfo, JobStartResponse,
-  TemplatesResponse, DataDirEntry,
+  TemplatesResponse,
   SimulationScenario, SimulateRequest, BatchSimulateRequest, SimulationHistoryRecord,
   RouterStatus, RouterSamplesResponse,
 } from './types'
@@ -81,21 +81,6 @@ export const api = {
 
   getScenarios: (): Promise<ScenariosConfig> =>
     get('/config/scenarios'),
-
-  getDataDirs: (): Promise<DataDirEntry[]> =>
-    get('/config/data-dirs'),
-
-  saveDataDirs: async (entries: DataDirEntry[]): Promise<void> => {
-    const res = await fetch(`${BASE}/config/data-dirs`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ entries }),
-    })
-    if (!res.ok) {
-      const text = await res.text().catch(() => '')
-      throw new Error(`保存失败 (${res.status}): ${text}`)
-    }
-  },
 
   getText2CompScenarios: (): Promise<Text2CompScenariosConfig> =>
     get('/config/text2comp-scenarios'),

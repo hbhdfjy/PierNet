@@ -1,5 +1,5 @@
 """
-Stage 2 工具函数：HDF5 文件扫描、场景名解析、registry 加载、domain 解析。
+Stage 2 工具函数：HDF5 文件扫描、场景名解析、registry 加载、domain 解析、配置加载。
 
 这些函数被 generate_templates.py、fill_samples.py、auto_register.py 共用。
 """
@@ -14,56 +14,88 @@ from piern.text2comp.generator import DOMAIN_REGISTRY
 logger = logging.getLogger(__name__)
 
 
-# ── 文件扫描（配置驱动，无任务知识）──────────────────────────────
+# ── 配置加载 ──────────────────────────────────────────────────────
 
-def _scan_h5_files(data_dirs: dict, base_dir: Path) -> list:
+def load_config(cfg_path: Path) -> dict:
     """
-    扫描所有 HDF5 文件，返回 (h5_path, simulator_type) 列表。
+    加载 default.yaml。
 
-    data_dirs 支持两种格式：
-      旧格式（向后兼容）: {"modflow": "data/modflow"}
-      新格式:            {"modflow": {"path": "data/modflow", "simulator": "modflow",
-                                      "file_suffix": "_groundwater_timeseries",
-                                      "transient_simulator": "power_transient",
-                                      "transient_keywords": ["fault", "trip"]}}
+    generation_config 字段（旧格式，指向 generation.yaml）如果存在则自动合并，
+    保证向后兼容。新格式直接把 llm/generation/seed 写在 default.yaml 里即可。
     """
+    with open(cfg_path, "r", encoding="utf-8") as f:
+        cfg = yaml.safe_load(f) or {}
+
+    gen_cfg_path = cfg.get("generation_config")
+    if gen_cfg_path:
+        gen_file = cfg_path.parent.parent.parent / gen_cfg_path
+        if not gen_file.exists():
+            gen_file = Path.cwd() / gen_cfg_path
+        if gen_file.exists():
+            with open(gen_file, "r", encoding="utf-8") as f:
+                base_cfg = yaml.safe_load(f) or {}
+            for k, v in base_cfg.items():
+                if k not in cfg:
+                    cfg[k] = v
+                elif isinstance(v, dict) and isinstance(cfg.get(k), dict):
+                    cfg[k] = {**v, **cfg[k]}
+        else:
+            logger.warning(f"generation_config 文件未找到：{gen_cfg_path}")
+
+    return cfg
+
+
+# ── 文件扫描 ──────────────────────────────────────────────────────
+
+def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
+    """
+    扫描所有 HDF5 文件，返回 [(h5_path, simulator, None)] 列表。
+
+    约定（新格式，data_root）：
+      data_root/
+        {simulator}/
+          {simulator}_{scenario}.h5
+
+    目录名即 simulator 名，文件名去掉 "{simulator}_" 前缀得到场景名。
+    跳过非 simulator 目录（templates、text2comp、router 等）。
+    """
+    # 新格式：data_root
+    data_root_str = cfg.get("data_root")
+    if data_root_str:
+        data_root = base_dir / data_root_str
+        skip = {"templates", "text2comp", "router"}
+        found = []
+        if data_root.exists():
+            for sim_dir in sorted(data_root.iterdir()):
+                if not sim_dir.is_dir() or sim_dir.name in skip:
+                    continue
+                simulator = sim_dir.name
+                prefix = simulator + "_"
+                for h5_file in sorted(sim_dir.glob("*.h5")):
+                    found.append((h5_file, simulator, None))
+                    logger.info(f"发现文件: {h5_file.name} → simulator={simulator}")
+        return found
+
+    # 旧格式兼容：data_dirs dict（已废弃，仅保留向后兼容）
+    data_dirs = cfg.get("data_dirs", {})
     found = []
     for dir_key, dir_cfg in data_dirs.items():
-        # 兼容旧格式（纯字符串）
         if isinstance(dir_cfg, str):
             dir_path = base_dir / dir_cfg
             simulator = dir_key
             file_suffix = None
-            transient_simulator = None
-            transient_keywords = []
-            include_keywords = []
         else:
             dir_path = base_dir / dir_cfg["path"]
             simulator = dir_cfg.get("simulator", dir_key)
             file_suffix = dir_cfg.get("file_suffix", None)
-            transient_simulator = dir_cfg.get("transient_simulator", None)
-            transient_keywords = dir_cfg.get("transient_keywords", [])
-            include_keywords = dir_cfg.get("include_keywords", [])  # 白名单：只保留含任一关键词的文件
 
         if not dir_path.exists():
             logger.warning(f"数据目录不存在，跳过: {dir_path}")
             continue
 
         for h5_file in sorted(dir_path.glob("*.h5")):
-            stem = h5_file.stem.lower()
-
-            # 白名单过滤：若配置了 include_keywords，只保留匹配的文件
-            if include_keywords and not any(kw.lower() in stem for kw in include_keywords):
-                continue
-
-            # 若配置了 transient_keywords，按文件名关键词区分子类型（向后兼容）
-            sim_type = simulator
-            if transient_simulator and transient_keywords:
-                if any(kw in stem for kw in transient_keywords):
-                    sim_type = transient_simulator
-
-            found.append((h5_file, sim_type, file_suffix))
-            logger.info(f"发现文件: {h5_file.name} → simulator={sim_type}")
+            found.append((h5_file, simulator, file_suffix))
+            logger.info(f"发现文件: {h5_file.name} → simulator={simulator}")
 
     return found
 
@@ -72,11 +104,20 @@ def _scenario_name_from_path(h5_path: Path, file_suffix: str = None) -> str:
     """
     从文件名提取场景名。
 
-    若提供了 file_suffix，去掉该后缀；否则返回原始 stem。
+    新约定：文件名格式为 {simulator}_{scenario}.h5，目录名即 simulator。
+    去掉 "{simulator}_" 前缀得到场景名。
+
+    旧格式兼容：若提供了 file_suffix，去掉该后缀。
     """
     stem = h5_path.stem
+    # 旧格式兼容
     if file_suffix and stem.endswith(file_suffix):
-        stem = stem[: -len(file_suffix)]
+        return stem[: -len(file_suffix)]
+    # 新约定：目录名即 simulator，去掉 "{simulator}_" 前缀
+    simulator = h5_path.parent.name
+    prefix = simulator + "_"
+    if stem.startswith(prefix):
+        return stem[len(prefix):]
     return stem
 
 
@@ -159,4 +200,3 @@ def _resolve_domain(
         "output_info":       _get("output_info", default_output_info),
         "observation_config": _get("observation_config", {}),
     }
-

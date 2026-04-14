@@ -29,8 +29,6 @@ import threading
 from collections import Counter
 from pathlib import Path
 
-import yaml
-
 # 将项目根目录加入 sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
@@ -38,7 +36,7 @@ from piern.core.llm_client import LLMClient
 from piern.core.storage import load_dataset
 from piern.text2comp.generator import DOMAIN_REGISTRY, LLMTextGenerator
 from piern.text2comp.template_store import save_templates
-from piern.text2comp.pipeline import _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
+from piern.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
 
 logging.basicConfig(
     level=logging.INFO,
@@ -62,29 +60,10 @@ def run_generate_templates(
     on_log=None,              # (line: str) -> None
 ) -> None:
     cfg_path = Path(cfg_path)
-    with open(cfg_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    # 合并 generation_config
-    gen_cfg_path = cfg.get("generation_config")
-    if gen_cfg_path:
-        gen_file = cfg_path.parent.parent.parent / gen_cfg_path
-        if not gen_file.exists():
-            gen_file = Path.cwd() / gen_cfg_path
-        if gen_file.exists():
-            with open(gen_file, "r", encoding="utf-8") as f:
-                base_cfg = yaml.safe_load(f) or {}
-            for k, v in base_cfg.items():
-                if k not in cfg:
-                    cfg[k] = v
-                elif isinstance(v, dict) and isinstance(cfg.get(k), dict):
-                    cfg[k] = {**v, **cfg[k]}
-        else:
-            logger.warning(f"generation_config 文件未找到：{gen_cfg_path}")
+    cfg = load_config(cfg_path)
 
     llm_cfg = cfg.get("llm", {})
     gen_cfg = cfg.get("generation", {})
-    data_dirs = cfg.get("data_dirs", {})
     registry_path = cfg.get("registry", "configs/text2comp/registry.yaml")
 
     # CLI 参数覆盖 generation.yaml 的值
@@ -143,9 +122,9 @@ def run_generate_templates(
     _log(f"并发线程数: {max_workers}")
 
     # 扫描 HDF5 文件（只需要获取 param_names 和 timeseries_shape）
-    h5_files = _scan_h5_files(data_dirs, base_dir)
+    h5_files = _scan_h5_files(cfg, base_dir)
     if not h5_files:
-        raise RuntimeError("未找到任何 HDF5 文件，请检查 data_dirs 配置")
+        raise RuntimeError("未找到任何 HDF5 文件，请检查 data_root 配置")
 
     if scenarios is not None:
         scenarios_set = set(scenarios)

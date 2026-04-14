@@ -4,8 +4,8 @@
 
 scenario_name: ieee14_load_step
 simulation_type: transient
-output_dir: data/power_system
-output_file: ieee14_load_step_power_timeseries.h5
+output_dir: data/transient
+output_file: transient_ieee14_load_step.h5
 n_samples: 5000
 n_timesteps: 1000
 

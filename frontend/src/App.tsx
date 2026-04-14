@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import {
   Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
-  KeyRound, FolderOpen, FileText, Zap, Sun, Moon, GitBranch, Network,
+  KeyRound, FileText, Zap, Sun, Moon, GitBranch, Network,
   Shuffle, ChevronRight,
 } from 'lucide-react'
 import { cn } from './lib/utils'
@@ -14,7 +14,6 @@ import TemplateGenerator from './pages/TemplateGenerator'
 import SampleFiller from './pages/SampleFiller'
 import TemplateViewer from './pages/TemplateViewer'
 import LLMConfigPage from './pages/LLMConfig'
-import DataDirsConfig from './pages/DataDirsConfig'
 import RegistryPage from './pages/RegistryPage'
 import SimulationRunner from './pages/SimulationRunner'
 import RouterDataBuilder from './pages/RouterDataBuilder'
@@ -244,7 +243,6 @@ export default function App() {
               <SectionLabel>设置</SectionLabel>
               <div className="space-y-0.5">
                 <NavItem to="/registry"   icon={FileText}   label="注册信息" />
-                <NavItem to="/data-dirs"  icon={FolderOpen} label="数据目录" />
                 <NavItem to="/llm-config" icon={KeyRound}   label="LLM 配置" color="amber" />
               </div>
             </div>
@@ -336,10 +334,7 @@ export default function App() {
             <Route path="/router-viewer"  element={<RouterViewer />} />
             <Route path="/stats"          element={<DatasetStats />} />
             <Route path="/registry"       element={<RegistryPage />} />
-            <Route path="/data-dirs"      element={<DataDirsConfig />} />
             <Route path="/llm-config"     element={<LLMConfigPage />} />
-            <Route path="/monitor"        element={<Navigate to="/templates" replace />} />
-            <Route path="/launch"         element={<Navigate to="/templates" replace />} />
             <Route path="*"               element={<Navigate to="/simulate" replace />} />
           </Routes>
         </main>

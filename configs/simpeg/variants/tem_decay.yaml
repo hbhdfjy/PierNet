@@ -4,7 +4,7 @@
 
 scenario: tem_decay
 output_dir: data/simpeg
-output_file: tem_decay_geophysics_timeseries.h5
+output_file: simpeg_tem_decay.h5
 n_samples: 5000
 n_points: 100   # 时间道数（10^-6~10^-2 s 对数均匀）
 seed: 2003

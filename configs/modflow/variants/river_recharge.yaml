@@ -1,5 +1,5 @@
 output_dir: data/modflow
-output_file: river_recharge_groundwater_timeseries.h5
+output_file: modflow_river_recharge.h5
 n_samples: 2000
 n_timesteps: 365
 n_wells: 5

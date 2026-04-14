@@ -182,7 +182,9 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
     n_samples = n_samples if n_samples is not None else cfg["n_samples"]
     seed = cfg.get("seed", 42)
     output_path = os.path.join(cfg["output_dir"], cfg["output_file"])
-    scenario_name = cfg.get("scenario", "dc_resistivity")
+    output_stem = os.path.basename(cfg.get("output_file", "unknown")).removesuffix(".h5")
+    dir_name = os.path.basename(cfg.get("output_dir", ""))
+    scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
 
     logger.info(f"===== SimPEG 数据合成管线启动 =====")
     logger.info(f"场景名称: {scenario_name}")

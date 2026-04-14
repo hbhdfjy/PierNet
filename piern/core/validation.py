@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 
 
 def _check_nan_ratio(ts: np.ndarray, max_nan_ratio: float) -> bool:
-    """返回 True 表示通过（NaN 比例未超标）。"""
-    nan_ratio = np.isnan(ts).mean() + np.isinf(ts).mean()
+    """返回 True 表示通过（NaN/Inf 比例未超标）。"""
+    nan_ratio = (~np.isfinite(ts)).mean()
     return float(nan_ratio) <= max_nan_ratio
 
 

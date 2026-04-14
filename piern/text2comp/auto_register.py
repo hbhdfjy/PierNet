@@ -45,7 +45,7 @@ import yaml
 
 from piern.core.llm_client import LLMClient
 from piern.core.storage import load_dataset
-from piern.text2comp.pipeline import _scenario_name_from_path, _scan_h5_files
+from piern.text2comp.pipeline import load_config, _scenario_name_from_path, _scan_h5_files
 
 logger = logging.getLogger(__name__)
 
@@ -350,28 +350,9 @@ def run_auto_register(
     if invalid:
         raise ValueError(f"无效的 fields: {invalid}，合法值: {ALL_FIELDS}")
 
-    with open(cfg_path, "r", encoding="utf-8") as f:
-        cfg = yaml.safe_load(f)
-
-    # 合并 generation_config
-    gen_cfg_path = cfg.get("generation_config")
-    if gen_cfg_path:
-        gen_cfg_file = Path(gen_cfg_path)
-        if not gen_cfg_file.is_absolute():
-            gen_cfg_file = cfg_path.parent.parent.parent / gen_cfg_file
-            if not gen_cfg_file.exists():
-                gen_cfg_file = Path.cwd() / gen_cfg_path
-        if gen_cfg_file.exists():
-            with open(gen_cfg_file, "r", encoding="utf-8") as f:
-                base_cfg = yaml.safe_load(f) or {}
-            for k, v in base_cfg.items():
-                if k not in cfg:
-                    cfg[k] = v
-                elif isinstance(v, dict) and isinstance(cfg.get(k), dict):
-                    cfg[k] = {**v, **cfg[k]}
+    cfg = load_config(cfg_path)
 
     llm_cfg = cfg.get("llm", {})
-    data_dirs = cfg.get("data_dirs", {})
 
     base_dir = cfg_path.parent.parent.parent
     if not (base_dir / "data").exists():
@@ -399,9 +380,9 @@ def run_auto_register(
     )
 
     # 扫描 HDF5
-    h5_files = _scan_h5_files(data_dirs, base_dir)
+    h5_files = _scan_h5_files(cfg, base_dir)
     if not h5_files:
-        raise RuntimeError(f"未找到任何 HDF5 文件，检查 data_dirs: {data_dirs}")
+        raise RuntimeError("未找到任何 HDF5 文件，请检查 data_root 配置")
 
     # 按场景过滤
     if scenarios is not None:
@@ -434,8 +415,8 @@ def run_auto_register(
             # 取 simulator 级条目（新结构：顶层 key = simulator）
             existing_entry = {k: v for k, v in registry.get(simulator, {}).items() if k != "scenarios"}
         else:
-            # 场景级注册已不再使用（新结构只在 simulator 级写字段）
-            # 兼容旧逻辑：仍允许场景级 key，但推荐使用 simulator 级
+            # 非 simulator_level 模式：每个场景都触发一次 LLM 推断，但都写入 simulator 级 key
+            # 适合各场景 domain_context/param_info 不同、需要逐场景推断的情况
             registry_key = simulator
             existing_entry = {k: v for k, v in registry.get(simulator, {}).items() if k != "scenarios"}
             print(f"\n  场景: {scenario_name}（注册到 simulator 级 key: {simulator}）")

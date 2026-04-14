@@ -9,6 +9,9 @@ import {
 import { cn } from '../lib/utils'
 import EmptyState from '../components/ui/EmptyState'
 
+
+// ── 场景名预览 ────────────────────────────────────────────────────
+
 type OutputInfoItem = { name: string; name_zh?: string; description: string; unit: string; slice: [number, number | null] }
 type TimeModeItem   = { name: string; desc_en: string; desc_zh?: string; indices: string }
 type ObsConfig = {
@@ -547,11 +550,11 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
         <div className="border-t border-slate-700/30">
           <div className="flex border-b border-slate-700/30 bg-slate-900/30 overflow-x-auto">
             {([
-              { id: 'domain', icon: <FileText size={13} />, label: '领域描述', disabled: false },
-              { id: 'output', icon: <Layers size={13} />,   label: '输出通道', disabled: !hasOutput },
-              { id: 'obs',    icon: <Clock size={13} />,    label: '观测配置', disabled: !hasObs },
-              { id: 'params', icon: <Tag size={13} />,      label: `参数 (${Object.keys(params).length})`, disabled: !hasParams },
-              { id: 'raw',    icon: <FileText size={13} />, label: 'Raw JSON', disabled: false },
+              { id: 'domain', icon: <FileText size={13} />,   label: '领域描述', disabled: false },
+              { id: 'output', icon: <Layers size={13} />,     label: '输出通道', disabled: !hasOutput },
+              { id: 'obs',    icon: <Clock size={13} />,      label: '观测配置', disabled: !hasObs },
+              { id: 'params', icon: <Tag size={13} />,        label: `参数 (${Object.keys(params).length})`, disabled: !hasParams },
+              { id: 'raw',    icon: <FileText size={13} />,   label: 'Raw JSON', disabled: false },
             ] as const).map(t => (
               <button key={t.id} disabled={t.disabled} onClick={() => { setTab(t.id) }}
                 className={cn('flex items-center gap-1.5 px-4 py-2.5 text-sm transition-colors border-b-2 whitespace-nowrap flex-shrink-0',
@@ -749,7 +752,7 @@ export default function RegistryPage() {
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
-      {/* 工具栏 */}
+      {/* 页头 */}
       <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-700/40 bg-slate-900/40 flex-shrink-0">
         <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
           <FileText size={14} className="text-sky-400" />

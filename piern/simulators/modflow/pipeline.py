@@ -259,8 +259,10 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     seed = cfg.get("seed", 42)
     output_path = os.path.join(cfg["output_dir"], cfg["output_file"])
 
-    # 提取场景名称（从文件名）
-    scenario_name = os.path.basename(cfg.get("output_file", "unknown")).replace("_groundwater_timeseries.h5", "")
+    # 提取场景名称：去掉 .h5 后缀，再去掉 "大场景_" 前缀（如 modflow_unified_aquifer → unified_aquifer）
+    output_stem = os.path.basename(cfg.get("output_file", "unknown")).removesuffix(".h5")
+    dir_name = os.path.basename(cfg.get("output_dir", ""))
+    scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
 
     logger.info(f"===== MODFLOW 数据合成管线 V2 启动 =====")
     logger.info(f"场景名称: {scenario_name}")
@@ -293,7 +295,6 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
         raise RuntimeError("质量过滤后无有效样本，请检查 MODFLOW 配置或验证阈值")
 
     # Step 3: 补充采样 / 参数空间增强
-    seed_ratio = aug_cfg.get("seed_ratio", 0.1)
     if timeseries.shape[0] >= n_samples:
         # 已有足够样本，直接截取
         logger.info("Step 3/4: 直接采样已满足目标数量，跳过增强")

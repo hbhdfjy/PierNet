@@ -4,7 +4,7 @@
 
 scenario: ip_chargeability
 output_dir: data/simpeg
-output_file: ip_chargeability_geophysics_timeseries.h5
+output_file: simpeg_ip_chargeability.h5
 n_samples: 5000
 n_points: 100   # 极距采样点数（1~1000m 对数均匀）
 seed: 2004

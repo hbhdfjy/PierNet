@@ -4,7 +4,7 @@
 
 scenario: mt_sounding
 output_dir: data/simpeg
-output_file: mt_sounding_geophysics_timeseries.h5
+output_file: simpeg_mt_sounding.h5
 n_samples: 5000
 n_points: 100   # 频率采样点数（10^-3~10^3 Hz 对数均匀）
 seed: 2002
