@@ -196,13 +196,31 @@ async def build_router_data(
                         })
                     continue
 
+                # PROGRESS_UPDATE:场景名:当前条数:预期总条数 — 中间进度
+                if line.startswith("PROGRESS_UPDATE:"):
+                    parts = line.split(":", 3)
+                    if len(parts) == 4:
+                        sc_name = parts[1]
+                        try:
+                            done  = int(parts[2])
+                            total = int(parts[3])
+                        except ValueError:
+                            done, total = 0, 0
+                        publish(record, {
+                            "type": "log",
+                            "line": f"  {sc_name}: {done}/{total}",
+                            "ts": time.time(),
+                            "progress": {"scenario": sc_name, "done": done, "total": total},
+                        })
+                    continue
+
                 # PROGRESS_DONE:场景名:实际条数:预期条数 — 场景完成
                 if line.startswith("PROGRESS_DONE:"):
                     parts = line.split(":", 3)
                     if len(parts) >= 3:
                         sc_name = parts[1]
                         try:
-                            done = int(parts[2])
+                            done  = int(parts[2])
                             total = int(parts[3]) if len(parts) == 4 else scenario_totals.get(sc_name, done)
                         except ValueError:
                             done, total = 0, 0

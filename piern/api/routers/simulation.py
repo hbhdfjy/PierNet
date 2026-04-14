@@ -22,15 +22,7 @@ router = APIRouter()
 
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sim-worker")
 
-# power_system 拆分为 power_flow（潮流，IEEE14）和 transient（暂态，IEEE14）
-# 两者共用 piern.simulators.power_system.pipeline，但 configs 目录独立
 SIMULATORS = ["modflow", "simpeg", "power_flow", "transient", "gcam"]
-
-# 虚拟 simulator 到实际 pipeline 模块的映射
-_SIMULATOR_PIPELINE_MAP = {
-    "power_flow": "power_system",
-    "transient":  "power_system",
-}
 
 # 历史记录（内存，最多保留 200 条；重启后清空）
 _history: deque = deque(maxlen=200)
@@ -182,15 +174,15 @@ def _invalidate_cache():
 
 def _get_run_pipeline(simulator: str):
     """动态导入对应 simulator 的 run_pipeline 函数。"""
-    # 虚拟 simulator 映射到实际 pipeline 模块
-    pipeline_module = _SIMULATOR_PIPELINE_MAP.get(simulator, simulator)
-    if pipeline_module == "modflow":
+    if simulator == "modflow":
         from piern.simulators.modflow.pipeline import run_pipeline
-    elif pipeline_module == "simpeg":
+    elif simulator == "simpeg":
         from piern.simulators.simpeg.pipeline import run_pipeline
-    elif pipeline_module == "power_system":
-        from piern.simulators.power_system.pipeline import run_pipeline
-    elif pipeline_module == "gcam":
+    elif simulator == "power_flow":
+        from piern.simulators.power_flow.pipeline import run_pipeline
+    elif simulator == "transient":
+        from piern.simulators.transient.pipeline import run_pipeline
+    elif simulator == "gcam":
         from piern.simulators.gcam.pipeline import run_pipeline
     else:
         raise ValueError(f"未知 simulator: {simulator}")
@@ -223,9 +215,8 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
 
 def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
     """非并行模式：用 subprocess 运行，实时转发 stdout 日志。"""
-    pipeline_module = _SIMULATOR_PIPELINE_MAP.get(req.simulator, req.simulator)
     cmd = [
-        sys.executable, "-m", f"piern.simulators.{pipeline_module}.pipeline",
+        sys.executable, "-m", f"piern.simulators.{req.simulator}.pipeline",
         "--config", req.config_path,
         "--n-samples", str(req.n_samples),
     ]
@@ -286,9 +277,7 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
     handler = SSEHandler()
     handler.setFormatter(logging.Formatter("%(message)s"))
 
-    # 用实际 pipeline 模块名挂 logger（power_flow/transient → power_system）
-    pipeline_module = _SIMULATOR_PIPELINE_MAP.get(req.simulator, req.simulator)
-    sim_logger = logging.getLogger(f"piern.simulators.{pipeline_module}")
+    sim_logger = logging.getLogger(f"piern.simulators.{req.simulator}")
     sim_logger.setLevel(logging.INFO)
     sim_logger.addHandler(handler)
     main_logger = logging.getLogger("__main__")

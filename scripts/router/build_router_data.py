@@ -64,13 +64,23 @@ def _random_truncation(text: str, rng: random.Random) -> str:
     return text[:pos]
 
 
-def _build_samples_from_file(jsonl_path: Path, rng: random.Random, neg_ratio: int = 1) -> list[dict]:
+def _build_samples_from_file(
+    jsonl_path: Path,
+    rng: random.Random,
+    neg_ratio: int = 1,
+    progress_callback=None,
+    progress_interval: int = 500,
+) -> list[dict]:
     """从单个场景 JSONL 文件生成正负样本对。
 
     每条原始样本 → 1 条正样本 + neg_ratio 条负样本（不同截断位置）。
     neg_ratio=1 时正负 1:1，neg_ratio=5 时正负 1:5。
+
+    Args:
+        progress_callback: 可选回调 (done_samples: int)，每 progress_interval 条源样本调用一次。
     """
     samples = []
+    source_processed = 0
     with open(jsonl_path, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -112,6 +122,10 @@ def _build_samples_from_file(jsonl_path: Path, rng: random.Random, neg_ratio: in
                     "label": 0,
                     "metadata": {**base_meta, "trigger_prefix": ""},
                 })
+
+            source_processed += 1
+            if progress_callback and source_processed % progress_interval == 0:
+                progress_callback(len(samples))
 
     return samples
 
@@ -195,14 +209,21 @@ def main():
     # 处理本次指定的场景
     for jsonl_path in jsonl_files:
         scenario_name = jsonl_path.stem
+        expected = scenario_source_counts[scenario_name] * (1 + args.neg_ratio)
         print(f"  处理：{jsonl_path.name} ...", flush=True)
-        samples = _build_samples_from_file(jsonl_path, rng, neg_ratio=args.neg_ratio)
+
+        def _progress(done_samples: int, sc=scenario_name, exp=expected):
+            print(f"PROGRESS_UPDATE:{sc}:{done_samples}:{exp}", flush=True)
+
+        samples = _build_samples_from_file(
+            jsonl_path, rng, neg_ratio=args.neg_ratio,
+            progress_callback=_progress,
+        )
         n_pos = sum(1 for s in samples if s["label"] == 1)
         n_neg = len(samples) - n_pos
         print(f"  完成：{len(samples)} 条（正={n_pos}, 负={n_neg}）", flush=True)
 
         # 发送进度完成事件
-        expected = scenario_source_counts[scenario_name] * (1 + args.neg_ratio)
         print(f"PROGRESS_DONE:{scenario_name}:{len(samples)}:{expected}", flush=True)
 
         # 写入场景独立文件（覆盖）

@@ -1,18 +1,7 @@
-# Stage 2/3 Text-to-Computation 配置
-# 数据源、输出路径、LLM 超参数统一在此文件管理
-
-# 数据源约定：自动扫描 data/ 下各子目录，目录名即 simulator 名
-# 文件名格式：{simulator}_{scenario}.h5，如 modflow_unified_aquifer.h5
 data_root: data
-
-# 元数据注册表（auto_register 生成，包含所有领域知识）
 registry: configs/text2comp/registry.yaml
-
-# 输出
 output_dir: data/text2comp
 output_file: all_training_data.jsonl
-
-# LLM 配置
 llm:
   provider: siliconflow
   model: deepseek-ai/DeepSeek-V3.2
@@ -22,20 +11,17 @@ llm:
   max_retries: 5
   timeout: 60
   base_url: ''
-
-# 生成超参数
 generation:
   n_samples_per_scenario: 1000
   max_workers: 5
   language_mix: 0.5
   styles:
-    - technical
-    - popular
-    - concise
+  - technical
+  - popular
+  - concise
   style_weights:
-    - 0.4
-    - 0.3
-    - 0.3
+  - 0.4
+  - 0.3
+  - 0.3
   transform_prob: 0.1
-
 seed: 42

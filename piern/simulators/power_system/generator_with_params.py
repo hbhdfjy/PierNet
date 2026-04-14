@@ -8,10 +8,8 @@ import numpy as np
 import logging
 from typing import Dict, Any, List, Tuple
 
-from piern.simulators.power_system.generator import (
-    _run_powerflow_365d,
-    _run_transient_stability_andes,
-)
+from piern.simulators.power_flow.generator import _run_powerflow_365d
+from piern.simulators.transient.generator import _run_transient_stability_andes
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +33,8 @@ def generate_batch_from_params(
     ts_list = []
     params_list = []
 
-    rng = np.random.default_rng(cfg.get('seed', 42))
+    # 使用随机 seed 避免多次调用时生成相同的增强样本
+    rng = np.random.default_rng()
     scenario = cfg.get('scenario_name', 'ieee14_baseload')
     sim_type = cfg.get('simulation_type', 'powerflow')
 

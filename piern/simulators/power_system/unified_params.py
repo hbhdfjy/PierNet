@@ -63,54 +63,77 @@ class PowerSystemParamConverter:
             'complexity',       # m3: 复杂度
         ]
 
-        # 场景元数据映射
+        # 场景元数据映射：(scenario_type, output_type, complexity)
+        # scenario_type: 0=稳态潮流, 1=暂态稳定
+        # output_type:   0=电压/相角/线路功率, 1=转子角
+        # complexity:    1=14节点, 2=30节点, 3=39节点, 4=118节点
         self._scenario_meta = {
-            # 稳态潮流场景
-            'ieee14_baseload':      (0, 0, 1),
-            'ieee14_renewable':     (0, 0, 1),
-            'ieee30_contingency':   (0, 0, 2),
-            'ieee118_dispatch':     (0, 0, 4),
-            'distribution_33bus':   (0, 0, 2),
-            # 暂态稳定场景
-            'ieee39_fault':         (1, 1, 3),
-            'ieee39_trip':          (1, 1, 3),
-            'ieee14_load_step':     (1, 1, 1),
+            # 稳态潮流场景（power_flow simulator）
+            'ieee14_baseload':       (0, 0, 1),
+            'ieee14_renewable':      (0, 0, 1),
+            'ieee14_peak':           (0, 0, 1),
+            'ieee14_light':          (0, 0, 1),
+            'ieee14_voltage_stress': (0, 0, 1),
+            'ieee30_contingency':    (0, 0, 2),
+            'ieee118_dispatch':      (0, 0, 4),
+            'distribution_33bus':    (0, 0, 2),
+            # 暂态稳定场景（transient simulator）
+            'ieee14_fault':          (1, 1, 1),
+            'ieee14_gentrip':        (1, 1, 1),
+            'ieee14_load_step':      (1, 1, 1),
+            'ieee39_fault':          (1, 1, 3),
+            'ieee39_trip':           (1, 1, 3),
         }
 
         # 网络规模映射（节点数）
         self._bus_count = {
-            'ieee14_baseload':    14,
-            'ieee14_renewable':   14,
-            'ieee30_contingency': 30,
-            'ieee118_dispatch':   118,
-            'distribution_33bus': 33,
-            'ieee39_fault':       39,
-            'ieee39_trip':        39,
-            'ieee14_load_step':   14,
+            'ieee14_baseload':       14,
+            'ieee14_renewable':      14,
+            'ieee14_peak':           14,
+            'ieee14_light':          14,
+            'ieee14_voltage_stress': 14,
+            'ieee30_contingency':    30,
+            'ieee118_dispatch':      118,
+            'distribution_33bus':    33,
+            'ieee14_fault':          14,
+            'ieee14_gentrip':        14,
+            'ieee14_load_step':      14,
+            'ieee39_fault':          39,
+            'ieee39_trip':           39,
         }
 
         # 典型基准电压（kV）
         self._base_voltage = {
-            'ieee14_baseload':    138.0,
-            'ieee14_renewable':   138.0,
-            'ieee30_contingency': 135.0,
-            'ieee118_dispatch':   138.0,
-            'distribution_33bus': 12.66,
-            'ieee39_fault':       345.0,
-            'ieee39_trip':        345.0,
-            'ieee14_load_step':   138.0,
+            'ieee14_baseload':       138.0,
+            'ieee14_renewable':      138.0,
+            'ieee14_peak':           138.0,
+            'ieee14_light':          138.0,
+            'ieee14_voltage_stress': 138.0,
+            'ieee30_contingency':    135.0,
+            'ieee118_dispatch':      138.0,
+            'distribution_33bus':    12.66,
+            'ieee14_fault':          138.0,
+            'ieee14_gentrip':        138.0,
+            'ieee14_load_step':      138.0,
+            'ieee39_fault':          345.0,
+            'ieee39_trip':           345.0,
         }
 
         # 典型有功负荷（MW）
         self._base_load = {
-            'ieee14_baseload':    259.0,
-            'ieee14_renewable':   259.0,
-            'ieee30_contingency': 283.4,
-            'ieee118_dispatch':   4242.0,
-            'distribution_33bus': 3.715,
-            'ieee39_fault':       6254.2,
-            'ieee39_trip':        6254.2,
-            'ieee14_load_step':   259.0,
+            'ieee14_baseload':       259.0,
+            'ieee14_renewable':      259.0,
+            'ieee14_peak':           259.0,
+            'ieee14_light':          259.0,
+            'ieee14_voltage_stress': 259.0,
+            'ieee30_contingency':    283.4,
+            'ieee118_dispatch':      4242.0,
+            'distribution_33bus':    3.715,
+            'ieee14_fault':          259.0,
+            'ieee14_gentrip':        259.0,
+            'ieee14_load_step':      259.0,
+            'ieee39_fault':          6254.2,
+            'ieee39_trip':           6254.2,
         }
 
     def convert(self, scenario_name: str, original_params: Dict) -> np.ndarray:
@@ -133,7 +156,8 @@ class PowerSystemParamConverter:
 
         load_scale = original_params.get('load_scale', 1.0)
         P_load_mean = P_base * load_scale
-        P_load_std = P_load_mean * original_params.get('P_load_std', 50.0) / P_base
+        # P_load_std 原始参数单位是 MW，随负荷缩放比例线性调整
+        P_load_std = original_params.get('P_load_std', 50.0) * load_scale
         Q_load_ratio = original_params.get('Q_load_ratio', 0.3)
         P_gen_total = P_load_mean * 1.05  # 发电略大于负荷
         renewable_ratio = original_params.get('renewable_ratio', 0.0)

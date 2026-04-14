@@ -1,22 +1,12 @@
 """
-电力系统数据合成管线。
+暂态稳定数据合成管线（ANDES）。
 
 流程：
-  参数采样
-    ↓
-  电力系统仿真（潮流 or 暂态）
-    ↓
-  质量过滤
-    ↓
-  参数空间采样增强（可选）
-    ↓
-  统一参数转换（18维）
-    ↓
-  HDF5 存储
+  参数采样 → 暂态稳定仿真（DAE）→ 质量过滤 → 参数增强 → 统一参数转换 → HDF5 存储
 
 用法：
-  python -m piern.simulators.power_system.pipeline \
-      --config configs/power_system/variants/ieee14_baseload.yaml
+  python -m piern.simulators.transient.pipeline \
+      --config configs/transient/variants/ieee14_fault.yaml --n-samples 500
 """
 
 import argparse
@@ -27,7 +17,7 @@ import time
 import numpy as np
 import yaml
 
-from piern.simulators.power_system.generator import generate_batch
+from piern.simulators.transient.generator import generate_batch, _generate_single_worker
 from piern.simulators.power_system.generator_with_params import generate_batch_from_params
 from piern.simulators.power_system.unified_params import PowerSystemParamConverter
 from piern.core.validation import filter_dataset
@@ -42,20 +32,12 @@ logger = logging.getLogger(__name__)
 
 
 def _make_validation_cfg(sim_cfg: dict) -> dict:
-    """从场景配置中构建完整的验证配置，确保必需字段存在。
-
-    config YAML 里已直接写好 min/max_head_value，此函数仅作兜底保护。
-    """
-    sim_type = sim_cfg.get('simulation_type', 'powerflow')
+    """构建暂态验证配置：转子角（归一化后）应在 [-3, 3] 范围内。"""
     vcfg = dict(sim_cfg.get('validation', {}))
     vcfg.setdefault('max_nan_ratio', 0.05)
     vcfg.setdefault('min_variance', 1e-8)
-    if sim_type == 'transient':
-        vcfg.setdefault('min_head_value', -3.0)
-        vcfg.setdefault('max_head_value', 3.0)
-    else:
-        vcfg.setdefault('min_head_value', 0.7)
-        vcfg.setdefault('max_head_value', 1.3)
+    vcfg.setdefault('min_head_value', -3.0)
+    vcfg.setdefault('max_head_value', 3.0)
     return vcfg
 
 
@@ -83,8 +65,7 @@ def augment_with_parameter_sampling(
     progress_callback=None,
 ) -> tuple:
     """通过参数空间采样增强数据集。max_workers>1 时使用多线程并行。"""
-    from concurrent.futures import ThreadPoolExecutor
-    from piern.simulators.power_system.generator import _generate_single_worker
+    from concurrent.futures import ThreadPoolExecutor, as_completed
 
     rng = np.random.default_rng(seed)
 
@@ -103,7 +84,6 @@ def augment_with_parameter_sampling(
 
     logger.info(f"参数增强：当前 {N_current} → 目标 {target_n}（并行={max_workers}核）")
 
-    # 验证配置在循环外构建一次，避免重复计算
     validation_cfg = _make_validation_cfg(sim_cfg)
 
     round_idx = 0
@@ -118,9 +98,7 @@ def augment_with_parameter_sampling(
         selected = pool_arr[rng.choice(len(pool_arr), size=this_batch, replace=True)]
         perturbed = perturb_params(selected, perturbation_ratio, rng)
 
-        # 构造覆盖参数的临时 cfg 列表，每个样本一个独立种子
         if max_workers > 1:
-            from concurrent.futures import as_completed
             tasks = []
             for i, param_row in enumerate(perturbed):
                 override_cfg = dict(sim_cfg)
@@ -136,7 +114,6 @@ def augment_with_parameter_sampling(
             with ThreadPoolExecutor(max_workers=max_workers) as executor:
                 futures = [executor.submit(_generate_single_worker, t) for t in tasks]
                 for future in as_completed(futures):
-                    # 已达到目标，取消剩余未开始的任务
                     if len(pool_ts) + len(new_ts_raw) >= target_n:
                         for f in futures:
                             f.cancel()
@@ -148,9 +125,7 @@ def augment_with_parameter_sampling(
                         continue
                     if ts is not None and params is not None:
                         row = [params.get(k, float('nan')) for k in param_names]
-                        if any(np.isnan(v) for v in row):
-                            logger.warning(f"增强样本参数不完整（含 NaN），已跳过")
-                        else:
+                        if not any(np.isnan(v) for v in row):
                             new_ts_raw.append(ts)
                             new_params_raw.append(row)
                     if done_count % max(max_workers, 1) == 0:
@@ -169,8 +144,6 @@ def augment_with_parameter_sampling(
 
         new_ts_arr = np.stack(new_ts, axis=0)
         new_params_arr = np.array(new_params, dtype=np.float32)
-
-        # 质量过滤（复用循环外构建的 validation_cfg）
         new_ts_arr, new_params_arr, _ = filter_dataset(new_ts_arr, new_params_arr, validation_cfg)
         if len(new_ts_arr) == 0:
             continue
@@ -181,11 +154,8 @@ def augment_with_parameter_sampling(
 
     pool_ts = pool_ts[:target_n]
     pool_params = pool_params[:target_n]
-
     aug_ts = np.stack(pool_ts, axis=0)
     aug_params = np.array(pool_params, dtype=np.float32)
-
-    # 打乱
     idx = rng.permutation(len(aug_ts))
     return aug_ts[idx], aug_params[idx]
 
@@ -198,10 +168,7 @@ def run_pipeline(
     progress_callback=None,
 ) -> str:
     """
-    执行完整电力系统数据合成管线。
-
-    Args:
-        progress_callback: 可选回调 (done: int, total: int)，每完成一批时调用。
+    执行完整暂态稳定数据合成管线。
 
     Returns:
         输出 HDF5 文件路径
@@ -216,24 +183,24 @@ def run_pipeline(
     dir_name = os.path.basename(cfg.get('output_dir', ''))
     scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + '_') else output_stem
 
-    logger.info(f'===== 电力系统数据合成管线启动 =====')
+    logger.info('===== 暂态稳定数据合成管线启动（ANDES）=====')
     logger.info(f'场景: {scenario_name}')
     logger.info(f'目标样本数: {n_samples}')
     logger.info(f'输出路径: {output_path}')
 
     t0 = time.time()
 
-    # Step 1: 生成种子数据
     aug_cfg = cfg.get('augmentation', {})
     seed_ratio = aug_cfg.get('seed_ratio', 0.1)
     n_seed = max(int(n_samples * seed_ratio), 50)
-    logger.info(f'Step 1/4: 生成种子样本 ({n_seed} 个)...')
-    timeseries, params, param_names = generate_batch(cfg, n_seed, seed=seed, parallel=parallel, max_workers=max_workers,
-                                                     progress_callback=progress_callback, progress_total=n_samples)
+    logger.info(f'Step 1/5: 生成种子样本 ({n_seed} 个)...')
+    timeseries, params, param_names = generate_batch(
+        cfg, n_seed, seed=seed, parallel=parallel, max_workers=max_workers,
+        progress_callback=progress_callback, progress_total=n_samples,
+    )
     logger.info(f'  → {timeseries.shape[0]} 个样本，形状 {timeseries.shape}')
 
-    # Step 2: 质量过滤
-    logger.info('Step 2/4: 质量过滤...')
+    logger.info('Step 2/5: 质量过滤...')
     validation_cfg = _make_validation_cfg(cfg)
     timeseries, params, _ = filter_dataset(timeseries, params, validation_cfg)
     logger.info(f'  → 保留 {timeseries.shape[0]} 个样本')
@@ -241,13 +208,12 @@ def run_pipeline(
     if timeseries.shape[0] == 0:
         raise RuntimeError('质量过滤后无有效样本')
 
-    # Step 3: 参数空间增强
     if seed_ratio >= 1.0:
-        logger.info('Step 3/4: seed_ratio=1.0，跳过增强')
+        logger.info('Step 3/5: seed_ratio=1.0，跳过增强')
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
     else:
-        logger.info(f'Step 3/4: 参数增强（目标 {n_samples} 个）...')
+        logger.info(f'Step 3/5: 参数增强（目标 {n_samples} 个）...')
         aug_ts, aug_params = augment_with_parameter_sampling(
             timeseries, params, param_names, aug_cfg, cfg,
             target_n=n_samples, seed=seed + 1,
@@ -256,8 +222,7 @@ def run_pipeline(
         )
     logger.info(f'  → 增强后 {aug_ts.shape[0]} 个样本')
 
-    # Step 3.5: 转换统一参数
-    logger.info('Step 3.5/4: 转换为18维统一参数...')
+    logger.info('Step 4/5: 转换为18维统一参数...')
     converter = PowerSystemParamConverter()
     unified_list = []
     for i in range(len(aug_params)):
@@ -266,13 +231,12 @@ def run_pipeline(
     unified_params = np.array(unified_list, dtype=np.float32)
     logger.info(f'  → 参数维度: {len(param_names)}维 → 18维')
 
-    # Step 4: 存储
-    logger.info('Step 4/4: 写入 HDF5...')
+    logger.info('Step 5/5: 写入 HDF5...')
     metadata = {
         'config_path': cfg_path,
         'scenario_name': scenario_name,
-        'simulator': 'power_system',
-        'simulation_type': cfg.get('simulation_type', 'powerflow'),
+        'simulator': 'transient',
+        'simulation_type': 'transient',
         'n_original': timeseries.shape[0],
         'n_augmented': aug_ts.shape[0],
         'augmentation_method': 'parameter_sampling',
@@ -286,15 +250,14 @@ def run_pipeline(
     logger.info(f'===== 完成！耗时 {elapsed:.1f}s =====')
     logger.info(f'数据集形状: timeseries={aug_ts.shape}, params={unified_params.shape}')
     logger.info(f'输出文件: {output_path}')
-
     return output_path
 
 
 def main():
-    parser = argparse.ArgumentParser(description='电力系统数据合成管线')
-    parser.add_argument('--config', type=str, required=True, help='YAML配置文件路径')
+    parser = argparse.ArgumentParser(description='暂态稳定数据合成管线（ANDES）')
+    parser.add_argument('--config', type=str, required=True, help='YAML 配置文件路径')
     parser.add_argument('--n-samples', type=int, default=None, help='目标样本数')
-    parser.add_argument('--parallel', action='store_true', help='启用并行（暂未实现）')
+    parser.add_argument('--parallel', action='store_true', help='启用多线程并行')
     parser.add_argument('--max-workers', type=int, default=4)
     args = parser.parse_args()
 
