@@ -54,7 +54,10 @@ def generate_batch_from_params(
                 n_timesteps = cfg.get('n_timesteps', 1000)
                 ts = _run_transient_stability_andes(scenario, params_dict, rng, n_timesteps=n_timesteps)
             else:
-                continue
+                raise ValueError(
+                    f"未知 simulation_type: '{sim_type}'，"
+                    f"请检查 YAML 配置，有效值为 'powerflow' 或 'transient'"
+                )
 
             if ts is not None:
                 ts_list.append(ts)

@@ -97,6 +97,13 @@ def augment_with_parameter_sampling(
         pool_arr = np.array(pool_params)
         selected = pool_arr[rng.choice(len(pool_arr), size=this_batch, replace=True)]
         perturbed = perturb_params(selected, perturbation_ratio, rng)
+        # clip 到配置范围，防止扰动后超出设计边界
+        p_cfg = sim_cfg.get('params', {})
+        for j, name in enumerate(param_names):
+            lo = p_cfg.get(f'{name}_min')
+            hi = p_cfg.get(f'{name}_max')
+            if lo is not None and hi is not None:
+                perturbed[:, j] = np.clip(perturbed[:, j], lo, hi)
 
         if max_workers > 1:
             tasks = []

@@ -269,6 +269,5 @@ def get_text2comp_scenarios():
         if scenarios_map:
             result[simulator] = sorted(scenarios_map.values(), key=lambda x: x["name"])
 
-    _t2c_cache["result"] = result
-    _t2c_cache["ts"] = time.time()
+    _t2c_cache.update({"result": result, "ts": time.time()})
     return result

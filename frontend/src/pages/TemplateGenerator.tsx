@@ -326,7 +326,7 @@ export default function TemplateGenerator() {
                 {
                   label: '并发',
                   value: maxWorkers ?? genCfg?.generation?.max_workers ?? 1,
-                  min: 1, max: 32,
+                  min: 1, max: 100,
                   display: String(maxWorkers ?? genCfg?.generation?.max_workers ?? 1),
                   onChange: (v: number) => setMaxWorkers(v),
                 },

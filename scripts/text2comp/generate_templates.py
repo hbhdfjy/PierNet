@@ -22,6 +22,7 @@
 """
 
 import argparse
+import json
 import logging
 import os
 import sys
@@ -207,10 +208,19 @@ def run_generate_templates(
             )
 
         # 截断到精确目标行数（并发写入可能超出）
+        # 先按模板序号排序，再截断，保证截掉的是序号最大的而非随机的
         with open(out_path, "r", encoding="utf-8") as f:
             lines = [l for l in f if l.strip()]
         actual = len(lines)
         if actual > n_per_scenario:
+            def _sort_key(line):
+                try:
+                    obj = json.loads(line)
+                    # TemplateRecord 无全局序号字段，用 simulator+scenario 做稳定排序兜底
+                    return (obj.get("simulator", ""), obj.get("scenario", ""), obj.get("style", ""), obj.get("language", ""))
+                except Exception:
+                    return ("", "", "", "")
+            lines.sort(key=_sort_key)
             with open(out_path, "w", encoding="utf-8") as f:
                 f.writelines(lines[:n_per_scenario])
             _log(f"  截断 {actual} → {n_per_scenario} 条")

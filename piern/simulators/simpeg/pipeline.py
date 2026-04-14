@@ -133,6 +133,13 @@ def augment_with_parameter_sampling(
         selected_params = pool_arr[selected]
 
         perturbed = perturb_params(selected_params, perturbation_ratio, rng)
+        # clip 到配置范围，防止扰动后超出设计边界
+        p_cfg = simpeg_cfg.get('params', {})
+        for j, name in enumerate(param_names):
+            lo = p_cfg.get(f'{name}_min')
+            hi = p_cfg.get(f'{name}_max')
+            if lo is not None and hi is not None:
+                perturbed[:, j] = np.clip(perturbed[:, j], lo, hi)
         new_ts, new_params = generate_batch_from_params(perturbed, param_names, simpeg_cfg)
 
         if len(new_ts) == 0:

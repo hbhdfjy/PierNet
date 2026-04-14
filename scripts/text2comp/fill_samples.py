@@ -165,6 +165,9 @@ def run_fill_samples(
             on_scenario_start(scenario_name, n)
 
         rng = np.random.default_rng(_seed)
+        # 随机打乱模板和数据的索引顺序，避免顺序取模时固定配对
+        t_order = rng.permutation(n_avail_t)
+        d_order = rng.permutation(n_avail_d)
         written = 0
         skipped = 0
         nan_skipped = 0
@@ -172,8 +175,8 @@ def run_fill_samples(
 
         with open(out_path, "w", encoding="utf-8") as fout:
             for i in range(n):
-                t_idx = i % n_avail_t
-                d_idx = i % n_avail_d
+                t_idx = t_order[i % n_avail_t]
+                d_idx = d_order[i % n_avail_d]
                 template = templates[t_idx]
 
                 ts = timeseries[d_idx]   # (ch_orig, ts_orig)
@@ -231,8 +234,8 @@ def run_fill_samples(
             else:
                 logger.info(f"  {scenario_name}: 跳过 {nan_skipped} 个 NaN/Inf 样本")
 
-        # 最终进度：上报 n（总轮次），让前端进度条到达 100%
-        if on_progress and n != last_reported:
+        # 最终进度：上报 n（总轮次）让前端进度条到达 100%；实际写入数在日志中体现
+        if on_progress:
             on_progress(scenario_name, n)
         _log(f"  已写入 {written} 条，跳过 {skipped} 条 → {out_path.name}")
         stats["total"] += written

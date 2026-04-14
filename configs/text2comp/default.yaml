@@ -5,7 +5,7 @@ output_file: all_training_data.jsonl
 llm:
   provider: siliconflow
   model: deepseek-ai/DeepSeek-V3.2
-  api_key: sk-ofpvsbvjrryqsnedalqhkzruejsfpqleryztbqnsdpmuekwp
+  api_key: ''
   temperature: 1.0
   max_tokens: 8196
   max_retries: 5

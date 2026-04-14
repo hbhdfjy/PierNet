@@ -294,7 +294,7 @@ Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件�
 
 - `piern/api/routers/simulation.py`
   - `SIMULATORS = ["modflow", "simpeg", "power_flow", "transient", "gcam"]`
-  - `_SIMULATOR_PIPELINE_MAP`: power_flow/transient → power_system
+  - `_get_run_pipeline(simulator)` 直接路由：power_flow → power_flow.pipeline，transient → transient.pipeline
   - `GET /api/simulation/scenarios` — 扫描场景，用 YAML 里的 output_dir 字段定位 HDF5
   - `POST /api/simulate` — 单场景仿真
   - `POST /api/simulate/batch` — 批量顺序仿真，每个场景完成发 scenario_done 事件
@@ -328,7 +328,7 @@ Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件�
 
 ## Important Notes — Stage 2/3
 
-- 并发线程数：`default.yaml` 的 `generation.max_workers`，生产建议 16-32
+- 并发线程数：`default.yaml` 的 `generation.max_workers`，生产建议 32-100
 - API key：`default.yaml` 的 `llm.api_key`，也可用 `SILICONFLOW_API_KEY` 环境变量
 - `fill_sample` 接受 `output_info` 参数，从 registry 传入完整元数据（name_zh/unit）
 - `generator.py` 的 `fixed_channels` 支持名字字符串（按 output_info.name 查找索引）

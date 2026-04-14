@@ -338,7 +338,7 @@ export default function LLMConfig() {
           </div>
 
           <p className="text-xs text-slate-600 text-center -mt-2">
-            配置保存到 <span className="font-mono">configs/text2comp/generation.yaml</span>
+            配置保存到 <span className="font-mono">configs/text2comp/default.yaml</span>
           </p>
 
         </div>
@@ -428,7 +428,7 @@ export default function LLMConfig() {
           <div className="space-y-2.5 text-xs text-slate-500 leading-relaxed">
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span>配置保存到 <span className="font-mono text-slate-400">configs/text2comp/generation.yaml</span>，模板生成时自动读取</span>
+              <span>配置保存到 <span className="font-mono text-slate-400">configs/text2comp/default.yaml</span>，模板生成时自动读取</span>
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>

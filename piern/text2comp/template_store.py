@@ -51,7 +51,7 @@ class TransformDesc:
         if self.transform_type == "multiply":
             return value * self.factor
         elif self.transform_type == "divide":
-            return value / self.factor if abs(value) > 1e-12 else value
+            return value / self.factor if abs(self.factor) > 1e-12 else value
         elif self.transform_type == "add":
             return value + self.factor
         elif self.transform_type == "subtract":
@@ -188,6 +188,16 @@ def fill_sample(
     Returns:
         5字段训练样本 dict（input/number/params_transformed/target/metadata）
     """
+    # ── 参数维度校验 ──────────────────────────────────────────
+    if template.transform_descs:
+        max_idx = max(td.param_index for td in template.transform_descs)
+        if max_idx >= len(params):
+            raise ValueError(
+                f"参数维度不匹配：模板期望至少 {max_idx + 1} 维，"
+                f"实际 params 长度为 {len(params)}。"
+                f"HDF5 文件可能由旧版代码生成，请重新运行 Stage 1。"
+            )
+
     # ── 计算 params_transformed ───────────────────────────────
     params_transformed = params.copy().astype(float)
     for td in template.transform_descs:
@@ -321,10 +331,19 @@ def fill_dataset(
             ts = timeseries[d_idx]   # (ch_orig, ts_orig)
             p = params[d_idx]        # (n_params,)
 
-            # 按模板记录的 time_indices 和 channel_indices 切片
-            ts_time = ts[:, np.array(template.time_indices)]
+            # 按模板记录的 time_indices 和 channel_indices 切片（防越界）
+            time_idx = np.array(template.time_indices)
+            valid_time_idx = time_idx[time_idx < ts.shape[1]]
+            if len(valid_time_idx) == 0:
+                continue
+            ts_time = ts[:, valid_time_idx]
+
             if template.channel_indices is not None:
-                ts_obs = ts_time[np.array(template.channel_indices), :]
+                ch_arr = np.array(template.channel_indices)
+                valid_ch = ch_arr[ch_arr < ts_time.shape[0]]
+                if len(valid_ch) == 0:
+                    continue
+                ts_obs = ts_time[valid_ch, :]
             else:
                 ts_obs = ts_time
 

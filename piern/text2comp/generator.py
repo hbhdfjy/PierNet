@@ -151,7 +151,7 @@ DOMAIN_REGISTRY = {
             "channel_name_template_zh": "第{i}个通道",
         },
     },
-    "power_transient": {
+    "transient": {
         "domain_context": (
             "Transient stability simulation (ANDES). "
             "DAE system: δ̇=ω, M·ω̇=Pm−Pe−D·ω, 0=g(x,y). "
@@ -996,10 +996,6 @@ class LLMTextGenerator:
         for name, orig, trans, note_en, note_zh in transform_notes:
             if name in ("scenario_type", "output_type", "complexity"):
                 continue
-            is_list = isinstance(trans, (list, np.ndarray))
-            if not is_list and abs(float(orig)) < 1e-12 and name not in param_info:
-                continue
-
             meaning, unit = param_info.get(name, (name, "-"))
             ph_key = "{value_" + str(slot) + "}"
             ph_display = "{{value_" + str(slot) + "}}"
