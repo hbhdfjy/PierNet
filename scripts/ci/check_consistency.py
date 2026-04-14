@@ -196,10 +196,11 @@ class Checker:
         if readme.exists():
             content = readme.read_text(encoding="utf-8")
             sim_dirs = {
-                "modflow":      ROOT / "piern/simulators/modflow/pipeline.py",
-                "simpeg":       ROOT / "piern/simulators/simpeg/pipeline.py",
-                "power_system": ROOT / "piern/simulators/power_system/pipeline.py",
-                "gcam":         ROOT / "piern/simulators/gcam/pipeline.py",
+                "modflow":     ROOT / "piern/simulators/modflow/pipeline.py",
+                "simpeg":      ROOT / "piern/simulators/simpeg/pipeline.py",
+                "power_flow":  ROOT / "piern/simulators/power_flow/pipeline.py",
+                "transient":   ROOT / "piern/simulators/transient/pipeline.py",
+                "gcam":        ROOT / "piern/simulators/gcam/pipeline.py",
             }
             for sim, pipeline in sim_dirs.items():
                 if not pipeline.exists():
