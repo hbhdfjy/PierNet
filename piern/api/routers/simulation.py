@@ -37,7 +37,6 @@ class SimulationScenario(BaseModel):
     sample_count: int = 0
     output_shape: Optional[List[int]] = None
     file_size_bytes: int = 0
-    target_samples: int = 0   # 来自 YAML 中 n_samples 字段（如有）
 
 
 class SimulateRequest(BaseModel):
@@ -118,13 +117,11 @@ def _scan_scenarios() -> List[SimulationScenario]:
             sample_count = 0
             output_shape = None
             file_size_bytes = 0
-            target_samples = 0
 
             try:
                 with open(cfg_file, "r", encoding="utf-8") as f:
                     cfg = yaml.safe_load(f) or {}
                 output_file = cfg.get("output_file")
-                target_samples = int(cfg.get("n_samples", 0))
                 if output_file:
                     # 优先使用 YAML 中的 output_dir（power_flow/transient 指向 data/power_system/）
                     output_dir_str = cfg.get("output_dir")
@@ -146,7 +143,6 @@ def _scan_scenarios() -> List[SimulationScenario]:
                 sample_count=sample_count,
                 output_shape=output_shape,
                 file_size_bytes=file_size_bytes,
-                target_samples=target_samples,
             ))
     return results
 

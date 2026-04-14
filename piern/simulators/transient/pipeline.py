@@ -82,7 +82,7 @@ def augment_with_parameter_sampling(
     if N_current >= target_n:
         return original_timeseries, original_params
 
-    logger.info(f"参数增强：当前 {N_current} → 目标 {target_n}（并行={max_workers}核）")
+    logger.info(f"参数增强：当前 {N_current} → 配置数 {target_n}（并行={max_workers}核）")
 
     validation_cfg = _make_validation_cfg(sim_cfg)
 
@@ -185,7 +185,7 @@ def run_pipeline(
 
     logger.info('===== 暂态稳定数据合成管线启动（ANDES）=====')
     logger.info(f'场景: {scenario_name}')
-    logger.info(f'目标样本数: {n_samples}')
+    logger.info(f'配置样本数: {n_samples}')
     logger.info(f'输出路径: {output_path}')
 
     t0 = time.time()
@@ -213,7 +213,7 @@ def run_pipeline(
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
     else:
-        logger.info(f'Step 3/5: 参数增强（目标 {n_samples} 个）...')
+        logger.info(f'Step 3/5: 参数增强（配置数 {n_samples} 个）...')
         aug_ts, aug_params = augment_with_parameter_sampling(
             timeseries, params, param_names, aug_cfg, cfg,
             target_n=n_samples, seed=seed + 1,
@@ -256,7 +256,7 @@ def run_pipeline(
 def main():
     parser = argparse.ArgumentParser(description='暂态稳定数据合成管线（ANDES）')
     parser.add_argument('--config', type=str, required=True, help='YAML 配置文件路径')
-    parser.add_argument('--n-samples', type=int, default=None, help='目标样本数')
+    parser.add_argument('--n-samples', type=int, default=None, help='配置样本数')
     parser.add_argument('--parallel', action='store_true', help='启用多线程并行')
     parser.add_argument('--max-workers', type=int, default=4)
     args = parser.parse_args()

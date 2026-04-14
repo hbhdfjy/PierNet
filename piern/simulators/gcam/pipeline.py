@@ -112,7 +112,7 @@ def augment_with_parameter_sampling(
     if len(pool_ts) >= target_n:
         return original_timeseries, original_params
 
-    logger.info(f"GCAM 参数增强：当前 {len(pool_ts)} → 目标 {target_n}")
+    logger.info(f"GCAM 参数增强：当前 {len(pool_ts)} → 配置数 {target_n}")
 
     round_idx = 0
     max_rounds = 50
@@ -177,7 +177,7 @@ def run_pipeline(
 
     logger.info(f'===== GCAM 数据合成管线启动 =====')
     logger.info(f'场景: {scenario_name}')
-    logger.info(f'目标样本数: {n_samples}')
+    logger.info(f'配置样本数: {n_samples}')
     logger.info(f'输出路径: {output_path}')
 
     t0 = time.time()
@@ -206,7 +206,7 @@ def run_pipeline(
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
     else:
-        logger.info(f'Step 3/4: 参数增强（目标 {n_samples} 个）...')
+        logger.info(f'Step 3/4: 参数增强（配置数 {n_samples} 个）...')
         aug_ts, aug_params = augment_with_parameter_sampling(
             timeseries, params, param_names, aug_cfg, cfg,
             target_n=n_samples, seed=seed + 1,
@@ -252,7 +252,7 @@ def run_pipeline(
 def main():
     parser = argparse.ArgumentParser(description='GCAM 简化版数据合成管线')
     parser.add_argument('--config', type=str, required=True, help='YAML配置文件路径')
-    parser.add_argument('--n-samples', type=int, default=None, help='目标样本数')
+    parser.add_argument('--n-samples', type=int, default=None, help='配置样本数')
     parser.add_argument('--parallel', action='store_true')
     parser.add_argument('--max-workers', type=int, default=4)
     args = parser.parse_args()

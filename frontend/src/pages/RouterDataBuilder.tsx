@@ -173,9 +173,6 @@ export default function RouterDataBuilder() {
   const canLaunch = !monitor.status || monitor.status === 'idle' || monitor.status === 'done'
     || monitor.status === 'error' || monitor.status === 'terminated'
 
-  const posCount = status?.label_counts['1'] ?? 0
-  const trainTotal = status?.splits.train.count ?? 0
-
   return (
     <div className="flex-1 flex overflow-hidden">
 
@@ -344,32 +341,15 @@ export default function RouterDataBuilder() {
           doneLabel="查看路由样本"
         />
 
-        {monitor.status === 'idle' && !hasRouterData && (
+        {monitor.status === 'idle' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-16">
             <div className="w-14 h-14 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-center">
               <GitBranch size={24} className="text-rose-400/60" />
             </div>
             <div>
-              <p className="text-slate-400 text-base font-medium">尚未生成路由数据</p>
+              <p className="text-slate-400 text-base font-medium">尚未启动任务</p>
               <p className="text-slate-600 text-sm mt-1">在左侧选择场景，点击「生成路由数据」</p>
             </div>
-          </div>
-        )}
-
-        {/* 汇总 */}
-        {hasRouterData && (
-          <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: '总样本数', count: status!.splits.train.count, color: 'text-sky-400' },
-              { label: '正样本', count: posCount, color: 'text-emerald-400' },
-            ].map(({ label, count, color }) => (
-              <div key={label} className="card px-4 py-3">
-                <div className="text-xs text-slate-500 mb-1 font-medium uppercase tracking-wide">{label}</div>
-                <div className={cn('text-2xl font-bold font-mono tabular-nums', color)}>
-                  {count.toLocaleString()}
-                </div>
-              </div>
-            ))}
           </div>
         )}
 

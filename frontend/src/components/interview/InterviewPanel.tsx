@@ -912,20 +912,23 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
                   <span className="w-5 h-5 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs font-bold flex-shrink-0">1</span>
                   <span className="text-xs font-semibold text-slate-200">文件命名规则</span>
                 </div>
-                <div className="bg-slate-900/60 rounded-xl p-3.5 space-y-2 font-mono text-xs border border-slate-700/30 h-full">
+                <div className="bg-slate-900/60 rounded-xl p-3.5 space-y-2 font-mono text-xs border border-slate-700/30">
                   <div>
                     <span className="text-emerald-400">✓ </span>
-                    <span className="text-slate-200">{'{scenario}'}<span className="text-violet-400">{'{suffix}'}</span>.h5</span>
+                    <span className="text-sky-300">{'{simulator}'}</span>
+                    <span className="text-slate-400">_</span>
+                    <span className="text-amber-300">{'{scenario}'}</span>
+                    <span className="text-slate-400">.h5</span>
                   </div>
-                  <p className="font-sans text-slate-500 text-xs pl-4">suffix 在数据目录配置中指定</p>
+                  <p className="font-sans text-slate-500 text-xs pl-4">放置于 <span className="font-mono text-slate-400">data/{'{simulator}'}/ </span>目录下</p>
                   <div className="pl-4 space-y-1 pt-1 border-t border-slate-700/30">
                     <div className="flex items-start gap-1.5 text-slate-500 flex-wrap">
                       <span className="text-slate-600 flex-shrink-0">例：</span>
-                      <span className="text-slate-400 break-all">unified_aquifer<span className="text-violet-400/60">_groundwater_timeseries</span>.h5</span>
+                      <span className="text-slate-400">data/modflow/<span className="text-sky-400/70">modflow</span>_<span className="text-amber-400/70">unified_aquifer</span>.h5</span>
                     </div>
-                    <div className="flex items-center gap-1.5 text-slate-500">
-                      <span className="text-slate-600">→</span>
-                      <span className="font-sans">场景名 <span className="text-sky-400 font-mono">unified_aquifer</span></span>
+                    <div className="flex items-start gap-1.5 text-slate-500 flex-wrap">
+                      <span className="text-slate-600 flex-shrink-0">例：</span>
+                      <span className="text-slate-400">data/power_flow/<span className="text-sky-400/70">power_flow</span>_<span className="text-amber-400/70">ieee14_baseload</span>.h5</span>
                     </div>
                   </div>
                 </div>
@@ -935,18 +938,33 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
               <div>
                 <div className="flex items-center gap-2 mb-2.5">
                   <span className="w-5 h-5 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs font-bold flex-shrink-0">2</span>
-                  <span className="text-xs font-semibold text-slate-200">HDF5 内部数据集</span>
+                  <span className="text-xs font-semibold text-slate-200">HDF5 内部结构</span>
                 </div>
                 <div className="space-y-1.5">
+                  <div className="text-xs text-slate-500 mb-1 pl-1">数据集（datasets）</div>
                   {[
-                    { key: 'timeseries',  shape: '[N, ch, ts]',   dtype: 'float32', note: '时序数据，必须存在' },
-                    { key: 'params',      shape: '[N, n_params]', dtype: 'float32', note: '参数矩阵，必须存在' },
-                    { key: 'param_names', shape: '[n_params]',    dtype: 'bytes',   note: '参数名列表，必须存在' },
+                    { key: 'timeseries',  shape: '[N, n_ch, n_ts]', dtype: 'float32', note: '时序数据' },
+                    { key: 'params',      shape: '[N, 18]',         dtype: 'float32', note: '18维统一参数（经 pipeline 转换）' },
+                    { key: 'param_names', shape: '[18]',            dtype: 'bytes',   note: '统一参数名列表（UTF-8 编码）' },
                   ].map(r => (
-                    <div key={r.key} className="flex items-center gap-4 bg-slate-900/60 border border-slate-700/30 rounded-lg px-4 py-2.5">
-                      <span className="font-mono text-sky-300 text-xs w-32 flex-shrink-0">{r.key}</span>
-                      <span className="font-mono text-slate-300 text-xs w-36 flex-shrink-0">{r.shape}</span>
-                      <span className="font-mono text-slate-600 text-xs w-16 flex-shrink-0">{r.dtype}</span>
+                    <div key={r.key} className="flex items-center gap-3 bg-slate-900/60 border border-slate-700/30 rounded-lg px-3 py-2">
+                      <span className="font-mono text-sky-300 text-xs w-28 flex-shrink-0">{r.key}</span>
+                      <span className="font-mono text-amber-300/80 text-xs w-32 flex-shrink-0">{r.shape}</span>
+                      <span className="font-mono text-violet-400/70 text-xs w-14 flex-shrink-0">{r.dtype}</span>
+                      <span className="text-slate-500 text-xs">{r.note}</span>
+                    </div>
+                  ))}
+                  <div className="text-xs text-slate-500 mt-2 mb-1 pl-1">根属性（attrs）</div>
+                  {[
+                    { key: 'n_samples',   val: 'int', note: '样本数 N' },
+                    { key: 'n_channels',  val: 'int', note: '通道数 n_ch' },
+                    { key: 'n_timesteps', val: 'int', note: '时间步数 n_ts' },
+                    { key: 'n_params',    val: 'int', note: '参数维度（固定为 18）' },
+                  ].map(r => (
+                    <div key={r.key} className="flex items-center gap-3 bg-slate-900/40 border border-slate-700/20 rounded-lg px-3 py-1.5">
+                      <span className="font-mono text-emerald-400/70 text-xs w-28 flex-shrink-0">{r.key}</span>
+                      <span className="font-mono text-slate-500 text-xs w-32 flex-shrink-0">{r.val}</span>
+                      <span className="font-mono text-slate-700 text-xs w-14 flex-shrink-0">attr</span>
                       <span className="text-slate-500 text-xs">{r.note}</span>
                     </div>
                   ))}
@@ -1168,7 +1186,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
                 </label>
                 <input
                   className="input w-full font-mono text-sm"
-                  placeholder="data/modflow/unified_aquifer_groundwater_timeseries.h5"
+                  placeholder="data/modflow/modflow_unified_aquifer.h5"
                   value={hdf5Path}
                   onChange={e => setHdf5Path(e.target.value)}
                 />

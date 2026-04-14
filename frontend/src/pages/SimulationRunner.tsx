@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import type { SimulationScenario, SimulationHistoryRecord } from '../lib/types'
+import type { SimulationScenario } from '../lib/types'
 import {
   Zap, RefreshCw, AlertCircle, ChevronDown, ChevronUp,
-  History, CheckCircle2, XCircle, Database,
-  SkipForward, Layers, Play, Square, BarChart2,
+  CheckCircle2, Database,
+  SkipForward, Layers, Play, BarChart2,
 } from 'lucide-react'
 import { cn, formatBytes, formatElapsed } from '../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
@@ -110,33 +110,6 @@ function ScenarioRow({
   )
 }
 
-// 历史记录行
-function HistoryRow({ r }: { r: SimulationHistoryRecord }) {
-  const m = SIM_META[r.simulator] ?? fallbackMeta
-  const statusIcon = r.status === 'done'
-    ? <CheckCircle2 size={12} className="text-emerald-400 flex-shrink-0" />
-    : r.status === 'error'
-    ? <XCircle size={12} className="text-red-400 flex-shrink-0" />
-    : r.status === 'running'
-    ? <RefreshCw size={12} className="text-sky-400 animate-spin flex-shrink-0" />
-    : <Square size={12} className="text-amber-400 flex-shrink-0" />
-
-  return (
-    <div className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-700/20 rounded-lg transition-colors text-xs">
-      {statusIcon}
-      <span className={cn('font-medium flex-shrink-0', m.color)}>{m.shortLabel}</span>
-      <span className="font-mono text-slate-300 truncate flex-1">{r.scenario}</span>
-      <span className="text-slate-500 tabular-nums flex-shrink-0">{r.n_samples.toLocaleString()}</span>
-      {r.elapsed_sec != null && (
-        <span className="text-slate-600 tabular-nums flex-shrink-0">{formatElapsed(r.elapsed_sec)}</span>
-      )}
-      {r.final_sample_count != null && (
-        <span className="text-emerald-500/70 tabular-nums flex-shrink-0">→{r.final_sample_count.toLocaleString()}</span>
-      )}
-    </div>
-  )
-}
-
 // 数据预览卡片（右栏顶部）
 function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
   const totalSamples = scenarios.reduce((s, x) => s + x.sample_count, 0)
@@ -195,11 +168,6 @@ export default function SimulationRunner() {
       revalidateOnMount: true,
     })
 
-  const { data: history, mutate: refreshHistory } =
-    useSWR<SimulationHistoryRecord[]>('simulation-history', () => api.getSimulationHistory(30), {
-      refreshInterval: 5000,
-    })
-
   // ── 状态 ──
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nSamples, setNSamples] = useState(100)
@@ -210,7 +178,6 @@ export default function SimulationRunner() {
   const [maxWorkers, setMaxWorkers] = useState(4)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [historyOpen, setHistoryOpen] = useState(false)
   const [tableOpen, setTableOpen] = useState(false)
   const [filterSim, setFilterSim] = useState<string | null>(null)
 
@@ -289,17 +256,15 @@ export default function SimulationRunner() {
   useEffect(() => {
     if (monitor.scenarioDoneCount > 0) {
       refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
-      refreshHistory()
     }
-  }, [monitor.scenarioDoneCount, refreshScenarios, refreshHistory])
+  }, [monitor.scenarioDoneCount, refreshScenarios])
 
   // 全部完成后也刷新一次
   useEffect(() => {
     if (monitor.status === 'done' || monitor.status === 'error') {
       refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
-      refreshHistory()
     }
-  }, [monitor.status, refreshScenarios, refreshHistory])
+  }, [monitor.status, refreshScenarios])
 
   const selectedScenarios = useMemo(
     () => (scenarios ?? []).filter(s => selected.has(s.scenario)),
@@ -328,7 +293,6 @@ export default function SimulationRunner() {
               className="btn-ghost py-1 px-2 text-xs"
               onClick={() => {
                 refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
-                refreshHistory()
               }}
               title="刷新"
             >
@@ -383,7 +347,7 @@ export default function SimulationRunner() {
           </div>
           <div className="flex items-center gap-0.5">
             <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectAll}>全选</button>
-            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectIncomplete} title="选择样本数不足目标的场景">
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectIncomplete} title="选择样本数不足配置数的场景">
               <SkipForward size={10} className="mr-0.5" />未满
             </button>
             <button className="btn-ghost py-0.5 px-2 text-sm" onClick={clearAll}>清空</button>
@@ -472,7 +436,7 @@ export default function SimulationRunner() {
               <div className="flex-1 min-w-0">
                 <span className="text-sm text-slate-300 font-medium">断点续跑</span>
                 <span className="text-sm text-slate-600 ml-1.5">
-                  {skipExisting ? '已有样本时补齐到目标数' : '忽略已有样本重新生成'}
+                  {skipExisting ? '跳过已有数据，仅补充新样本' : '忽略已有样本重新生成'}
                 </span>
               </div>
               <SkipForward size={12} className={skipExisting ? 'text-amber-400' : 'text-slate-600'} />
@@ -638,8 +602,7 @@ export default function SimulationRunner() {
                   <tr className="border-b border-slate-700/40">
                     <th className="px-3 py-2 text-left label">模拟器</th>
                     <th className="px-3 py-2 text-left label">场景</th>
-                    <th className="px-3 py-2 text-right label">已有</th>
-                    <th className="px-3 py-2 text-right label">目标</th>
+                    <th className="px-3 py-2 text-right label">样本数</th>
                     <th className="px-3 py-2 text-left label">形状</th>
                     <th className="px-3 py-2 text-right label">大小</th>
                     <th className="px-3 py-2 text-left label">路径</th>
@@ -648,7 +611,6 @@ export default function SimulationRunner() {
                 <tbody>
                   {(scenarios ?? []).map(s => {
                     const meta = SIM_META[s.simulator] ?? fallbackMeta
-                    const isComplete = s.target_samples > 0 && s.sample_count >= s.target_samples
                     return (
                       <tr key={`${s.simulator}/${s.scenario}`} className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors">
                         <td className="px-3 py-1.5">
@@ -657,14 +619,9 @@ export default function SimulationRunner() {
                         <td className="px-3 py-1.5 font-mono text-slate-300 max-w-[140px] truncate">{s.scenario}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">
                           {s.sample_count > 0
-                            ? <span className={isComplete ? 'text-emerald-400 font-medium' : 'text-amber-400'}>
-                                {s.sample_count.toLocaleString()}
-                              </span>
+                            ? <span className="text-sky-400">{s.sample_count.toLocaleString()}</span>
                             : <span className="text-slate-700">—</span>
                           }
-                        </td>
-                        <td className="px-3 py-1.5 text-right tabular-nums text-slate-600">
-                          {s.target_samples > 0 ? s.target_samples.toLocaleString() : '—'}
                         </td>
                         <td className="px-3 py-1.5 font-mono text-slate-600">
                           {s.output_shape ? `(${s.output_shape.join('×')})` : '—'}
@@ -683,51 +640,6 @@ export default function SimulationRunner() {
                   })}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-
-        {/* 历史记录（折叠）*/}
-        <div className="card overflow-hidden">
-          <button
-            onClick={() => setHistoryOpen(o => !o)}
-            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-3"
-          >
-            <div className="flex items-center gap-2">
-              <History size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">历史运行记录</span>
-              {history && history.length > 0 && (
-                <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs py-0.5">
-                  {history.length}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              {historyOpen && history && history.length > 0 && (
-                <button
-                  className="btn-ghost py-0.5 px-2 text-sm text-red-400/70 hover:text-red-400"
-                  onClick={async e => {
-                    e.stopPropagation()
-                    await api.clearSimulationHistory()
-                    refreshHistory()
-                  }}
-                >
-                  清空
-                </button>
-              )}
-              {historyOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
-            </div>
-          </button>
-
-          {historyOpen && (
-            <div className="py-1">
-              {(!history || history.length === 0) ? (
-                <p className="text-slate-600 text-xs text-center py-4">暂无历史记录（重启后清空）</p>
-              ) : (
-                <div className="space-y-0.5 px-2 pb-2">
-                  {history.map((r, i) => <HistoryRow key={`${r.job_id}-${i}`} r={r} />)}
-                </div>
-              )}
             </div>
           )}
         </div>

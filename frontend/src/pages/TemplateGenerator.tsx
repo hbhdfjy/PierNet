@@ -115,7 +115,7 @@ export default function TemplateGenerator() {
 
   const handleTrimTemplate = async (scenario: string) => {
     const n = parseInt(trimTarget[scenario] ?? '', 10)
-    if (isNaN(n) || n < 1) { setError('请输入有效的目标数量'); return }
+    if (isNaN(n) || n < 1) { setError('请输入有效的数量'); return }
     setTrimmingFile(scenario)
     try {
       const res = await api.trimTemplateFile(scenario, n)
@@ -272,7 +272,7 @@ export default function TemplateGenerator() {
 
             {/* 模板数 */}
             <div>
-              <label className="label block mb-1 text-sm">每场景目标模板数</label>
+              <label className="label block mb-1 text-sm">每场景模板数</label>
               <input
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
@@ -297,7 +297,7 @@ export default function TemplateGenerator() {
               <label className="label block mb-1.5 text-sm">已有模板时的处理方式</label>
               <div className="grid grid-cols-3 gap-1.5">
                 {([
-                  { value: 'append',    label: '继续生成', desc: '补齐到目标数量', color: 'emerald' },
+                  { value: 'append',    label: '继续生成', desc: '追加到现有数量', color: 'emerald' },
                   { value: 'skip',      label: '跳过场景', desc: '已有则不处理',   color: 'slate'   },
                   { value: 'overwrite', label: '重新生成', desc: '清空后重新写入', color: 'red'     },
                 ] as const).map(({ value, label, desc, color }) => (

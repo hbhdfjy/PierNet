@@ -280,7 +280,7 @@ export default function SampleFiller() {
               </div>
               <span className="text-sm text-slate-300 font-medium flex-1">断点续跑</span>
               <span className="text-xs text-slate-600">
-                {skipExisting ? '已有样本时补齐到目标数' : '忽略已有样本重新生成'}
+                {skipExisting ? '跳过已有数据，仅补充新样本' : '忽略已有样本重新生成'}
               </span>
             </div>
           </div>

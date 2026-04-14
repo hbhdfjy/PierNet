@@ -358,7 +358,6 @@ export interface SimulationScenario {
   sample_count: number
   output_shape: number[] | null
   file_size_bytes: number
-  target_samples: number
 }
 
 export interface SimulateRequest {

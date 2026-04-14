@@ -116,10 +116,10 @@ def augment_with_parameter_sampling(
 
     N_current = len(pool_ts)
     if N_current >= target_n:
-        logger.info(f"当前样本数 {N_current} 已达到目标 {target_n}，跳过增强")
+        logger.info(f"当前样本数 {N_current} 已达到配置数 {target_n}，跳过增强")
         return original_timeseries, original_params
 
-    logger.info(f"参数空间采样增强：当前 {N_current} → 目标 {target_n}")
+    logger.info(f"参数空间采样增强：当前 {N_current} → 配置数 {target_n}")
 
     round_idx = 0
     max_rounds = 50
@@ -171,7 +171,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
 
     Args:
         cfg_path:  YAML 配置文件路径
-        n_samples: 目标样本数（覆盖配置文件中的值）
+        n_samples: 配置样本数（覆盖配置文件中的值）
 
     Returns:
         输出 HDF5 文件路径
@@ -188,7 +188,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
 
     logger.info(f"===== SimPEG 数据合成管线启动 =====")
     logger.info(f"场景名称: {scenario_name}")
-    logger.info(f"目标样本数: {n_samples}")
+    logger.info(f"配置样本数: {n_samples}")
     logger.info(f"输出路径: {output_path}")
 
     t0 = time.time()
@@ -217,7 +217,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
     else:
-        logger.info(f"Step 3/4: 参数空间采样增强（目标 {n_samples} 个）...")
+        logger.info(f"Step 3/4: 参数空间采样增强（配置数 {n_samples} 个）...")
         aug_ts, aug_params = augment_with_parameter_sampling(
             timeseries, params, param_names, aug_cfg, cfg,
             target_n=n_samples, seed=seed + 1,
@@ -267,7 +267,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
 def main():
     parser = argparse.ArgumentParser(description="SimPEG 地球物理数据合成管线")
     parser.add_argument("--config", type=str, required=True, help="配置文件路径")
-    parser.add_argument("--n-samples", type=int, default=None, help="目标样本数")
+    parser.add_argument("--n-samples", type=int, default=None, help="配置样本数")
     args = parser.parse_args()
 
     if not os.path.exists(args.config):

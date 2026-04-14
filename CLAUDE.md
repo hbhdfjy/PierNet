@@ -6,18 +6,18 @@
 
 **PiERN 多模拟器数据合成管线**。
 
-**核心卖点**：首个同时覆盖五种数学结构的跨物理域仿真数据集，全部使用权威开源工具。
+跨物理域仿真数据合成工程，同时覆盖五种数学结构，全部使用成熟开源工具。
 
 ## 五大模拟器 · 五种数学结构
 
-| 模拟器 | 数学类型 | 领域 | 输出形状 | 场景数 | 目标样本 | 状态 |
+| 模拟器 | 数学类型 | 领域 | 输出形状 | 场景数 | 状态 |
 |--------|---------|------|---------|--------|---------|------|
-| **MODFLOW** | 抛物型PDE | 地下水 | (5, 365) | 7 | 70,000 | ✅ 代码完成 |
-| **SimPEG** | 椭圆型PDE | 地球物理 | (1, 100) | 4 | 20,000 | ✅ 代码完成 |
-| **pandapower** | 非线性代数方程组 | 稳态潮流 | (43, 365) | 5 | 50,000 | ✅ 代码完成 |
-| **ANDES** | DAE系统 | 暂态稳定 | (5, 1000) | 3 | 15,000 | ✅ 代码完成 |
-| **GCAM简化版** | 动态代数系统 | 能源-气候 | (5, 16) | 3 | 3,000 | ✅ 代码完成 |
-| **总计** | 5种数学结构 | 3大领域 | — | **22** | **158,000** | — |
+| **MODFLOW** | 抛物型PDE | 地下水 | (5, 365) | 7 | ✅ 代码完成 |
+| **SimPEG** | 椭圆型PDE | 地球物理 | (1, 100) | 4 | ✅ 代码完成 |
+| **pandapower** | 非线性代数方程组 | 稳态潮流 | (43, 365) | 5 | ✅ 代码完成 |
+| **ANDES** | DAE系统 | 暂态稳定 | (5, 1000) | 3 | ✅ 代码完成 |
+| **GCAM简化版** | 动态代数系统 | 能源-气候 | (5, 16) | 3 | ✅ 代码完成 |
+| **总计** | 5种数学结构 | 3大领域 | — | **22** | — |
 
 ## 数学原理说明
 
@@ -32,11 +32,11 @@ GCAM:       多期LP能源优化（PyPSA+HiGHS）        → 动态代数，LP�
 ## 当前数据状态
 
 ```
-data/modflow/     — 7场景，文件名 modflow_{scenario}.h5（目标：各10,000样本）
-data/simpeg/      — 4场景，文件名 simpeg_{scenario}.h5（目标：各5,000样本）
-data/power_flow/  — 5潮流场景，文件名 power_flow_{scenario}.h5（目标：各10,000样本）
-data/transient/   — 3暂态场景，文件名 transient_{scenario}.h5（目标：各5,000样本）
-data/gcam/        — 3场景，文件名 gcam_{scenario}.h5（目标：各1,000样本）
+data/modflow/     — 7场景，文件名 modflow_{scenario}.h5
+data/simpeg/      — 4场景，文件名 simpeg_{scenario}.h5
+data/power_flow/  — 5潮流场景，文件名 power_flow_{scenario}.h5
+data/transient/   — 3暂态场景，文件名 transient_{scenario}.h5
+data/gcam/        — 3场景，文件名 gcam_{scenario}.h5
 data/templates/   — 多场景模板库（Stage 2 输出，{scenario}_templates.jsonl）
 data/text2comp/   — 最终训练样本（Stage 3 输出，{scenario}.jsonl）
 data/router/      — Token Router 训练数据（Stage 4 输出，train/val/test.jsonl）
@@ -336,10 +336,10 @@ Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件�
 
 ## 待办
 
-- [ ] MODFLOW：7个场景各生成10,000样本
-- [ ] SimPEG：4个场景各生成5,000样本
-- [ ] 电力潮流：5个场景各生成10,000样本
-- [ ] 电力暂态：3个场景各生成5,000样本
-- [ ] GCAM：3个场景各生成1,000样本
-- [ ] Stage 2/3：全量生成（每场景10,000条语言模板 + 对应训练样本）
+- [ ] MODFLOW：运行 Stage 1 生成所有场景数据
+- [ ] SimPEG：运行 Stage 1 生成所有场景数据
+- [ ] 电力潮流：运行 Stage 1 生成所有场景数据
+- [ ] 电力暂态：运行 Stage 1 生成所有场景数据
+- [ ] GCAM：运行 Stage 1 生成所有场景数据
+- [ ] Stage 2/3：为所有场景生成语言模板和训练样本
 - [ ] Stage 4：运行 scripts/router/build_router_data.py 生成 Router 训练数据

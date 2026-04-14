@@ -127,10 +127,10 @@ def augment_with_parameter_sampling(
     N_needed = target_n - N_current
 
     if N_needed <= 0:
-        logger.info(f"当前样本数 {N_current} 已达到目标 {target_n}，跳过增强")
+        logger.info(f"当前样本数 {N_current} 已达到配置数 {target_n}，跳过增强")
         return original_timeseries, original_params
 
-    logger.info(f"参数空间采样增强：当前 {N_current} 个样本，目标 {target_n}，需补充 {N_needed} 个")
+    logger.info(f"参数空间采样增强：当前 {N_current} 个样本，配置数 {target_n}，需补充 {N_needed} 个")
     logger.info(f"  - 扰动比例: ±{perturbation_ratio*100:.1f}%，每轮批量: {batch_size}")
 
     round_idx = 0
@@ -245,7 +245,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
         cfg_path: YAML 配置文件路径
         parallel: 是否使用并行生成（单场景内并行）
         max_workers: 并行进程数
-        n_samples: 目标样本数（覆盖配置文件中的 n_samples）
+        n_samples: 配置样本数（覆盖配置文件中的 n_samples）
 
     Returns:
         输出 HDF5 文件路径
@@ -266,7 +266,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
 
     logger.info(f"===== MODFLOW 数据合成管线 V2 启动 =====")
     logger.info(f"场景名称: {scenario_name}")
-    logger.info(f"目标样本数: {n_samples}")
+    logger.info(f"配置样本数: {n_samples}")
     logger.info(f"输出路径: {output_path}")
     logger.info(f"增强方法: 参数空间采样")
     logger.info(f"参数表示: 18维统一参数")
@@ -297,7 +297,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     # Step 3: 补充采样 / 参数空间增强
     if timeseries.shape[0] >= n_samples:
         # 已有足够样本，直接截取
-        logger.info("Step 3/4: 直接采样已满足目标数量，跳过增强")
+        logger.info("Step 3/4: 直接采样已满足配置数量，跳过增强")
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
     elif seed_ratio >= 1.0:
@@ -312,7 +312,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
             round_idx += 1
             needed = n_samples - sum(x.shape[0] for x in extra_ts_list)
             batch_n = max(needed * 3, 100)  # 多请求 3 倍抵消失败率
-            logger.info(f"  补充第 {round_idx} 轮：请求 {batch_n} 个，目标还差 {needed} 个")
+            logger.info(f"  补充第 {round_idx} 轮：请求 {batch_n} 个，还差 {needed} 个")
             extra_ts, extra_p, _ = generate_batch(
                 cfg, batch_n, seed=batch_seed, parallel=parallel, max_workers=max_workers,
                 progress_callback=progress_callback, progress_total=n_samples,
@@ -337,7 +337,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
         aug_ts = all_ts[idx]
         aug_params = all_params[idx]
     else:
-        logger.info(f"Step 3/4: 参数空间采样增强（目标 {n_samples} 个）...")
+        logger.info(f"Step 3/4: 参数空间采样增强（配置数 {n_samples} 个）...")
         aug_ts, aug_params = augment_with_parameter_sampling(
             timeseries, params, param_names, aug_cfg, cfg,
             target_n=n_samples, seed=seed + 1, max_workers=max_workers,
@@ -403,7 +403,7 @@ def main():
         "--n-samples",
         type=int,
         default=None,
-        help="目标样本数（覆盖配置文件中的 n_samples）",
+        help="配置样本数（覆盖配置文件中的 n_samples）",
     )
     parser.add_argument(
         "--parallel",
