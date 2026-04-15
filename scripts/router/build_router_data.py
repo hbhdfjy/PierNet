@@ -2,10 +2,11 @@
 Stage 4：Token Router 训练数据生成脚本。
 
 从 Stage 3 生成的 data/text2comp/*.jsonl 中构建二分类路由数据：
-  label=1：context = chat_template(input + trigger_prefix)  → 下一步调用科学计算专家
-  label=0：context = chat_template(input 的随机截断前缀)    → 继续 LLM 生成
+  label=1：user_prefix+input+user_suffix+assistant_prefix+trigger_prefix（完整引导语）
+  label=0：user_prefix+input+user_suffix+assistant_prefix+trigger_prefix[:pos]（引导语内随机截断）
 
 正负比例 1:1（可配置）。每条 Stage 3 样本 → 1 条正样本 + neg_ratio 条负样本。
+Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部。
 
 支持多种 chat template，通过 --chat-template 指定：
   qwen        Qwen2/2.5 系列（<|im_start|> 格式）
@@ -13,7 +14,6 @@ Stage 4：Token Router 训练数据生成脚本。
   llama3      LLaMA-3 系列（<|start_header_id|> 格式）
   mistral     Mistral/Mixtral 系列（[INST] 格式）
   chatml      通用 ChatML（与 Qwen 相同）
-  plain       不包裹（仅 input 文本，向后兼容）
   custom      自定义（需同时指定 --user-prefix / --user-suffix / --assistant-prefix）
 
 输出结构：
@@ -44,8 +44,8 @@ from pathlib import Path
 #   user_suffix      — 放在用户消息之后
 #   assistant_prefix — 放在 assistant 回复开头（路由器看到的最后一段）
 #
-# 最终 context = user_prefix + content + user_suffix + assistant_prefix
-# 其中 content = input_text（负样本）或 input_text + trigger_prefix（正样本）
+# 正样本：user_prefix + input + user_suffix + assistant_prefix + trigger_prefix（完整）
+# 负样本：user_prefix + input + user_suffix + assistant_prefix + trigger_prefix[:pos]（截断）
 
 CHAT_TEMPLATES: dict[str, dict[str, str]] = {
     # Qwen2 / Qwen2.5 / ChatML 通用格式

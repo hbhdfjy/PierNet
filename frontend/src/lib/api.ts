@@ -323,7 +323,7 @@ export const api = {
   },
 
   getRouterSamples: (
-    split: 'train' | 'val' | 'test' = 'train',
+    split: 'train' = 'train',
     page = 0,
     pageSize = 20,
     label = -1,

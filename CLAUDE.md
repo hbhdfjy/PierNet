@@ -39,7 +39,7 @@ data/transient/   — 3暂态场景，文件名 transient_{scenario}.h5
 data/gcam/        — 3场景，文件名 gcam_{scenario}.h5
 data/templates/   — 多场景模板库（Stage 2 输出，{scenario}_templates.jsonl）
 data/text2comp/   — 最终训练样本（Stage 3 输出，{scenario}.jsonl）
-data/router/      — Token Router 训练数据（Stage 4 输出，train/val/test.jsonl）
+data/router/      — Token Router 训练数据（Stage 4 输出，train.jsonl + by_scenario/）
 ```
 
 **HDF5 文件命名约定**：`{simulator}_{scenario}.h5`，如 `modflow_unified_aquifer.h5`。
@@ -186,7 +186,7 @@ piern/
     ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
     ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
     ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    └── router/       # train.jsonl, val.jsonl, test.jsonl（Stage 4 输出）
+    └── router/       # train.jsonl + by_scenario/（Stage 4 输出）
 ```
 
 ## 电力系统输出格式（重要）
@@ -231,7 +231,7 @@ Stage 3  数值填充（不调 LLM）
 Stage 4  Token Router 数据生成（不调 LLM）
   输入: data/text2comp/*.jsonl（Stage 3 输出）
   运行: scripts/router/build_router_data.py
-  输出: data/router/train.jsonl, val.jsonl, test.jsonl
+  输出: data/router/train.jsonl（全量合并）+ data/router/by_scenario/{scenario}.jsonl
   格式: {"context": str, "label": 0|1, "metadata": {...}}
   说明: label=1（input+引导语，触发专家），label=0（input 随机截断，继续 LLM）
         正负比例可配置（默认1:1），按 8:1:1 划分 train/val/test

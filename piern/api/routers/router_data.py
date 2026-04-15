@@ -278,7 +278,7 @@ def delete_router_scenario(scenario: str):
 
 @router.delete("/router/all")
 def delete_all_router_data():
-    """清空所有路由数据（by_scenario/ 目录及 train/val/test.jsonl）。"""
+    """清空所有路由数据（by_scenario/ 目录及 train.jsonl）。"""
     deleted = 0
     if SCENARIO_DIR.exists():
         for f in SCENARIO_DIR.glob("*.jsonl"):
