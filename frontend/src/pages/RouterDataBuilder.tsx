@@ -334,8 +334,7 @@ export default function RouterDataBuilder() {
                 </div>
               )}
               {/* 预览 */}
-              {(chatTemplate !== 'custom' || userPrefix || userSuffix || assistantPrefix) && (
-                <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30">
+              <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30">
                   <span className="text-xs text-slate-600 block mb-1">预览（正样本）</span>
                   <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">
                     {chatTemplate === 'custom'
@@ -350,7 +349,6 @@ export default function RouterDataBuilder() {
                     }
                   </code>
                 </div>
-              )}
             </div>
           </div>
 
