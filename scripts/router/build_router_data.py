@@ -94,26 +94,49 @@ def _apply_chat_template_pos(input_text: str, trigger_prefix: str, tmpl: dict[st
     )
 
 
-def _apply_chat_template_neg_in_user(truncated_input: str, tmpl: dict[str, str]) -> str:
+def _apply_chat_template_neg(
+    input_text: str,
+    trigger_prefix: str,
+    tmpl: dict[str, str],
+    rng: random.Random,
+) -> tuple[str, str]:
     """
-    负样本（类型A）：在 user 轮次内部截断，对话尚未结束。
-    结构：user_prefix + 截断的input
-    """
-    return tmpl["user_prefix"] + truncated_input
+    负样本：先拼接完整字符串，再在 template 标记之后随机截断。
 
+    完整串：user_prefix + input + user_suffix + assistant_prefix + trigger_prefix
+    截断范围：[len(user_prefix), len(完整串) - 1)，保证 user_prefix 完整保留。
 
-def _apply_chat_template_neg_in_assistant(input_text: str, truncated_prefix: str, tmpl: dict[str, str]) -> str:
+    Returns:
+        (context, neg_type)
+        neg_type: "user_truncated" 或 "assistant_truncated"，取决于截断点落在哪段
     """
-    负样本（类型B）：input 完整，assistant 已开始回复但在引导语中间截断。
-    结构：user_prefix + input + user_suffix + assistant_prefix + 截断的引导语
-    """
-    return (
-        tmpl["user_prefix"]
-        + input_text
-        + tmpl["user_suffix"]
-        + tmpl["assistant_prefix"]
-        + truncated_prefix
-    )
+    up = tmpl["user_prefix"]
+    us = tmpl["user_suffix"]
+    ap = tmpl["assistant_prefix"]
+
+    full = up + input_text + us + ap + trigger_prefix
+    n = len(full)
+
+    # 截断范围：user_prefix 之后，完整串末尾之前
+    lo = len(up)
+    hi = n - 1
+    if lo >= hi:
+        # 极短文本兜底：直接截一半
+        return full[: max(1, n // 2)], "user_truncated"
+
+    # 优先在标点/空格处截断
+    boundary_chars = set("。！？，；,.!? \t\n")
+    candidates = [i + 1 for i in range(lo, hi) if full[i] in boundary_chars]
+    if candidates:
+        pos = rng.choice(candidates)
+    else:
+        pos = rng.randint(lo, hi - 1)
+
+    # 判断截断点落在哪一段
+    boundary_input_end = lo + len(input_text)   # user_suffix 开始的位置
+    neg_type = "user_truncated" if pos <= boundary_input_end else "assistant_truncated"
+
+    return full[:pos], neg_type
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -125,30 +148,6 @@ def _extract_trigger_prefix(target_template: str) -> str:
         return ""
     return target_template[:idx]
 
-
-def _random_truncation(text: str, rng: random.Random) -> str:
-    """在 text 中随机选一个截断位置，返回截断后的前缀。"""
-    n = len(text)
-    if n == 0:
-        return ""
-    if n < 10:
-        return text[: max(1, n // 2)]
-
-    lo = max(1, int(n * 0.2))
-    hi = max(lo + 1, int(n * 0.9))
-
-    candidates = []
-    boundary_chars = set("。！？，；,.!? \t")
-    for i in range(lo, hi + 1):
-        if i < n and text[i] in boundary_chars:
-            candidates.append(i + 1)
-
-    if candidates:
-        pos = rng.choice(candidates)
-    else:
-        pos = rng.randint(lo, hi - 1)
-
-    return text[:pos]
 
 
 def _build_samples_from_file(
@@ -204,20 +203,11 @@ def _build_samples_from_file(
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条）：两种截断类型各 50% 随机选择
-            #   类型A：在 user 轮次内截断 input
-            #   类型B：input 完整，assistant 已开始但在引导语中间截断
-            # trigger_prefix 较短时（<4字符）退化为纯类型A
-            can_truncate_prefix = len(trigger_prefix) >= 4
+            # 负样本（neg_ratio 条）：在完整串上随机截断，template 标记保持完整
             for _ in range(neg_ratio):
-                if can_truncate_prefix and rng.random() < 0.5:
-                    truncated = _random_truncation(trigger_prefix, rng)
-                    context = _apply_chat_template_neg_in_assistant(input_text, truncated, chat_tmpl)
-                    neg_type = "assistant_truncated"
-                else:
-                    truncated = _random_truncation(input_text, rng)
-                    context = _apply_chat_template_neg_in_user(truncated, chat_tmpl)
-                    neg_type = "user_truncated"
+                context, neg_type = _apply_chat_template_neg(
+                    input_text, trigger_prefix, chat_tmpl, rng
+                )
                 samples.append({
                     "context": context,
                     "label": 0,
