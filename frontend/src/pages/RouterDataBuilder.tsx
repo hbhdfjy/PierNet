@@ -335,24 +335,14 @@ export default function RouterDataBuilder() {
               )}
               {/* 预览 */}
               {(() => {
-                const posPreview = chatTemplate === 'custom'
-                  ? `${userPrefix}input${userSuffix}${assistantPrefix}引导语`
-                  : ({
-                      qwen:     '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
-                      chatml:   '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
-                      deepseek: '<｜User｜>input<｜Assistant｜>引导语',
-                      llama3:   '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n引导语',
-                      mistral:  '[INST] input [/INST]引导语',
-                    } as Record<string, string>)[chatTemplate] ?? ''
-                const negDesc = chatTemplate === 'custom'
-                  ? `${userPrefix}input${userSuffix}${assistantPrefix}引导语 → 在 user_prefix 之后随机截断`
-                  : ({
-                      qwen:     '<|im_start|>user\n{ input + 引导语 随机截断 }',
-                      chatml:   '<|im_start|>user\n{ input + 引导语 随机截断 }',
-                      deepseek: '<｜User｜>{ input + 引导语 随机截断 }',
-                      llama3:   '<|start_header_id|>user<|end_header_id|>\n\n{ input + 引导语 随机截断 }',
-                      mistral:  '[INST] { input + 引导语 随机截断 }',
-                    } as Record<string, string>)[chatTemplate] ?? ''
+                // 用实际填写的值（custom）或内置模板构造预览
+                const T = {
+                  up: chatTemplate === 'custom' ? userPrefix      : ({ qwen: '<|im_start|>user\n', chatml: '<|im_start|>user\n', deepseek: '<｜User｜>', llama3: '<|start_header_id|>user<|end_header_id|>\n\n', mistral: '[INST] ' } as Record<string,string>)[chatTemplate] ?? '',
+                  us: chatTemplate === 'custom' ? userSuffix      : ({ qwen: '<|im_end|>\n',       chatml: '<|im_end|>\n',       deepseek: '',            llama3: '<|eot_id|>',                                                      mistral: ' [/INST]' } as Record<string,string>)[chatTemplate] ?? '',
+                  ap: chatTemplate === 'custom' ? assistantPrefix : ({ qwen: '<|im_start|>assistant\n', chatml: '<|im_start|>assistant\n', deepseek: '<｜Assistant｜>', llama3: '<|start_header_id|>assistant<|end_header_id|>\n\n', mistral: '' } as Record<string,string>)[chatTemplate] ?? '',
+                }
+                const posPreview = `${T.up}input${T.us}${T.ap}引导语`
+                const negPreview = `${T.up}{ input 或 引导语随机截断 ↑ }${T.us}${T.ap}{ 截断点也可在此 ↑ }`
                 return (
                   <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30 space-y-2">
                     <div>
@@ -360,8 +350,9 @@ export default function RouterDataBuilder() {
                       <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{posPreview}</code>
                     </div>
                     <div className="border-t border-slate-700/30 pt-2">
-                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）— template 标记保留，在 input∪引导语 上随机截断</span>
-                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{negDesc}</code>
+                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）— template 标记不截断，截断点随机落在 input 或引导语内</span>
+                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{`${T.up}截断的input${T.us}${T.ap}截断的引导语`}</code>
+                      <span className="text-xs text-slate-700 block mt-0.5">↑ 截断点随机，可能落在 input 内（此时后半段不存在），也可能落在引导语内</span>
                     </div>
                   </div>
                 )
