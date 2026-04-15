@@ -204,14 +204,13 @@ def _build_samples_from_file(
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条）：两种截断类型交替，均匀覆盖两种场景
-            #   类型A（偶数轮）：在 user 轮次内截断 input
-            #   类型B（奇数轮）：input 完整，assistant 已开始但在引导语中间截断
+            # 负样本（neg_ratio 条）：两种截断类型各 50% 随机选择
+            #   类型A：在 user 轮次内截断 input
+            #   类型B：input 完整，assistant 已开始但在引导语中间截断
             # trigger_prefix 较短时（<4字符）退化为纯类型A
             can_truncate_prefix = len(trigger_prefix) >= 4
-            for k in range(neg_ratio):
-                use_type_b = can_truncate_prefix and (k % 2 == 1)
-                if use_type_b:
+            for _ in range(neg_ratio):
+                if can_truncate_prefix and rng.random() < 0.5:
                     truncated = _random_truncation(trigger_prefix, rng)
                     context = _apply_chat_template_neg_in_assistant(input_text, truncated, chat_tmpl)
                     neg_type = "assistant_truncated"
