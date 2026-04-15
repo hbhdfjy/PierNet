@@ -341,18 +341,15 @@ export default function RouterDataBuilder() {
                   us: chatTemplate === 'custom' ? userSuffix      : ({ qwen: '<|im_end|>\n',       chatml: '<|im_end|>\n',       deepseek: '',            llama3: '<|eot_id|>',                                                      mistral: ' [/INST]' } as Record<string,string>)[chatTemplate] ?? '',
                   ap: chatTemplate === 'custom' ? assistantPrefix : ({ qwen: '<|im_start|>assistant\n', chatml: '<|im_start|>assistant\n', deepseek: '<｜Assistant｜>', llama3: '<|start_header_id|>assistant<|end_header_id|>\n\n', mistral: '' } as Record<string,string>)[chatTemplate] ?? '',
                 }
-                const posPreview = `${T.up}input${T.us}${T.ap}引导语`
-                const negPreview = `${T.up}{ input 或 引导语随机截断 ↑ }${T.us}${T.ap}{ 截断点也可在此 ↑ }`
                 return (
                   <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30 space-y-2">
                     <div>
                       <span className="text-xs text-emerald-600 block mb-0.5">正样本（label=1）</span>
-                      <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{posPreview}</code>
+                      <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{`${T.up}input${T.us}${T.ap}引导语`}</code>
                     </div>
                     <div className="border-t border-slate-700/30 pt-2">
-                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）— template 标记不截断，截断点随机落在 input 或引导语内</span>
-                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{`${T.up}截断的input${T.us}${T.ap}截断的引导语`}</code>
-                      <span className="text-xs text-slate-700 block mt-0.5">↑ 截断点随机，可能落在 input 内（此时后半段不存在），也可能落在引导语内</span>
+                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）— input 完整，引导语内部均匀随机截断</span>
+                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{`${T.up}input${T.us}${T.ap}截断的引导语`}</code>
                     </div>
                   </div>
                 )

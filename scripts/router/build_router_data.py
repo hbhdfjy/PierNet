@@ -99,64 +99,26 @@ def _apply_chat_template_neg(
     trigger_prefix: str,
     tmpl: dict[str, str],
     rng: random.Random,
-) -> tuple[str, str]:
+) -> str:
     """
-    负样本：先拼接完整字符串，再在 template 标记之后随机截断。
+    负样本：input 完整，assistant 在引导语内部均匀随机截断。
 
+    推理时 Router 永远看到完整的 input，区别只在于 assistant 侧生成了多少。
     完整串：user_prefix + input + user_suffix + assistant_prefix + trigger_prefix
-    截断范围：[len(user_prefix), len(完整串) - 1)，保证 user_prefix 完整保留。
-
-    Returns:
-        (context, neg_type)
-        neg_type: "user_truncated" 或 "assistant_truncated"，取决于截断点落在哪段
+    截断范围：[tp_start, tp_end - 1)，即只在 trigger_prefix 内部截断。
     """
     up = tmpl["user_prefix"]
     us = tmpl["user_suffix"]
     ap = tmpl["assistant_prefix"]
 
-    # 各段在完整串中的起止位置（左闭右开）
-    # up: [0, len_up)
-    # input: [len_up, len_up + len_input)
-    # us: [len_up + len_input, len_up + len_input + len_us)
-    # ap: [len_up + len_input + len_us, len_up + len_input + len_us + len_ap)
-    # trigger: [len_up + len_input + len_us + len_ap, end)
-    len_up    = len(up)
-    len_input = len(input_text)
-    len_us    = len(us)
-    len_ap    = len(ap)
+    tp_len = len(trigger_prefix)
+    if tp_len <= 1:
+        # 引导语极短，截到空（只保留 assistant_prefix）
+        return up + input_text + us + ap
 
-    input_start   = len_up
-    input_end     = len_up + len_input          # user_suffix 开始
-    tp_start      = input_end + len_us + len_ap  # trigger_prefix 开始
-
-    full = up + input_text + us + ap + trigger_prefix
-    n = len(full)
-
-    # 合法截断区间：只在 input 内部 或 trigger_prefix 内部截断，不碰三段 template 标记
-    # input 内：[input_start, input_end)
-    # trigger 内：[tp_start, n)  但至少保留一个字符所以上限 n-1
-    valid_ranges = []
-    if input_end > input_start:
-        valid_ranges.append((input_start, input_end))       # input 内部
-    if n - 1 > tp_start:
-        valid_ranges.append((tp_start, n - 1))              # trigger_prefix 内部
-
-    if not valid_ranges:
-        # 极端情况：内容为空，直接截一半
-        return full[: max(1, n // 2)], "user_truncated"
-
-    # 在合法区间内按字符位置均匀随机截断
-    total = sum(hi - lo for lo, hi in valid_ranges)
-    r = rng.randint(0, total - 1)
-    pos = valid_ranges[0][0]  # 兜底初始值
-    for lo, hi in valid_ranges:
-        if r < hi - lo:
-            pos = lo + r
-            break
-        r -= hi - lo
-
-    neg_type = "user_truncated" if pos <= input_end else "assistant_truncated"
-    return full[:pos], neg_type
+    # 在 trigger_prefix 内均匀随机截断，保留 [0, pos) 部分
+    pos = rng.randint(0, tp_len - 1)
+    return up + input_text + us + ap + trigger_prefix[:pos]
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -223,15 +185,15 @@ def _build_samples_from_file(
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条）：在完整串上随机截断，template 标记保持完整
+            # 负样本（neg_ratio 条）：input 完整，引导语内部均匀随机截断
             for _ in range(neg_ratio):
-                context, neg_type = _apply_chat_template_neg(
+                context = _apply_chat_template_neg(
                     input_text, trigger_prefix, chat_tmpl, rng
                 )
                 samples.append({
                     "context": context,
                     "label": 0,
-                    "metadata": {**base_meta, "trigger_prefix": "", "neg_type": neg_type},
+                    "metadata": {**base_meta, "trigger_prefix": ""},
                 })
 
             source_processed += 1
