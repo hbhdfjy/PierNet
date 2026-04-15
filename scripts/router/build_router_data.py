@@ -80,20 +80,27 @@ CHAT_TEMPLATES: dict[str, dict[str, str]] = {
 }
 
 
-def _apply_chat_template(user_content: str, assistant_content: str, tmpl: dict[str, str]) -> str:
+def _apply_chat_template_pos(input_text: str, trigger_prefix: str, tmpl: dict[str, str]) -> str:
     """
-    将 user/assistant 内容包裹进 chat template，返回完整 context 字符串。
-
-    结构：user_prefix + user_content + user_suffix + assistant_prefix + assistant_content
-    路由器在 assistant_content 末尾做分类决策。
+    正样本：input 完整，assistant 开始说引导语。
+    结构：user_prefix + input + user_suffix + assistant_prefix + trigger_prefix
     """
     return (
         tmpl["user_prefix"]
-        + user_content
+        + input_text
         + tmpl["user_suffix"]
         + tmpl["assistant_prefix"]
-        + assistant_content
+        + trigger_prefix
     )
+
+
+def _apply_chat_template_neg(truncated_input: str, tmpl: dict[str, str]) -> str:
+    """
+    负样本：input 在 user 轮次内部被截断，对话尚未结束。
+    结构：user_prefix + 截断的input
+    不加 user_suffix / assistant_prefix，因为 user 还没说完。
+    """
+    return tmpl["user_prefix"] + truncated_input
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -177,18 +184,18 @@ def _build_samples_from_file(
                 "chat_template": chat_tmpl.get("_name", "plain"),
             }
 
-            # 正样本（1条）：user=input，assistant=trigger_prefix（引导语开头）
+            # 正样本（1条）：input 完整，assistant 开始说引导语
             samples.append({
-                "context": _apply_chat_template(input_text, trigger_prefix, chat_tmpl),
+                "context": _apply_chat_template_pos(input_text, trigger_prefix, chat_tmpl),
                 "label": 1,
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条）：user=input 随机截断，assistant 为空
+            # 负样本（neg_ratio 条）：input 在 user 轮次内截断，不闭合对话轮次
             for _ in range(neg_ratio):
                 neg_user = _random_truncation(input_text, rng)
                 samples.append({
-                    "context": _apply_chat_template(neg_user, "", chat_tmpl),
+                    "context": _apply_chat_template_neg(neg_user, chat_tmpl),
                     "label": 0,
                     "metadata": {**base_meta, "trigger_prefix": ""},
                 })
