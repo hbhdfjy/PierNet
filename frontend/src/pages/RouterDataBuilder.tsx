@@ -94,7 +94,7 @@ export default function RouterDataBuilder() {
   // 参数
   const { seed } = useSeed()
   const [negRatio, setNegRatio] = useState(1)
-  const [chatTemplate, setChatTemplate] = useState('plain')
+  const [chatTemplate, setChatTemplate] = useState('custom')
   const [userPrefix, setUserPrefix] = useState('')
   const [userSuffix, setUserSuffix] = useState('')
   const [assistantPrefix, setAssistantPrefix] = useState('')
@@ -297,7 +297,7 @@ export default function RouterDataBuilder() {
             <div>
               <span className="label text-xs block mb-1.5">Chat Template</span>
               <div className="grid grid-cols-3 gap-1">
-                {(['plain', 'qwen', 'deepseek', 'llama3', 'mistral', 'custom'] as const).map(t => (
+                {(['custom', 'qwen', 'deepseek', 'llama3', 'mistral', 'chatml'] as const).map(t => (
                   <button
                     key={t}
                     onClick={() => setChatTemplate(t)}
@@ -334,7 +334,7 @@ export default function RouterDataBuilder() {
                 </div>
               )}
               {/* 预览 */}
-              {chatTemplate !== 'plain' && (
+              {(chatTemplate !== 'custom' || userPrefix || userSuffix || assistantPrefix) && (
                 <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30">
                   <span className="text-xs text-slate-600 block mb-1">预览（正样本）</span>
                   <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">
@@ -342,10 +342,11 @@ export default function RouterDataBuilder() {
                       ? `${userPrefix || '<user_prefix>'}input${userSuffix || '<user_suffix>'}${assistantPrefix || '<assistant_prefix>'}引导语`
                       : {
                           qwen:     '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
+                          chatml:   '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
                           deepseek: '<｜User｜>input<｜Assistant｜>引导语',
                           llama3:   '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n引导语',
                           mistral:  '[INST] input [/INST]引导语',
-                        }[chatTemplate as 'qwen' | 'deepseek' | 'llama3' | 'mistral']
+                        }[chatTemplate as 'qwen' | 'chatml' | 'deepseek' | 'llama3' | 'mistral']
                     }
                   </code>
                 </div>

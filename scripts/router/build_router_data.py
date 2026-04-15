@@ -77,12 +77,6 @@ CHAT_TEMPLATES: dict[str, dict[str, str]] = {
         "user_suffix":      " [/INST]",
         "assistant_prefix": "",
     },
-    # 不包裹（向后兼容）
-    "plain": {
-        "user_prefix":      "",
-        "user_suffix":      "",
-        "assistant_prefix": "",
-    },
 }
 
 
@@ -234,7 +228,7 @@ def main():
                         help="只处理指定场景（空=全部），例：--scenarios unified_aquifer ieee14_baseload")
     parser.add_argument("--neg-ratio",  type=int,   default=1,
                         help="每条正样本对应的负样本数量（默认1，即1:1）")
-    parser.add_argument("--chat-template", type=str, default="plain",
+    parser.add_argument("--chat-template", type=str, default="custom",
                         choices=list(CHAT_TEMPLATES.keys()) + ["custom"],
                         help="Chat template 类型（默认 plain，即不包裹）")
     parser.add_argument("--user-prefix",      type=str, default="",
@@ -255,7 +249,7 @@ def main():
             "assistant_prefix": args.assistant_prefix,
         }
     else:
-        chat_tmpl = dict(CHAT_TEMPLATES.get(tmpl_name, CHAT_TEMPLATES["plain"]))
+        chat_tmpl = dict(CHAT_TEMPLATES.get(tmpl_name, {"user_prefix": "", "user_suffix": "", "assistant_prefix": ""}))
         chat_tmpl["_name"] = tmpl_name
 
     print(f"[Router 数据生成] Chat template: {tmpl_name}", flush=True)

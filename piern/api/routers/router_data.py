@@ -141,7 +141,7 @@ async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
     scenarios: str = Query(""),        # 逗号分隔的场景名，空=全部
-    chat_template: str = Query("plain"),  # chat template 类型
+    chat_template: str = Query("custom"),  # chat template 类型
     user_prefix: str = Query(""),      # 自定义 template 前缀
     user_suffix: str = Query(""),      # 自定义 template 后缀
     assistant_prefix: str = Query(""), # 自定义 assistant 前缀
