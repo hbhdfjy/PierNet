@@ -108,8 +108,10 @@ python scripts/text2comp/fill_samples.py \
 
 # ── Stage 4：Token Router 数据生成（不调 LLM）──────────────────────
 
-# → data/router/train.jsonl, val.jsonl, test.jsonl
+# → data/router/train.jsonl + data/router/by_scenario/{scenario}.jsonl
+# 默认不包裹 chat template，可用 --chat-template qwen/deepseek/llama3/mistral/custom
 python scripts/router/build_router_data.py --seed 42
+python scripts/router/build_router_data.py --seed 42 --chat-template qwen --neg-ratio 2
 ```
 
 ---
@@ -180,7 +182,7 @@ piern/
     ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
     ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
     ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    └── router/       # train/val/test.jsonl（Stage 4 输出）
+    └── router/       # train.jsonl + by_scenario/（Stage 4 输出）
 ```
 
 ---
@@ -201,7 +203,7 @@ Stage 2/3 脚本通过 `data_root` 配置自动扫描各子目录，目录名即
 
 ## 配置文件
 
-`configs/text2comp/default.yaml` 是 Stage 2/3/4 的唯一配置文件：
+`configs/text2comp/default.yaml` 是 Stage 2/3 的唯一配置文件（Stage 4 通过 CLI 参数配置）：
 
 ```yaml
 data_root: data          # HDF5 数据根目录，自动扫描各子目录
@@ -212,7 +214,7 @@ output_file: all_training_data.jsonl
 llm:
   provider: siliconflow
   model: deepseek-ai/DeepSeek-V3.2
-  api_key: ...
+  api_key: ''           # 留空，通过前端 LLM 配置页面设置，或 SILICONFLOW_API_KEY 环境变量
   temperature: 1.0
   max_tokens: 8196
 
@@ -224,6 +226,22 @@ generation:
 
 seed: 42
 ```
+
+---
+
+## Stage 4 Router 数据格式
+
+Token Router 训练数据为二分类：
+
+```json
+{"context": "<|im_start|>user\n用户输入<|im_end|>\n<|im_start|>assistant\n引导语", "label": 1, "metadata": {...}}
+{"context": "<|im_start|>user\n用户输入<|im_end|>\n<|im_start|>assistant\n截断", "label": 0, "metadata": {...}}
+```
+
+- **label=1**：完整 `input + 完整引导语`，表示应触发专家模型
+- **label=0**：完整 `input + 引导语内部随机截断`，表示应继续 LLM 生成
+- Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
+- 支持 5 种内置 chat template：`qwen`、`deepseek`、`llama3`、`mistral`、`chatml`，以及 `custom`（自定义前缀/后缀）
 
 ---
 

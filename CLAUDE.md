@@ -233,8 +233,10 @@ Stage 4  Token Router 数据生成（不调 LLM）
   运行: scripts/router/build_router_data.py
   输出: data/router/train.jsonl（全量合并）+ data/router/by_scenario/{scenario}.jsonl
   格式: {"context": str, "label": 0|1, "metadata": {...}}
-  说明: label=1（input+引导语，触发专家），label=0（input 随机截断，继续 LLM）
-        正负比例可配置（默认1:1），按 8:1:1 划分 train/val/test
+  说明: label=1（chat_template(input) + 完整引导语，触发专家）
+        label=0（chat_template(input) + 引导语内部随机截断，继续 LLM）
+        Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
+        正负比例可配置（默认1:1），支持 qwen/deepseek/llama3/mistral/custom chat template
 ```
 
 ## 最终训练样本格式（5字段）
@@ -325,6 +327,18 @@ Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件�
 - `terminate_job` 时 `os.killpg` kill 整个进程组
 - 历史记录：内存 deque(maxlen=200)，重启后清空
 - 批量仿真每个场景完成后发 `scenario_done` SSE 事件，前端实时刷新
+
+## Important Notes — Stage 4
+
+- Router 数据格式：`{"context": str, "label": 0|1, "metadata": {...}}`
+- 正样本（label=1）：`user_prefix + input + user_suffix + assistant_prefix + 完整引导语`
+- 负样本（label=0）：`user_prefix + input + user_suffix + assistant_prefix + 引导语[:pos]`，pos 在 `[0, len(引导语)-1]` 均匀随机
+- Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
+- Chat template 通过 `--chat-template` CLI 参数指定，内置：`qwen`/`chatml`/`deepseek`/`llama3`/`mistral`，自定义用 `custom`
+- `--neg-ratio N`：每条正样本生成 N 条负样本（默认1:1），各负样本截断位置独立随机
+- 输出：`data/router/by_scenario/{scenario}.jsonl`（各场景独立）+ `data/router/train.jsonl`（全量合并打乱）
+- 进度协议：`PROGRESS_INIT:scene:total` → `PROGRESS_UPDATE:scene:done:total` → `PROGRESS_DONE:scene:done:total`
+- metadata 字段：`simulator`、`scenario`、`language`、`chat_template`、`trigger_prefix`（正样本）
 
 ## Important Notes — Stage 2/3
 
