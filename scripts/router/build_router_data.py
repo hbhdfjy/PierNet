@@ -114,28 +114,58 @@ def _apply_chat_template_neg(
     us = tmpl["user_suffix"]
     ap = tmpl["assistant_prefix"]
 
+    # 各段在完整串中的起止位置（左闭右开）
+    # up: [0, len_up)
+    # input: [len_up, len_up + len_input)
+    # us: [len_up + len_input, len_up + len_input + len_us)
+    # ap: [len_up + len_input + len_us, len_up + len_input + len_us + len_ap)
+    # trigger: [len_up + len_input + len_us + len_ap, end)
+    len_up    = len(up)
+    len_input = len(input_text)
+    len_us    = len(us)
+    len_ap    = len(ap)
+
+    input_start   = len_up
+    input_end     = len_up + len_input          # user_suffix 开始
+    tp_start      = input_end + len_us + len_ap  # trigger_prefix 开始
+
     full = up + input_text + us + ap + trigger_prefix
     n = len(full)
 
-    # 截断范围：user_prefix 之后，完整串末尾之前
-    lo = len(up)
-    hi = n - 1
-    if lo >= hi:
-        # 极短文本兜底：直接截一半
+    # 合法截断区间：只在 input 内部 或 trigger_prefix 内部截断，不碰三段 template 标记
+    # input 内：[input_start, input_end)
+    # trigger 内：[tp_start, n)  但至少保留一个字符所以上限 n-1
+    valid_ranges = []
+    if input_end > input_start:
+        valid_ranges.append((input_start, input_end))       # input 内部
+    if n - 1 > tp_start:
+        valid_ranges.append((tp_start, n - 1))              # trigger_prefix 内部
+
+    if not valid_ranges:
+        # 极端情况：内容为空，直接截一半
         return full[: max(1, n // 2)], "user_truncated"
 
-    # 优先在标点/空格处截断
+    # 在合法区间内优先选标点/空格处截断
     boundary_chars = set("。！？，；,.!? \t\n")
-    candidates = [i + 1 for i in range(lo, hi) if full[i] in boundary_chars]
+    candidates = [
+        i + 1
+        for lo, hi in valid_ranges
+        for i in range(lo, hi)
+        if full[i] in boundary_chars
+    ]
     if candidates:
         pos = rng.choice(candidates)
     else:
-        pos = rng.randint(lo, hi - 1)
+        # 无标点则在合法区间内均匀随机
+        total = sum(hi - lo for lo, hi in valid_ranges)
+        r = rng.randint(0, total - 1)
+        for lo, hi in valid_ranges:
+            if r < hi - lo:
+                pos = lo + r
+                break
+            r -= hi - lo
 
-    # 判断截断点落在哪一段
-    boundary_input_end = lo + len(input_text)   # user_suffix 开始的位置
-    neg_type = "user_truncated" if pos <= boundary_input_end else "assistant_truncated"
-
+    neg_type = "user_truncated" if pos <= input_end else "assistant_truncated"
     return full[:pos], neg_type
 
 
