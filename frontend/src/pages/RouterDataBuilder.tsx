@@ -339,7 +339,7 @@ export default function RouterDataBuilder() {
                   <span className="text-xs text-slate-600 block mb-1">预览（正样本）</span>
                   <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">
                     {chatTemplate === 'custom'
-                      ? `${userPrefix || '<user_prefix>'}input${userSuffix || '<user_suffix>'}${assistantPrefix || '<assistant_prefix>'}引导语`
+                      ? `${userPrefix}input${userSuffix}${assistantPrefix}引导语`
                       : {
                           qwen:     '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
                           chatml:   '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
