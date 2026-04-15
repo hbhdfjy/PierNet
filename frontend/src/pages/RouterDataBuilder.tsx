@@ -94,6 +94,10 @@ export default function RouterDataBuilder() {
   // 参数
   const { seed } = useSeed()
   const [negRatio, setNegRatio] = useState(1)
+  const [chatTemplate, setChatTemplate] = useState('plain')
+  const [userPrefix, setUserPrefix] = useState('')
+  const [userSuffix, setUserSuffix] = useState('')
+  const [assistantPrefix, setAssistantPrefix] = useState('')
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -136,7 +140,7 @@ export default function RouterDataBuilder() {
     setError(null)
     setLaunching(true)
     try {
-      const res = await api.buildRouterData(seed, Array.from(selected), negRatio)
+      const res = await api.buildRouterData(seed, Array.from(selected), negRatio, chatTemplate, userPrefix, userSuffix, assistantPrefix)
       monitor.start(res.job_id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -287,6 +291,65 @@ export default function RouterDataBuilder() {
               <div className="flex justify-between text-xs text-slate-600 mt-0.5">
                 <span>1:1</span><span>1:5</span><span>1:10</span>
               </div>
+            </div>
+
+            {/* Chat Template */}
+            <div>
+              <span className="label text-xs block mb-1.5">Chat Template</span>
+              <div className="grid grid-cols-3 gap-1">
+                {(['plain', 'qwen', 'deepseek', 'llama3', 'mistral', 'custom'] as const).map(t => (
+                  <button
+                    key={t}
+                    onClick={() => setChatTemplate(t)}
+                    className={cn(
+                      'px-2 py-1.5 rounded-lg border text-xs font-mono transition-all',
+                      chatTemplate === t
+                        ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
+                        : 'bg-slate-800/40 border-slate-700/40 text-slate-400 hover:border-slate-600 hover:text-slate-200',
+                    )}
+                  >
+                    {t}
+                  </button>
+                ))}
+              </div>
+              {/* 自定义 template 输入 */}
+              {chatTemplate === 'custom' && (
+                <div className="mt-2 space-y-1.5">
+                  {([
+                    ['用户前缀', userPrefix, setUserPrefix, '<|im_start|>user\\n'],
+                    ['用户后缀', userSuffix, setUserSuffix, '<|im_end|>\\n'],
+                    ['Assistant 前缀', assistantPrefix, setAssistantPrefix, '<|im_start|>assistant\\n'],
+                  ] as [string, string, (v: string) => void, string][]).map(([label, val, setter, ph]) => (
+                    <div key={label}>
+                      <span className="text-xs text-slate-500 block mb-0.5">{label}</span>
+                      <input
+                        type="text"
+                        className="input w-full text-xs font-mono py-1"
+                        placeholder={ph}
+                        value={val}
+                        onChange={e => setter(e.target.value)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              )}
+              {/* 预览 */}
+              {chatTemplate !== 'plain' && (
+                <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30">
+                  <span className="text-xs text-slate-600 block mb-1">预览（正样本）</span>
+                  <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">
+                    {chatTemplate === 'custom'
+                      ? `${userPrefix || '<user_prefix>'}input + 引导语${userSuffix || '<user_suffix>'}${assistantPrefix || '<assistant_prefix>'}`
+                      : {
+                          qwen:     '<|im_start|>user\ninput + 引导语<|im_end|>\n<|im_start|>assistant\n',
+                          deepseek: '<｜User｜>input + 引导语<｜Assistant｜>',
+                          llama3:   '<|start_header_id|>user<|end_header_id|>\n\ninput + 引导语<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n',
+                          mistral:  '[INST] input + 引导语 [/INST]',
+                        }[chatTemplate as 'qwen' | 'deepseek' | 'llama3' | 'mistral']
+                    }
+                  </code>
+                </div>
+              )}
             </div>
           </div>
 

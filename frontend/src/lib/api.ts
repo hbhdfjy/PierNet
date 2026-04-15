@@ -284,12 +284,26 @@ export const api = {
   getRouterStatus: (): Promise<RouterStatus> =>
     get('/router/status'),
 
-  buildRouterData: async (seed = 42, scenarios: string[] = [], negRatio = 1): Promise<{ job_id: string; status: string }> => {
+  buildRouterData: async (
+    seed = 42,
+    scenarios: string[] = [],
+    negRatio = 1,
+    chatTemplate = 'plain',
+    userPrefix = '',
+    userSuffix = '',
+    assistantPrefix = '',
+  ): Promise<{ job_id: string; status: string }> => {
     const params = new URLSearchParams({
       seed: String(seed),
       neg_ratio: String(negRatio),
+      chat_template: chatTemplate,
     })
     if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))
+    if (chatTemplate === 'custom') {
+      params.set('user_prefix', userPrefix)
+      params.set('user_suffix', userSuffix)
+      params.set('assistant_prefix', assistantPrefix)
+    }
     const res = await fetch(`${BASE}/router/build?${params}`, { method: 'POST' })
     if (!res.ok) {
       const text = await res.text().catch(() => '')

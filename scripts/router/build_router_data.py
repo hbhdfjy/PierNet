@@ -2,31 +2,93 @@
 Stage 4：Token Router 训练数据生成脚本。
 
 从 Stage 3 生成的 data/text2comp/*.jsonl 中构建二分类路由数据：
-  label=1：context = input + trigger_prefix（引导语）  → 下一步调用科学计算专家
-  label=0：context = input 的随机截断前缀             → 继续 LLM 生成
+  label=1：context = chat_template(input + trigger_prefix)  → 下一步调用科学计算专家
+  label=0：context = chat_template(input 的随机截断前缀)    → 继续 LLM 生成
 
-正负比例 1:1。每条 Stage 3 样本 → 1 条正样本 + 1 条负样本。
+正负比例 1:1（可配置）。每条 Stage 3 样本 → 1 条正样本 + neg_ratio 条负样本。
+
+支持多种 chat template，通过 --chat-template 指定：
+  qwen        Qwen2/2.5 系列（<|im_start|> 格式）
+  deepseek    DeepSeek-V2/V3 系列（<｜User｜> 格式）
+  llama3      LLaMA-3 系列（<|start_header_id|> 格式）
+  mistral     Mistral/Mixtral 系列（[INST] 格式）
+  chatml      通用 ChatML（与 Qwen 相同）
+  plain       不包裹（仅 input 文本，向后兼容）
+  custom      自定义（需同时指定 --user-prefix / --user-suffix / --assistant-prefix）
 
 输出结构：
   data/router/
     ├── by_scenario/
-    │   ├── unified_aquifer.jsonl      ← 每个场景独立文件（全量，未划分）
-    │   ├── dc_resistivity.jsonl
+    │   ├── unified_aquifer.jsonl
     │   └── ...
-    ├── train.jsonl                    ← 全场景合并后按 8:1:1 划分
-    ├── val.jsonl
-    └── test.jsonl
+    └── train.jsonl
 
 用法：
     python scripts/router/build_router_data.py
-    python scripts/router/build_router_data.py --data-dir data/text2comp --output-dir data/router
-    python scripts/router/build_router_data.py --seed 42 --val-ratio 0.1 --test-ratio 0.1
+    python scripts/router/build_router_data.py --chat-template qwen
+    python scripts/router/build_router_data.py --chat-template custom \\
+        --user-prefix "<|im_start|>user\\n" --user-suffix "<|im_end|>\\n" \\
+        --assistant-prefix "<|im_start|>assistant\\n"
 """
 
 import argparse
 import json
 import random
 from pathlib import Path
+
+
+# ── 内置 Chat Template 定义 ──────────────────────────────────────
+#
+# 每个模板定义三段：
+#   user_prefix      — 放在用户消息之前
+#   user_suffix      — 放在用户消息之后
+#   assistant_prefix — 放在 assistant 回复开头（路由器看到的最后一段）
+#
+# 最终 context = user_prefix + content + user_suffix + assistant_prefix
+# 其中 content = input_text（负样本）或 input_text + trigger_prefix（正样本）
+
+CHAT_TEMPLATES: dict[str, dict[str, str]] = {
+    # Qwen2 / Qwen2.5 / ChatML 通用格式
+    "qwen": {
+        "user_prefix":      "<|im_start|>user\n",
+        "user_suffix":      "<|im_end|>\n",
+        "assistant_prefix": "<|im_start|>assistant\n",
+    },
+    "chatml": {
+        "user_prefix":      "<|im_start|>user\n",
+        "user_suffix":      "<|im_end|>\n",
+        "assistant_prefix": "<|im_start|>assistant\n",
+    },
+    # DeepSeek-V2 / V3 格式
+    "deepseek": {
+        "user_prefix":      "<｜User｜>",
+        "user_suffix":      "",
+        "assistant_prefix": "<｜Assistant｜>",
+    },
+    # LLaMA-3 格式
+    "llama3": {
+        "user_prefix":      "<|start_header_id|>user<|end_header_id|>\n\n",
+        "user_suffix":      "<|eot_id|>",
+        "assistant_prefix": "<|start_header_id|>assistant<|end_header_id|>\n\n",
+    },
+    # Mistral / Mixtral 格式
+    "mistral": {
+        "user_prefix":      "[INST] ",
+        "user_suffix":      " [/INST]",
+        "assistant_prefix": "",
+    },
+    # 不包裹（向后兼容）
+    "plain": {
+        "user_prefix":      "",
+        "user_suffix":      "",
+        "assistant_prefix": "",
+    },
+}
+
+
+def _apply_chat_template(content: str, tmpl: dict[str, str]) -> str:
+    """将 content 包裹进 chat template，返回完整 context 字符串。"""
+    return tmpl["user_prefix"] + content + tmpl["user_suffix"] + tmpl["assistant_prefix"]
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -67,6 +129,7 @@ def _random_truncation(text: str, rng: random.Random) -> str:
 def _build_samples_from_file(
     jsonl_path: Path,
     rng: random.Random,
+    chat_tmpl: dict[str, str],
     neg_ratio: int = 1,
     progress_callback=None,
     progress_interval: int = 500,
@@ -74,7 +137,7 @@ def _build_samples_from_file(
     """从单个场景 JSONL 文件生成正负样本对。
 
     每条原始样本 → 1 条正样本 + neg_ratio 条负样本（不同截断位置）。
-    neg_ratio=1 时正负 1:1，neg_ratio=5 时正负 1:5。
+    context 用 chat_tmpl 包裹。
 
     Args:
         progress_callback: 可选回调 (done_samples: int)，每 progress_interval 条源样本调用一次。
@@ -106,19 +169,22 @@ def _build_samples_from_file(
                 "simulator": meta.get("simulator", "unknown"),
                 "scenario":  meta.get("scenario",  "unknown"),
                 "language":  meta.get("language",  "unknown"),
+                "chat_template": chat_tmpl.get("_name", "plain"),
             }
 
-            # 正样本（1条）
+            # 正样本（1条）：input + trigger_prefix，包裹 chat template
+            pos_content = input_text + trigger_prefix
             samples.append({
-                "context": input_text + trigger_prefix,
+                "context": _apply_chat_template(pos_content, chat_tmpl),
                 "label": 1,
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
             # 负样本（neg_ratio 条，截断位置各不相同）
             for _ in range(neg_ratio):
+                neg_content = _random_truncation(input_text, rng)
                 samples.append({
-                    "context": _random_truncation(input_text, rng),
+                    "context": _apply_chat_template(neg_content, chat_tmpl),
                     "label": 0,
                     "metadata": {**base_meta, "trigger_prefix": ""},
                 })
@@ -158,7 +224,31 @@ def main():
                         help="只处理指定场景（空=全部），例：--scenarios unified_aquifer ieee14_baseload")
     parser.add_argument("--neg-ratio",  type=int,   default=1,
                         help="每条正样本对应的负样本数量（默认1，即1:1）")
+    parser.add_argument("--chat-template", type=str, default="plain",
+                        choices=list(CHAT_TEMPLATES.keys()) + ["custom"],
+                        help="Chat template 类型（默认 plain，即不包裹）")
+    parser.add_argument("--user-prefix",      type=str, default="",
+                        help="自定义 chat template：用户消息前缀（--chat-template custom 时生效）")
+    parser.add_argument("--user-suffix",      type=str, default="",
+                        help="自定义 chat template：用户消息后缀")
+    parser.add_argument("--assistant-prefix", type=str, default="",
+                        help="自定义 chat template：assistant 回复前缀")
     args = parser.parse_args()
+
+    # 解析 chat template
+    tmpl_name = args.chat_template
+    if tmpl_name == "custom":
+        chat_tmpl = {
+            "_name":            "custom",
+            "user_prefix":      args.user_prefix,
+            "user_suffix":      args.user_suffix,
+            "assistant_prefix": args.assistant_prefix,
+        }
+    else:
+        chat_tmpl = dict(CHAT_TEMPLATES.get(tmpl_name, CHAT_TEMPLATES["plain"]))
+        chat_tmpl["_name"] = tmpl_name
+
+    print(f"[Router 数据生成] Chat template: {tmpl_name}", flush=True)
 
     project_root = Path(__file__).resolve().parents[2]
     data_dir   = project_root / args.data_dir
@@ -216,7 +306,7 @@ def main():
             print(f"PROGRESS_UPDATE:{sc}:{done_samples}:{exp}", flush=True)
 
         samples = _build_samples_from_file(
-            jsonl_path, rng, neg_ratio=args.neg_ratio,
+            jsonl_path, rng, chat_tmpl=chat_tmpl, neg_ratio=args.neg_ratio,
             progress_callback=_progress,
         )
         n_pos = sum(1 for s in samples if s["label"] == 1)

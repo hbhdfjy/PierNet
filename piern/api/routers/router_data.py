@@ -140,7 +140,11 @@ def get_router_status():
 async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
-    scenarios: str = Query(""),   # 逗号分隔的场景名，空=全部
+    scenarios: str = Query(""),        # 逗号分隔的场景名，空=全部
+    chat_template: str = Query("plain"),  # chat template 类型
+    user_prefix: str = Query(""),      # 自定义 template 前缀
+    user_suffix: str = Query(""),      # 自定义 template 后缀
+    assistant_prefix: str = Query(""), # 自定义 assistant 前缀
 ):
     """触发 Stage 4 Router 数据生成，返回 job_id 供 SSE 监听。"""
     record = job_manager.create_job("router")
@@ -149,15 +153,22 @@ async def build_router_data(
     def _run():
         try:
             sc_desc = f"场景：{', '.join(scenario_list)}" if scenario_list else "全部场景"
-            publish(record, {"type": "log", "line": f"[Stage 4] 开始生成 Token Router 训练数据（{sc_desc}）…", "ts": time.time()})
+            publish(record, {"type": "log", "line": f"[Stage 4] 开始生成 Token Router 训练数据（{sc_desc}，template={chat_template}）…", "ts": time.time()})
             script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
             cmd = [
                 sys.executable, str(script),
-                "--data-dir",   "data/text2comp",
-                "--output-dir", "data/router",
-                "--seed",       str(seed),
-                "--neg-ratio",  str(neg_ratio),
+                "--data-dir",      "data/text2comp",
+                "--output-dir",    "data/router",
+                "--seed",          str(seed),
+                "--neg-ratio",     str(neg_ratio),
+                "--chat-template", chat_template,
             ]
+            if chat_template == "custom":
+                cmd += [
+                    "--user-prefix",      user_prefix,
+                    "--user-suffix",      user_suffix,
+                    "--assistant-prefix", assistant_prefix,
+                ]
             if scenario_list:
                 cmd += ["--scenarios"] + scenario_list
             proc = subprocess.Popen(
