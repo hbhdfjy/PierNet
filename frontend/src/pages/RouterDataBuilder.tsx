@@ -339,12 +339,12 @@ export default function RouterDataBuilder() {
                   <span className="text-xs text-slate-600 block mb-1">预览（正样本）</span>
                   <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">
                     {chatTemplate === 'custom'
-                      ? `${userPrefix || '<user_prefix>'}input + 引导语${userSuffix || '<user_suffix>'}${assistantPrefix || '<assistant_prefix>'}`
+                      ? `${userPrefix || '<user_prefix>'}input${userSuffix || '<user_suffix>'}${assistantPrefix || '<assistant_prefix>'}引导语`
                       : {
-                          qwen:     '<|im_start|>user\ninput + 引导语<|im_end|>\n<|im_start|>assistant\n',
-                          deepseek: '<｜User｜>input + 引导语<｜Assistant｜>',
-                          llama3:   '<|start_header_id|>user<|end_header_id|>\n\ninput + 引导语<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n',
-                          mistral:  '[INST] input + 引导语 [/INST]',
+                          qwen:     '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',
+                          deepseek: '<｜User｜>input<｜Assistant｜>引导语',
+                          llama3:   '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n引导语',
+                          mistral:  '[INST] input [/INST]引导语',
                         }[chatTemplate as 'qwen' | 'deepseek' | 'llama3' | 'mistral']
                     }
                   </code>

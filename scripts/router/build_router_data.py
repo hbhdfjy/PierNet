@@ -86,9 +86,20 @@ CHAT_TEMPLATES: dict[str, dict[str, str]] = {
 }
 
 
-def _apply_chat_template(content: str, tmpl: dict[str, str]) -> str:
-    """将 content 包裹进 chat template，返回完整 context 字符串。"""
-    return tmpl["user_prefix"] + content + tmpl["user_suffix"] + tmpl["assistant_prefix"]
+def _apply_chat_template(user_content: str, assistant_content: str, tmpl: dict[str, str]) -> str:
+    """
+    将 user/assistant 内容包裹进 chat template，返回完整 context 字符串。
+
+    结构：user_prefix + user_content + user_suffix + assistant_prefix + assistant_content
+    路由器在 assistant_content 末尾做分类决策。
+    """
+    return (
+        tmpl["user_prefix"]
+        + user_content
+        + tmpl["user_suffix"]
+        + tmpl["assistant_prefix"]
+        + assistant_content
+    )
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -172,19 +183,18 @@ def _build_samples_from_file(
                 "chat_template": chat_tmpl.get("_name", "plain"),
             }
 
-            # 正样本（1条）：input + trigger_prefix，包裹 chat template
-            pos_content = input_text + trigger_prefix
+            # 正样本（1条）：user=input，assistant=trigger_prefix（引导语开头）
             samples.append({
-                "context": _apply_chat_template(pos_content, chat_tmpl),
+                "context": _apply_chat_template(input_text, trigger_prefix, chat_tmpl),
                 "label": 1,
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条，截断位置各不相同）
+            # 负样本（neg_ratio 条）：user=input 随机截断，assistant 为空
             for _ in range(neg_ratio):
-                neg_content = _random_truncation(input_text, rng)
+                neg_user = _random_truncation(input_text, rng)
                 samples.append({
-                    "context": _apply_chat_template(neg_content, chat_tmpl),
+                    "context": _apply_chat_template(neg_user, "", chat_tmpl),
                     "label": 0,
                     "metadata": {**base_meta, "trigger_prefix": ""},
                 })
