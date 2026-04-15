@@ -335,29 +335,33 @@ export default function RouterDataBuilder() {
               )}
               {/* 预览 */}
               {(() => {
-                const previews = chatTemplate === 'custom'
+                type TmplPreviews = { pos: string; negA: string; negB: string }
+                const previews: TmplPreviews = chatTemplate === 'custom'
                   ? {
-                      pos: `${userPrefix}input${userSuffix}${assistantPrefix}引导语`,
-                      neg: `${userPrefix}截断的input`,
+                      pos:  `${userPrefix}input${userSuffix}${assistantPrefix}引导语`,
+                      negA: `${userPrefix}截断的input`,
+                      negB: `${userPrefix}input${userSuffix}${assistantPrefix}截断的引导语`,
                     }
-                  : {
-                      qwen:     { pos: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',     neg: '<|im_start|>user\n截断的input' },
-                      chatml:   { pos: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',     neg: '<|im_start|>user\n截断的input' },
-                      deepseek: { pos: '<｜User｜>input<｜Assistant｜>引导语',                                  neg: '<｜User｜>截断的input' },
-                      llama3:   { pos: '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n引导语', neg: '<|start_header_id|>user<|end_header_id|>\n\n截断的input' },
-                      mistral:  { pos: '[INST] input [/INST]引导语',                                           neg: '[INST] 截断的input' },
-                    }[chatTemplate as 'qwen' | 'chatml' | 'deepseek' | 'llama3' | 'mistral']
-                const pos = typeof previews === 'object' && 'pos' in previews ? previews.pos : ''
-                const neg = typeof previews === 'object' && 'neg' in previews ? previews.neg : ''
+                  : ({
+                      qwen:     { pos: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',     negA: '<|im_start|>user\n截断的input',     negB: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n截断的引导语' },
+                      chatml:   { pos: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n引导语',     negA: '<|im_start|>user\n截断的input',     negB: '<|im_start|>user\ninput<|im_end|>\n<|im_start|>assistant\n截断的引导语' },
+                      deepseek: { pos: '<｜User｜>input<｜Assistant｜>引导语',                                  negA: '<｜User｜>截断的input',             negB: '<｜User｜>input<｜Assistant｜>截断的引导语' },
+                      llama3:   { pos: '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n引导语', negA: '<|start_header_id|>user<|end_header_id|>\n\n截断的input', negB: '<|start_header_id|>user<|end_header_id|>\n\ninput<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n截断的引导语' },
+                      mistral:  { pos: '[INST] input [/INST]引导语',                                           negA: '[INST] 截断的input',               negB: '[INST] input [/INST]截断的引导语' },
+                    } as Record<string, TmplPreviews>)[chatTemplate] ?? { pos: '', negA: '', negB: '' }
                 return (
                   <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30 space-y-2">
                     <div>
                       <span className="text-xs text-emerald-600 block mb-0.5">正样本（label=1）</span>
-                      <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{pos}</code>
+                      <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{previews.pos}</code>
                     </div>
                     <div className="border-t border-slate-700/30 pt-2">
-                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）</span>
-                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{neg}</code>
+                      <span className="text-xs text-slate-600 block mb-0.5">负样本 A — user 轮次内截断（label=0）</span>
+                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{previews.negA}</code>
+                    </div>
+                    <div className="border-t border-slate-700/30 pt-2">
+                      <span className="text-xs text-slate-600 block mb-0.5">负样本 B — assistant 引导语中截断（label=0）</span>
+                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{previews.negB}</code>
                     </div>
                   </div>
                 )

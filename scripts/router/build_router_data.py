@@ -94,13 +94,26 @@ def _apply_chat_template_pos(input_text: str, trigger_prefix: str, tmpl: dict[st
     )
 
 
-def _apply_chat_template_neg(truncated_input: str, tmpl: dict[str, str]) -> str:
+def _apply_chat_template_neg_in_user(truncated_input: str, tmpl: dict[str, str]) -> str:
     """
-    负样本：input 在 user 轮次内部被截断，对话尚未结束。
+    负样本（类型A）：在 user 轮次内部截断，对话尚未结束。
     结构：user_prefix + 截断的input
-    不加 user_suffix / assistant_prefix，因为 user 还没说完。
     """
     return tmpl["user_prefix"] + truncated_input
+
+
+def _apply_chat_template_neg_in_assistant(input_text: str, truncated_prefix: str, tmpl: dict[str, str]) -> str:
+    """
+    负样本（类型B）：input 完整，assistant 已开始回复但在引导语中间截断。
+    结构：user_prefix + input + user_suffix + assistant_prefix + 截断的引导语
+    """
+    return (
+        tmpl["user_prefix"]
+        + input_text
+        + tmpl["user_suffix"]
+        + tmpl["assistant_prefix"]
+        + truncated_prefix
+    )
 
 
 # ── 工具函数 ──────────────────────────────────────────────────────
@@ -191,13 +204,25 @@ def _build_samples_from_file(
                 "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
             })
 
-            # 负样本（neg_ratio 条）：input 在 user 轮次内截断，不闭合对话轮次
-            for _ in range(neg_ratio):
-                neg_user = _random_truncation(input_text, rng)
+            # 负样本（neg_ratio 条）：两种截断类型交替，均匀覆盖两种场景
+            #   类型A（偶数轮）：在 user 轮次内截断 input
+            #   类型B（奇数轮）：input 完整，assistant 已开始但在引导语中间截断
+            # trigger_prefix 较短时（<4字符）退化为纯类型A
+            can_truncate_prefix = len(trigger_prefix) >= 4
+            for k in range(neg_ratio):
+                use_type_b = can_truncate_prefix and (k % 2 == 1)
+                if use_type_b:
+                    truncated = _random_truncation(trigger_prefix, rng)
+                    context = _apply_chat_template_neg_in_assistant(input_text, truncated, chat_tmpl)
+                    neg_type = "assistant_truncated"
+                else:
+                    truncated = _random_truncation(input_text, rng)
+                    context = _apply_chat_template_neg_in_user(truncated, chat_tmpl)
+                    neg_type = "user_truncated"
                 samples.append({
-                    "context": _apply_chat_template_neg(neg_user, chat_tmpl),
+                    "context": context,
                     "label": 0,
-                    "metadata": {**base_meta, "trigger_prefix": ""},
+                    "metadata": {**base_meta, "trigger_prefix": "", "neg_type": neg_type},
                 })
 
             source_processed += 1
