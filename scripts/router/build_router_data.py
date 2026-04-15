@@ -145,25 +145,15 @@ def _apply_chat_template_neg(
         # 极端情况：内容为空，直接截一半
         return full[: max(1, n // 2)], "user_truncated"
 
-    # 在合法区间内优先选标点/空格处截断
-    boundary_chars = set("。！？，；,.!? \t\n")
-    candidates = [
-        i + 1
-        for lo, hi in valid_ranges
-        for i in range(lo, hi)
-        if full[i] in boundary_chars
-    ]
-    if candidates:
-        pos = rng.choice(candidates)
-    else:
-        # 无标点则在合法区间内均匀随机
-        total = sum(hi - lo for lo, hi in valid_ranges)
-        r = rng.randint(0, total - 1)
-        for lo, hi in valid_ranges:
-            if r < hi - lo:
-                pos = lo + r
-                break
-            r -= hi - lo
+    # 在合法区间内按字符位置均匀随机截断
+    total = sum(hi - lo for lo, hi in valid_ranges)
+    r = rng.randint(0, total - 1)
+    pos = valid_ranges[0][0]  # 兜底初始值
+    for lo, hi in valid_ranges:
+        if r < hi - lo:
+            pos = lo + r
+            break
+        r -= hi - lo
 
     neg_type = "user_truncated" if pos <= input_end else "assistant_truncated"
     return full[:pos], neg_type
