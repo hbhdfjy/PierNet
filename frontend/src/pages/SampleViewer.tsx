@@ -39,7 +39,7 @@ export default function SampleViewer() {
   const totalPages = samplesData ? Math.ceil(samplesData.total / PAGE_SIZE) : 0
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="page-shell">
       {/* 页头 */}
       <div className="page-header flex-shrink-0">
         <div className="flex items-center gap-2.5">
@@ -58,7 +58,7 @@ export default function SampleViewer() {
       </div>
       <div className="flex-1 flex overflow-hidden">
       {/* ── 左侧场景列表 ── */}
-      <div className="w-52 flex-shrink-0 border-r border-slate-700/40 overflow-y-auto bg-slate-900/40 flex flex-col">
+      <div className="page-rail w-52">
         <div className="px-4 py-3 border-b border-slate-700/40 flex-shrink-0">
           <div className="label">数据集</div>
         </div>
@@ -106,9 +106,9 @@ export default function SampleViewer() {
       </div>
 
       {/* ── 右侧主区域 ── */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="page-content">
         {/* 工具栏 */}
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-slate-700/40 bg-slate-900/20 flex-shrink-0">
+        <div className="toolbar-strip flex items-center gap-2 px-3 py-2">
           <Filter size={12} className="text-slate-600 flex-shrink-0" />
           <select
             className="select text-xs py-1 px-2 w-24 h-7"

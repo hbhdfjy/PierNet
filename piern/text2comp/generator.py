@@ -1558,27 +1558,27 @@ class LLMTextGenerator:
             return i, None
 
         results_map: dict[int, TemplateRecord] = {}
-        done_count = 0
+        written_count = 0
 
         if self.max_workers <= 1:
-            for i in tqdm(range(n_templates), desc=f"生成模板 {simulator}/{scenario_name}"):
+            for i in tqdm(range(n_templates), desc=f"???? {simulator}/{scenario_name}"):
                 _, tmpl = _task(i)
                 if tmpl is not None:
                     results_map[i] = tmpl
-                done_count += 1
+                    written_count += 1
                 if progress_callback is not None:
-                    progress_callback(done_count)
+                    progress_callback(written_count)
         else:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
                 futures = {executor.submit(_task, i): i for i in range(n_templates)}
-                with tqdm(total=n_templates, desc=f"生成模板 {simulator}/{scenario_name}") as pbar:
+                with tqdm(total=n_templates, desc=f"???? {simulator}/{scenario_name}") as pbar:
                     for future in as_completed(futures):
                         i, tmpl = future.result()
                         if tmpl is not None:
                             results_map[i] = tmpl
+                            written_count += 1
                         pbar.update(1)
-                        done_count += 1
                         if progress_callback is not None:
-                            progress_callback(done_count)
+                            progress_callback(written_count)
 
         return [results_map[i] for i in range(n_templates) if i in results_map]

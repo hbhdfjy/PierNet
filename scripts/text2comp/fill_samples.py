@@ -215,10 +215,10 @@ def run_fill_samples(
                     sample = fill_sample(template, p, ts_obs, sample_idx=d_idx, output_info=output_info_list, precision=precision)
                     fout.write(json.dumps(sample, ensure_ascii=False) + "\n")
                     written += 1
-                    # 每 50 条上报一次进度（以处理轮次 i+1 为分子，与 total=n 对齐）
-                    if on_progress and (i + 1) % 50 == 0 and (i + 1) != last_reported:
-                        on_progress(scenario_name, i + 1)
-                        last_reported = i + 1
+                    # Report progress by actual writes, not attempts
+                    if on_progress and written % 50 == 0 and written != last_reported:
+                        on_progress(scenario_name, written)
+                        last_reported = written
                 except Exception as e:
                     logger.warning(f"样本 {i} 填充失败: {e}")
                     skipped += 1
@@ -234,9 +234,9 @@ def run_fill_samples(
             else:
                 logger.info(f"  {scenario_name}: 跳过 {nan_skipped} 个 NaN/Inf 样本")
 
-        # 最终进度：上报 n（总轮次）让前端进度条到达 100%；实际写入数在日志中体现
+        # Final progress reflects actual writes
         if on_progress:
-            on_progress(scenario_name, n)
+            on_progress(scenario_name, written)
         _log(f"  已写入 {written} 条，跳过 {skipped} 条 → {out_path.name}")
         stats["total"] += written
         stats[simulator] += written
@@ -245,10 +245,14 @@ def run_fill_samples(
     # 合并所有 JSONL
     output_file = cfg.get("output_file", "all_training_data.jsonl")
     merged_path = out_dir / output_file
-    _log(f"\n[合并] 正在合并 {len(all_jsonl)} 个场景文件 → {merged_path.name} …")
+    scenario_files = [
+        p for p in sorted(out_dir.glob("*.jsonl"))
+        if p.name != output_file
+    ]
+    _log(f"\n[??] ???? {len(scenario_files)} ????? ? {merged_path.name} ?")
     total_merged = 0
     with open(merged_path, "w", encoding="utf-8") as fout:
-        for jl_path in all_jsonl:
+        for jl_path in scenario_files:
             if not jl_path.exists():
                 continue
             with open(jl_path, "r", encoding="utf-8") as fin:
@@ -258,13 +262,13 @@ def run_fill_samples(
                         fout.write(line + "\n")
                         total_merged += 1
 
-    _log(f"[合并] 完成，共 {total_merged} 条")
+    _log(f"[??] ???? {total_merged} ?")
     _log("\n" + "=" * 60)
-    _log("阶段二完成")
+    _log("?????")
     _log("=" * 60)
-    _log(f"总样本数:    {stats['total']}")
-    _log(f"合并文件:    {merged_path}  ({total_merged} 条)")
-    _log(f"\n按 simulator:")
+    _log(f"????:    {stats['total']}")
+    _log(f"????:    {merged_path}  ({total_merged} ?)")
+    _log(f"\n? simulator:")
     for sim, cnt in sorted(stats.items()):
         if sim != "total":
             _log(f"  {sim:20s}: {cnt}")

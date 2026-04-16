@@ -12,7 +12,7 @@ from piern.api.deps import DATA_DIR
 router = APIRouter()
 
 _stats_cache: Optional[dict] = None
-_stats_cache_mtime: float = 0.0
+_stats_cache_key: tuple = ()
 
 
 @router.get("/datasets")
@@ -124,28 +124,31 @@ def get_samples(
         raise HTTPException(500, f"读取 JSONL 失败: {e}")
 
 
+def _stats_snapshot_key() -> tuple:
+    if not DATA_DIR.exists():
+        return ()
+
+    snapshot = []
+    for f in sorted(DATA_DIR.glob("*.jsonl")):
+        if f.name == "all_training_data.jsonl":
+            continue
+        stat = f.stat()
+        snapshot.append((f.name, stat.st_size, stat.st_mtime_ns))
+    return tuple(snapshot)
+
+
 @router.get("/stats")
 def get_stats():
-    """统计各场景 JSONL 文件的样本分布（始终从独立文件汇总，忽略 all_training_data.jsonl）。"""
-    global _stats_cache, _stats_cache_mtime
+    """????? JSONL ???????????????????? all_training_data.jsonl??"""
+    global _stats_cache, _stats_cache_key
 
-    # 用所有独立 JSONL 文件的最新 mtime 作为缓存 key
-    if DATA_DIR.exists():
-        mtimes = [
-            f.stat().st_mtime
-            for f in DATA_DIR.glob("*.jsonl")
-            if f.name != "all_training_data.jsonl"
-        ]
-        latest_mtime = max(mtimes) if mtimes else 0.0
-    else:
-        latest_mtime = 0.0
-
-    if _stats_cache is not None and latest_mtime <= _stats_cache_mtime:
+    snapshot_key = _stats_snapshot_key()
+    if _stats_cache is not None and snapshot_key == _stats_cache_key:
         return _stats_cache
 
     stats = _compute_stats_from_individual()
     _stats_cache = stats
-    _stats_cache_mtime = latest_mtime
+    _stats_cache_key = snapshot_key
     return stats
 
 

@@ -25,7 +25,7 @@ function SampleCard({ sample, index }: { sample: RouterSample; index: number }) 
       'card overflow-hidden border-l-2',
       isPos ? 'border-l-emerald-500' : 'border-l-slate-600',
     )}>
-      <div className="px-4 py-2.5 flex items-center gap-3 border-b border-slate-700/40">
+      <div className="accordion-card-header px-4 py-2.5 flex items-center gap-3 border-b border-slate-700/40">
         <span className={cn(
           'badge border text-xs font-bold',
           isPos
@@ -93,7 +93,7 @@ export default function RouterViewer() {
   const totalPages = samplesResp ? Math.ceil(samplesResp.total / PAGE_SIZE) : 0
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="page-shell">
 
       {/* 页头 */}
       <div className="page-header flex-shrink-0">
@@ -115,7 +115,7 @@ export default function RouterViewer() {
       <div className="flex-1 flex overflow-hidden">
 
         {/* ── 左侧场景列表 ── */}
-        <div className="w-52 flex-shrink-0 border-r border-slate-700/40 overflow-y-auto bg-slate-900/40 flex flex-col">
+        <div className="page-rail w-52">
           <div className="px-4 py-3 border-b border-slate-700/40 flex-shrink-0">
             <div className="label">场景</div>
           </div>
@@ -165,7 +165,7 @@ export default function RouterViewer() {
         </div>
 
         {/* ── 右侧内容 ── */}
-        <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="page-content">
 
           {!hasRouterData && !sLoading && (
             <div className="flex-1 flex items-center justify-center">
@@ -180,7 +180,7 @@ export default function RouterViewer() {
           {hasRouterData && (
             <>
               {/* 工具栏 */}
-              <div className="flex-shrink-0 flex items-center gap-3 px-4 py-2.5 border-b border-slate-700/40 flex-wrap">
+              <div className="toolbar-strip flex items-center gap-3 px-4 py-2.5 flex-wrap">
                 {/* Label 筛选 */}
                 <div className="flex rounded-lg overflow-hidden border border-slate-700/50">
                   {([[-1, '全部'], [1, 'label=1 专家'], [0, 'label=0 LLM']] as const).map(([v, lbl]) => (

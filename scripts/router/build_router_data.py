@@ -34,6 +34,7 @@ Router 推理时永远看到完整 input，截断只发生在 assistant 侧引�
 import argparse
 import json
 import random
+import sys
 from pathlib import Path
 
 
@@ -263,24 +264,23 @@ def main():
     scenario_dir = output_dir / "by_scenario"
 
     if not data_dir.exists():
-        print(f"[错误] 数据目录不存在：{data_dir}")
-        return
+        print(f"[??] ????????{data_dir}")
+        raise SystemExit(1)
 
     jsonl_files = sorted(
         f for f in data_dir.glob("*.jsonl")
         if f.name != "all_training_data.jsonl"
     )
     if not jsonl_files:
-        print(f"[错误] {data_dir} 中没有找到 JSONL 文件")
-        return
+        print(f"[??] {data_dir} ????? JSONL ??")
+        raise SystemExit(1)
 
-    # 按场景过滤
     if args.scenarios:
         scenario_set = set(args.scenarios)
         jsonl_files = [f for f in jsonl_files if f.stem in scenario_set]
         if not jsonl_files:
-            print(f"[错误] 指定的场景均未找到：{args.scenarios}")
-            return
+            print(f"[??] ??????????{args.scenarios}")
+            raise SystemExit(1)
 
     print(f"[Router 数据生成] 扫描到 {len(jsonl_files)} 个场景文件")
 
@@ -329,10 +329,9 @@ def main():
         processed_scenarios.add(scenario_name)
 
     if not new_samples:
-        print("[警告] 没有生成任何样本。Stage 3 数据需使用新版 target_template 格式（{output_0} 前有引导语）。")
-        return
+        print("[??] ????? router ???Stage 3 ??????? target_template ???{output_0} ???????")
+        raise SystemExit(1)
 
-    # 部分生成时：读取其他已有场景的独立文件，合并后重新划分
     all_samples: list[dict] = list(new_samples)
     if scenario_dir.exists():
         for existing_file in sorted(scenario_dir.glob("*.jsonl")):

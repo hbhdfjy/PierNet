@@ -5,6 +5,28 @@ from piern.api.deps import TEMPLATES_DIR, DATA_DIR
 from piern.api.schemas.jobs import TemplateFileInfo, SampleFileInfo
 
 
+def _rewrite_merged_samples() -> None:
+    if not DATA_DIR.exists():
+        return
+
+    merged_path = DATA_DIR / "all_training_data.jsonl"
+    scenario_files = [
+        f for f in sorted(DATA_DIR.glob("*.jsonl"))
+        if f.name != merged_path.name
+    ]
+
+    with open(merged_path, "w", encoding="utf-8") as fout:
+        for path in scenario_files:
+            try:
+                with open(path, "r", encoding="utf-8") as fin:
+                    for line in fin:
+                        line = line.strip()
+                        if line:
+                            fout.write(line + "\n")
+            except Exception:
+                continue
+
+
 def list_template_files() -> list[TemplateFileInfo]:
     """扫描 data/templates/ 目录，返回各场景的模板文件信息。"""
     if not TEMPLATES_DIR.exists():
@@ -45,7 +67,7 @@ def list_sample_files() -> list[SampleFileInfo]:
 
 
 def delete_template_file(scenario: str) -> bool:
-    """删除指定场景的模板文件，返回是否成功。"""
+    """???????????????????"""
     f = TEMPLATES_DIR / f"{scenario}_templates.jsonl"
     if not f.exists():
         return False
@@ -54,11 +76,12 @@ def delete_template_file(scenario: str) -> bool:
 
 
 def delete_sample_file(scenario: str) -> bool:
-    """删除指定场景的样本文件，返回是否成功。"""
+    """???????????????????"""
     f = DATA_DIR / f"{scenario}.jsonl"
     if not f.exists():
         return False
     f.unlink()
+    _rewrite_merged_samples()
     return True
 
 
@@ -83,6 +106,7 @@ def clear_all_samples() -> int:
             continue
         f.unlink()
         count += 1
+    _rewrite_merged_samples()
     return count
 
 

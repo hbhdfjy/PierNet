@@ -1,6 +1,7 @@
 """Stage 4 Token Router 数据路由：/api/router/*"""
 
 import json
+import random
 import subprocess
 import sys
 import threading
@@ -27,7 +28,38 @@ def _count_lines(path: Path) -> int:
         return 0
 
 
-# ── 状态查询 ──────────────────────────────────────────────────────
+def _load_jsonl_samples(path: Path) -> list[dict]:
+    samples: list[dict] = []
+    if not path.exists():
+        return samples
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if line:
+                samples.append(json.loads(line))
+    return samples
+
+
+def _rewrite_train_from_scenarios(seed: int = 0) -> int:
+    ROUTER_DIR.mkdir(parents=True, exist_ok=True)
+    SCENARIO_DIR.mkdir(parents=True, exist_ok=True)
+
+    samples: list[dict] = []
+    for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
+        try:
+            samples.extend(_load_jsonl_samples(path))
+        except Exception:
+            continue
+
+    rng = random.Random(seed)
+    rng.shuffle(samples)
+
+    out_path = ROUTER_DIR / "train.jsonl"
+    with open(out_path, "w", encoding="utf-8") as f:
+        for sample in samples:
+            f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+    return len(samples)
+
 
 @router.get("/router/status")
 def get_router_status():
@@ -117,11 +149,18 @@ def get_router_status():
     # 合并：以 Stage 3 场景为基础，附加 Router 已生成的条数
     scenario_map = {s["scenario"]: s for s in source_scenarios}
     for sc in scenarios:
-        if sc["scenario"] in scenario_map:
-            scenario_map[sc["scenario"]]["router_count"] = sc["count"]
-            scenario_map[sc["scenario"]]["file_size_bytes"] = sc["file_size_bytes"]
-            scenario_map[sc["scenario"]]["mtime"] = sc["mtime"]
-    merged_scenarios = list(scenario_map.values())
+        entry = scenario_map.setdefault(sc["scenario"], {
+            "scenario": sc["scenario"],
+            "simulator": sc.get("simulator", "unknown"),
+            "source_count": 0,
+        })
+        if entry.get("simulator", "unknown") == "unknown":
+            entry["simulator"] = sc.get("simulator", "unknown")
+        entry["router_count"] = sc["count"]
+        entry["file_size_bytes"] = sc["file_size_bytes"]
+        entry["mtime"] = sc["mtime"]
+    merged_scenarios = sorted(scenario_map.values(), key=lambda item: item["scenario"])
+
 
     return {
         "splits": splits,
@@ -140,20 +179,20 @@ def get_router_status():
 async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
-    scenarios: str = Query(""),        # 逗号分隔的场景名，空=全部
-    chat_template: str = Query("custom"),  # chat template 类型
-    user_prefix: str = Query(""),      # 自定义 template 前缀
-    user_suffix: str = Query(""),      # 自定义 template 后缀
-    assistant_prefix: str = Query(""), # 自定义 assistant 前缀
+    scenarios: str = Query(""),        # ??????????=??
+    chat_template: str = Query("custom"),  # chat template ??
+    user_prefix: str = Query(""),      # ??? template ??
+    user_suffix: str = Query(""),      # ??? template ??
+    assistant_prefix: str = Query(""), # ??? assistant ??
 ):
-    """触发 Stage 4 Router 数据生成，返回 job_id 供 SSE 监听。"""
+    """?? Stage 4 Router ??????? job_id ? SSE ???"""
     record = job_manager.create_job("router")
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
 
     def _run():
         try:
-            sc_desc = f"场景：{', '.join(scenario_list)}" if scenario_list else "全部场景"
-            publish(record, {"type": "log", "line": f"[Stage 4] 开始生成 Token Router 训练数据（{sc_desc}，template={chat_template}）…", "ts": time.time()})
+            sc_desc = f"???{', '.join(scenario_list)}" if scenario_list else "????"
+            publish(record, {"type": "log", "line": f"[Stage 4] ???? Token Router ?????{sc_desc}?template={chat_template}??", "ts": time.time()})
             script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
             cmd = [
                 sys.executable, str(script),
@@ -172,10 +211,16 @@ async def build_router_data(
             if scenario_list:
                 cmd += ["--scenarios"] + scenario_list
             proc = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                text=True, cwd=str(PROJECT_ROOT),
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+                cwd=str(PROJECT_ROOT),
+                start_new_session=True,
             )
             record.proc = proc
+            record.proc_uses_process_group = True
 
             scenario_totals: dict[str, int] = {}
 
@@ -184,7 +229,6 @@ async def build_router_data(
                 if not line:
                     continue
 
-                # PROGRESS_INIT:场景名:预期总条数 — 初始化进度
                 if line.startswith("PROGRESS_INIT:"):
                     parts = line.split(":", 2)
                     if len(parts) == 3:
@@ -202,18 +246,17 @@ async def build_router_data(
                         })
                         publish(record, {
                             "type": "log",
-                            "line": f"[场景] {sc_name}（预计 {total} 条）",
+                            "line": f"[??] {sc_name}??? {total} ??",
                             "ts": time.time(),
                         })
                     continue
 
-                # PROGRESS_UPDATE:场景名:当前条数:预期总条数 — 中间进度
                 if line.startswith("PROGRESS_UPDATE:"):
                     parts = line.split(":", 3)
                     if len(parts) == 4:
                         sc_name = parts[1]
                         try:
-                            done  = int(parts[2])
+                            done = int(parts[2])
                             total = int(parts[3])
                         except ValueError:
                             done, total = 0, 0
@@ -225,13 +268,12 @@ async def build_router_data(
                         })
                     continue
 
-                # PROGRESS_DONE:场景名:实际条数:预期条数 — 场景完成
                 if line.startswith("PROGRESS_DONE:"):
                     parts = line.split(":", 3)
                     if len(parts) >= 3:
                         sc_name = parts[1]
                         try:
-                            done  = int(parts[2])
+                            done = int(parts[2])
                             total = int(parts[3]) if len(parts) == 4 else scenario_totals.get(sc_name, done)
                         except ValueError:
                             done, total = 0, 0
@@ -243,37 +285,41 @@ async def build_router_data(
                         })
                     continue
 
-                # 普通日志行
                 publish(record, {"type": "log", "line": line, "ts": time.time()})
 
             proc.wait()
-            if record.stop_event.is_set():
-                pass
-            elif proc.returncode == 0:
-                record.status = "done"
-                publish(record, {"type": "done", "ts": time.time(), "message": "Router 数据生成完成"})
-            else:
-                record.status = "error"
-                publish(record, {"type": "error", "ts": time.time(), "message": f"脚本退出码 {proc.returncode}"})
         except Exception as e:
             if not record.stop_event.is_set():
                 record.status = "error"
                 publish(record, {"type": "error", "ts": time.time(), "message": str(e)})
+            return
+        finally:
+            record.proc = None
+            record.proc_uses_process_group = False
+
+        if record.stop_event.is_set():
+            return
+
+        if proc.returncode == 0:
+            record.status = "done"
+            publish(record, {"type": "done", "ts": time.time(), "message": "Router ??????"})
+        else:
+            record.status = "error"
+            publish(record, {"type": "error", "ts": time.time(), "message": f"????? {proc.returncode}"})
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": record.job_id, "status": "running"}
 
 
-# ── 文件管理 ──────────────────────────────────────────────────────
-
 @router.delete("/router/scenario/{scenario}")
 def delete_router_scenario(scenario: str):
-    """删除指定场景的路由数据文件（by_scenario/{scenario}.jsonl）。"""
+    """??????????????by_scenario/{scenario}.jsonl??????? train.jsonl?"""
     path = SCENARIO_DIR / f"{scenario}.jsonl"
     if not path.exists():
-        return {"ok": False, "message": "文件不存在"}
+        return {"ok": False, "message": "?????"}
     path.unlink()
-    return {"ok": True}
+    total = _rewrite_train_from_scenarios(seed=0)
+    return {"ok": True, "train_count": total}
 
 
 @router.delete("/router/all")

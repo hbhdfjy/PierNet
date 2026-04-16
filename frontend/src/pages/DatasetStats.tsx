@@ -275,7 +275,7 @@ export default function DatasetStats() {
   const loading = sLoading || dLoading
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="page-shell">
 
       {/* 页头 */}
       <div className="page-header flex-shrink-0">
@@ -297,7 +297,7 @@ export default function DatasetStats() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+      <div className="page-content overflow-y-auto p-6 space-y-6">
 
         {/* 加载中 */}
         {loading && !stats && (
@@ -460,10 +460,10 @@ export default function DatasetStats() {
                         {(routerStatus.source_by_scenario[sc.scenario] ?? 0).toLocaleString()}
                       </td>
                       <td className="px-5 py-3 text-right tabular-nums text-slate-400">
-                        {formatBytes(sc.file_size_bytes)}
+                        {formatBytes(sc.file_size_bytes ?? 0)}
                       </td>
                       <td className="px-5 py-3 text-right text-slate-500">
-                        {new Date(sc.mtime * 1000).toLocaleString('zh-CN')}
+                        {sc.mtime ? new Date(sc.mtime * 1000).toLocaleString('zh-CN') : '-'}
                       </td>
                     </tr>
                   ))}

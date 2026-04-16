@@ -1,9 +1,11 @@
 """Stage 1 物理仿真路由：场景扫描、单场景/批量仿真、历史记录。"""
 
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from collections import deque
 from concurrent.futures import ThreadPoolExecutor
@@ -185,9 +187,66 @@ def _get_run_pipeline(simulator: str):
     return run_pipeline
 
 
+def _resolve_config_path(config_path: str) -> Path:
+    cfg_path = Path(config_path)
+    return cfg_path if cfg_path.is_absolute() else PROJECT_ROOT / cfg_path
+
+
+def _resolve_output_h5_path(config_path: str, simulator: str) -> Optional[Path]:
+    cfg_path = _resolve_config_path(config_path)
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        return None
+
+    output_file = cfg.get("output_file")
+    if not output_file:
+        return None
+
+    output_dir_str = cfg.get("output_dir")
+    if output_dir_str:
+        return PROJECT_ROOT / output_dir_str / output_file
+    return PROJECT_ROOT / "data" / simulator / output_file
+
+
+def _prepare_runtime_config(req: SimulateRequest) -> tuple[str, Optional[Path]]:
+    cfg_path = _resolve_config_path(req.config_path)
+    try:
+        with open(cfg_path, "r", encoding="utf-8") as f:
+            cfg = yaml.safe_load(f) or {}
+    except Exception:
+        return str(cfg_path), None
+
+    if int(cfg.get("seed", req.seed)) == req.seed:
+        return str(cfg_path), None
+
+    cfg["seed"] = req.seed
+    tmp_dir = PROJECT_ROOT / ".runlogs" / "tmp_configs"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(
+        prefix=f"{req.simulator}_{req.scenario}_",
+        suffix=".yaml",
+        dir=str(tmp_dir),
+    )
+    os.close(fd)
+    tmp_path = Path(tmp_name)
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
+    return str(tmp_path), tmp_path
+
+
+def _cleanup_runtime_config(tmp_cfg_path: Optional[Path]) -> None:
+    if tmp_cfg_path is None:
+        return
+    try:
+        tmp_cfg_path.unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """运行单个场景仿真，返回是否成功。"""
-    # 发 init 事件，让前端进度环知道总量
+    """????????????????"""
     publish(record, {
         "type": "init",
         "scenario_totals": {req.scenario: req.n_samples},
@@ -195,25 +254,37 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
     })
     publish(record, {
         "type": "log",
-        "line": f"[仿真] {req.simulator}/{req.scenario}  n={req.n_samples}" +
-                (f"  [{req.max_workers}核并行]" if req.parallel else "") +
-                ("  [跳过已有]" if req.skip_existing else ""),
+        "line": f"[??] {req.simulator}/{req.scenario}  n={req.n_samples}" +
+                (f"  [{req.max_workers}???]" if req.parallel else "") +
+                ("  [????]" if req.skip_existing else ""),
         "ts": time.time(),
     })
 
+    if req.skip_existing:
+        h5_path = _resolve_output_h5_path(req.config_path, req.simulator)
+        if h5_path is not None and h5_path.exists():
+            existing_count, _, _ = _read_h5_info(h5_path)
+            if existing_count > 0:
+                publish(record, {
+                    "type": "log",
+                    "line": f"[??] {req.scenario} ??? {existing_count} ????{h5_path}",
+                    "ts": time.time(),
+                })
+                history_entry["final_sample_count"] = existing_count
+                _finalize_history(record, req, history_entry, True)
+                return True
+
     if req.parallel:
-        # 并行模式：直接在当前线程调用 run_pipeline，避免 spawn+PIPE 死锁
         return _run_in_process_direct(record, req, history_entry)
-    else:
-        # 非并行模式：subprocess，保留实时日志流
-        return _run_via_subprocess(record, req, history_entry)
+    return _run_via_subprocess(record, req, history_entry)
 
 
 def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """非并行模式：用 subprocess 运行，实时转发 stdout 日志。"""
+    """??????? subprocess ??????? stdout ???"""
+    runtime_cfg_path, tmp_cfg_path = _prepare_runtime_config(req)
     cmd = [
         sys.executable, "-m", f"piern.simulators.{req.simulator}.pipeline",
-        "--config", req.config_path,
+        "--config", runtime_cfg_path,
         "--n-samples", str(req.n_samples),
     ]
     try:
@@ -223,9 +294,11 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             stderr=subprocess.STDOUT,
             text=True,
             cwd=str(PROJECT_ROOT),
+            bufsize=1,
             start_new_session=True,
         )
         record.proc = proc
+        record.proc_uses_process_group = True
 
         for line in proc.stdout:
             if record.status == "terminated":
@@ -235,10 +308,7 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             if not line:
                 continue
             event: dict = {"type": "log", "line": line, "ts": time.time()}
-            # 匹配多种进度格式：
-            #   "生成进度：42/100"  "增强进度: 42/100"
-            #   tqdm: "42/100 [00:01<...]"  或行首 "42/100"
-            m = re.search(r'(?:(?:生成|增强)进度[：:]\s*|(?:^|\s))(\d+)/(\d+)', line)
+            m = re.search(r'(?:(?:??|??)??[?:]\s*|(?:^|\s))(\d+)/(\d+)', line)
             if m:
                 done, total = int(m.group(1)), int(m.group(2))
                 if total > 0 and done <= total:
@@ -246,24 +316,25 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             publish(record, event)
 
         proc.wait()
-        record.proc = None
         success = (proc.returncode == 0) and (record.status != "terminated")
     except Exception as e:
         import traceback
-        record.proc = None
         for ln in (f"[ERROR] {e}\n" + traceback.format_exc()).splitlines():
             publish(record, {"type": "log", "line": ln, "ts": time.time()})
         success = False
+    finally:
+        record.proc = None
+        record.proc_uses_process_group = False
+        _cleanup_runtime_config(tmp_cfg_path)
 
     _finalize_history(record, req, history_entry, success)
     return success
 
 
 def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """并行模式：直接调用 run_pipeline()，通过回调接口推送结构化进度 SSE。"""
+    """????????? run_pipeline()?????????????? SSE?"""
     import logging
 
-    # 日志 handler：只转发文本日志行，不解析进度（进度由 progress_callback 负责）
     class SSEHandler(logging.Handler):
         def emit(self, lr: logging.LogRecord):
             if record.status == "terminated":
@@ -285,11 +356,12 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
             return
         publish(record, {
             "type": "log",
-            "line": f"进度：{done}/{total}",
+            "line": f"???{done}/{total}",
             "ts": time.time(),
             "progress": {"scenario": req.scenario, "done": done, "total": total},
         })
 
+    runtime_cfg_path, tmp_cfg_path = _prepare_runtime_config(req)
     success = False
     try:
         if record.status == "terminated":
@@ -297,7 +369,7 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
         import inspect
         run_pipeline = _get_run_pipeline(req.simulator)
         sig = inspect.signature(run_pipeline)
-        kwargs: dict = {"cfg_path": str(PROJECT_ROOT / req.config_path), "n_samples": req.n_samples}
+        kwargs: dict = {"cfg_path": runtime_cfg_path, "n_samples": req.n_samples}
         if "parallel" in sig.parameters:
             kwargs["parallel"] = req.parallel
         if "max_workers" in sig.parameters:
@@ -314,6 +386,7 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
     finally:
         sim_logger.removeHandler(handler)
         main_logger.removeHandler(handler)
+        _cleanup_runtime_config(tmp_cfg_path)
 
     _finalize_history(record, req, history_entry, success)
     return success
@@ -353,19 +426,20 @@ def _run_simulate(record: JobRecord, req: SimulateRequest) -> None:
 
     success = _run_one_scenario(record, req, history_entry)
     if success:
-        # 补发满进度事件，让前端进度环和「共处理 N 条」显示最终样本数
         final_count = history_entry.get("final_sample_count") or req.n_samples
         publish(record, {
             "type": "log",
-            "line": f"[完成] {req.scenario} 共 {final_count} 个样本",
+            "line": f"[??] {req.scenario} ? {final_count} ???",
             "ts": time.time(),
             "progress": {"scenario": req.scenario, "done": final_count, "total": final_count},
         })
         record.status = "done"
-        publish(record, {"type": "done", "ts": time.time(), "message": "仿真完成"})
+        publish(record, {"type": "done", "ts": time.time(), "message": "????"})
     else:
+        if record.status == "terminated":
+            return
         record.status = "error"
-        publish(record, {"type": "error", "ts": time.time(), "message": "仿真失败，请查看日志"})
+        publish(record, {"type": "error", "ts": time.time(), "message": "??????????"})
 
 
 def _run_batch_simulate(record: JobRecord, reqs: List[SimulateRequest]) -> None:

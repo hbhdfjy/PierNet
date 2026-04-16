@@ -1,4 +1,4 @@
-"""任务状态和 SSE 流路由：/api/generate/{id}/stream, status, delete。"""
+"""????? SSE ????/api/generate/{id}/stream, status, delete?"""
 
 import asyncio
 import json
@@ -12,6 +12,7 @@ from piern.api.services.job_manager import subscribe, unsubscribe
 from piern.api.schemas.jobs import JobStatusResponse
 
 router = APIRouter()
+_TERMINAL = {"done", "error", "terminated"}
 
 
 def _sse(event: dict) -> str:
@@ -21,29 +22,30 @@ def _sse(event: dict) -> str:
 @router.get("/generate/{job_id}/stream")
 async def stream_job(job_id: str):
     """
-    SSE 流。每次连接都先回放所有历史事件，再实时接收新事件。
-    刷新重连后进度完整恢复。
+    SSE ??????????????????????????
+    ????????????
     """
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"任务 {job_id} 不存在")
+        raise HTTPException(404, f"?? {job_id} ???")
 
     async def _generator():
-        # subscribe() 回放所有历史事件（含 init），再注册为订阅者
-        q = subscribe(job)
+        snapshot, q = subscribe(job)
         try:
-            # 消费 queue（历史事件已预填，新事件实时推入）
+            for event in snapshot:
+                yield _sse(event)
+                if event.get("type") in _TERMINAL:
+                    return
+
             while True:
                 try:
                     event = await asyncio.wait_for(q.get(), timeout=30.0)
                     yield _sse(event)
-                    if event.get("type") in ("done", "error", "terminated"):
+                    if event.get("type") in _TERMINAL:
                         break
                 except asyncio.TimeoutError:
-                    # 心跳保活
                     yield _sse({"type": "heartbeat", "ts": time.time()})
-                    # 若任务已结束但 queue 已空，退出
-                    if job.status in ("done", "error", "terminated") and q.empty():
+                    if job.status in _TERMINAL and q.empty():
                         yield _sse({"type": job.status, "ts": time.time()})
                         break
         finally:
@@ -60,7 +62,7 @@ async def stream_job(job_id: str):
 def get_job_status(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"任务 {job_id} 不存在")
+        raise HTTPException(404, f"?? {job_id} ???")
     return JobStatusResponse(
         job_id=job.job_id,
         status=job.status,
@@ -72,9 +74,9 @@ def get_job_status(job_id: str):
 
 @router.delete("/generate/{job_id}")
 def cancel_job(job_id: str):
-    """终止任务。"""
+    """?????"""
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"任务 {job_id} 不存在")
+        raise HTTPException(404, f"?? {job_id} ???")
     job_manager.terminate_job(job_id)
     return {"status": "terminated", "job_id": job_id}

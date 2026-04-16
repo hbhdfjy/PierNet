@@ -147,10 +147,10 @@ export default function LLMConfig() {
   const suggestions = MODEL_SUGGESTIONS[provider] ?? []
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="page-shell flex-row">
 
       {/* ── 左侧：表单 ── */}
-      <div className="flex flex-col overflow-y-auto border-r border-slate-700/40"
+      <div className="page-rail"
         style={{ width: '480px', minWidth: '400px', flexShrink: 0 }}>
         <div className="p-6 space-y-5">
 
@@ -345,7 +345,7 @@ export default function LLMConfig() {
       </div>
 
       {/* ── 右侧：测试结果 + 说明 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-6 space-y-5">
+      <div className="page-content overflow-y-auto p-6 space-y-5">
 
         {/* 测试结果卡片 */}
         {testState !== 'idle' && (

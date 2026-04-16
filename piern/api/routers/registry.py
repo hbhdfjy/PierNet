@@ -105,7 +105,7 @@ def delete_registry_entry(key: str):
 
 @router.post("/register")
 async def start_register(req: RegisterRequest):
-    """启动 auto_register 子进程，返回 job_id（复用 SSE 流机制）。"""
+    """?? auto_register ?????? job_id??? SSE ?????"""
     record = job_manager.create_job("register", {})
     job_id = record.job_id
 
@@ -132,9 +132,12 @@ async def start_register(req: RegisterRequest):
             bufsize=1,
             cwd=str(PROJECT_ROOT),
             env=os.environ.copy(),
+            start_new_session=True,
         )
+        record.proc = proc
+        record.proc_uses_process_group = True
     except FileNotFoundError as e:
-        raise HTTPException(500, f"启动子进程失败: {e}")
+        raise HTTPException(500, f"???????: {e}")
 
     def _reader():
         try:
@@ -144,23 +147,32 @@ async def start_register(req: RegisterRequest):
                     continue
                 event: dict = {"type": "log", "line": line, "ts": time.time()}
 
-                m = re.search(r"\[注册\]\s+(\S+)\s+→\s+字段组:\s+(.+)", line)
+                m = re.search(r"\[??\]\s+(\S+)\s+?\s+???:\s+(.+)", line)
                 if m:
                     event["register_progress"] = {"key": m.group(1), "fields": m.group(2)}
-                if "已保存" in line:
+                if "???" in line:
                     event["saved"] = True
 
                 publish(record, event)
         except Exception as e:
-            publish(record, {"type": "error", "message": str(e), "ts": time.time()})
+            if not record.stop_event.is_set():
+                publish(record, {"type": "error", "message": str(e), "ts": time.time()})
         finally:
-            proc.wait()
+            try:
+                proc.wait()
+            finally:
+                record.proc = None
+                record.proc_uses_process_group = False
+
+            if record.stop_event.is_set():
+                return
+
             rc = proc.returncode
             final = {
                 "type": "done" if rc == 0 else "error",
                 "return_code": rc,
                 "ts": time.time(),
-                "message": "注册完成" if rc == 0 else f"进程退出码: {rc}",
+                "message": "????" if rc == 0 else f"?????: {rc}",
             }
             publish(record, final)
             record.status = "done" if rc == 0 else "error"

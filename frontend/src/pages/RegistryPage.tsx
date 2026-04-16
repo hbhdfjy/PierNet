@@ -751,9 +751,9 @@ export default function RegistryPage() {
   const totalScenarios = Object.values(reg).reduce((s, e) => s + Object.keys(e?.scenarios ?? {}).length, 0)
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="page-shell">
       {/* 页头 */}
-      <div className="flex items-center gap-3 px-5 py-3.5 border-b border-slate-700/40 bg-slate-900/40 flex-shrink-0">
+      <div className="page-header">
         <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
           <FileText size={14} className="text-sky-400" />
         </div>
@@ -770,7 +770,7 @@ export default function RegistryPage() {
       </div>
 
       {/* 列表 */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="page-content overflow-y-auto p-4 space-y-3">
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
             <RefreshCw size={15} className="animate-spin" /><span>加载注册信息…</span>

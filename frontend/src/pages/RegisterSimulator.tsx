@@ -506,7 +506,7 @@ export default function RegisterSimulator() {
   const { mutate: mutateRegistry } = useSWR('registry', () => api.getRegistry(), { revalidateOnFocus: false })
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="page-shell">
       <InterviewPanel onRegistryUpdate={() => mutateRegistry()} />
     </div>
   )

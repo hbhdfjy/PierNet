@@ -178,15 +178,15 @@ export default function RouterDataBuilder() {
     || monitor.status === 'error' || monitor.status === 'terminated'
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="workbench-shell">
 
       {/* ── 左栏 ── */}
       <div
-        className="flex flex-col overflow-hidden border-r border-slate-700/40 flex-shrink-0"
+        className="workbench-sidebar"
         style={{ width: sidebarWidth }}
       >
         {/* 页头（固定）*/}
-        <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-slate-700/30">
+        <div className="workbench-sidebar-header">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-rose-500/20 border border-rose-500/30 flex items-center justify-center flex-shrink-0">
@@ -251,7 +251,7 @@ export default function RouterDataBuilder() {
             )}
             {Object.entries(grouped).map(([sim, items]) => (
               <div key={sim}>
-                <div className="label mb-2 text-sm">{SIMULATOR_LABELS[sim] ?? sim}</div>
+                <div className="workbench-group-label">{SIMULATOR_LABELS[sim] ?? sim}</div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {items.map(item => (
                     <RouterScenarioButton
@@ -390,7 +390,7 @@ export default function RouterDataBuilder() {
       <ResizeHandle onMouseDown={onResizeStart} color="rose" />
 
       {/* ── 右栏 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 min-w-0">
+      <div className="workbench-main-scroll">
 
         {/* Job 监控 */}
         <JobMonitorPanel
@@ -424,7 +424,7 @@ export default function RouterDataBuilder() {
         <div className="card overflow-hidden">
           <button
             onClick={() => setFilesOpen(o => !o)}
-            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-3"
+            className="w-full card-header accordion-card-header justify-between transition-colors py-3"
           >
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />

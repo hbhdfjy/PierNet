@@ -146,15 +146,15 @@ export default function TemplateGenerator() {
   const llmReady = llmCfg?.has_api_key === true
 
   return (
-    <div className="flex-1 flex overflow-hidden">
+    <div className="workbench-shell">
 
       {/* ── 左栏：配置（可拖动宽度，内部分区滚动）── */}
       <div
-        className="flex flex-col overflow-hidden border-r border-slate-700/40 flex-shrink-0"
+        className="workbench-sidebar"
         style={{ width: sidebarWidth }}
       >
         {/* 顶部：页头（固定）*/}
-        <div className="flex-shrink-0 px-4 pt-4 pb-3 border-b border-slate-700/30">
+        <div className="workbench-sidebar-header">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
               <div className="w-7 h-7 rounded-lg bg-violet-500/20 border border-violet-500/30 flex items-center justify-center flex-shrink-0">
@@ -230,7 +230,7 @@ export default function TemplateGenerator() {
 
             {scenariosCfg && Object.entries(scenariosCfg).map(([dirKey, list]) => (
               <div key={dirKey}>
-                <div className="label mb-2 text-sm">{dirKey}</div>
+                <div className="workbench-group-label">{dirKey}</div>
                 <div className="grid grid-cols-2 gap-1.5">
                   {list.map(s => (
                     <ScenarioButton
@@ -239,6 +239,7 @@ export default function TemplateGenerator() {
                       onClick={() => toggle(s.name)}
                       templateCount={templateMap[s.name]?.template_count}
                       disabled={!s.has_h5}
+                      tone="violet"
                     />
                   ))}
                 </div>
@@ -414,7 +415,7 @@ export default function TemplateGenerator() {
       <ResizeHandle onMouseDown={onResizeStart} color="violet" />
 
       {/* ── 右栏：监控 + 文件管理 ── */}
-      <div className="flex-1 flex flex-col overflow-y-auto p-4 space-y-3 min-w-0">
+      <div className="workbench-main-scroll">
 
         <JobMonitorPanel
           status={monitor.status}
@@ -449,7 +450,7 @@ export default function TemplateGenerator() {
         <div className="card overflow-hidden">
           <button
             onClick={() => setFilesOpen(o => !o)}
-            className="w-full card-header justify-between hover:bg-slate-700/20 transition-colors py-3"
+            className="w-full card-header accordion-card-header justify-between transition-colors py-3"
           >
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />

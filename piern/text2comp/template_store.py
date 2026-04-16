@@ -251,7 +251,7 @@ def fill_sample(
                 "channel_indices": template.channel_indices,
                 "selected_output_names": template.selected_output_names,
             },
-            "sample_idx": sample_idx,
+            "sample_idx": int(sample_idx),
             "language": template.language,
             "style": template.style,
             "input_template": template.input_template,
@@ -321,11 +321,14 @@ def fill_dataset(
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    t_order = rng.permutation(n_avail_t)
+    d_order = rng.permutation(n_avail_d)
+
     written = 0
     with open(output_path, "w", encoding="utf-8") as fout:
         for i in range(n):
-            t_idx = i % n_avail_t
-            d_idx = i % n_avail_d
+            t_idx = int(t_order[i % n_avail_t])
+            d_idx = int(d_order[i % n_avail_d])
             template = templates[t_idx]
 
             ts = timeseries[d_idx]   # (ch_orig, ts_orig)

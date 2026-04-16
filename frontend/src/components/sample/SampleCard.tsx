@@ -21,7 +21,7 @@ function Section({ icon, title, children, defaultOpen = true }: {
     <div className="border-b border-slate-700/30 last:border-0">
       <button
         onClick={() => setOpen(!open)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-slate-700/20 transition-colors group"
+        className="accordion-card-header w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors group"
       >
         <span className="text-slate-500 group-hover:text-slate-400 transition-colors">{icon}</span>
         <span className="text-base font-medium text-slate-300 flex-1">{title}</span>
@@ -41,7 +41,7 @@ function TargetSection({ target }: { target: string }) {
   const isLong = target.length > PREVIEW_LEN
   return (
     <div className="border-b border-slate-700/30 last:border-0">
-      <div className="flex items-center gap-2 px-4 py-2.5">
+      <div className="accordion-card-header flex items-center gap-2 px-4 py-2.5">
         <span className="text-slate-500"><Target size={13} /></span>
         <span className="text-base font-medium text-slate-300 flex-1">Target</span>
         {isLong && (
@@ -87,9 +87,9 @@ export default function SampleCard({ sample, index }: Props) {
   const changedCount = paramPairs.filter(p => p.changed).length
 
   return (
-    <div className="card overflow-hidden shadow-lg shadow-black/20">
+    <div className="card overflow-hidden">
       {/* ── 标题行 ── */}
-      <div className="card-header justify-between bg-slate-800/60">
+      <div className="card-header accordion-card-header justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-slate-600 flex-shrink-0">#{index + 1}</span>
           <span className={cn('badge border', getSimulatorBadgeClass(meta.simulator))}>
