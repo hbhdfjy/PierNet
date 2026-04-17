@@ -1,6 +1,9 @@
 """数据集相关路由：/api/datasets, /api/samples, /api/stats。"""
 
+from __future__ import annotations
+
 import json
+import logging
 from collections import Counter
 from pathlib import Path
 from typing import Optional
@@ -8,53 +11,32 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from piern.api.deps import DATA_DIR
+from piern.api.routers import router_data as router_data_router
+from piern.api.services import jsonl_filter_index, jsonl_index, manifest_store
 
 router = APIRouter()
-
-_stats_cache: Optional[dict] = None
-_stats_cache_key: tuple = ()
+LOGGER = logging.getLogger(__name__)
 
 
 @router.get("/datasets")
 def get_datasets():
-    """扫描 data/text2comp/*.jsonl，返回数据集列表（排除 all_training_data.jsonl）。"""
-    if not DATA_DIR.exists():
-        return []
-
-    results = []
-    for f in sorted(DATA_DIR.glob("*.jsonl")):
-        if f.name == "all_training_data.jsonl":
-            continue
-        scenario = f.stem
-        stat = f.stat()
-
-        sample_count = 0
-        simulator = "unknown"
-        try:
-            with open(f, "rb") as fh:
-                content = fh.read()
-                # count newlines; if file doesn't end with \n, last line still counts
-                sample_count = content.count(b"\n")
-                if content and not content.endswith(b"\n"):
-                    sample_count += 1
-            with open(f, "r", encoding="utf-8") as fh:
-                first = fh.readline().strip()
-                if first:
-                    meta = json.loads(first).get("metadata", {})
-                    simulator = meta.get("simulator", "unknown")
-        except Exception:
-            pass
-
-        results.append({
-            "name": scenario,
-            "simulator": simulator,
-            "scenario": scenario,
-            "sample_count": sample_count,
-            "file_size_bytes": stat.st_size,
-            "mtime": stat.st_mtime,
-        })
-
-    return results
+    """返回 Stage 3 数据集列表，优先走 manifest。"""
+    try:
+        manifest = manifest_store.ensure_sample_manifest()
+        return [
+            {
+                "name": item["scenario"],
+                "simulator": item.get("simulator", "unknown"),
+                "scenario": item["scenario"],
+                "sample_count": item.get("sample_count", 0),
+                "file_size_bytes": item.get("file_size_bytes", 0),
+                "mtime": item.get("mtime", 0),
+            }
+            for item in manifest.get("items", [])
+        ]
+    except Exception:
+        LOGGER.exception("Falling back to legacy /api/datasets scan")
+        return _legacy_get_datasets()
 
 
 @router.get("/samples")
@@ -65,7 +47,7 @@ def get_samples(
     language: Optional[str] = Query(None),
     style: Optional[str] = Query(None),
 ):
-    """分页读取指定场景的 JSONL 样本（流式，不全量加载）。"""
+    """分页读取指定场景的 JSONL 样本（当前仍使用流式扫描）。"""
     jsonl_path = DATA_DIR / f"{scenario}.jsonl"
     if not jsonl_path.exists():
         raise HTTPException(404, f"场景 {scenario} 的 JSONL 文件不存在")
@@ -76,80 +58,187 @@ def get_samples(
 
     try:
         if not has_filter:
-            # 无筛选：两次扫描，第一次只数行数，第二次取目标行
-            total = 0
-            with open(jsonl_path, "rb") as fb:
-                content = fb.read()
-                total = content.count(b"\n")
-                if content and not content.endswith(b"\n"):
-                    total += 1
+            total_hint = _sample_total_from_manifest(scenario)
+            try:
+                total, items = jsonl_index.read_page(
+                    jsonl_path,
+                    page=page,
+                    page_size=page_size,
+                    total_rows=total_hint,
+                )
+                return {"total": total, "page": page, "page_size": page_size, "items": items}
+            except Exception:
+                pass
 
-            items = []
-            with open(jsonl_path, "r", encoding="utf-8") as f:
-                for idx, line in enumerate(f):
-                    if idx >= end:
-                        break
-                    if idx < start:
-                        continue
-                    line = line.strip()
-                    if line:
-                        try:
-                            items.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            pass
-            return {"total": total, "page": page, "page_size": page_size, "items": items}
-        else:
-            # 有筛选：必须全量扫描以统计 total，但不在内存中保留全部对象
-            total = 0
-            items_page: list = []
-            with open(jsonl_path, "r", encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        sample = json.loads(line)
-                        meta = sample.get("metadata", {})
-                        if language and meta.get("language") != language:
-                            continue
-                        if style and meta.get("style") != style:
-                            continue
-                        if start <= total < end:
-                            items_page.append(sample)
-                        total += 1
-                    except json.JSONDecodeError:
-                        continue
-            return {"total": total, "page": page, "page_size": page_size, "items": items_page}
-    except Exception as e:
-        raise HTTPException(500, f"读取 JSONL 失败: {e}")
+        filter_key = _sample_filter_key(language=language, style=style)
+        if filter_key:
+            try:
+                total, items_page = jsonl_filter_index.read_filtered_page(
+                    jsonl_path,
+                    profile="sample_language_style",
+                    key=filter_key,
+                    page=page,
+                    page_size=page_size,
+                )
+                return {"total": total, "page": page, "page_size": page_size, "items": items_page}
+            except Exception:
+                pass
 
+        total = 0
+        items_page: list[dict] = []
+        with open(jsonl_path, "r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    sample = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
 
-def _stats_snapshot_key() -> tuple:
-    if not DATA_DIR.exists():
-        return ()
-
-    snapshot = []
-    for f in sorted(DATA_DIR.glob("*.jsonl")):
-        if f.name == "all_training_data.jsonl":
-            continue
-        stat = f.stat()
-        snapshot.append((f.name, stat.st_size, stat.st_mtime_ns))
-    return tuple(snapshot)
+                metadata = sample.get("metadata", {})
+                if language and metadata.get("language") != language:
+                    continue
+                if style and metadata.get("style") != style:
+                    continue
+                if start <= total < end:
+                    items_page.append(sample)
+                total += 1
+        return {"total": total, "page": page, "page_size": page_size, "items": items_page}
+    except Exception as exc:
+        raise HTTPException(500, f"读取 JSONL 失败: {exc}")
 
 
 @router.get("/stats")
 def get_stats():
-    """????? JSONL ???????????????????? all_training_data.jsonl??"""
-    global _stats_cache, _stats_cache_key
+    """返回 Stage 3 聚合统计，优先走 manifest。"""
+    try:
+        manifest = manifest_store.ensure_sample_manifest()
+        return manifest.get(
+            "summary",
+            {
+                "total_samples": 0,
+                "by_simulator": {},
+                "by_scenario": {},
+                "by_language": {},
+                "by_style": {},
+                "by_time_mode": {},
+                "timeseries_shapes": {},
+            },
+        )
+    except Exception:
+        LOGGER.exception("Falling back to legacy /api/stats scan")
+        return _compute_stats_from_individual()
 
-    snapshot_key = _stats_snapshot_key()
-    if _stats_cache is not None and snapshot_key == _stats_cache_key:
-        return _stats_cache
 
-    stats = _compute_stats_from_individual()
-    _stats_cache = stats
-    _stats_cache_key = snapshot_key
-    return stats
+@router.get("/dashboard/summary")
+def get_dashboard_summary():
+    """返回统计页所需的聚合摘要，优先复用 manifest。"""
+    try:
+        sample_manifest = manifest_store.ensure_sample_manifest()
+        router_manifest = manifest_store.ensure_router_manifest()
+        datasets = [
+            {
+                "name": item["scenario"],
+                "simulator": item.get("simulator", "unknown"),
+                "scenario": item["scenario"],
+                "sample_count": item.get("sample_count", 0),
+                "file_size_bytes": item.get("file_size_bytes", 0),
+                "mtime": item.get("mtime", 0),
+            }
+            for item in sample_manifest.get("items", [])
+        ]
+        stats = sample_manifest.get(
+            "summary",
+            {
+                "total_samples": 0,
+                "by_simulator": {},
+                "by_scenario": {},
+                "by_language": {},
+                "by_style": {},
+                "by_time_mode": {},
+                "timeseries_shapes": {},
+            },
+        )
+        router = router_data_router._build_router_status_from_manifests(
+            router_manifest,
+            sample_manifest,
+        )
+        return {
+            "stats": stats,
+            "datasets": datasets,
+            "router": router,
+        }
+    except Exception:
+        LOGGER.exception("Falling back to composed dashboard summary reads")
+        return {
+            "stats": get_stats(),
+            "datasets": get_datasets(),
+            "router": router_data_router.get_router_status(),
+        }
+
+
+def _legacy_get_datasets():
+    if not DATA_DIR.exists():
+        return []
+
+    results = []
+    for path in sorted(DATA_DIR.glob("*.jsonl")):
+        if path.name == "all_training_data.jsonl":
+            continue
+        scenario = path.stem
+        stat = path.stat()
+
+        sample_count = 0
+        simulator = "unknown"
+        try:
+            with open(path, "rb") as handle:
+                content = handle.read()
+                sample_count = content.count(b"\n")
+                if content and not content.endswith(b"\n"):
+                    sample_count += 1
+            with open(path, "r", encoding="utf-8") as handle:
+                first = handle.readline().strip()
+                if first:
+                    metadata = json.loads(first).get("metadata", {})
+                    simulator = metadata.get("simulator", "unknown")
+        except Exception:
+            pass
+
+        results.append(
+            {
+                "name": scenario,
+                "simulator": simulator,
+                "scenario": scenario,
+                "sample_count": sample_count,
+                "file_size_bytes": stat.st_size,
+                "mtime": stat.st_mtime,
+            }
+        )
+
+    return results
+
+
+def _sample_total_from_manifest(scenario: str) -> int | None:
+    try:
+        manifest = manifest_store.ensure_sample_manifest()
+    except Exception:
+        return None
+
+    for item in manifest.get("items", []):
+        if item.get("scenario") == scenario:
+            return int(item.get("sample_count", 0))
+    return None
+
+
+def _sample_filter_key(language: Optional[str], style: Optional[str]) -> str | None:
+    if language and style:
+        return f"language={language}|style={style}"
+    if language:
+        return f"language={language}"
+    if style:
+        return f"style={style}"
+    return None
 
 
 def _compute_stats(jsonl_path: Path) -> dict:
@@ -162,28 +251,29 @@ def _compute_stats(jsonl_path: Path) -> dict:
     total = 0
 
     try:
-        with open(jsonl_path, "r", encoding="utf-8") as f:
-            for line in f:
+        with open(jsonl_path, "r", encoding="utf-8") as handle:
+            for line in handle:
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     sample = json.loads(line)
-                    meta = sample.get("metadata", {})
-                    total += 1
-                    by_simulator[meta.get("simulator", "unknown")] += 1
-                    sc = meta.get("scenario", "unknown")
-                    by_scenario[sc] += 1
-                    by_language[meta.get("language", "?")] += 1
-                    by_style[meta.get("style", "?")] += 1
-                    obs = meta.get("observation", {})
-                    by_time_mode[obs.get("time_mode", "?")] += 1
-                    shape_obs = meta.get("timeseries_shape_obs")
-                    sim = meta.get("simulator", "unknown")
-                    if shape_obs and sim not in timeseries_shapes:
-                        timeseries_shapes[sim] = shape_obs
+                    metadata = sample.get("metadata", {})
                 except Exception:
                     continue
+
+                total += 1
+                simulator = metadata.get("simulator", "unknown")
+                by_simulator[simulator] += 1
+                scenario = metadata.get("scenario", "unknown")
+                by_scenario[scenario] += 1
+                by_language[metadata.get("language", "?")] += 1
+                by_style[metadata.get("style", "?")] += 1
+                observation = metadata.get("observation", {})
+                by_time_mode[observation.get("time_mode", "?")] += 1
+                shape_obs = metadata.get("timeseries_shape_obs")
+                if shape_obs and simulator not in timeseries_shapes:
+                    timeseries_shapes[simulator] = shape_obs
     except Exception:
         pass
 
@@ -210,39 +300,26 @@ def _compute_stats_from_individual() -> dict:
     if not DATA_DIR.exists():
         return {
             "total_samples": 0,
-            "by_simulator": {}, "by_scenario": {},
-            "by_language": {}, "by_style": {},
-            "by_time_mode": {}, "timeseries_shapes": {},
+            "by_simulator": {},
+            "by_scenario": {},
+            "by_language": {},
+            "by_style": {},
+            "by_time_mode": {},
+            "timeseries_shapes": {},
         }
 
-    for f in DATA_DIR.glob("*.jsonl"):
-        if f.name == "all_training_data.jsonl":
+    for path in DATA_DIR.glob("*.jsonl"):
+        if path.name == "all_training_data.jsonl":
             continue
-        try:
-            with open(f, "r", encoding="utf-8") as fh:
-                for line in fh:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        sample = json.loads(line)
-                        meta = sample.get("metadata", {})
-                        total += 1
-                        by_simulator[meta.get("simulator", "unknown")] += 1
-                        sc = meta.get("scenario", "unknown")
-                        by_scenario[sc] += 1
-                        by_language[meta.get("language", "?")] += 1
-                        by_style[meta.get("style", "?")] += 1
-                        obs = meta.get("observation", {})
-                        by_time_mode[obs.get("time_mode", "?")] += 1
-                        shape_obs = meta.get("timeseries_shape_obs")
-                        sim = meta.get("simulator", "unknown")
-                        if shape_obs and sim not in timeseries_shapes:
-                            timeseries_shapes[sim] = shape_obs
-                    except Exception:
-                        continue
-        except Exception:
-            continue
+        stats = _compute_stats(path)
+        total += stats["total_samples"]
+        by_simulator.update(stats["by_simulator"])
+        by_scenario.update(stats["by_scenario"])
+        by_language.update(stats["by_language"])
+        by_style.update(stats["by_style"])
+        by_time_mode.update(stats["by_time_mode"])
+        for simulator, shape in stats["timeseries_shapes"].items():
+            timeseries_shapes.setdefault(simulator, shape)
 
     return {
         "total_samples": total,

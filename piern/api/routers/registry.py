@@ -17,6 +17,9 @@ from piern.api.services.job_manager import publish
 
 router = APIRouter()
 
+_REGISTER_PROGRESS_RE = re.compile("^\[注册\]\s+(\S+)\s+→\s+字段组:\s+(.+)$")
+_SAVE_MARKERS = ("已保存",)
+
 
 def _load_registry_raw() -> dict:
     if not REGISTRY_PATH.exists():
@@ -147,10 +150,10 @@ async def start_register(req: RegisterRequest):
                     continue
                 event: dict = {"type": "log", "line": line, "ts": time.time()}
 
-                m = re.search(r"\[??\]\s+(\S+)\s+?\s+???:\s+(.+)", line)
+                m = _REGISTER_PROGRESS_RE.search(line)
                 if m:
                     event["register_progress"] = {"key": m.group(1), "fields": m.group(2)}
-                if "???" in line:
+                if any(marker in line for marker in _SAVE_MARKERS):
                     event["saved"] = True
 
                 publish(record, event)

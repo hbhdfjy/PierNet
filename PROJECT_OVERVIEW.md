@@ -25,16 +25,22 @@ PiERN is a multi-simulator data generation pipeline that turns heterogeneous phy
 - Registration contract lives in `configs/text2comp/registry.yaml`
 - Metadata can be produced by auto-registration and refined in the UI
 - Template generation writes scenario template libraries into `data/templates/`
+- Interactive summary reads use sidecar manifests under `data/.manifests/templates.json`
+- Template pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `language/style`
 
 ### Stage 3: Sample Filling
 
 - Filled training samples are generated from Stage 1 numeric outputs plus Stage 2 templates
 - Output lives in `data/text2comp/`
+- Dataset lists and aggregate stats are served from `data/.manifests/samples.json` in the common read path
+- Sample pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `language/style`
 
 ### Stage 4: Router Data Construction
 
 - Router training data is derived from Stage 3 outputs
 - Output lives in `data/router/`
+- Router status summaries are served from `data/.manifests/router.json` in the common read path
+- Router pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `label`
 
 ## Supported Simulators
 
@@ -58,6 +64,9 @@ PiERN is a multi-simulator data generation pipeline that turns heterogeneous phy
 
 - HDF5 naming: `{simulator}_{scenario}.h5`
 - Data root: all generated artifacts are currently under `data/`
+- Sidecar manifests: `data/.manifests/` is the summary/index layer for Stage 2-4 interactive reads
+- Sparse indexes: `data/.indexes/` is the unfiltered pagination layer for large Stage 2-4 JSONL files
+- Dashboard summary: `/api/dashboard/summary` is the statistics page aggregation endpoint
 - Registry contract: `configs/text2comp/registry.yaml`
 - Stage 2/3 default config: `configs/text2comp/default.yaml`
 

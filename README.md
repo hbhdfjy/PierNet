@@ -42,14 +42,21 @@
 ## 安装
 
 ```bash
-# Python 依赖（含所有模拟器）
+# Python ??????????
 pip install -r requirements.txt
 pip install -e .
+# ???SimPEG ????????? requirements?PyPSA ??? xarray<2026 ????
 
-# MODFLOW 可执行文件（运行地下水仿真必须）
-python -c "import flopy; flopy.utils.get_modflow()"
+# MODFLOW ????????????????
+python - <<'PY'
+from pathlib import Path
+from flopy.utils import get_modflow
+get_modflow(str(Path.home() / '.flopy_bin'), subset='mf2005')
+PY
+# ??????????????
+export PIERN_MODFLOW_EXE=/path/to/mf2005
 
-# 前端（Node.js 18+）
+# ???Node.js 18+?
 cd frontend && npm install
 ```
 
@@ -122,7 +129,33 @@ python scripts/text2comp/fill_samples.py \
 # 默认不包裹 chat template，可用 --chat-template qwen/deepseek/llama3/mistral/custom
 python scripts/router/build_router_data.py --seed 42
 python scripts/router/build_router_data.py --seed 42 --chat-template qwen --neg-ratio 2
+
+# 重建 Stage 2-4 摘要读取使用的 sidecar manifest
+python scripts/utils/rebuild_manifests.py
+
+# 重建 Stage 2-4 无筛选分页使用的 sparse offset indexes
+python scripts/utils/rebuild_indexes.py
+
+# 重建 Stage 2-4 常用筛选（language/style/label）索引
+python scripts/utils/rebuild_filter_indexes.py
 ```
+
+## 读性能说明
+
+- Stage 2/3/4 的 `JSONL` 仍然是源产物格式。
+- 前端摘要和列表接口优先读取 `data/.manifests/` 下的 sidecar manifest，避免反复全量扫描大文件。
+- 无筛选分页接口优先读取 `data/.indexes/` 下的 sparse offset index，避免从文件头顺扫到目标页。
+- 常用筛选分页（`language` / `style` / `label`）优先读取 `data/.indexes/` 下的 filter index。
+- 批量生成或删除模板、样本、router 数据后，可手动刷新 manifest：
+
+```bash
+python scripts/utils/rebuild_manifests.py
+python scripts/utils/rebuild_indexes.py
+python scripts/utils/rebuild_filter_indexes.py
+```
+
+- 统计页现在优先通过单个 `/api/dashboard/summary` 聚合接口读取摘要。
+- 后端摘要接口在 manifest 缺失或快照过期时会自动重建；分页索引缺失时会按需重建。
 
 ---
 
@@ -143,7 +176,7 @@ piern/
 │   │   │   ├── jobs.py          #   /api/generate/{id}/stream（SSE）
 │   │   │   ├── files.py         #   /api/files/templates, /api/files/samples
 │   │   │   └── interview.py     #   /api/interview/*
-│   │   └── services/            #   job_manager, file_manager
+│   │   └── services/            #   job_manager, file_manager, manifest_store, jsonl_index, jsonl_filter_index
 │   ├── simulators/
 │   │   ├── modflow/             # ✅ 抛物型PDE，flopy/MODFLOW
 │   │   ├── simpeg/              # ✅ 椭圆型PDE，SimPEG
@@ -169,7 +202,11 @@ piern/
 │   │   └── fill_samples.py        # Stage 3：数值填充
 │   ├── router/
 │   │   └── build_router_data.py   # Stage 4：Router 数据生成
-│   └── utils/summarize_all.py
+│   └── utils/
+│       ├── summarize_all.py
+│       ├── rebuild_manifests.py   # 重建 Stage 2-4 摘要 manifest
+│       ├── rebuild_indexes.py     # 重建 Stage 2-4 无筛选分页索引
+│       └── rebuild_filter_indexes.py # 重建 Stage 2-4 常用筛选索引
 │
 ├── frontend/                    # React + Vite + Tailwind 管理界面
 │   └── src/pages/
@@ -192,7 +229,9 @@ piern/
     ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
     ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
     ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    └── router/       # train.jsonl + by_scenario/（Stage 4 输出）
+    ├── router/       # train.jsonl + by_scenario/（Stage 4 输出）
+    ├── .manifests/   # templates/samples/router 摘要 sidecar（前端摘要读取）
+    └── .indexes/     # 模板/样本/router JSONL 的 sparse offset index
 ```
 
 ---

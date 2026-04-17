@@ -154,6 +154,23 @@ _scenario_cache: Optional[List[SimulationScenario]] = None
 _scenario_cache_ts: float = 0
 _CACHE_TTL = 3.0  # seconds
 
+_SIM_PROGRESS_PATTERNS = (
+    re.compile("(?:生成|增强)?进度[：:]\s*(\d+)\s*/\s*(\d+)"),
+    re.compile("progress[：:]\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE),
+    re.compile(r'^\s*(\d+)\s*/\s*(\d+)\s*$'),
+)
+
+
+def _extract_progress_counts(line: str) -> tuple[int, int] | None:
+    for pattern in _SIM_PROGRESS_PATTERNS:
+        m = pattern.search(line)
+        if not m:
+            continue
+        done, total = int(m.group(1)), int(m.group(2))
+        if total > 0 and done <= total:
+            return done, total
+    return None
+
 
 def _get_scenarios_cached() -> List[SimulationScenario]:
     global _scenario_cache, _scenario_cache_ts
@@ -308,11 +325,10 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             if not line:
                 continue
             event: dict = {"type": "log", "line": line, "ts": time.time()}
-            m = re.search(r'(?:(?:??|??)??[?:]\s*|(?:^|\s))(\d+)/(\d+)', line)
-            if m:
-                done, total = int(m.group(1)), int(m.group(2))
-                if total > 0 and done <= total:
-                    event["progress"] = {"scenario": req.scenario, "done": done, "total": total}
+            counts = _extract_progress_counts(line)
+            if counts is not None:
+                done, total = counts
+                event["progress"] = {"scenario": req.scenario, "done": done, "total": total}
             publish(record, event)
 
         proc.wait()

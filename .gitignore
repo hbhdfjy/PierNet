@@ -16,6 +16,8 @@ data/text2comp/
 
 # Stage 4：路由训练数据（体积过大，不追踪）
 data/router/
+data/.manifests/
+data/.indexes/
 data/**/*.pt
 data/**/*.pth
 data/**/*.ckpt
@@ -29,6 +31,7 @@ data/**/*.npz
 # Logs & outputs
 outputs/
 logs/
+.runlogs/
 wandb/
 *.log
 

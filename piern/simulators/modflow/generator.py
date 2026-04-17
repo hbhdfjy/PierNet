@@ -26,6 +26,35 @@ from typing import Dict, Any
 logger = logging.getLogger(__name__)
 
 
+def resolve_modflow_executable(cfg: Dict[str, Any] | None = None) -> str:
+    """????? MODFLOW-2005 ????????"""
+    from pathlib import Path
+
+    cfg = cfg or {}
+    checked = []
+    candidates = [
+        cfg.get('modflow_exe'),
+        os.environ.get('PIERN_MODFLOW_EXE'),
+        str(Path.home() / '.flopy_bin' / 'mf2005'),
+    ]
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        expanded = os.path.expanduser(str(candidate))
+        checked.append(expanded)
+        if os.path.isfile(expanded) and os.access(expanded, os.X_OK):
+            return expanded
+
+    checked_text = ', '.join(checked) if checked else '<none>'
+    raise FileNotFoundError(
+        '??????? MODFLOW-2005 ???'
+        '?????? modflow_exe ????? PIERN_MODFLOW_EXE?'
+        '?? mf2005 ??? ~/.flopy_bin/mf2005?'
+        f'???: {checked_text}'
+    )
+
+
 def _get_well_positions(nrow: int, ncol: int, n_wells: int) -> list[tuple[int, int]]:
     """
     根据网格大小动态生成观测井位置。

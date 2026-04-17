@@ -124,6 +124,88 @@ def _apply_chat_template_neg(
 
 # ── 工具函数 ──────────────────────────────────────────────────────
 
+def _count_nonempty_lines(path: Path) -> int:
+    count = 0
+    with open(path, "r", encoding="utf-8") as f:
+        for line in f:
+            if line.strip():
+                count += 1
+    return count
+
+
+def _build_source_signature(jsonl_path: Path) -> dict | None:
+    try:
+        stat = jsonl_path.stat()
+    except FileNotFoundError:
+        return None
+    return {
+        "name": jsonl_path.name,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "row_count": _count_nonempty_lines(jsonl_path),
+    }
+
+
+def _scenario_meta_path(jsonl_path: Path) -> Path:
+    return jsonl_path.with_suffix(".meta.json")
+
+
+def _write_scenario_meta(
+    output_path: Path,
+    *,
+    source_path: Path,
+    chat_template_name: str,
+    neg_ratio: int,
+    source_signature: dict | None,
+    output_count: int,
+) -> None:
+    meta = {
+        "scenario": output_path.stem,
+        "source_file": source_path.name,
+        "chat_template": chat_template_name,
+        "neg_ratio": neg_ratio,
+        "source_signature": source_signature,
+        "output_count": output_count,
+    }
+    _scenario_meta_path(output_path).write_text(
+        json.dumps(meta, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+
+
+def _load_scenario_meta(output_path: Path) -> dict | None:
+    meta_path = _scenario_meta_path(output_path)
+    if not meta_path.exists():
+        return None
+    try:
+        return json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _can_reuse_existing_scenario(
+    output_path: Path,
+    *,
+    source_path: Path,
+    chat_template_name: str,
+    neg_ratio: int,
+    source_signature: dict | None,
+) -> tuple[bool, str]:
+    if source_signature is None:
+        return False, f"missing current Stage 3 source file: {source_path.name}"
+
+    meta = _load_scenario_meta(output_path)
+    if not meta:
+        return False, "missing verified build metadata; rebuild the scenario"
+    if meta.get("chat_template") != chat_template_name:
+        return False, "chat template mismatch"
+    if int(meta.get("neg_ratio", -1)) != neg_ratio:
+        return False, "neg_ratio mismatch"
+    if meta.get("source_signature") != source_signature:
+        return False, "Stage 3 source file changed"
+    return True, ""
+
+
 def _extract_trigger_prefix(target_template: str) -> str:
     """从 target_template 中提取 {output_0} 之前的引导语。"""
     idx = target_template.find("{output_0}")
@@ -267,14 +349,23 @@ def main():
         print(f"[??] ????????{data_dir}")
         raise SystemExit(1)
 
-    jsonl_files = sorted(
+    all_jsonl_files = sorted(
         f for f in data_dir.glob("*.jsonl")
         if f.name != "all_training_data.jsonl"
     )
-    if not jsonl_files:
+    if not all_jsonl_files:
         print(f"[??] {data_dir} ????? JSONL ??")
         raise SystemExit(1)
 
+    scenario_source_signatures: dict[str, dict | None] = {
+        f.stem: _build_source_signature(f) for f in all_jsonl_files
+    }
+    scenario_source_counts: dict[str, int] = {
+        scenario: (sig or {}).get("row_count", 0)
+        for scenario, sig in scenario_source_signatures.items()
+    }
+
+    jsonl_files = list(all_jsonl_files)
     if args.scenarios:
         scenario_set = set(args.scenarios)
         jsonl_files = [f for f in jsonl_files if f.stem in scenario_set]
@@ -282,19 +373,10 @@ def main():
             print(f"[??] ??????????{args.scenarios}")
             raise SystemExit(1)
 
-    print(f"[Router 数据生成] 扫描到 {len(jsonl_files)} 个场景文件")
+    print(f"[Router ????] ??? {len(jsonl_files)} ?????")
 
-    # 预统计各场景源样本数，用于进度上报
-    scenario_source_counts: dict[str, int] = {}
-    for f in jsonl_files:
-        try:
-            count = sum(1 for line in open(f, "rb") if line.strip())
-        except Exception:
-            count = 0
-        scenario_source_counts[f.stem] = count
-
-    # 发送 init 事件：告知前端各场景的预期生成条数
-    # 格式：PROGRESS_INIT:场景名:预期总条数（= source * (1 + neg_ratio)）
+    # ?? init ?????????????????
+    # ???PROGRESS_INIT:???:??????= source * (1 + neg_ratio)?
     for f in jsonl_files:
         expected = scenario_source_counts[f.stem] * (1 + args.neg_ratio)
         print(f"PROGRESS_INIT:{f.stem}:{expected}", flush=True)
@@ -324,7 +406,17 @@ def main():
         print(f"PROGRESS_DONE:{scenario_name}:{len(samples)}:{expected}", flush=True)
 
         # 写入场景独立文件（覆盖）
-        _write_jsonl(samples, scenario_dir / f"{scenario_name}.jsonl")
+        # ????????????
+        scenario_output_path = scenario_dir / f"{scenario_name}.jsonl"
+        _write_jsonl(samples, scenario_output_path)
+        _write_scenario_meta(
+            scenario_output_path,
+            source_path=jsonl_path,
+            chat_template_name=chat_tmpl["_name"],
+            neg_ratio=args.neg_ratio,
+            source_signature=scenario_source_signatures.get(scenario_name),
+            output_count=len(samples),
+        )
         new_samples.extend(samples)
         processed_scenarios.add(scenario_name)
 
@@ -337,16 +429,29 @@ def main():
         for existing_file in sorted(scenario_dir.glob("*.jsonl")):
             sc = existing_file.stem
             if sc in processed_scenarios:
-                continue  # 本次已处理，跳过（已覆盖写入）
+                continue  # ???????????????
+
+            source_path = data_dir / f"{sc}.jsonl"
+            reusable, reason = _can_reuse_existing_scenario(
+                existing_file,
+                source_path=source_path,
+                chat_template_name=chat_tmpl["_name"],
+                neg_ratio=args.neg_ratio,
+                source_signature=scenario_source_signatures.get(sc),
+            )
+            if not reusable:
+                print(f"  [??] ???? {existing_file.name}: {reason}")
+                continue
+
             try:
                 with open(existing_file, "r", encoding="utf-8") as f:
                     for line in f:
                         line = line.strip()
                         if line:
                             all_samples.append(json.loads(line))
-                print(f"  复用已有：{existing_file.name}")
+                print(f"  ?????{existing_file.name}")
             except Exception as e:
-                print(f"  [警告] 读取 {existing_file.name} 失败: {e}")
+                print(f"  [??] ?? {existing_file.name} ??: {e}")
 
     n_pos_total = sum(1 for s in all_samples if s["label"] == 1)
     print(f"\n  总计：{len(all_samples)} 条（正={n_pos_total}, 负={len(all_samples)-n_pos_total}）")

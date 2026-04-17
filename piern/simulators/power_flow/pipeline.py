@@ -31,6 +31,64 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _compute_seed_batch_size(n_samples: int, seed_ratio: float, minimum_seed: int) -> int:
+    requested = max(int(np.ceil(n_samples * max(seed_ratio, 0.0))), 1)
+    if n_samples <= minimum_seed:
+        return max(1, n_samples)
+    return max(requested, minimum_seed)
+
+
+def _top_up_direct_samples(
+    cfg: dict,
+    timeseries: np.ndarray,
+    params: np.ndarray,
+    n_samples: int,
+    seed: int,
+    parallel: bool,
+    max_workers: int,
+    progress_callback=None,
+) -> tuple[np.ndarray, np.ndarray]:
+    validation_cfg = _make_validation_cfg(cfg)
+    batches_ts = [timeseries]
+    batches_params = [params]
+    batch_seed = seed + 1000
+    round_idx = 0
+
+    while sum(x.shape[0] for x in batches_ts) < n_samples:
+        round_idx += 1
+        current = sum(x.shape[0] for x in batches_ts)
+        needed = n_samples - current
+        batch_n = needed if n_samples <= 50 else max(needed * 2, 50)
+        logger.info(f'  ??? {round_idx} ???? {batch_n} ???? {needed} ?')
+        extra_ts, extra_params, _ = generate_batch(
+            cfg, batch_n, seed=batch_seed, parallel=parallel, max_workers=max_workers,
+            progress_callback=progress_callback, progress_total=n_samples,
+        )
+        batch_seed += batch_n
+        extra_ts, extra_params, _ = filter_dataset(extra_ts, extra_params, validation_cfg)
+        if extra_ts.shape[0] > 0:
+            batches_ts.append(extra_ts)
+            batches_params.append(extra_params)
+            current = sum(x.shape[0] for x in batches_ts)
+            logger.info(f'  ?????????{current}/{n_samples} ??')
+            if progress_callback:
+                progress_callback(current, n_samples)
+        else:
+            logger.warning(f'  ? {round_idx} ????????')
+        if round_idx >= 20:
+            break
+
+    all_ts = np.concatenate(batches_ts, axis=0)
+    all_params = np.concatenate(batches_params, axis=0)
+    if all_ts.shape[0] < n_samples:
+        raise RuntimeError(f'????????? {all_ts.shape[0]}/{n_samples} ?????')
+
+    all_ts = all_ts[:n_samples]
+    all_params = all_params[:n_samples]
+    idx = np.random.default_rng(seed + 2).permutation(n_samples)
+    return all_ts[idx], all_params[idx]
+
+
 def _make_validation_cfg(sim_cfg: dict) -> dict:
     """构建潮流验证配置：电压幅值应在 [0.7, 1.3] pu 范围内。"""
     vcfg = dict(sim_cfg.get('validation', {}))
@@ -199,7 +257,7 @@ def run_pipeline(
 
     aug_cfg = cfg.get('augmentation', {})
     seed_ratio = aug_cfg.get('seed_ratio', 0.1)
-    n_seed = max(int(n_samples * seed_ratio), 50)
+    n_seed = _compute_seed_batch_size(n_samples, seed_ratio, minimum_seed=50)
     logger.info(f'Step 1/5: 生成种子样本 ({n_seed} 个)...')
     timeseries, params, param_names = generate_batch(
         cfg, n_seed, seed=seed, parallel=parallel, max_workers=max_workers,

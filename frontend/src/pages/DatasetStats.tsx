@@ -1,6 +1,6 @@
 import useSWR from 'swr'
 import { api } from '../lib/api'
-import type { DatasetStats, DatasetInfo, RouterStatus } from '../lib/types'
+import type { DashboardSummary } from '../lib/types'
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
 } from 'recharts'
@@ -265,14 +265,15 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
 // ── 主页面 ────────────────────────────────────────────────────────
 
 export default function DatasetStats() {
-  const { data: stats, isLoading: sLoading, mutate: refreshStats } =
-    useSWR<DatasetStats>('stats', () => api.getStats(), { refreshInterval: 30000 })
-  const { data: datasets, isLoading: dLoading, mutate: refreshDatasets } =
-    useSWR<DatasetInfo[]>('datasets', () => api.getDatasets(), { refreshInterval: 30000 })
-  const { data: routerStatus, mutate: refreshRouter } =
-    useSWR<RouterStatus>('router-status', () => api.getRouterStatus(), { refreshInterval: 30000 })
+  // Avoid periodic heavy scans until manifest-backed summary reads are in place.
+  const statsSwrOptions = { revalidateOnFocus: false }
 
-  const loading = sLoading || dLoading
+  const { data: summary, isLoading: loading, mutate: refreshSummary } =
+    useSWR<DashboardSummary>('dashboard-summary', () => api.getDashboardSummary(), statsSwrOptions)
+
+  const stats = summary?.stats
+  const datasets = summary?.datasets
+  const routerStatus = summary?.router
 
   return (
     <div className="page-shell">
@@ -290,7 +291,7 @@ export default function DatasetStats() {
         </div>
         <button
           className="btn-ghost"
-          onClick={() => { refreshStats(); refreshDatasets(); refreshRouter() }}
+          onClick={() => { refreshSummary() }}
         >
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           刷新

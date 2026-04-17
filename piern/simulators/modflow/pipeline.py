@@ -34,7 +34,7 @@ import time
 import numpy as np
 import yaml
 
-from piern.simulators.modflow.generator import generate_batch
+from piern.simulators.modflow.generator import generate_batch, resolve_modflow_executable
 from piern.simulators.modflow.generator_with_params import generate_batch_from_params
 from piern.simulators.modflow.unified_params import UnifiedParamConverter
 from piern.core.validation import filter_dataset
@@ -46,6 +46,13 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+
+def _compute_seed_batch_size(n_samples: int, seed_ratio: float, minimum_seed: int) -> int:
+    requested = max(int(np.ceil(n_samples * max(seed_ratio, 0.0))), 1)
+    if n_samples <= minimum_seed:
+        return max(1, n_samples)
+    return max(requested, minimum_seed)
 
 
 def perturb_params(
@@ -277,6 +284,8 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     logger.info(f"输出路径: {output_path}")
     logger.info(f"增强方法: 参数空间采样")
     logger.info(f"参数表示: 18维统一参数")
+    modflow_exe = resolve_modflow_executable(cfg)
+    logger.info(f"MODFLOW ?????: {modflow_exe}")
     if parallel:
         logger.info(f"🚀 并行模式: {max_workers} 个进程")
 
@@ -285,7 +294,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     # Step 1: 生成原始种子数据（只需生成目标数量的一部分作为起点）
     aug_cfg = cfg.get("augmentation", {})
     seed_ratio = aug_cfg.get("seed_ratio", 0.1)  # 默认先生成 10% 作为种子
-    n_seed = max(int(n_samples * seed_ratio), 100)  # 至少 100 个种子样本
+    n_seed = _compute_seed_batch_size(n_samples, seed_ratio, minimum_seed=100)
     logger.info(f"Step 1/4: 运行 MODFLOW 正演（种子批次 {n_seed} 个）...")
     timeseries, params, param_names = generate_batch(
         cfg, n_seed, seed=seed, parallel=parallel, max_workers=max_workers,
@@ -318,7 +327,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
         while sum(x.shape[0] for x in extra_ts_list) < n_samples:
             round_idx += 1
             needed = n_samples - sum(x.shape[0] for x in extra_ts_list)
-            batch_n = max(needed * 3, 100)  # 多请求 3 倍抵消失败率
+            batch_n = needed if n_samples <= 100 else max(needed * 3, 100)
             logger.info(f"  补充第 {round_idx} 轮：请求 {batch_n} 个，还差 {needed} 个")
             extra_ts, extra_p, _ = generate_batch(
                 cfg, batch_n, seed=batch_seed, parallel=parallel, max_workers=max_workers,

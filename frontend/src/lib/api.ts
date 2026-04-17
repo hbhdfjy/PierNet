@@ -1,5 +1,5 @@
 import type {
-  DatasetInfo, SamplesResponse, DatasetStats,
+  DatasetInfo, SamplesResponse, DatasetStats, DashboardSummary,
   ScenariosConfig, GenerationConfig,
   Text2CompScenariosConfig, RegisterRequest,
   AgentTurnResponse, InterviewStartRequest, InterviewState,
@@ -46,6 +46,9 @@ export const api = {
 
   getStats: (): Promise<DatasetStats> =>
     get('/stats'),
+
+  getDashboardSummary: (): Promise<DashboardSummary> =>
+    get('/dashboard/summary'),
 
   // ── 配置 ────────────────────────────────────────────────────────
   getConfig: (): Promise<GenerationConfig> =>

@@ -11,7 +11,7 @@ from pathlib import Path
 from fastapi import APIRouter, Query
 
 from piern.api.deps import PROJECT_ROOT
-from piern.api.services import job_manager
+from piern.api.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.api.services.job_manager import publish
 
 router = APIRouter()
@@ -61,11 +61,62 @@ def _rewrite_train_from_scenarios(seed: int = 0) -> int:
     return len(samples)
 
 
-@router.get("/router/status")
-def get_router_status():
-    """返回 Router 数据目录的整体状态 + 按场景统计。"""
+def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: dict) -> dict:
+    sample_items = {
+        item["scenario"]: item
+        for item in sample_manifest.get("items", [])
+    }
+    source_by_scenario = {
+        scenario: item.get("sample_count", 0)
+        for scenario, item in sample_items.items()
+    }
 
-    # train 汇总（只有 train，不再划分 val/test）
+    scenario_map: dict[str, dict] = {
+        scenario: {
+            "scenario": scenario,
+            "simulator": item.get("simulator", "unknown"),
+            "source_count": item.get("sample_count", 0),
+        }
+        for scenario, item in sample_items.items()
+    }
+
+    for item in router_manifest.get("scenarios", []):
+        entry = scenario_map.setdefault(
+            item["scenario"],
+            {
+                "scenario": item["scenario"],
+                "simulator": item.get("simulator", "unknown"),
+                "source_count": 0,
+            },
+        )
+        if entry.get("simulator", "unknown") == "unknown":
+            entry["simulator"] = item.get("simulator", "unknown")
+        entry["router_count"] = item.get("router_count", 0)
+        entry["file_size_bytes"] = item.get("file_size_bytes", 0)
+        entry["mtime"] = item.get("mtime", 0)
+
+    return {
+        "splits": router_manifest.get(
+            "splits",
+            {
+                "train": {
+                    "exists": False,
+                    "count": 0,
+                    "file_size_bytes": 0,
+                    "mtime": 0,
+                }
+            },
+        ),
+        "total": router_manifest.get("total", 0),
+        "label_counts": router_manifest.get("label_counts", {"0": 0, "1": 0}),
+        "scenarios": sorted(scenario_map.values(), key=lambda item: item["scenario"]),
+        "source_count": sample_manifest.get("summary", {}).get("total_samples", 0),
+        "source_by_scenario": source_by_scenario,
+        "router_dir": str(ROUTER_DIR),
+    }
+
+
+def _legacy_get_router_status() -> dict:
     splits = {}
     total = 0
     path = ROUTER_DIR / "train.jsonl"
@@ -82,8 +133,6 @@ def get_router_status():
     else:
         splits["train"] = {"exists": False, "count": 0, "file_size_bytes": 0, "mtime": 0}
 
-    # 正负样本分布（从 train 统计）
-    # 注意：JSON 序列化会将 int key 转为 string，前端用字符串 key 访问
     label_counts = {"0": 0, "1": 0}
     train_path = ROUTER_DIR / "train.jsonl"
     if train_path.exists():
@@ -91,21 +140,20 @@ def get_router_status():
             with open(train_path, "r", encoding="utf-8") as f:
                 for line in f:
                     line = line.strip()
-                    if line:
-                        label = json.loads(line).get("label", -1)
-                        key = str(label)
-                        if key in label_counts:
-                            label_counts[key] += 1
+                    if not line:
+                        continue
+                    label = json.loads(line).get("label", -1)
+                    key = str(label)
+                    if key in label_counts:
+                        label_counts[key] += 1
         except Exception:
             pass
 
-    # 按场景统计（from by_scenario/）
     scenarios: list[dict] = []
     if SCENARIO_DIR.exists():
         for f in sorted(SCENARIO_DIR.glob("*.jsonl")):
             count = _count_lines(f)
-            stat  = f.stat()
-            # 读第一行取 simulator
+            stat = f.stat()
             simulator = "unknown"
             try:
                 with open(f, "r", encoding="utf-8") as fh:
@@ -114,15 +162,16 @@ def get_router_status():
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
                 pass
-            scenarios.append({
-                "scenario": f.stem,
-                "simulator": simulator,
-                "count": count,
-                "file_size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-            })
+            scenarios.append(
+                {
+                    "scenario": f.stem,
+                    "simulator": simulator,
+                    "count": count,
+                    "file_size_bytes": stat.st_size,
+                    "mtime": stat.st_mtime,
+                }
+            )
 
-    # Stage 3 源数据（按场景），同时读取 simulator 信息
     source_by_scenario: dict[str, int] = {}
     source_scenarios: list[dict] = []
     if TEXT2COMP_DIR.exists():
@@ -131,7 +180,6 @@ def get_router_status():
                 continue
             count = _count_lines(f)
             source_by_scenario[f.stem] = count
-            # 读第一行取 simulator
             simulator = "unknown"
             try:
                 with open(f, "r", encoding="utf-8") as fh:
@@ -140,37 +188,69 @@ def get_router_status():
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
                 pass
-            source_scenarios.append({
-                "scenario": f.stem,
-                "simulator": simulator,
-                "source_count": count,
-            })
+            source_scenarios.append(
+                {
+                    "scenario": f.stem,
+                    "simulator": simulator,
+                    "source_count": count,
+                }
+            )
 
-    # 合并：以 Stage 3 场景为基础，附加 Router 已生成的条数
-    scenario_map = {s["scenario"]: s for s in source_scenarios}
-    for sc in scenarios:
-        entry = scenario_map.setdefault(sc["scenario"], {
-            "scenario": sc["scenario"],
-            "simulator": sc.get("simulator", "unknown"),
-            "source_count": 0,
-        })
+    scenario_map = {item["scenario"]: item for item in source_scenarios}
+    for item in scenarios:
+        entry = scenario_map.setdefault(
+            item["scenario"],
+            {
+                "scenario": item["scenario"],
+                "simulator": item.get("simulator", "unknown"),
+                "source_count": 0,
+            },
+        )
         if entry.get("simulator", "unknown") == "unknown":
-            entry["simulator"] = sc.get("simulator", "unknown")
-        entry["router_count"] = sc["count"]
-        entry["file_size_bytes"] = sc["file_size_bytes"]
-        entry["mtime"] = sc["mtime"]
-    merged_scenarios = sorted(scenario_map.values(), key=lambda item: item["scenario"])
-
+            entry["simulator"] = item.get("simulator", "unknown")
+        entry["router_count"] = item["count"]
+        entry["file_size_bytes"] = item["file_size_bytes"]
+        entry["mtime"] = item["mtime"]
 
     return {
         "splits": splits,
         "total": total,
         "label_counts": label_counts,
-        "scenarios": merged_scenarios,
+        "scenarios": sorted(scenario_map.values(), key=lambda item: item["scenario"]),
         "source_count": sum(source_by_scenario.values()),
         "source_by_scenario": source_by_scenario,
         "router_dir": str(ROUTER_DIR),
     }
+
+
+def _router_total_from_manifest(split: str, scenario: str) -> int | None:
+    try:
+        manifest = manifest_store.ensure_router_manifest()
+    except Exception:
+        return None
+
+    if scenario:
+        for item in manifest.get("scenarios", []):
+            if item.get("scenario") == scenario:
+                return int(item.get("router_count", 0))
+        return 0
+
+    splits = manifest.get("splits", {})
+    split_info = splits.get(split)
+    if not split_info:
+        return 0
+    return int(split_info.get("count", 0))
+
+
+@router.get("/router/status")
+def get_router_status():
+    """返回 Router 数据目录的整体状态 + 按场景统计。"""
+    try:
+        router_manifest = manifest_store.ensure_router_manifest()
+        sample_manifest = manifest_store.ensure_sample_manifest()
+        return _build_router_status_from_manifests(router_manifest, sample_manifest)
+    except Exception:
+        return _legacy_get_router_status()
 
 
 # ── 触发生成 ──────────────────────────────────────────────────────
@@ -301,6 +381,10 @@ async def build_router_data(
             return
 
         if proc.returncode == 0:
+            try:
+                manifest_store.rebuild_router_manifest()
+            except Exception as exc:
+                publish(record, {"type": "log", "line": f"[警告] Router manifest 重建失败: {exc}", "ts": time.time()})
             record.status = "done"
             publish(record, {"type": "done", "ts": time.time(), "message": "Router ??????"})
         else:
@@ -319,6 +403,10 @@ def delete_router_scenario(scenario: str):
         return {"ok": False, "message": "?????"}
     path.unlink()
     total = _rewrite_train_from_scenarios(seed=0)
+    try:
+        manifest_store.rebuild_router_manifest()
+    except Exception:
+        pass
     return {"ok": True, "train_count": total}
 
 
@@ -334,6 +422,10 @@ def delete_all_router_data():
     if p.exists():
         p.unlink()
         deleted += 1
+    try:
+        manifest_store.rebuild_router_manifest()
+    except Exception:
+        pass
     return {"ok": True, "deleted": deleted}
 
 
@@ -362,9 +454,35 @@ def get_router_samples(
     start = page * page_size
     end   = start + page_size
 
-    items: list[dict] = []
-    total = 0
     try:
+        if not has_label_filter:
+            total_hint = _router_total_from_manifest(split=split, scenario=scenario)
+            try:
+                total, items = jsonl_index.read_page(
+                    path,
+                    page=page,
+                    page_size=page_size,
+                    total_rows=total_hint,
+                )
+                return {"total": total, "page": page, "page_size": page_size, "items": items}
+            except Exception:
+                pass
+
+        if has_label_filter:
+            try:
+                total, items = jsonl_filter_index.read_filtered_page(
+                    path,
+                    profile="router_label",
+                    key=f"label={label}",
+                    page=page,
+                    page_size=page_size,
+                )
+                return {"total": total, "page": page, "page_size": page_size, "items": items}
+            except Exception:
+                pass
+
+        items: list[dict] = []
+        total = 0
         with open(path, "r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()

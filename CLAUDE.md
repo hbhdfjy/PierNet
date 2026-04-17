@@ -60,9 +60,17 @@ data/router/      — Token Router 训练数据（Stage 4 输出，train.jsonl +
 ## 常用命令
 
 ```bash
-# 安装
+# ??
 pip install -r requirements.txt
 pip install -e .
+
+# MODFLOW ????????????????
+python - <<'PY'
+from pathlib import Path
+from flopy.utils import get_modflow
+get_modflow(str(Path.home() / '.flopy_bin'), subset='mf2005')
+PY
+# ??? PIERN_MODFLOW_EXE=/path/to/mf2005
 
 # Stage 1：物理仿真（推荐通过前端管理界面启动）
 ./start_ui.sh   # 启动 FastAPI(8000) + Vite(5173)，访问 http://localhost:5173
@@ -115,6 +123,15 @@ python scripts/text2comp/fill_samples.py \
 # Stage 4：Token Router 数据生成（不调 LLM）
 python scripts/router/build_router_data.py \
     --seed 42 --neg-ratio 1
+
+# 重建 Stage 2-4 摘要 manifest
+python scripts/utils/rebuild_manifests.py
+
+# 重建 Stage 2-4 无筛选分页索引
+python scripts/utils/rebuild_indexes.py
+
+# 重建 Stage 2-4 常用筛选索引
+python scripts/utils/rebuild_filter_indexes.py
 ```
 
 ## 项目结构
@@ -137,7 +154,7 @@ piern/
 │   │   │   ├── simulation.py    #     /api/simulation/*, /api/simulate（Stage 1 仿真）
 │   │   │   └── router_data.py   #     /api/router/*（Stage 4 Router 数据）
 │   │   ├── schemas/             #   Pydantic 模型
-│   │   └── services/            #   业务逻辑（job_manager, file_manager）
+│   │   └── services/            #   业务逻辑（job_manager, file_manager, manifest_store, jsonl_index, jsonl_filter_index）
 │   ├── simulators/
 │   │   ├── modflow/             # ✅ 抛物型PDE，flopy/MODFLOW
 │   │   ├── simpeg/              # ✅ 椭圆型PDE，SimPEG
@@ -171,6 +188,9 @@ piern/
 │   ├── router/
 │   │   └── build_router_data.py   # Stage 4：Token Router 数据生成（→ data/router/）
 │   ├── utils/summarize_all.py
+│   ├── utils/rebuild_manifests.py
+│   ├── utils/rebuild_indexes.py
+│   ├── utils/rebuild_filter_indexes.py
 │   └── ci/check_consistency.py
 │
 ├── frontend/                    # React + Vite + Tailwind 管理界面
@@ -198,7 +218,9 @@ piern/
     ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
     ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
     ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    └── router/       # train.jsonl + by_scenario/（Stage 4 输出）
+    ├── router/       # train.jsonl + by_scenario/（Stage 4 输出）
+    ├── .manifests/   # Stage 2-4 摘要 sidecar（templates/samples/router）
+    └── .indexes/     # Stage 2-4 无筛选分页索引
 ```
 
 ## 电力系统输出格式（重要）
@@ -250,6 +272,18 @@ Stage 4  Token Router 数据生成（不调 LLM）
         Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
         正负比例可配置（默认1:1），支持 qwen/deepseek/llama3/mistral/custom chat template
 ```
+
+## 摘要读取约定
+
+- Stage 2/3/4 的源数据仍然是 `data/templates/`、`data/text2comp/`、`data/router/` 下的 JSONL。
+- 交互式摘要接口优先读取 `data/.manifests/` 下的 sidecar manifest，而不是在请求时全量扫描大文件。
+- 无筛选分页接口优先读取 `data/.indexes/` 下的 sparse offset index，而不是从文件头顺扫到目标页。
+- 常用筛选分页接口优先读取 `data/.indexes/` 下的 filter index，当前覆盖 `language`、`style`、`label`。
+- 变更模板、样本或 router 文件后，可以执行 `python scripts/utils/rebuild_manifests.py` 主动刷新 manifest。
+- 变更后如果需要预热分页性能，可以执行 `python scripts/utils/rebuild_indexes.py` 主动刷新索引。
+- 如果需要预热筛选分页性能，可以执行 `python scripts/utils/rebuild_filter_indexes.py` 主动刷新 filter index。
+- 统计页通过 `/api/dashboard/summary` 聚合接口读取摘要，而不是并发请求三个重接口。
+- 如果 manifest 或索引缺失或快照过期，后端会按需自动重建。
 
 ## 最终训练样本格式（5字段）
 

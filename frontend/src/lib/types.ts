@@ -66,6 +66,12 @@ export interface DatasetStats {
   timeseries_shapes: Record<string, [number, number]>
 }
 
+export interface DashboardSummary {
+  stats: DatasetStats
+  datasets: DatasetInfo[]
+  router: RouterStatus
+}
+
 export interface ScenarioConfig {
   name: string
   scenario: string
@@ -223,9 +229,6 @@ export interface PlaceholderSlot {
 export interface OutputSlot {
   index: number
   name: string
-  slice_start: number
-  slice_end: number | null
-  row_level: boolean
 }
 
 export interface TransformDesc {
@@ -250,7 +253,6 @@ export interface TemplateRecord {
   time_mode: string
   n_time_points: number
   time_indices: number[]
-  channel_level: string
   channel_indices: number[] | null
   selected_output_names: string[]
   timeseries_shape_orig: [number, number]

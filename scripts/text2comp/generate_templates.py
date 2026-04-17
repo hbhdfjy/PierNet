@@ -47,6 +47,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _has_nonempty_jsonl(path: Path) -> bool:
+    try:
+        if not path.exists() or path.stat().st_size == 0:
+            return False
+        with open(path, "r", encoding="utf-8") as f:
+            return any(line.strip() for line in f)
+    except OSError:
+        return False
+
+
 def run_generate_templates(
     cfg_path: str,
     n_templates: int = None,
@@ -141,7 +151,7 @@ def run_generate_templates(
         scenario_name = _scenario_name_from_path(h5_path, file_suffix)
         out_path = templates_dir / f"{scenario_name}_templates.jsonl"
 
-        if skip_existing and out_path.exists():
+        if skip_existing and _has_nonempty_jsonl(out_path):
             _log(f"[跳过] {out_path.name} 已存在")
             continue
 

@@ -50,6 +50,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+def _has_nonempty_jsonl(path: Path) -> bool:
+    try:
+        if not path.exists() or path.stat().st_size == 0:
+            return False
+        with open(path, "r", encoding="utf-8") as f:
+            return any(line.strip() for line in f)
+    except OSError:
+        return False
+
+
 def run_fill_samples(
     cfg_path: str,
     n_samples: int = None,
@@ -116,10 +126,12 @@ def run_fill_samples(
         tmpl_path = tmpl_dir / f"{scenario_name}_templates.jsonl"
         out_path = out_dir / f"{scenario_name}.jsonl"
 
-        if skip_existing and out_path.exists():
+        if skip_existing and _has_nonempty_jsonl(out_path):
             _log(f"[跳过] {out_path.name} 已存在")
             all_jsonl.append(out_path)
             continue
+        if skip_existing and out_path.exists():
+            _log(f"[\u91cd\u5efa] {out_path.name} \u5b58\u5728\u4f46\u4e3a\u7a7a\u6216\u635f\u574f\uff0c\u91cd\u65b0\u751f\u6210")
 
         if not tmpl_path.exists():
             logger.warning(f"模板文件不存在，跳过: {tmpl_path}")
