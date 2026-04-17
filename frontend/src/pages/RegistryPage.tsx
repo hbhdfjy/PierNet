@@ -930,7 +930,7 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
           <div className="mt-2 w-full min-w-0 rounded-xl border border-slate-700/35 bg-slate-950/35 px-3 py-2.5">
             {description ? (
               <p
-                className="m-0 block w-full max-w-full text-sm text-slate-300/90 leading-6"
+                className="m-0 block w-full max-w-full text-sm text-slate-300/90 leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
                 style={{
                   whiteSpace: 'normal',
                   overflowWrap: 'anywhere',
@@ -975,7 +975,7 @@ export default function RegistryPage() {
   const totalScenarios = Object.values(reg).reduce((s, e) => s + Object.keys(e?.scenarios ?? {}).length, 0)
 
   return (
-    <div className="page-shell">
+    <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden" style={{ WebkitOverflowScrolling: 'touch' }}>
       {/* 页头 */}
       <div className="page-header">
         <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-500/30 flex items-center justify-center flex-shrink-0">
@@ -994,7 +994,7 @@ export default function RegistryPage() {
       </div>
 
       {/* 列表 */}
-      <div className="page-content overflow-y-auto p-4 space-y-3">
+      <div className="px-4 pb-4 pt-3 space-y-3">
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
             <RefreshCw size={15} className="animate-spin" /><span>加载注册信息…</span>
@@ -1009,6 +1009,7 @@ export default function RegistryPage() {
         {simulators.map(([simKey, simEntry]) => {
           const scenarios = simEntry?.scenarios ?? {}
           const scenarioCount = Object.keys(scenarios).length
+          const sortedScenarios = Object.entries(scenarios).sort(([a], [b]) => a.localeCompare(b))
           // simulator 级条目（去掉 scenarios 子字段传给卡片）
           const { scenarios: _s, ...simFields } = simEntry ?? {}
           return (
@@ -1022,24 +1023,23 @@ export default function RegistryPage() {
               />
               {/* 场景列表 */}
               {scenarioCount > 0 && (
-                <div className="border-t border-slate-700/30 bg-slate-900/20">
-                  <div className="px-4 py-2 flex items-center gap-2">
+                <div className="border-t border-slate-700/30 bg-slate-900/20 min-h-0">
+                  <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-700/30">
                     <span className="label text-xs">场景描述</span>
                     <span className="badge bg-slate-700/50 text-slate-500 border border-slate-600/30 text-xs">{scenarioCount} 个</span>
+                    <span className="text-xs text-slate-600">全部展开显示</span>
                   </div>
                   <div className="pb-2">
-                    {Object.entries(scenarios)
-                      .sort(([a], [b]) => a.localeCompare(b))
-                      .map(([sc, desc]) => (
-                        <ScenarioRowGrid
-                          key={sc}
-                          simulator={simKey}
-                          scenario={sc}
-                          description={desc}
-                          onSave={async (key, d) => handleSave(key, d)}
-                          onDelete={handleDelete}
-                        />
-                      ))}
+                    {sortedScenarios.map(([sc, desc]) => (
+                      <ScenarioRowGrid
+                        key={sc}
+                        simulator={simKey}
+                        scenario={sc}
+                        description={desc}
+                        onSave={async (key, d) => handleSave(key, d)}
+                        onDelete={handleDelete}
+                      />
+                    ))}
                   </div>
                 </div>
               )}
