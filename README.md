@@ -1,5 +1,15 @@
 # PiERN 多模拟器数据合成管线
 
+## 文档入口
+
+后续我会优先维护以下三份文档，并把它们作为项目整体 overview 的正式入口：
+
+- `PROJECT_OVERVIEW.md`：项目级总览，定义系统边界、阶段划分、核心组件和文档分工。
+- `README.md`：面向使用者的安装、启动、快速开始和常用命令。
+- `CLAUDE.md`：面向开发与代码代理的工作上下文，默认以 `PROJECT_OVERVIEW.md` 为总览基线。
+
+其中 `UPGRADE_PLAN.md` 保留为演进路线与问题清单，不再承担项目 overview 的职责。
+
 **PiERN**（Physically-isolated Experts Routing Network）多模拟器数据合成管线。
 
 ---
