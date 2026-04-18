@@ -18,6 +18,7 @@ from piern.api.routers import (
     interview,
     simulation,
     router_data,
+    training,
 )
 
 
@@ -30,7 +31,9 @@ class SPAStaticFiles(StaticFiles):
         except StarletteHTTPException as exc:
             if exc.status_code != 404:
                 raise
-            # ??????????????????? 404
+            if path.startswith('api/'):
+                raise
+            # ??????????????? 404
             if FilePath(path).suffix:
                 raise
             return await super().get_response('index.html', scope)
@@ -61,6 +64,7 @@ for _router in [
     interview.router,
     simulation.router,
     router_data.router,
+    training.router,
 ]:
     app.include_router(_router, prefix="/api")
 

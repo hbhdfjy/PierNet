@@ -9,6 +9,8 @@ import type {
   TemplatesResponse,
   SimulationScenario, SimulateRequest, BatchSimulateRequest, SimulationHistoryRecord,
   RouterStatus, RouterSamplesResponse,
+  TrainingOverview, TrainingDatasetInfo, TrainingGPUInfo, TrainingJobSummary,
+  TrainingCreateJobRequest, TrainingJobDetail, TrainingCurvesResponse, TrainingLogResponse,
 } from './types'
 
 const BASE = '/api'
@@ -349,4 +351,50 @@ export const api = {
     }
     return res.json()
   },
+
+  // ── 训练平台 ─────────────────────────────────────────────────────
+  getTrainingOverview: (): Promise<TrainingOverview> =>
+    get('/training/overview'),
+
+  getTrainingDatasets: (): Promise<TrainingDatasetInfo[]> =>
+    get('/training/datasets'),
+
+  getTrainingGPUs: (): Promise<TrainingGPUInfo[]> =>
+    get('/training/gpus'),
+
+  getTrainingJobs: (): Promise<TrainingJobSummary[]> =>
+    get('/training/jobs'),
+
+  createTrainingJob: async (req: TrainingCreateJobRequest): Promise<TrainingJobSummary> => {
+    const res = await fetch(`${BASE}/training/jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`启动训练失败 (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
+  getTrainingJob: (jobId: string): Promise<TrainingJobDetail> =>
+    get(`/training/jobs/${encodeURIComponent(jobId)}`),
+
+  stopTrainingJob: async (jobId: string): Promise<TrainingJobSummary> => {
+    const res = await fetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}/stop`, {
+      method: 'POST',
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`终止训练失败 (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
+  getTrainingCurves: (jobId: string, maxPoints = 2000): Promise<TrainingCurvesResponse> =>
+    get(`/training/jobs/${encodeURIComponent(jobId)}/curves`, { max_points: maxPoints }),
+
+  getTrainingLogs: (jobId: string, limit = 300): Promise<TrainingLogResponse> =>
+    get(`/training/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
 }

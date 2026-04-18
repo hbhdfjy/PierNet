@@ -1,5 +1,5 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
+﻿import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import {
   Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
   KeyRound, FileText, Zap, Sun, Moon, GitBranch, Network,
@@ -18,6 +18,7 @@ import RegistryPage from './pages/RegistryPage'
 import SimulationRunner from './pages/SimulationRunner'
 import RouterDataBuilder from './pages/RouterDataBuilder'
 import RouterViewer from './pages/RouterViewer'
+import TrainingApp from './training/TrainingApp'
 
 type Theme = 'dark' | 'light'
 
@@ -120,6 +121,7 @@ function NavItem({
 }
 
 export default function App() {
+  const location = useLocation()
   const [theme, toggleTheme] = useTheme()
   const [seed, setSeed] = useSeedState()
   const [seedInput, setSeedInput] = useState(String(seed))
@@ -127,6 +129,10 @@ export default function App() {
   useEffect(() => {
     setSeedInput(String(seed))
   }, [seed])
+
+  if (location.pathname.startsWith('/training')) {
+    return <TrainingApp theme={theme} toggleTheme={toggleTheme} />
+  }
 
   return (
     <SeedContext.Provider value={{ seed, setSeed }}>
@@ -174,6 +180,13 @@ export default function App() {
                 <NavItem to="/samples" icon={Database} label="样本浏览" rightIcon={ChevronRight} />
                 <NavItem to="/router-viewer" icon={Network} label="路由浏览" rightIcon={ChevronRight} />
                 <NavItem to="/stats" icon={BarChart2} label="数据统计" rightIcon={ChevronRight} />
+              </div>
+            </div>
+
+            <div>
+              <SectionLabel>平台切换</SectionLabel>
+              <div className="space-y-1">
+                <NavItem to="/training" icon={GitBranch} label="训练平台" rightIcon={ChevronRight} />
               </div>
             </div>
 
@@ -245,3 +258,4 @@ export default function App() {
     </SeedContext.Provider>
   )
 }
+

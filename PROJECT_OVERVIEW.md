@@ -59,6 +59,8 @@ PiERN is a multi-simulator data generation pipeline that turns heterogeneous phy
 - `piern/simulators/`: Stage 1 pipelines and simulator-specific generation logic
 - `piern/text2comp/`: registration, template generation, and filling logic
 - `scripts/router/`: Stage 4 router dataset construction
+- `piern/training/router/`: Token Router CLI-first training core
+- `scripts/router/train_token_router.py`: Token Router training entrypoint
 
 ## Key Project Contracts
 
@@ -82,3 +84,22 @@ The maintained documentation set for project overview is:
    The developer and coding-agent operating context, grounded on the overview above.
 
 `UPGRADE_PLAN.md` remains useful, but it is a roadmap document rather than part of the overview contract.
+
+## Dual Platform Layout
+
+The repository currently exposes two product surfaces:
+
+- Data synthesis platform
+  - Stage 1 simulation
+  - Stage 2 template generation
+  - Stage 3 sample filling
+  - Stage 4 router dataset construction
+- Model training platform
+  - Current state: single-GPU training workbench + CLI-first training core
+  - Frontend route prefix: `/training`
+  - Backend training APIs: enabled at `/api/training/*`
+  - Current training entrypoint: `scripts/router/train_token_router.py`
+  - Current scope: single-GPU Token Router training, job management, curve viewing, log viewing
+
+The synthesis platform remains the only fully operational platform at this stage.
+

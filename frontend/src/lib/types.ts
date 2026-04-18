@@ -440,3 +440,149 @@ export interface SimulationHistoryRecord {
   elapsed_sec: number | null
   final_sample_count: number | null
 }
+
+
+export interface TrainingDatasetScenario {
+  scenario: string
+  simulator: string
+  router_count: number
+  file_size_bytes: number
+  mtime: number
+  path: string
+}
+
+export interface TrainingDatasetInfo {
+  simulator: string
+  total_count: number
+  scenarios: TrainingDatasetScenario[]
+}
+
+export interface TrainingGPUInfo {
+  index: number
+  name: string
+  memory_used_mib: number
+  memory_total_mib: number
+  utilization_gpu: number
+  available: boolean
+  locked_by_job_id: string | null
+  reason: string | null
+}
+
+export type TrainingJobStatus = 'queued' | 'starting' | 'running' | 'evaluating' | 'done' | 'error' | 'terminated'
+
+export interface TrainingJobConfig {
+  epochs: number
+  eval_interval: number
+  batch_size: number
+  test_batch_size: number
+  learning_rate: number
+  weight_decay: number
+  num_workers: number
+  test_ratio: number
+  resume_from: string | null
+}
+
+export interface TrainingMetricsSummary {
+  accuracy?: number | null
+  precision?: number | null
+  recall?: number | null
+  f1?: number | null
+  pr_auc?: number | null
+}
+
+export interface TrainingJobSummary {
+  job_id: string
+  name: string
+  status: TrainingJobStatus
+  simulator: string
+  scenarios: string[]
+  gpu_id: number
+  created_at: number
+  started_at?: number | null
+  ended_at?: number | null
+  pid?: number | null
+  artifact_root: string
+  run_dir: string
+  log_path: string
+  config: TrainingJobConfig
+  latest_epoch?: number | null
+  latest_step?: number | null
+  steps_per_epoch?: number | null
+  global_step?: number | null
+  avg_loss?: number | null
+  steps_per_sec?: number | null
+  eta_seconds?: number | null
+  latest_test_epoch?: number | null
+  latest_metrics?: TrainingMetricsSummary | null
+  error_message?: string | null
+}
+
+export interface TrainingCheckpointInfo {
+  name: string
+  path: string
+  size_bytes: number
+  mtime: number
+  epoch?: number | null
+}
+
+export interface TrainingJobDetail extends TrainingJobSummary {
+  command: string[]
+  checkpoints: TrainingCheckpointInfo[]
+  prepared_name?: string | null
+}
+
+export interface TrainingOverview {
+  datasets: TrainingDatasetInfo[]
+  gpus: TrainingGPUInfo[]
+  jobs: TrainingJobSummary[]
+  running_job_count: number
+  completed_job_count: number
+}
+
+export interface TrainingCreateJobRequest {
+  name?: string | null
+  simulator: string
+  scenarios: string[]
+  gpu_id: number
+  epochs: number
+  eval_interval: number
+  batch_size: number
+  test_batch_size: number
+  learning_rate: number
+  weight_decay: number
+  num_workers: number
+  test_ratio: number
+  resume_from?: string | null
+}
+
+export interface TrainingPoint {
+  epoch: number
+  step: number
+  global_step: number
+  avg_loss: number
+  steps_per_sec: number
+  eta_seconds: number
+}
+
+export interface TrainingTestPoint {
+  epoch: number
+  accuracy: number
+  precision: number
+  recall: number
+  f1: number
+  pr_auc: number
+  per_scenario: Record<string, Record<string, number>>
+}
+
+export interface TrainingCurvesResponse {
+  job_id: string
+  training_points: TrainingPoint[]
+  training_epoch_points: TrainingPoint[]
+  test_points: TrainingTestPoint[]
+  checkpoints: TrainingCheckpointInfo[]
+}
+
+export interface TrainingLogResponse {
+  job_id: string
+  lines: string[]
+}

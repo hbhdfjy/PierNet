@@ -25,6 +25,11 @@ setup(
         "fastapi>=0.100.0",
         "uvicorn[standard]>=0.23.0",
         "pydantic>=2.0.0",
+        "torch>=2.5.0,<2.6.0",
+        "transformers>=4.46.0,<4.47.0",
+        "tokenizers>=0.20.0,<0.21.0",
+        "accelerate>=1.1.0,<1.2.0",
+        "safetensors>=0.4.0,<0.5.0",
     ],
     entry_points={
         "console_scripts": [
