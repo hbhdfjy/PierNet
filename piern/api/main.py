@@ -1,8 +1,11 @@
-"""FastAPI 应用入口：注册所有 router，配置 CORS 和静态文件。"""
+"""FastAPI ????????? router??? CORS ??????"""
+
+from pathlib import Path as FilePath
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from piern.api.deps import PROJECT_ROOT
 from piern.api.routers import (
@@ -17,7 +20,23 @@ from piern.api.routers import (
     router_data,
 )
 
-app = FastAPI(title="PiERN 多模拟器数据集 API", version="2.0")
+
+class SPAStaticFiles(StaticFiles):
+    """? BrowserRouter ?? history fallback??????? 404?"""
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code != 404:
+                raise
+            # ??????????????????? 404
+            if FilePath(path).suffix:
+                raise
+            return await super().get_response('index.html', scope)
+
+
+app = FastAPI(title="PiERN ??????? API", version="2.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,7 +50,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# 注册所有路由（统一前缀 /api）
+# ??????????? /api?
 for _router in [
     datasets.router,
     config.router,
@@ -45,7 +64,7 @@ for _router in [
 ]:
     app.include_router(_router, prefix="/api")
 
-# 生产模式：挂载前端静态文件
+# ?????????????
 _dist = PROJECT_ROOT / "frontend" / "dist"
 if _dist.exists():
-    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")
+    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="static")
