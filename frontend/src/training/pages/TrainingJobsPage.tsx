@@ -27,7 +27,7 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
   )
 }
 
-function JobRow({ job }: { job: TrainingJobSummary }) {
+function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?: boolean }) {
   const { mutate } = useSWRConfig()
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
   const deletable = !stoppable
@@ -49,67 +49,69 @@ function JobRow({ job }: { job: TrainingJobSummary }) {
   }
 
   return (
-    <div className="training-card p-4">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-[17px] font-semibold text-slate-100">{job.name}</div>
-            <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+    <div className={expanded ? 'training-card p-5 min-h-[260px]' : 'training-card p-4'}>
+      <div className="flex h-full flex-col justify-between gap-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="text-[17px] font-semibold text-slate-100">{job.name}</div>
+              <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+            </div>
+            <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+            <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
+            <div className="mt-1 training-mono-note">{job.scenarios.join(', ')}</div>
           </div>
-          <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
-          <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
-          <div className="mt-1 training-mono-note">{job.scenarios.join(', ')}</div>
+
+          <div className="flex flex-wrap items-center gap-2 xl:justify-end">
+            {stoppable && (
+              <button type="button" className="btn-danger" onClick={stopJob}>
+                <PauseCircle size={14} />
+                终止
+              </button>
+            )}
+            {deletable && (
+              <button type="button" className="btn-ghost" onClick={deleteJob}>
+                <Trash2 size={14} />
+                删除
+              </button>
+            )}
+            <Link to={`/training/jobs/${job.job_id}`} className="btn-primary">
+              <PlayCircle size={14} />
+              查看详情
+            </Link>
+          </div>
+        </div>
+ 
+        <div className="training-meta-grid">
+          <div className="training-surface--dense">
+            <div className="training-label">创建时间</div>
+            <div className="mt-1 text-[15px] text-slate-100">{formatDateTime(job.created_at)}</div>
+          </div>
+          <div className="training-surface--dense">
+            <div className="training-label">Epoch / Step</div>
+            <div className="mt-1 text-[15px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
+          </div>
+          <div className="training-surface--dense">
+            <div className="training-label">训练损失</div>
+            <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
+          </div>
+          <div className="training-surface--dense">
+            <div className="training-label">最近 F1</div>
+            <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+          </div>
+          <div className="training-surface--dense">
+            <div className="training-label">预计剩余</div>
+            <div className="mt-1 text-[15px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-          {stoppable && (
-            <button type="button" className="btn-danger" onClick={stopJob}>
-              <PauseCircle size={14} />
-              终止
-            </button>
-          )}
-          {deletable && (
-            <button type="button" className="btn-ghost" onClick={deleteJob}>
-              <Trash2 size={14} />
-              删除
-            </button>
-          )}
-          <Link to={`/training/jobs/${job.job_id}`} className="btn-primary">
-            <PlayCircle size={14} />
-            查看详情
-          </Link>
-        </div>
+        {job.error_message && (
+          <div className="flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
+            <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+            <span>{job.error_message}</span>
+          </div>
+        )}
       </div>
-
-      <div className="mt-4 training-meta-grid">
-        <div className="training-surface--dense">
-          <div className="training-label">创建时间</div>
-          <div className="mt-1 text-[15px] text-slate-100">{formatDateTime(job.created_at)}</div>
-        </div>
-        <div className="training-surface--dense">
-          <div className="training-label">Epoch / Step</div>
-          <div className="mt-1 text-[15px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
-        </div>
-        <div className="training-surface--dense">
-          <div className="training-label">训练损失</div>
-          <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
-        </div>
-        <div className="training-surface--dense">
-          <div className="training-label">最近 F1</div>
-          <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
-        </div>
-        <div className="training-surface--dense">
-          <div className="training-label">预计剩余</div>
-          <div className="mt-1 text-[15px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
-        </div>
-      </div>
-
-      {job.error_message && (
-        <div className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
-          <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
-          <span>{job.error_message}</span>
-        </div>
-      )}
     </div>
   )
 }
@@ -163,7 +165,7 @@ export default function TrainingJobsPage() {
             </div>
           )}
 
-          <section className="training-card min-h-0">
+          <section className="training-card min-h-[420px]">
             <div className="card-header">
               <Gauge size={16} className="text-sky-300" />
               <div>
@@ -178,7 +180,7 @@ export default function TrainingJobsPage() {
                 </div>
               ) : data?.length ? (
                 <div className="space-y-3">
-                  {data.map(job => <JobRow key={job.job_id} job={job} />)}
+                  {data.map(job => <JobRow key={job.job_id} job={job} expanded={data.length <= 2} />)}
                 </div>
               ) : (
                 <div className="training-card p-8 text-center text-sm text-slate-400">
