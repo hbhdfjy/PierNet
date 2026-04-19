@@ -1,59 +1,37 @@
-"""FastAPI ????????? router??? CORS ??????"""
-
-from pathlib import Path as FilePath
+"""?????????? synth / training API ????????"""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from piern.api.deps import PROJECT_ROOT
-from piern.api.routers import (
-    datasets,
+from piern.shared.api.static import SPAStaticFiles
+from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.synth.api.routers import (
     config,
-    registry,
-    jobs,
-    generation,
+    datasets,
     files,
+    generation,
     interview,
-    simulation,
+    jobs,
+    registry,
     router_data,
-    training,
+    simulation,
 )
+from piern.training.api.routers import training
 
-
-class SPAStaticFiles(StaticFiles):
-    """? BrowserRouter ?? history fallback??????? 404?"""
-
-    async def get_response(self, path: str, scope):
-        try:
-            return await super().get_response(path, scope)
-        except StarletteHTTPException as exc:
-            if exc.status_code != 404:
-                raise
-            if path.startswith('api/'):
-                raise
-            # ??????????????? 404
-            if FilePath(path).suffix:
-                raise
-            return await super().get_response('index.html', scope)
-
-
-app = FastAPI(title="PiERN ??????? API", version="2.0")
+app = FastAPI(title='PiERN Unified API', version='3.0')
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",
-        "http://localhost:4173",
-        "http://127.0.0.1:5173",
+        'http://localhost:5173',
+        'http://localhost:4173',
+        'http://127.0.0.1:5173',
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=['*'],
+    allow_headers=['*'],
 )
 
-# ??????????? /api?
 for _router in [
     datasets.router,
     config.router,
@@ -66,9 +44,8 @@ for _router in [
     router_data.router,
     training.router,
 ]:
-    app.include_router(_router, prefix="/api")
+    app.include_router(_router, prefix='/api')
 
-# ?????????????
-_dist = PROJECT_ROOT / "frontend" / "dist"
+_dist = PROJECT_ROOT / 'frontend' / 'dist'
 if _dist.exists():
-    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="static")
+    app.mount('/', SPAStaticFiles(directory=str(_dist), html=True), name='static')

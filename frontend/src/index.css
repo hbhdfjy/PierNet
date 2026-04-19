@@ -661,7 +661,7 @@
   }
 
   .page-content {
-    @apply flex-1 flex flex-col overflow-hidden min-h-0 min-w-0;
+    @apply flex-1 flex flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0;
     background: linear-gradient(180deg, hsl(var(--bg) / 0.34), transparent 24%);
   }
 
@@ -709,6 +709,58 @@
   .training-scroll {
     @apply min-h-0 overflow-y-auto space-y-2.5 pr-1;
     overscroll-behavior: contain;
+  }
+
+  .list-scroll-sm {
+    @apply min-h-0 h-32 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-scroll-compact {
+    @apply min-h-0 h-44 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-scroll-md {
+    @apply min-h-0 h-56 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-scroll-lg {
+    @apply min-h-0 h-72 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-scroll-xl {
+    @apply min-h-0 h-80 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-table-scroll-compact {
+    @apply min-h-0 h-44 overflow-y-auto overflow-x-hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-table-scroll {
+    @apply min-h-0 h-56 overflow-y-auto overflow-x-hidden;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+  }
+
+  .list-table-scroll thead th,
+  .list-table-scroll-compact thead th {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: hsl(var(--surface2) / 0.96);
+    backdrop-filter: blur(14px);
+    box-shadow: inset 0 -1px 0 hsl(var(--border) / 0.4);
   }
 
   .training-stack {

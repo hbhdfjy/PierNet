@@ -10,7 +10,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.api.services import manifest_store
+from piern.synth.services import manifest_store
 
 
 def main() -> None:

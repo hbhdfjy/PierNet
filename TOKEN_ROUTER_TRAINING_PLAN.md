@@ -27,11 +27,11 @@
   - `test_metrics_epoch_xxxx.json`
   - `test_metrics_latest.json`
 - 当前已有可复用任务基础设施：
-  - `piern/api/services/job_manager.py`
+  - `piern/synth/services/job_manager.py`
   - `/api/generate/{id}/stream` 这一套 SSE 机制
 - 当前已有可复用前端作业监控模式：
-  - `frontend/src/hooks/useJobMonitor.ts`
-  - `frontend/src/components/generation/JobMonitorPanel.tsx`
+  - `frontend/src/synth/hooks/useJobMonitor.ts`
+  - `frontend/src/synth/components/generation/JobMonitorPanel.tsx`
 
 ### 当前实现状态
 
@@ -200,9 +200,9 @@
 
 当前已新增：
 
-- `piern/api/routers/training.py`
-- `piern/api/schemas/training.py`
-- `piern/api/services/training_manager.py`
+- `piern/training/api/routers/training.py`
+- `piern/training/api/schemas/training.py`
+- `piern/training/services/training_manager.py`
 
 当前没有继续拆成 `gpu_inventory / training_registry / training_curves` 三个服务文件，而是先集中落在 `training_manager.py`，避免在第一版过早拆分。
 

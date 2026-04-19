@@ -115,7 +115,7 @@ export default function TrainingOverviewPage() {
                   <div className="text-[15px] text-slate-400">基于当前 router manifest 聚合</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-xl">
                 {isLoading && !data ? (
                   <div className="space-y-2.5">
                     {[0, 1, 2].map(item => (
@@ -170,7 +170,7 @@ export default function TrainingOverviewPage() {
                   <div className="text-[15px] text-slate-400">只显示训练平台可见的单卡分配信息</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-lg">
                 {data?.gpus?.length ? (
                   data.gpus.map(gpu => (
                     <div key={gpu.index} className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3">
@@ -219,7 +219,7 @@ export default function TrainingOverviewPage() {
                   <div className="text-[15px] text-slate-400">最近 5 个训练任务快照</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-lg">
                 {data?.jobs.length ? (
                   data.jobs.slice(0, 5).map(job => (
                     <Link key={job.job_id} to={`/training/jobs/${job.job_id}`} className="card-hover block p-3.5">

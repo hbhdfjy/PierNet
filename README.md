@@ -171,81 +171,51 @@ python scripts/utils/rebuild_filter_indexes.py
 ---
 
 ## 项目结构
-
 ```
 piern/
-├── piern/
-│   ├── core/                    # HDF5存储、质量过滤、LLM客户端
-│   ├── api/                     # FastAPI 后端（分层架构）
-│   │   ├── routers/
-│   │   │   ├── simulation.py    #   /api/simulation/*, /api/simulate（Stage 1）
-│   │   │   ├── generation.py    #   /api/generate-templates, /api/fill-samples
-│   │   │   ├── router_data.py   #   /api/router/*（Stage 4）
-│   │   │   ├── datasets.py      #   /api/datasets, /api/samples, /api/stats
-│   │   │   ├── config.py        #   /api/config, /api/llm-config
-│   │   │   ├── registry.py      #   /api/registry CRUD
-│   │   │   ├── jobs.py          #   /api/generate/{id}/stream（SSE）
-│   │   │   ├── files.py         #   /api/files/templates, /api/files/samples
-│   │   │   └── interview.py     #   /api/interview/*
-│   │   └── services/            #   job_manager, file_manager, manifest_store, jsonl_index, jsonl_filter_index
-│   ├── simulators/
-│   │   ├── modflow/             # ✅ 抛物型PDE，flopy/MODFLOW
-│   │   ├── simpeg/              # ✅ 椭圆型PDE，SimPEG
-│   │   ├── power_flow/          # ✅ 非线性代数，pandapower（稳态潮流）
-│   │   ├── transient/           # ✅ DAE系统，ANDES（暂态稳定）
-│   │   ├── power_system/        # 共享工具库（unified_params, generator_with_params）
-│   │   └── gcam/                # ✅ 动态代数，PyPSA+HiGHS
-│   └── text2comp/               # ✅ Stage 2/3 语言模板生成
-│
-├── configs/
-│   ├── modflow/variants/        # 7个场景 YAML
-│   ├── simpeg/variants/         # 4个场景 YAML
-│   ├── power_flow/variants/     # 5个潮流场景（ieee14_baseload/renewable/peak/light/voltage_stress）
-│   ├── transient/variants/      # 3个暂态场景（ieee14_fault/gentrip/load_step）
-│   ├── gcam/variants/           # 3个场景 YAML
-│   └── text2comp/
-│       ├── default.yaml         # 唯一配置文件（LLM/生成超参/数据路径）
-│       └── registry.yaml        # 元数据注册表（auto_register 生成）
-│
-├── scripts/
-│   ├── text2comp/
-│   │   ├── generate_templates.py  # Stage 2：LLM生成模板
-│   │   └── fill_samples.py        # Stage 3：数值填充
-│   ├── router/
-│   │   └── build_router_data.py   # Stage 4：Router 数据生成
-│   └── utils/
-│       ├── summarize_all.py
-│       ├── rebuild_manifests.py   # 重建 Stage 2-4 摘要 manifest
-│       ├── rebuild_indexes.py     # 重建 Stage 2-4 无筛选分页索引
-│       └── rebuild_filter_indexes.py # 重建 Stage 2-4 常用筛选索引
-│
-├── frontend/                    # React + Vite + Tailwind 管理界面
-│   └── src/pages/
-│       ├── SimulationRunner.tsx   # Stage 1：物理仿真
-│       ├── RegisterSimulator.tsx  # Stage 2-01：注册数据集
-│       ├── TemplateGenerator.tsx  # Stage 2-02：模板生成
-│       ├── SampleFiller.tsx       # Stage 3：样本填充
-│       ├── RouterDataBuilder.tsx  # Stage 4：Router 数据生成
-│       ├── SampleViewer.tsx       # 样本浏览
-│       ├── TemplateViewer.tsx     # 模板浏览
-│       ├── RouterViewer.tsx       # 路由数据浏览
-│       ├── DatasetStats.tsx       # 数据集统计
-│       └── RegistryPage.tsx       # 注册信息管理
-│
-└── data/
-    ├── modflow/      # modflow_{scenario}.h5，(N, 5, 365)
-    ├── simpeg/       # simpeg_{scenario}.h5，(N, 1, 100)
-    ├── power_flow/   # power_flow_{scenario}.h5，(N, 43, 365)
-    ├── transient/    # transient_{scenario}.h5，(N, 5, 1000)
-    ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
-    ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
-    ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    ├── router/       # train.jsonl + by_scenario/（Stage 4 输出）
-    ├── .manifests/   # templates/samples/router 摘要 sidecar（前端摘要读取）
-    └── .indexes/     # 模板/样本/router JSONL 的 sparse offset index
+??? piern/
+?   ??? core/                    # core numeric and storage primitives
+?   ??? shared/                  # shared infrastructure: paths, static hosting
+?   ??? synth/                   # synthesis backend surface
+?   ?   ??? api/routers/         # Stage 1-4 APIs
+?   ?   ??? api/schemas/         # synthesis schemas
+?   ?   ??? services/            # manifests, indexes, jobs, files
+?   ??? training/                # training backend surface and training core
+?   ?   ??? api/routers/         # /api/training/*
+?   ?   ??? api/schemas/         # training schemas
+?   ?   ??? services/            # training jobs, GPU allocation, curves
+?   ?   ??? router/              # Token Router training core
+?   ??? simulators/              # Stage 1 simulator implementations
+?   ??? text2comp/               # Stage 2/3 language-template logic
+?
+??? frontend/
+?   ??? src/
+?       ??? platform/            # top-level platform router
+?       ??? shared/              # shared frontend infrastructure
+?       ??? synth/               # synthesis frontend surface
+?       ?   ??? pages/
+?       ?   ??? hooks/
+?       ?   ??? components/
+?       ??? training/            # training frontend surface
+?       ??? lib/                 # shared runtime libs: api/types/utils
+?
+??? scripts/
+?   ??? text2comp/
+?   ??? router/
+?   ??? utils/
+?
+??? data/
+    ??? modflow/
+    ??? simpeg/
+    ??? power_flow/
+    ??? transient/
+    ??? gcam/
+    ??? templates/
+    ??? text2comp/
+    ??? router/
+    ??? .manifests/
+    ??? .indexes/
 ```
-
----
 
 ## HDF5 文件命名约定
 

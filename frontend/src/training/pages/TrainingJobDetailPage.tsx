@@ -373,7 +373,7 @@ export default function TrainingJobDetailPage() {
                     <div className="text-[15px] text-slate-400">当前 run 已保存的模型文件</div>
                   </div>
                 </div>
-                <div className="training-card__body training-scroll">
+                <div className="training-card__body training-scroll list-scroll-lg">
                   <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
                 </div>
               </section>

@@ -1,11 +1,11 @@
 import { Moon, Sun, ArrowLeft, BarChart3, Cpu, PlayCircle, Workflow } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import type { Theme } from '../shared/theme'
 import TrainingOverviewPage from './pages/TrainingOverviewPage'
 import TrainingNewJobPage from './pages/TrainingNewJobPage'
 import TrainingJobsPage from './pages/TrainingJobsPage'
 import TrainingJobDetailPage from './pages/TrainingJobDetailPage'
 
-type Theme = 'dark' | 'light'
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -68,7 +68,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
           <div>
             <SectionLabel>平台切换</SectionLabel>
             <div className="space-y-1">
-              <NavItem to="/simulate" icon={ArrowLeft} label="返回数据平台" />
+              <NavItem to="/synth" icon={ArrowLeft} label="返回数据平台" />
             </div>
           </div>
 
@@ -99,10 +99,10 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
 
       <main className="app-main">
         <Routes>
-          <Route path="/training" element={<TrainingOverviewPage />} />
-          <Route path="/training/new" element={<TrainingNewJobPage />} />
-          <Route path="/training/jobs" element={<TrainingJobsPage />} />
-          <Route path="/training/jobs/:jobId" element={<TrainingJobDetailPage />} />
+          <Route index element={<TrainingOverviewPage />} />
+          <Route path="new" element={<TrainingNewJobPage />} />
+          <Route path="jobs" element={<TrainingJobsPage />} />
+          <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
           <Route path="*" element={<Navigate to="/training" replace />} />
         </Routes>
       </main>

@@ -187,7 +187,7 @@ export default function TrainingNewJobPage() {
                   <div className="text-[15px] text-slate-400">按大场景聚合，选择参与训练的子场景</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-xl">
                 <div>
                   <label className="training-label">任务名称</label>
                   <input
@@ -281,7 +281,7 @@ export default function TrainingNewJobPage() {
                   <div className="text-[15px] text-slate-400">当前版本只支持单张空闲 GPU</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-lg">
                 {(gpus ?? []).map(gpu => (
                   <label
                     key={gpu.index}
@@ -482,7 +482,7 @@ export default function TrainingNewJobPage() {
                   <div className="text-[15px] text-slate-400">可作为恢复训练的参考</div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll">
+              <div className="training-card__body training-scroll list-scroll-lg">
                 {(jobs ?? [])
                   .filter(job => job.status === 'done')
                   .slice(0, 4)

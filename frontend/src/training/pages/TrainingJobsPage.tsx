@@ -139,7 +139,7 @@ export default function TrainingJobsPage() {
             </div>
           )}
 
-          <div className="training-scroll">
+          <div className="training-scroll list-scroll-xl">
             {isLoading && !data ? (
               [0, 1, 2].map(item => <div key={item} className="skeleton h-48 rounded-3xl" />)
             ) : data?.length ? (

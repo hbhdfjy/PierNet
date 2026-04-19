@@ -135,92 +135,47 @@ python scripts/utils/rebuild_filter_indexes.py
 ```
 
 ## 项目结构
-
 ```
 piern/
-├── piern/
-│   ├── core/                    # llm_client, storage, validation
-│   ├── api/                     # FastAPI 后端（分层架构）
-│   │   ├── main.py              #   app 入口，注册 router，CORS
-│   │   ├── deps.py              #   公共常量（PROJECT_ROOT 等）
-│   │   ├── routers/             #   按资源分 router
-│   │   │   ├── datasets.py      #     /api/datasets, /api/samples, /api/stats
-│   │   │   ├── config.py        #     /api/config, /api/llm-config, /api/config/scenarios
-│   │   │   ├── registry.py      #     /api/registry CRUD, /api/register
-│   │   │   ├── jobs.py          #     /api/generate/{id}/stream, status, delete（SSE）
-│   │   │   ├── generation.py    #     /api/generate-templates, /api/fill-samples, /api/templates
-│   │   │   ├── files.py         #     /api/files/templates, /api/files/samples
-│   │   │   ├── interview.py     #     /api/interview/*
-│   │   │   ├── simulation.py    #     /api/simulation/*, /api/simulate（Stage 1 仿真）
-│   │   │   └── router_data.py   #     /api/router/*（Stage 4 Router 数据）
-│   │   ├── schemas/             #   Pydantic 模型
-│   │   └── services/            #   业务逻辑（job_manager, file_manager, manifest_store, jsonl_index, jsonl_filter_index）
-│   ├── simulators/
-│   │   ├── modflow/             # ✅ 抛物型PDE，flopy/MODFLOW
-│   │   ├── simpeg/              # ✅ 椭圆型PDE，SimPEG
-│   │   ├── power_flow/          # ✅ 非线性代数，pandapower（稳态潮流）
-│   │   ├── transient/           # ✅ DAE系统，ANDES（暂态稳定）
-│   │   ├── power_system/        # 共享工具库（unified_params, generator_with_params）
-│   │   └── gcam/                # ✅ 动态代数，PyPSA+HiGHS
-│   └── text2comp/               # ✅ Stage 2/3 语言模板生成
-│       ├── generator.py         #    LLMTextGenerator（占位符机制，并发）
-│       ├── template_store.py    #    TemplateRecord，fill_sample，load_templates
-│       ├── pipeline.py          #    工具函数：load_config, _scan_h5_files, _resolve_domain 等
-│       ├── auto_register.py     #    LLM自动推断HDF5元数据（CLI工具）
-│       └── interview_agent.py   #    多智能体交互式注册（6步状态机）
-│
-├── api_server.py                # 入口（单行 import，向后兼容）
-│
-├── configs/
-│   ├── modflow/variants/        # 7个场景 YAML（output_dir: data/modflow）
-│   ├── simpeg/variants/         # 4个场景 YAML（output_dir: data/simpeg）
-│   ├── power_flow/variants/     # 5个潮流场景 YAML（output_dir: data/power_flow）
-│   ├── transient/variants/      # 3个暂态场景 YAML（output_dir: data/transient）
-│   ├── gcam/variants/           # 3个场景 YAML（output_dir: data/gcam）
-│   └── text2comp/
-│       ├── default.yaml         # 唯一配置文件（data_root/registry/output/llm/generation/seed）
-│       └── registry.yaml        # 元数据注册表（auto_register 生成）
-│
-├── scripts/
-│   ├── text2comp/
-│   │   ├── generate_templates.py  # Stage 2：LLM生成模板（→ data/templates/）
-│   │   └── fill_samples.py        # Stage 3：数值填充（→ data/text2comp/）
-│   ├── router/
-│   │   └── build_router_data.py   # Stage 4：Token Router 数据生成（→ data/router/）
-│   ├── utils/summarize_all.py
-│   ├── utils/rebuild_manifests.py
-│   ├── utils/rebuild_indexes.py
-│   ├── utils/rebuild_filter_indexes.py
-│   └── ci/check_consistency.py
-│
-├── frontend/                    # React + Vite + Tailwind 管理界面
-│   └── src/
-│       ├── pages/
-│       │   ├── SimulationRunner.tsx   # Stage 1：物理仿真运行
-│       │   ├── RegisterSimulator.tsx  # Stage 2-01：注册数据集
-│       │   ├── TemplateGenerator.tsx  # Stage 2-02：模板生成
-│       │   ├── SampleFiller.tsx       # Stage 3：样本填充
-│       │   ├── RouterDataBuilder.tsx  # Stage 4：Router 数据生成
-│       │   ├── SampleViewer.tsx       # 样本浏览
-│       │   ├── TemplateViewer.tsx     # 模板浏览
-│       │   ├── RouterViewer.tsx       # 路由数据浏览
-│       │   ├── DatasetStats.tsx       # 数据集统计
-│       │   ├── RegistryPage.tsx       # 注册信息管理
-│       │   └── LLMConfig.tsx          # LLM 配置
-│       ├── hooks/useJobMonitor.ts     # SSE 状态监控（持久化，支持刷新/重开）
-│       └── lib/                       # api.ts, types.ts, utils.ts
-│
-└── data/
-    ├── modflow/      # modflow_{scenario}.h5，(N, 5, 365)
-    ├── simpeg/       # simpeg_{scenario}.h5，(N, 1, 100)
-    ├── power_flow/   # power_flow_{scenario}.h5，(N, 43, 365)
-    ├── transient/    # transient_{scenario}.h5，(N, 5, 1000)
-    ├── gcam/         # gcam_{scenario}.h5，(N, 5, 16)
-    ├── templates/    # {scenario}_templates.jsonl（Stage 2 输出）
-    ├── text2comp/    # {scenario}.jsonl（Stage 3 输出，最终训练样本）
-    ├── router/       # train.jsonl + by_scenario/（Stage 4 输出）
-    ├── .manifests/   # Stage 2-4 摘要 sidecar（templates/samples/router）
-    └── .indexes/     # Stage 2-4 无筛选分页索引
+??? piern/
+?   ??? core/                    # llm_client, storage, validation
+?   ??? shared/                  # shared infrastructure: paths, static hosting
+?   ??? synth/                   # synthesis backend surface
+?   ?   ??? api/routers/         # Stage 1-4 APIs
+?   ?   ??? api/schemas/         # synthesis schemas
+?   ?   ??? services/            # job_manager, file_manager, manifest/index services
+?   ??? training/                # training backend surface and training core
+?   ?   ??? api/routers/         # /api/training/*
+?   ?   ??? api/schemas/         # training schemas
+?   ?   ??? services/            # training_manager and related orchestration
+?   ?   ??? router/              # Token Router data/model/metrics/train loop
+?   ??? simulators/
+?   ??? text2comp/
+?
+??? api_server.py                # compatibility entrypoint
+?
+??? frontend/
+?   ??? src/
+?       ??? platform/            # top-level platform switcher
+?       ??? shared/              # shared theme and frontend infrastructure
+?       ??? synth/               # synthesis frontend surface
+?       ?   ??? pages/
+?       ?   ??? hooks/
+?       ?   ??? components/
+?       ??? training/            # training frontend surface
+?       ??? lib/                 # api.ts, types.ts, utils.ts
+?
+??? scripts/
+?   ??? text2comp/
+?   ??? router/
+?   ??? utils/
+?
+??? data/
+    ??? templates/
+    ??? text2comp/
+    ??? router/
+    ??? .manifests/
+    ??? .indexes/
 ```
 
 ## 电力系统输出格式（重要）

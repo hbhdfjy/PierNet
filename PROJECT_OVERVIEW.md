@@ -53,14 +53,16 @@ PiERN is a multi-simulator data generation pipeline that turns heterogeneous phy
 | `gcam` | Energy-climate planning | Dynamic algebraic / LP | `(5, 16)` | 3 |
 
 ## Runtime Surfaces
-
-- `frontend/`: React + Vite + Tailwind operator UI
-- `piern/api/`: FastAPI backend and job endpoints
-- `piern/simulators/`: Stage 1 pipelines and simulator-specific generation logic
-- `piern/text2comp/`: registration, template generation, and filling logic
-- `scripts/router/`: Stage 4 router dataset construction
-- `piern/training/router/`: Token Router CLI-first training core
-- `scripts/router/train_token_router.py`: Token Router training entrypoint
+- `frontend/src/platform/`: top-level platform switcher for synth vs training UI
+- `frontend/src/synth/`: data synthesis frontend surface
+- `frontend/src/training/`: training frontend surface
+- `frontend/src/shared/`: shared theme and frontend infrastructure
+- `piern/synth/`: synthesis backend routers and services
+- `piern/training/`: training backend routers, services, and training core
+- `piern/shared/`: shared backend infrastructure such as paths and static hosting
+- `piern/simulators/`: Stage 1 simulator pipelines
+- `piern/text2comp/`: Stage 2/3 registration, template generation, and filling logic
+- `scripts/router/`: Stage 4 router dataset construction and training CLI entrypoints
 
 ## Key Project Contracts
 
@@ -86,20 +88,19 @@ The maintained documentation set for project overview is:
 `UPGRADE_PLAN.md` remains useful, but it is a roadmap document rather than part of the overview contract.
 
 ## Dual Platform Layout
-
-The repository currently exposes two product surfaces:
+The repository now exposes two clearly separated product surfaces inside one repo and one deployable app:
 
 - Data synthesis platform
-  - Stage 1 simulation
-  - Stage 2 template generation
-  - Stage 3 sample filling
-  - Stage 4 router dataset construction
+  - Frontend namespace: `frontend/src/synth/`
+  - Backend namespace: `piern/synth/`
+  - Covers Stage 1 simulation, Stage 2 template generation, Stage 3 sample filling, and Stage 4 router dataset construction
 - Model training platform
-  - Current state: single-GPU training workbench + CLI-first training core
+  - Frontend namespace: `frontend/src/training/`
+  - Backend namespace: `piern/training/`
   - Frontend route prefix: `/training`
-  - Backend training APIs: enabled at `/api/training/*`
-  - Current training entrypoint: `scripts/router/train_token_router.py`
+  - Backend API prefix: `/api/training/*`
   - Current scope: single-GPU Token Router training, job management, curve viewing, log viewing
 
-The synthesis platform remains the only fully operational platform at this stage.
+Shared code is intentionally narrowed to `frontend/src/shared/` and `piern/shared/`.
+The training platform depends on the synthesis platform only through stable router-data contracts under `data/router/` and `data/.manifests/router.json`, not through Stage 1-3 implementation details.
 

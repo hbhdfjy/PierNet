@@ -1,10 +1,12 @@
-"""公共依赖和常量。"""
+"""????????????? piern.shared.runtime.paths?"""
 
-from pathlib import Path
+from piern.shared.runtime.paths import CONFIG_DIR, CONFIGS_ROOT, DATA_DIR, PROJECT_ROOT, REGISTRY_PATH, TEMPLATES_DIR
 
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-DATA_DIR = PROJECT_ROOT / "data" / "text2comp"
-TEMPLATES_DIR = PROJECT_ROOT / "data" / "templates"
-CONFIG_DIR = PROJECT_ROOT / "configs" / "text2comp"
-CONFIGS_ROOT = PROJECT_ROOT / "configs"
-REGISTRY_PATH = CONFIG_DIR / "registry.yaml"
+__all__ = [
+    'PROJECT_ROOT',
+    'DATA_DIR',
+    'TEMPLATES_DIR',
+    'CONFIG_DIR',
+    'CONFIGS_ROOT',
+    'REGISTRY_PATH',
+]
