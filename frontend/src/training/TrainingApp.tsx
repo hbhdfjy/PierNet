@@ -51,7 +51,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
           </div>
           <div className="min-w-0">
             <div className="app-brand__title">PiERN Training</div>
-            <div className="app-brand__subtitle">Single-GPU token router workbench</div>
+            <div className="app-brand__subtitle">Single-GPU router training</div>
           </div>
         </div>
 
@@ -80,7 +80,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
                 单 GPU
               </div>
               <div className="mt-2 leading-6">
-                当前只实现 Token Router 训练。多卡分配和 DDP 暂不开放，前后端能力保持一致。
+                当前只开放 Token Router 单 GPU 训练，多卡和 DDP 暂不提供。
               </div>
             </div>
           </div>

@@ -531,18 +531,18 @@
   }
 
   .card {
-    background: linear-gradient(180deg, hsl(var(--surface) / 0.94), hsl(var(--surface2) / 0.92));
-    border: 1px solid hsl(var(--border) / 0.72);
-    border-radius: 0.875rem;
-    box-shadow: var(--shadow-sm);
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.95), hsl(var(--surface2) / 0.92));
+    border: 1px solid hsl(var(--border) / 0.68);
+    border-radius: 1rem;
+    box-shadow: 0 14px 34px rgba(2, 6, 23, 0.14);
     backdrop-filter: blur(18px);
     transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   }
 
   .card-header {
-    @apply px-4 py-2.5 border-b flex items-center gap-2;
-    background: linear-gradient(180deg, hsl(var(--surface2) / 0.74), hsl(var(--surface) / 0.58));
-    border-color: hsl(var(--border) / 0.52);
+    @apply px-4 py-3 border-b flex items-center gap-2.5;
+    background: linear-gradient(180deg, hsl(var(--surface2) / 0.82), hsl(var(--surface) / 0.62));
+    border-color: hsl(var(--border) / 0.46);
   }
 
   .card-hover {
@@ -645,11 +645,12 @@
   }
 
   .page-header {
-    @apply flex items-center justify-between gap-3 px-4 py-3.5 flex-shrink-0;
+    @apply flex items-center justify-between gap-3 px-5 py-4 flex-shrink-0;
     position: relative;
-    background: linear-gradient(180deg, hsl(var(--surface) / 0.84), hsl(var(--surface2) / 0.78));
-    border-bottom: 1px solid hsl(var(--border) / 0.56);
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.9), hsl(var(--surface2) / 0.82));
+    border-bottom: 1px solid hsl(var(--border) / 0.5);
     backdrop-filter: blur(20px);
+    box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.03);
   }
 
   .page-shell {
@@ -659,8 +660,8 @@
 
   .page-rail {
     @apply flex flex-col overflow-hidden flex-shrink-0 min-h-0;
-    background: linear-gradient(180deg, hsl(var(--surface) / 0.88), hsl(var(--surface2) / 0.8));
-    border-right: 1px solid hsl(var(--border) / 0.56);
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.92), hsl(var(--surface2) / 0.84));
+    border-right: 1px solid hsl(var(--border) / 0.52);
     backdrop-filter: blur(18px);
   }
 
@@ -668,6 +669,7 @@
     @apply flex-1 flex flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0;
     overscroll-behavior: auto;
     background: linear-gradient(180deg, hsl(var(--bg) / 0.34), transparent 24%);
+    scrollbar-gutter: stable;
   }
 
   .page-content > * {
@@ -689,20 +691,21 @@
 
   .workbench-sidebar {
     @apply flex flex-col overflow-hidden flex-shrink-0 min-h-0;
-    background: linear-gradient(180deg, hsl(var(--surface) / 0.9), hsl(var(--surface2) / 0.82));
-    border-right: 1px solid hsl(var(--border) / 0.56);
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.92), hsl(var(--surface2) / 0.84));
+    border-right: 1px solid hsl(var(--border) / 0.52);
     backdrop-filter: blur(18px);
   }
 
   .workbench-sidebar-header {
-    @apply px-4 pt-4 pb-3 flex-shrink-0;
-    background: linear-gradient(180deg, hsl(var(--surface2) / 0.82), transparent);
-    border-bottom: 1px solid hsl(var(--border) / 0.42);
+    @apply px-4 pt-4 pb-3.5 flex-shrink-0;
+    background: linear-gradient(180deg, hsl(var(--surface2) / 0.86), transparent);
+    border-bottom: 1px solid hsl(var(--border) / 0.4);
   }
 
   .workbench-main-scroll {
-    @apply flex-1 min-h-0 min-w-0 flex flex-col overflow-y-auto p-4 space-y-3;
+    @apply flex-1 min-h-0 min-w-0 flex flex-col overflow-y-auto p-5 space-y-4;
     overscroll-behavior: auto;
+    scrollbar-gutter: stable;
   }
 
   .workbench-main-scroll > * {
@@ -715,8 +718,9 @@
   }
 
   .training-page__body {
-    @apply flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3.5 pb-3.5 pt-2.5;
+    @apply flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-3;
     overscroll-behavior: auto;
+    scrollbar-gutter: stable;
   }
 
   .training-page__grid {
@@ -781,17 +785,18 @@
   }
 
   .training-stack {
-    @apply flex flex-col gap-2.5 min-w-0;
+    @apply flex flex-col gap-4 min-w-0;
     min-height: fit-content;
   }
 
   .training-card {
     @apply card overflow-hidden flex flex-col;
     min-height: fit-content;
+    border-radius: 1rem;
   }
 
   .training-card__body {
-    @apply min-h-0 flex-1 p-3;
+    @apply min-h-0 flex-1 p-4;
   }
 
   .training-stack.min-h-0,
@@ -811,22 +816,184 @@
   }
 
   .training-title {
-    @apply text-[2rem] font-semibold tracking-tight;
+    @apply text-[1.9rem] font-semibold tracking-tight;
     color: hsl(var(--text));
   }
 
   .training-copy {
-    @apply text-[16px] leading-6;
+    @apply text-[15px] leading-6;
     color: hsl(var(--text-muted));
   }
 
   .training-label {
-    @apply label text-[12px];
+    @apply label text-[11px];
   }
 
   .training-value {
     @apply text-[16px];
     color: hsl(var(--text));
+  }
+
+  .training-hero {
+    @apply relative overflow-hidden rounded-[1.25rem] border p-5 xl:p-6;
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.94), hsl(var(--surface2) / 0.92));
+    border-color: hsl(var(--border) / 0.7);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .training-hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 0% 0%, hsl(var(--brand) / 0.18), transparent 28%),
+      radial-gradient(circle at 88% 14%, hsl(var(--brand-soft) / 0.16), transparent 24%);
+    opacity: 0.9;
+  }
+
+  .training-hero > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .platform-home-shell {
+    min-height: 100vh;
+    background:
+      radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 26%),
+      radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.14), transparent 24%),
+      linear-gradient(180deg, #060b17, #0b1120);
+  }
+
+  .platform-home-wrap {
+    @apply mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 lg:px-10 lg:py-10;
+  }
+
+  .platform-home-grid {
+    @apply grid flex-1 gap-6 py-8 lg:grid-cols-2;
+  }
+
+  .platform-entry-card {
+    @apply training-card relative overflow-hidden p-7 transition duration-200;
+  }
+
+  .platform-entry-card:hover {
+    transform: translateY(-2px);
+    border-color: hsl(var(--border) / 0.86);
+    background: hsl(var(--surface2) / 0.72);
+  }
+
+  .platform-entry-card__tone {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  .platform-entry-card__header {
+    @apply relative flex items-start justify-between gap-4;
+  }
+
+  .platform-entry-card__icon {
+    @apply flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white;
+  }
+
+  .platform-entry-card__title {
+    @apply mt-7 text-[1.9rem] font-semibold tracking-tight text-white;
+  }
+
+  .platform-entry-card__copy {
+    @apply mt-3 max-w-xl text-[15px] leading-7 text-slate-300;
+  }
+
+  .platform-entry-card__points {
+    @apply mt-7 space-y-2.5;
+  }
+
+  .platform-entry-card__point {
+    @apply rounded-2xl border border-slate-700/35 bg-slate-950/30 px-4 py-3 text-[15px] text-slate-200;
+  }
+
+  .training-eyebrow {
+    @apply inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em];
+    border-color: hsl(var(--border) / 0.72);
+    background: hsl(var(--surface2) / 0.56);
+    color: hsl(var(--text-faint));
+  }
+
+  .training-kpi-grid {
+    @apply grid gap-3 md:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .training-kpi {
+    @apply rounded-2xl border p-3.5;
+    border-color: hsl(var(--border) / 0.58);
+    background: hsl(var(--surface2) / 0.5);
+    backdrop-filter: blur(14px);
+  }
+
+  .training-kpi__label {
+    @apply text-[11px] font-semibold uppercase tracking-[0.15em];
+    color: hsl(var(--text-faint));
+  }
+
+  .training-kpi__value {
+    @apply mt-2 text-[1.75rem] font-semibold tracking-tight;
+    color: hsl(var(--text));
+  }
+
+  .training-kpi__note {
+    @apply mt-1 text-[13px];
+    color: hsl(var(--text-ghost));
+  }
+
+  .training-panel-title {
+    @apply text-[1.02rem] font-semibold tracking-tight;
+    color: hsl(var(--text));
+  }
+
+  .training-panel-copy {
+    @apply mt-1 text-[13px] leading-5;
+    color: hsl(var(--text-faint));
+  }
+
+  .training-surface {
+    @apply rounded-2xl border p-3.5;
+    border-color: hsl(var(--border) / 0.5);
+    background: hsl(var(--surface2) / 0.5);
+  }
+
+  .training-surface--dense {
+    @apply rounded-2xl border px-3 py-2.5;
+    border-color: hsl(var(--border) / 0.46);
+    background: hsl(var(--surface2) / 0.46);
+  }
+
+  .training-meta-grid {
+    @apply grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .training-stat-grid {
+    @apply grid gap-2.5 md:grid-cols-2;
+  }
+
+  .training-progress {
+    @apply relative h-2.5 overflow-hidden rounded-full;
+    background: hsl(var(--surface3) / 0.86);
+  }
+
+  .training-progress__fill {
+    @apply h-full rounded-full;
+    background: linear-gradient(90deg, hsl(var(--brand) / 0.88), hsl(var(--brand-strong) / 0.98));
+  }
+
+  .training-note {
+    @apply text-[13px] leading-5;
+    color: hsl(var(--text-faint));
+  }
+
+  .training-mono-note {
+    @apply mono text-[12px];
+    color: hsl(var(--text-ghost));
   }
 
   .training-segmented {

@@ -392,6 +392,16 @@ export const api = {
     return res.json()
   },
 
+  deleteTrainingJob: async (jobId: string): Promise<void> => {
+    const res = await fetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}`, {
+      method: 'DELETE',
+    })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`删除训练任务失败 (${res.status}): ${text}`)
+    }
+  },
+
   getTrainingCurves: (jobId: string, maxPoints = 2000): Promise<TrainingCurvesResponse> =>
     get(`/training/jobs/${encodeURIComponent(jobId)}/curves`, { max_points: maxPoints }),
 

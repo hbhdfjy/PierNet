@@ -1,4 +1,4 @@
-import { Check, Cpu, Database, PlayCircle } from 'lucide-react'
+import { Check, Cpu, Database, PlayCircle, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
@@ -22,6 +22,33 @@ import {
 function toNumber(value: string, fallback: number): number {
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function SectionTitle({ title, copy }: { title: string; copy: string }) {
+  return (
+    <div>
+      <div className="training-panel-title">{title}</div>
+      <div className="training-panel-copy">{copy}</div>
+    </div>
+  )
+}
+
+function Field({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
+  return (
+    <div>
+      <label className="training-label">{label}</label>
+      <div className="mt-2">{children}</div>
+      {note && <div className="mt-1 training-note">{note}</div>}
+    </div>
+  )
+}
+
+function UsageBar({ value }: { value: number }) {
+  return (
+    <div className="training-progress mt-2">
+      <div className="training-progress__fill" style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+    </div>
+  )
 }
 
 export default function TrainingNewJobPage() {
@@ -126,7 +153,7 @@ export default function TrainingNewJobPage() {
       scenarios: selectedScenarios,
       gpu_id: gpuId,
       epochs: infiniteEpochs ? 0 : Math.max(1, Math.floor(toNumber(epochs, 1))),
-      eval_interval: Math.max(1, Math.floor(toNumber(evalInterval, 100))),
+      eval_interval: Math.max(1, Math.floor(toNumber(evalInterval, 1))),
       batch_size: Math.max(1, Math.floor(toNumber(batchSize, 256))),
       test_batch_size: Math.max(1, Math.floor(toNumber(testBatchSize, 256))),
       learning_rate: Math.max(1e-8, toNumber(learningRate, 2e-4)),
@@ -156,361 +183,283 @@ export default function TrainingNewJobPage() {
 
   return (
     <div className="training-page">
-      <div className="page-header">
-        <div>
-          <div className="training-label uppercase tracking-[0.22em]">New Training Job</div>
-          <h1 className="mt-2 training-title">新建 Token Router 训练</h1>
-          <p className="mt-2 max-w-3xl training-copy">
-            当前训练平台只支持单 GPU。训练直接使用现有 router 数据，测试集在训练脚本内部按比例切出。
-          </p>
-        </div>
-        <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
-          <PlayCircle size={14} />
-          {submitting ? '启动中…' : '启动训练'}
-        </button>
-      </div>
-
-      {error && (
-        <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
-          {error}
-        </div>
-      )}
-
       <div className="training-page__body">
-        <div className="training-page__grid xl:grid-cols-[1.05fr_0.95fr]">
-          <section className="training-stack">
-            <div className="training-card flex-1 min-h-0">
-              <div className="card-header">
-                <Database size={16} className="text-sky-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">训练数据选择</div>
-                  <div className="text-[15px] text-slate-400">按大场景聚合，选择参与训练的子场景</div>
-                </div>
+        <div className="space-y-5 p-5">
+          <section className="training-hero">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="training-eyebrow">New Training</div>
+                <h1 className="mt-4 text-[2.05rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">新建 Token Router 训练</h1>
+                <p className="mt-3 max-w-2xl training-copy">
+                  当前直接使用现有 router 数据，按单 GPU 启动训练任务，测试集比例由训练脚本内部切出。
+                </p>
               </div>
-              <div className="training-card__body training-scroll list-scroll-xl">
-                <div>
-                  <label className="training-label">任务名称</label>
-                  <input
-                    className="input mt-2"
-                    value={jobName}
-                    onChange={e => setJobName(e.target.value)}
-                    placeholder="可选；为空时默认使用 job_id"
-                  />
+              <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
+                <PlayCircle size={14} />
+                {submitting ? '启动中…' : '启动训练'}
+              </button>
+            </div>
+          </section>
+
+          {error && (
+            <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
+              {error}
+            </div>
+          )}
+
+          <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+            <section className="training-stack">
+              <div className="training-card flex-1 min-h-0">
+                <div className="card-header">
+                  <Database size={16} className="text-sky-300" />
+                  <SectionTitle title="训练数据" copy="先定任务名、大场景和子场景范围" />
                 </div>
+                <div className="training-card__body training-scroll list-scroll-xl">
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Field label="任务名称" note="为空时自动使用 job_id">
+                      <input className="input" value={jobName} onChange={e => setJobName(e.target.value)} placeholder="例如：modflow-router-v1" />
+                    </Field>
+                    <Field label="大场景">
+                      <select className="select" value={dataset?.simulator ?? simulator} onChange={e => setSimulator(e.target.value)}>
+                        {(datasets ?? []).map(item => (
+                          <option key={item.simulator} value={item.simulator}>
+                            {item.simulator.toUpperCase()} · {formatCount(item.total_count)} 条
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
 
-                <div>
-                  <label className="training-label">大场景</label>
-                  <select
-                    className="select mt-2"
-                    value={dataset?.simulator ?? simulator}
-                    onChange={e => setSimulator(e.target.value)}
-                  >
-                    {(datasets ?? []).map(item => (
-                      <option key={item.simulator} value={item.simulator}>
-                        {item.simulator.toUpperCase()} · {formatCount(item.total_count)} 条
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {dataset ? (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[16px] font-medium text-slate-100">
-                        已选择 {selectedScenarios.length} / {dataset.scenarios.length} 个子场景
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <button
-                          type="button"
-                          className="btn-ghost"
-                          onClick={() => setSelectedScenarios(dataset.scenarios.map(item => item.scenario))}
-                        >
-                          全选
-                        </button>
-                        <button type="button" className="btn-ghost" onClick={() => setSelectedScenarios([])}>
-                          清空
-                        </button>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-2.5 md:grid-cols-2">
-                      {dataset.scenarios.map(scenario => {
-                        const checked = selectedScenarios.includes(scenario.scenario)
-                        return (
-                          <button
-                            key={scenario.scenario}
-                            type="button"
-                            onClick={() => toggleScenario(scenario.scenario)}
-                            className={`rounded-2xl border p-3.5 text-left transition-all ${
-                              checked
-                                ? 'border-sky-500/40 bg-sky-500/15 text-slate-100'
-                                : 'border-slate-700/40 bg-slate-900/30 text-slate-300 hover:border-slate-600/50 hover:bg-slate-800/40'
-                            }`}
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div>
-                                <div className="text-[16px] font-semibold">{scenario.scenario}</div>
-                                <div className="mt-1 text-[15px] text-slate-400">
-                                  {formatCount(scenario.router_count)} 条 · {formatBytes(scenario.file_size_bytes)}
-                                </div>
-                              </div>
-                              {checked && (
-                                <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/20 text-sky-300">
-                                  <Check size={13} />
-                                </span>
-                              )}
-                            </div>
+                  {dataset ? (
+                    <div className="space-y-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="text-[15px] font-medium text-slate-100">
+                          已选择 {selectedScenarios.length} / {dataset.scenarios.length} 个子场景
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button type="button" className="btn-ghost" onClick={() => setSelectedScenarios(dataset.scenarios.map(item => item.scenario))}>
+                            全选
                           </button>
-                        )
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 px-4 py-5 text-sm text-slate-400">
-                    当前没有可用训练数据。
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="training-card min-h-0">
-              <div className="card-header">
-                <Cpu size={16} className="text-emerald-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">GPU 分配</div>
-                  <div className="text-[15px] text-slate-400">当前版本只支持单张空闲 GPU</div>
-                </div>
-              </div>
-              <div className="training-card__body training-scroll list-scroll-lg">
-                {(gpus ?? []).map(gpu => (
-                  <label
-                    key={gpu.index}
-                    className={`block rounded-2xl border p-3.5 transition-all ${
-                      gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'
-                    } ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex items-start gap-3">
-                        <input
-                          type="radio"
-                          className="mt-1"
-                          checked={gpuId === gpu.index}
-                          disabled={!gpu.available}
-                          onChange={() => setGpuId(gpu.index)}
-                        />
-                        <div>
-                          <div className="text-[16px] font-semibold text-slate-100">GPU {gpu.index}</div>
-                          <div className="mt-1 text-[15px] text-slate-400">{gpu.name}</div>
+                          <button type="button" className="btn-ghost" onClick={() => setSelectedScenarios([])}>
+                            清空
+                          </button>
                         </div>
                       </div>
-                      <span
-                        className={
-                          gpu.available
-                            ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
-                            : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'
-                        }
-                      >
-                        {gpu.available ? '可用' : gpu.reason ?? '占用中'}
-                      </span>
-                    </div>
-                    <div className="mt-2.5 grid grid-cols-2 gap-2.5 text-[15px] text-slate-400">
-                      <div>
-                        <div className="training-label">显存</div>
-                        <div className="mt-1 text-[16px] text-slate-200">
-                          {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="training-label">利用率</div>
-                        <div className="mt-1 text-[16px] text-slate-200">{gpu.utilization_gpu}%</div>
-                      </div>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          </section>
 
-          <section className="training-stack">
-            <div className="training-card">
-              <div className="card-header">
-                <PlayCircle size={16} className="text-violet-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">训练参数</div>
-                  <div className="text-[15px] text-slate-400">单模型、单 GPU、全量 sequence 训练</div>
+                      <div className="grid gap-2.5 md:grid-cols-2">
+                        {dataset.scenarios.map(scenario => {
+                          const checked = selectedScenarios.includes(scenario.scenario)
+                          return (
+                            <button
+                              key={scenario.scenario}
+                              type="button"
+                              onClick={() => toggleScenario(scenario.scenario)}
+                              className={`rounded-2xl border p-3.5 text-left transition-all ${
+                                checked
+                                  ? 'border-sky-500/40 bg-sky-500/15 text-slate-100'
+                                  : 'border-slate-700/40 bg-slate-900/30 text-slate-300 hover:border-slate-600/50 hover:bg-slate-800/40'
+                              }`}
+                            >
+                              <div className="flex items-start justify-between gap-3">
+                                <div>
+                                  <div className="text-[15px] font-semibold">{scenario.scenario}</div>
+                                  <div className="mt-1 text-[13px] text-slate-400">
+                                    {formatCount(scenario.router_count)} 条 · {formatBytes(scenario.file_size_bytes)}
+                                  </div>
+                                </div>
+                                {checked && (
+                                  <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-sky-500/30 bg-sky-500/20 text-sky-300">
+                                    <Check size={13} />
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="training-surface text-sm text-slate-400">当前没有可用训练数据。</div>
+                  )}
                 </div>
               </div>
-              <div className="grid gap-3 p-3.5 md:grid-cols-2">
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <label className="training-label">Epochs</label>
-                    <label className="flex items-center gap-2 text-[15px] text-slate-300">
+
+              <div className="training-card min-h-0">
+                <div className="card-header">
+                  <Cpu size={16} className="text-emerald-300" />
+                  <SectionTitle title="GPU 分配" copy="当前版本只支持单张空闲 GPU" />
+                </div>
+                <div className="training-card__body training-scroll list-scroll-lg">
+                  <div className="space-y-3">
+                    {(gpus ?? []).map(gpu => {
+                      const memoryRatio = gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
+                      return (
+                        <label
+                          key={gpu.index}
+                          className={`block rounded-2xl border p-3.5 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex items-start gap-3">
+                              <input type="radio" className="mt-1" checked={gpuId === gpu.index} disabled={!gpu.available} onChange={() => setGpuId(gpu.index)} />
+                              <div>
+                                <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
+                                <div className="mt-1 text-[14px] text-slate-400">{gpu.name}</div>
+                              </div>
+                            </div>
+                            <span className={gpu.available ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'}>
+                              {gpu.available ? '可用' : gpu.reason ?? '占用中'}
+                            </span>
+                          </div>
+                          <div className="mt-3 training-stat-grid">
+                            <div>
+                              <div className="training-label">显存</div>
+                              <div className="mt-1 text-[15px] text-slate-200">{gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}</div>
+                              <UsageBar value={memoryRatio} />
+                            </div>
+                            <div>
+                              <div className="training-label">利用率</div>
+                              <div className="mt-1 text-[15px] text-slate-200">{gpu.utilization_gpu}%</div>
+                              <UsageBar value={gpu.utilization_gpu} />
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="training-stack">
+              <div className="training-card">
+                <div className="card-header">
+                  <Sparkles size={16} className="text-violet-300" />
+                  <SectionTitle title="训练参数" copy="单模型、单 GPU、全量 sequence 训练" />
+                </div>
+                <div className="grid gap-3 p-3.5 md:grid-cols-2">
+                  <Field label="Epochs">
+                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
+                      <label className="flex items-center gap-2 text-[14px] text-slate-300">
+                        <input type="checkbox" checked={infiniteEpochs} onChange={e => setInfiniteEpochs(e.target.checked)} />
+                        无限训练
+                      </label>
                       <input
-                        type="checkbox"
-                        checked={infiniteEpochs}
-                        onChange={e => setInfiniteEpochs(e.target.checked)}
+                        className="input mono w-24 px-2.5 py-1.5 text-center"
+                        value={infiniteEpochs ? '∞' : epochs}
+                        onChange={e => setEpochs(e.target.value)}
+                        disabled={infiniteEpochs}
+                        placeholder="∞"
                       />
-                      无限训练
-                    </label>
-                  </div>
-                  <input
-                    className="input mt-2 mono"
-                    value={infiniteEpochs ? '∞' : epochs}
-                    onChange={e => setEpochs(e.target.value)}
-                    disabled={infiniteEpochs}
-                    placeholder="留空时无限"
-                  />
-                </div>
-                <div>
-                  <label className="training-label">测试间隔</label>
-                  <input className="input mt-2 mono" value={evalInterval} onChange={e => setEvalInterval(e.target.value)} />
-                </div>
-                <div>
-                  <label className="training-label">训练 Batch Size</label>
-                  <input className="input mt-2 mono" value={batchSize} onChange={e => setBatchSize(e.target.value)} />
-                </div>
-                <div>
-                  <label className="training-label">测试 Batch Size</label>
-                  <input
-                    className="input mt-2 mono"
-                    value={testBatchSize}
-                    onChange={e => setTestBatchSize(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="training-label">Learning Rate</label>
-                  <input
-                    className="input mt-2 mono"
-                    value={learningRate}
-                    onChange={e => setLearningRate(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="training-label">Weight Decay</label>
-                  <input
-                    className="input mt-2 mono"
-                    value={weightDecay}
-                    onChange={e => setWeightDecay(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="training-label">Num Workers</label>
-                  <input className="input mt-2 mono" value={numWorkers} onChange={e => setNumWorkers(e.target.value)} />
-                </div>
-                <div>
-                  <label className="training-label">测试集比例</label>
-                  <input className="input mt-2 mono" value={testRatio} onChange={e => setTestRatio(e.target.value)} />
-                </div>
-                <div className="md:col-span-2">
-                  <label className="training-label">Resume Checkpoint</label>
-                  <select className="select mt-2" value={resumeFrom} onChange={e => setResumeFrom(e.target.value)}>
-                    <option value="">不恢复，重新训练</option>
-                    {checkpointCandidates.map(option => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <p className="mt-2 text-[15px] leading-6 text-slate-400">
-                    目前直接复用已知 run 目录中的 <code className="mono">router_latest.pt</code>。后续再扩展更细粒度的 checkpoint 管理。
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            <div className="training-card">
-              <div className="card-header">
-                <Database size={16} className="text-amber-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">当前配置摘要</div>
-                  <div className="text-[15px] text-slate-400">提交前最后核对</div>
-                </div>
-              </div>
-              <div className="space-y-2.5 p-3 text-[16px] text-slate-300">
-                <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3.5">
-                  <div className="training-label">任务名称</div>
-                  <div className="mt-1 font-semibold text-slate-100">{jobName.trim() || '默认使用 job_id'}</div>
-                  <div className="mt-3 training-label">大场景</div>
-                  <div className="mt-1 font-semibold text-slate-100">{dataset?.simulator.toUpperCase() ?? '—'}</div>
-                  <div className="mt-2 text-[15px] text-slate-400">
-                    训练子场景：{selectedScenarios.length > 0 ? selectedScenarios.join(', ') : '未选择'}
+                    </div>
+                  </Field>
+                  <Field label="测试间隔">
+                    <input className="input mono" value={evalInterval} onChange={e => setEvalInterval(e.target.value)} />
+                  </Field>
+                  <Field label="训练 Batch Size">
+                    <input className="input mono" value={batchSize} onChange={e => setBatchSize(e.target.value)} />
+                  </Field>
+                  <Field label="测试 Batch Size">
+                    <input className="input mono" value={testBatchSize} onChange={e => setTestBatchSize(e.target.value)} />
+                  </Field>
+                  <Field label="Learning Rate">
+                    <input className="input mono" value={learningRate} onChange={e => setLearningRate(e.target.value)} />
+                  </Field>
+                  <Field label="Weight Decay">
+                    <input className="input mono" value={weightDecay} onChange={e => setWeightDecay(e.target.value)} />
+                  </Field>
+                  <Field label="Num Workers">
+                    <input className="input mono" value={numWorkers} onChange={e => setNumWorkers(e.target.value)} />
+                  </Field>
+                  <Field label="测试集比例">
+                    <input className="input mono" value={testRatio} onChange={e => setTestRatio(e.target.value)} />
+                  </Field>
+                  <div className="md:col-span-2">
+                    <Field label="Resume Checkpoint" note="只列出与当前大场景和子场景集合匹配的已完成任务。">
+                      <select className="select" value={resumeFrom} onChange={e => setResumeFrom(e.target.value)}>
+                        <option value="">不恢复，重新训练</option>
+                        {checkpointCandidates.map(option => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
                   </div>
                 </div>
+              </div>
 
-                <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3.5">
-                  <div className="training-label">GPU</div>
-                  <div className="mt-1 font-semibold text-slate-100">{gpuId != null ? `GPU ${gpuId}` : '未选择'}</div>
+              <div className="training-card">
+                <div className="card-header">
+                  <Database size={16} className="text-amber-300" />
+                  <SectionTitle title="当前配置" copy="提交前最后核对" />
                 </div>
+                <div className="space-y-3 p-3.5">
+                  <div className="training-surface">
+                    <div className="training-label">任务名称</div>
+                    <div className="mt-1 text-[16px] font-semibold text-slate-100">{jobName.trim() || '默认使用 job_id'}</div>
+                    <div className="mt-3 training-label">大场景</div>
+                    <div className="mt-1 text-[16px] font-semibold text-slate-100">{dataset?.simulator.toUpperCase() ?? '—'}</div>
+                    <div className="mt-2 training-note">训练子场景：{selectedScenarios.length > 0 ? selectedScenarios.join(', ') : '未选择'}</div>
+                  </div>
 
-                <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3.5">
-                  <div className="training-label">训练配置</div>
-                  <div className="mt-2 grid grid-cols-2 gap-2.5 text-[15px] text-slate-400">
-                    <div>
-                      Epochs: <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span>
-                    </div>
-                    <div>
-                      Eval Interval: <span className="mono text-slate-200">{evalInterval}</span>
-                    </div>
-                    <div>
-                      Batch: <span className="mono text-slate-200">{batchSize}</span>
-                    </div>
-                    <div>
-                      Test Batch: <span className="mono text-slate-200">{testBatchSize}</span>
-                    </div>
-                    <div>
-                      LR: <span className="mono text-slate-200">{learningRate}</span>
-                    </div>
-                    <div>
-                      WD: <span className="mono text-slate-200">{weightDecay}</span>
-                    </div>
-                    <div>
-                      Workers: <span className="mono text-slate-200">{numWorkers}</span>
-                    </div>
-                    <div>
-                      Test Ratio: <span className="mono text-slate-200">{testRatio}</span>
+                  <div className="training-surface">
+                    <div className="training-label">GPU</div>
+                    <div className="mt-1 text-[16px] font-semibold text-slate-100">{gpuId != null ? `GPU ${gpuId}` : '未选择'}</div>
+                  </div>
+
+                  <div className="training-surface">
+                    <div className="training-label">训练配置</div>
+                    <div className="mt-2 grid grid-cols-2 gap-2.5 text-[14px] text-slate-400">
+                      <div>Epochs: <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span></div>
+                      <div>Eval: <span className="mono text-slate-200">{evalInterval}</span></div>
+                      <div>Batch: <span className="mono text-slate-200">{batchSize}</span></div>
+                      <div>Test Batch: <span className="mono text-slate-200">{testBatchSize}</span></div>
+                      <div>LR: <span className="mono text-slate-200">{learningRate}</span></div>
+                      <div>WD: <span className="mono text-slate-200">{weightDecay}</span></div>
+                      <div>Workers: <span className="mono text-slate-200">{numWorkers}</span></div>
+                      <div>Test Ratio: <span className="mono text-slate-200">{testRatio}</span></div>
                     </div>
                   </div>
                 </div>
               </div>
-            </div>
 
-            <div className="training-card min-h-0 flex-1">
-              <div className="card-header">
-                <Cpu size={16} className="text-sky-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">最近完成任务</div>
-                  <div className="text-[15px] text-slate-400">可作为恢复训练的参考</div>
+              <div className="training-card min-h-0 flex-1">
+                <div className="card-header">
+                  <Cpu size={16} className="text-sky-300" />
+                  <SectionTitle title="最近完成任务" copy="可作为恢复训练的参考" />
+                </div>
+                <div className="training-card__body training-scroll list-scroll-lg">
+                  <div className="space-y-3">
+                    {(jobs ?? [])
+                      .filter(job => job.status === 'done')
+                      .slice(0, 4)
+                      .map(job => (
+                        <div key={job.job_id} className="training-surface">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-[15px] font-semibold text-slate-100">{job.name}</div>
+                              <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+                            </div>
+                            <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+                          </div>
+                          <div className="mt-2 training-note">{formatDateTime(job.created_at)}</div>
+                          <div className="mt-3 grid grid-cols-2 gap-2.5 text-[14px] text-slate-400">
+                            <div>
+                              <div className="training-label">F1</div>
+                              <div className="mt-1 text-[15px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+                            </div>
+                            <div>
+                              <div className="training-label">PR-AUC</div>
+                              <div className="mt-1 text-[15px] text-slate-200">{formatMetric(job.latest_metrics?.pr_auc, 4)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 </div>
               </div>
-              <div className="training-card__body training-scroll list-scroll-lg">
-                {(jobs ?? [])
-                  .filter(job => job.status === 'done')
-                  .slice(0, 4)
-                  .map(job => (
-                    <div key={job.job_id} className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3.5">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-[16px] font-semibold text-slate-100">{job.name}</div>
-                          <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
-                          <div className="mt-1 text-[15px] text-slate-400">{formatDateTime(job.created_at)}</div>
-                        </div>
-                        <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
-                      </div>
-                      <div className="mt-2.5 grid grid-cols-2 gap-2.5 text-[15px] text-slate-400">
-                        <div>
-                          <div className="training-label">F1</div>
-                          <div className="mt-1 text-[16px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
-                        </div>
-                        <div>
-                          <div className="training-label">PR-AUC</div>
-                          <div className="mt-1 text-[16px] text-slate-200">{formatMetric(job.latest_metrics?.pr_auc, 4)}</div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
       </div>
     </div>

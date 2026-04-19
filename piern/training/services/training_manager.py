@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import shutil
 import signal
 import subprocess
 import time
@@ -219,6 +220,29 @@ def _validate_resume_checkpoint(
         )
 
 
+
+
+def _remove_job_artifacts(entry: dict[str, Any]) -> None:
+    run_dir_value = entry.get('run_dir')
+    if run_dir_value:
+        run_dir = Path(run_dir_value)
+        if run_dir.exists():
+            shutil.rmtree(run_dir)
+            parent = run_dir.parent
+            if parent.name == 'runs' and parent.exists():
+                try:
+                    next(parent.iterdir())
+                except StopIteration:
+                    parent.rmdir()
+
+    log_path_value = entry.get('log_path')
+    if log_path_value:
+        log_path = Path(log_path_value)
+        if log_path.exists():
+            log_path.unlink()
+
+    _load_checkpoint_metadata.cache_clear()
+
 def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     entry["name"] = _normalize_job_name(entry.get("name"), fallback=entry["job_id"])
     run_dir = Path(entry["run_dir"])
@@ -291,6 +315,21 @@ def get_job(job_id: str, refresh: bool = True) -> dict[str, Any]:
     if refresh:
         entry = _refresh_entry(entry)
         _save_registry(entries)
+    return entry
+
+
+@_with_registry_lock
+def delete_job(job_id: str) -> dict[str, Any]:
+    entries = _load_registry()
+    entry = _find_job(entries, job_id)
+    entry = _refresh_entry(entry)
+
+    if entry.get("status") in {"starting", "running", "evaluating"} or _pid_alive(entry.get("pid")):
+        raise ValueError(f"training job is still active: {job_id}")
+
+    _remove_job_artifacts(entry)
+    remaining = [item for item in entries if item["job_id"] != job_id]
+    _save_registry(remaining)
     return entry
 
 

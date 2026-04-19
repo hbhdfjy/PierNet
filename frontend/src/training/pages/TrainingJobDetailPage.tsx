@@ -7,6 +7,7 @@ import {
   RadioTower,
   RefreshCcw,
   Save,
+  Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
@@ -41,6 +42,115 @@ import {
 
 type TrainingAxisMode = 'step' | 'epoch'
 
+const CHART_TOOLTIP_STYLE = {
+  contentStyle: {
+    background: 'rgba(15, 23, 42, 0.96)',
+    border: '1px solid rgba(71, 85, 105, 0.55)',
+    borderRadius: 16,
+    boxShadow: '0 16px 40px rgba(2, 6, 23, 0.42)',
+    padding: '10px 12px',
+  },
+  labelStyle: {
+    color: '#e2e8f0',
+    fontWeight: 600,
+  },
+  itemStyle: {
+    color: '#cbd5e1',
+  },
+}
+
+const CHART_MARGIN = { top: 10, right: 10, left: -14, bottom: 0 }
+const AXIS_STYLE = {
+  stroke: 'rgba(148,163,184,0.86)',
+  fontSize: 12,
+  tickLine: false,
+  axisLine: false,
+  tickMargin: 8,
+}
+const LEGEND_STYLE = {
+  fontSize: 12,
+  color: '#94a3b8',
+  paddingTop: 10,
+}
+
+function ChartTooltip() {
+  return <Tooltip {...CHART_TOOLTIP_STYLE} cursor={{ stroke: 'rgba(148,163,184,0.22)', strokeDasharray: '4 4' }} />
+}
+
+function ChartXAxis({ dataKey, type = 'category', allowDecimals = true }: { dataKey: string; type?: 'category' | 'number'; allowDecimals?: boolean }) {
+  return (
+    <XAxis
+      dataKey={dataKey}
+      type={type}
+      allowDecimals={allowDecimals}
+      minTickGap={20}
+      {...AXIS_STYLE}
+    />
+  )
+}
+
+function ChartYAxis({ domain }: { domain?: [number, number] }) {
+  return <YAxis width={40} domain={domain} {...AXIS_STYLE} />
+}
+
+function SectionTitle({ title, copy }: { title: string; copy: string }) {
+  return (
+    <div>
+      <div className="training-panel-title">{title}</div>
+      <div className="training-panel-copy">{copy}</div>
+    </div>
+  )
+}
+
+function KpiCard({
+  label,
+  value,
+  note,
+  icon,
+}: {
+  label: string
+  value: string
+  note: string
+  icon: React.ReactNode
+}) {
+  return (
+    <div className="training-kpi">
+      <div className="flex items-start justify-between gap-3">
+        <span className="training-kpi__label">{label}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+          {icon}
+        </span>
+      </div>
+      <div className="training-kpi__value">{value}</div>
+      <div className="training-kpi__note">{note}</div>
+    </div>
+  )
+}
+
+function MetaField({
+  label,
+  value,
+  mono = false,
+  title,
+}: {
+  label: string
+  value: React.ReactNode
+  mono?: boolean
+  title?: string
+}) {
+  return (
+    <div>
+      <div className="training-label">{label}</div>
+      <div
+        className={`mt-1 text-[15px] ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
+        title={title}
+      >
+        {value}
+      </div>
+    </div>
+  )
+}
+
 function ChartCard({
   title,
   subtitle,
@@ -54,24 +164,23 @@ function ChartCard({
 }) {
   return (
     <div className="training-card overflow-hidden">
-      <div className="card-header justify-between">
-        <div className="flex items-center gap-2">
-          <BarChart3 size={16} className="text-sky-300" />
-          <div>
-            <div className="text-[17px] font-semibold text-slate-100">{title}</div>
-            <div className="text-[15px] text-slate-400">{subtitle}</div>
-          </div>
+      <div className="card-header justify-between gap-4">
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+            <BarChart3 size={16} />
+          </span>
+          <SectionTitle title={title} copy={subtitle} />
         </div>
         {actions}
       </div>
-      <div className="h-[304px] p-3.5">{children}</div>
+      <div className="h-[320px] p-4">{children}</div>
     </div>
   )
 }
 
 function ChartEmpty({ message }: { message: string }) {
   return (
-    <div className="flex h-full items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/30 text-[15px] text-slate-400">
+    <div className="flex h-full items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/25 px-6 text-center text-[14px] text-slate-400">
       {message}
     </div>
   )
@@ -80,38 +189,31 @@ function ChartEmpty({ message }: { message: string }) {
 function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[] }) {
   if (checkpoints.length === 0) {
     return (
-      <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 px-4 py-5 text-[15px] text-slate-400">
+      <div className="training-surface text-[14px] text-slate-400">
         当前还没有 checkpoint。
       </div>
     )
   }
 
   return (
-    <div className="space-y-2.5">
+    <div className="space-y-3">
       {checkpoints.map(item => (
-        <div key={item.path} className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3.5">
+        <div key={item.path} className="training-surface--dense">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="mono text-[15px] font-semibold text-slate-100">{item.name}</div>
-              <div className="mt-1 text-[13px] text-slate-400" title={item.path}>
-                {shortPath(item.path, 88)}
+            <div className="min-w-0">
+              <div className="mono truncate text-[14px] font-semibold text-slate-100">{item.name}</div>
+              <div className="mt-1 text-[11px] text-slate-500" title={item.path}>
+                {shortPath(item.path, 96)}
               </div>
             </div>
-            <Save size={16} className="text-emerald-300" />
+            <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/8 text-emerald-300">
+              <Save size={14} />
+            </span>
           </div>
-          <div className="mt-2.5 grid grid-cols-3 gap-2.5 text-[13px] text-slate-400">
-            <div>
-              <div className="label">Epoch</div>
-              <div className="mt-1 text-[15px] text-slate-200">{item.epoch ?? '—'}</div>
-            </div>
-            <div>
-              <div className="label">大小</div>
-              <div className="mt-1 text-[15px] text-slate-200">{formatBytes(item.size_bytes)}</div>
-            </div>
-            <div>
-              <div className="label">时间</div>
-              <div className="mt-1 text-[15px] text-slate-200">{formatDateTime(item.mtime)}</div>
-            </div>
+          <div className="mt-3 grid grid-cols-3 gap-2 text-[12px] text-slate-400">
+            <MetaField label="Epoch" value={item.epoch ?? '—'} />
+            <MetaField label="大小" value={formatBytes(item.size_bytes)} />
+            <MetaField label="时间" value={formatDateTime(item.mtime)} />
           </div>
         </div>
       ))}
@@ -209,11 +311,27 @@ export default function TrainingJobDetailPage() {
     ])
   }
 
+  const deleteJob = async () => {
+    if (!job) return
+    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、run 目录、checkpoint、曲线和日志。共享 prepared cache 会保留。`)
+    if (!ok) return
+    await api.deleteTrainingJob(job.job_id)
+    await Promise.all([
+      mutate('training-jobs'),
+      mutate('training-overview'),
+      mutate('training-gpus'),
+      mutate(`training-job-${job.job_id}`),
+      mutate(`training-curves-${job.job_id}`),
+      mutate(`training-logs-${job.job_id}`),
+    ])
+    navigate('/training/jobs')
+  }
+
   if (!jobId) {
     return (
       <div className="training-page">
         <div className="training-page__body">
-          <div className="training-card p-8 text-[15px] text-slate-400">缺少训练任务 ID。</div>
+          <div className="training-surface text-[15px] text-slate-400">缺少训练任务 ID。</div>
         </div>
       </div>
     )
@@ -221,282 +339,241 @@ export default function TrainingJobDetailPage() {
 
   return (
     <div className="training-page">
-      <div className="page-header">
-        <div>
-          <div className="training-label uppercase tracking-[0.22em]">Training Job Detail</div>
-          <h1 className="mt-2 training-title">{job?.name ?? jobId}</h1>
-          <div className="mono mt-1 text-[13px] text-slate-500">{jobId}</div>
-          <p className="mt-2 max-w-3xl training-copy">
-            查看训练进度、测试结果、checkpoint 和原始日志。训练曲线支持按 step 或 epoch 切换横轴。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button type="button" className="btn-ghost" onClick={() => navigate('/training/jobs')}>
-            <ArrowLeft size={14} />
-            返回任务列表
-          </button>
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => {
-              mutate(`training-job-${jobId}`)
-              mutate(`training-curves-${jobId}`)
-              mutate(`training-logs-${jobId}`)
-            }}
-          >
-            <RefreshCcw size={14} />
-            刷新
-          </button>
-          {job && ['starting', 'running', 'evaluating'].includes(job.status) && (
-            <button type="button" className="btn-danger" onClick={stopJob}>
-              <PauseCircle size={14} />
-              终止训练
-            </button>
-          )}
-        </div>
-      </div>
-
-      {jobError && (
-        <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
-          加载训练任务失败：{jobError.message}
-        </div>
-      )}
-
       <div className="training-page__body">
-        {job && (
-          <div className="training-scroll">
-            <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-5">
-              <div className="training-card p-3.5">
-                <div className="training-label uppercase tracking-[0.18em]">状态</div>
-                <div className="mt-2.5">
-                  <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+        <div className="space-y-5 p-5">
+          <section className="training-hero">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="training-eyebrow">
+                  <span>Training</span>
+                  <span className="text-slate-500">/</span>
+                  <span>Job Detail</span>
                 </div>
-                <div className="mt-2 text-[15px] text-slate-400">GPU {job.gpu_id} · PID {job.pid ?? '—'}</div>
+                <h1 className="mt-4 text-[2.1rem] font-semibold tracking-tight text-white xl:text-[2.45rem]">
+                  {job?.name ?? jobId}
+                </h1>
+                <div className="mono mt-2 text-[13px] text-slate-500">{jobId}</div>
+                <p className="mt-3 max-w-2xl training-copy">
+                  统一查看训练进度、测试结果、checkpoint 和原始日志。训练曲线支持按 step 和 epoch 切换。
+                </p>
               </div>
-              <div className="training-card p-3.5">
-                <div className="training-label uppercase tracking-[0.18em]">Epoch / Step</div>
-                <div className="mt-1.5 text-[30px] font-semibold text-slate-100">
-                  {job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}
-                </div>
-                <div className="mt-1 text-[15px] text-slate-400">global step {job.global_step ?? '—'}</div>
-              </div>
-              <div className="training-card p-3.5">
-                <div className="training-label uppercase tracking-[0.18em]">训练损失</div>
-                <div className="mt-1.5 text-[30px] font-semibold text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
-                <div className="mt-1 text-[15px] text-slate-400">{formatMetric(job.steps_per_sec, 2)} step/s</div>
-              </div>
-              <div className="training-card p-3.5">
-                <div className="training-label uppercase tracking-[0.18em]">最近测试 F1</div>
-                <div className="mt-1.5 text-[30px] font-semibold text-slate-100">
-                  {formatMetric(job.latest_metrics?.f1, 4)}
-                </div>
-                <div className="mt-1 text-[15px] text-slate-400">
-                  PR-AUC {formatMetric(job.latest_metrics?.pr_auc, 4)}
-                </div>
-              </div>
-              <div className="training-card p-3.5">
-                <div className="training-label uppercase tracking-[0.18em]">预计剩余</div>
-                <div className="mt-1.5 text-[30px] font-semibold text-slate-100">{formatDuration(job.eta_seconds)}</div>
-                <div className="mt-1 text-[15px] text-slate-400">创建于 {formatDateTime(job.created_at)}</div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" className="btn-ghost" onClick={() => navigate('/training/jobs')}>
+                  <ArrowLeft size={14} />
+                  返回任务列表
+                </button>
+                <button
+                  type="button"
+                  className="btn-ghost"
+                  onClick={() => {
+                    mutate(`training-job-${jobId}`)
+                    mutate(`training-curves-${jobId}`)
+                    mutate(`training-logs-${jobId}`)
+                  }}
+                >
+                  <RefreshCcw size={14} />
+                  刷新
+                </button>
+                {job && ['starting', 'running', 'evaluating'].includes(job.status) ? (
+                  <button type="button" className="btn-danger" onClick={stopJob}>
+                    <PauseCircle size={14} />
+                    终止训练
+                  </button>
+                ) : job ? (
+                  <button type="button" className="btn-ghost" onClick={deleteJob}>
+                    <Trash2 size={14} />
+                    删除任务
+                  </button>
+                ) : null}
               </div>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-[1.05fr_0.95fr]">
-              <section className="training-card">
-                <div className="card-header">
-                  <RadioTower size={16} className="text-violet-300" />
-                  <div>
-                    <div className="text-[17px] font-semibold text-slate-100">任务摘要</div>
-                    <div className="text-[15px] text-slate-400">配置、路径和最近状态</div>
-                  </div>
-                </div>
-                <div className="grid gap-2.5 p-3 md:grid-cols-2">
-                  <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-3.5">
-                    <div className="training-label">任务名称</div>
-                    <div className="mt-1 text-[16px] font-semibold text-slate-100">{job.name}</div>
-                    <div className="mt-3 training-label">训练数据</div>
-                    <div className="mt-1 text-[16px] font-semibold text-slate-100">
-                      {job.simulator.toUpperCase()} · {job.scenarios.join(', ')}
-                    </div>
-                    <div className="mt-2 text-[15px] text-slate-400">
-                      test ratio {formatMetric(job.config.test_ratio, 2)} · eval interval {job.config.eval_interval}
-                      {' · '}epochs {job.config.epochs === 0 ? '∞' : job.config.epochs}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-3.5">
-                    <div className="training-label">训练参数</div>
-                    <div className="mt-2 grid grid-cols-2 gap-2 text-[15px] text-slate-400">
-                      <div>
-                        epochs: <span className="mono text-slate-200">{job.config.epochs === 0 ? '∞' : job.config.epochs}</span>
-                      </div>
-                      <div>
-                        batch: <span className="mono text-slate-200">{job.config.batch_size}</span>
-                      </div>
-                      <div>
-                        test batch: <span className="mono text-slate-200">{job.config.test_batch_size}</span>
-                      </div>
-                      <div>
-                        workers: <span className="mono text-slate-200">{job.config.num_workers}</span>
-                      </div>
-                      <div>
-                        lr: <span className="mono text-slate-200">{job.config.learning_rate}</span>
-                      </div>
-                      <div>
-                        wd: <span className="mono text-slate-200">{job.config.weight_decay}</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-3.5 md:col-span-2">
-                    <div className="training-label">运行目录</div>
-                    <div className="mono mt-2 text-[13px] text-slate-200" title={job.run_dir}>
-                      {shortPath(job.run_dir, 110)}
-                    </div>
-                    <div className="training-label mt-4">日志文件</div>
-                    <div className="mono mt-2 text-[13px] text-slate-200" title={job.log_path}>
-                      {shortPath(job.log_path, 110)}
-                    </div>
-                    {job.error_message && (
-                      <div className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
-                        <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
-                        <span>{job.error_message}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </section>
+            {job && (
+              <div className="mt-6 training-kpi-grid">
+                <KpiCard
+                  label="状态"
+                  value={statusLabel(job.status)}
+                  note={`GPU ${job.gpu_id} / PID ${job.pid ?? '—'}`}
+                  icon={<RadioTower size={16} />}
+                />
+                <KpiCard
+                  label="Epoch / Step"
+                  value={`${job.latest_epoch ?? '—'} / ${job.latest_step ?? '—'}`}
+                  note={`global step ${job.global_step ?? '—'}`}
+                  icon={<BarChart3 size={16} />}
+                />
+                <KpiCard
+                  label="损失"
+                  value={formatMetric(job.avg_loss, 6)}
+                  note={`${formatMetric(job.steps_per_sec, 2)} step/s`}
+                  icon={<ActivityIcon />}
+                />
+                <KpiCard
+                  label="最近 F1"
+                  value={formatMetric(job.latest_metrics?.f1, 4)}
+                  note={`PR-AUC ${formatMetric(job.latest_metrics?.pr_auc, 4)}`}
+                  icon={<Save size={16} />}
+                />
+                <KpiCard
+                  label="预计剩余"
+                  value={formatDuration(job.eta_seconds)}
+                  note={`创建于 ${formatDateTime(job.created_at)}`}
+                  icon={<RefreshCcw size={16} />}
+                />
+              </div>
+            )}
+          </section>
 
-              <section className="training-card min-h-0">
-                <div className="card-header">
-                  <Save size={16} className="text-emerald-300" />
-                  <div>
-                    <div className="text-[17px] font-semibold text-slate-100">Checkpoint</div>
-                    <div className="text-[15px] text-slate-400">当前 run 已保存的模型文件</div>
+          {jobError && (
+            <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
+              加载训练任务失败：{jobError.message}
+            </div>
+          )}
+
+          {job && (
+            <>
+              <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
+                <section className="training-card">
+                  <div className="card-header">
+                    <RadioTower size={16} className="text-violet-300" />
+                    <SectionTitle title="任务摘要" copy="配置、路径和最近状态" />
                   </div>
-                </div>
+                  <div className="training-card__body">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <div className="training-surface">
+                        <div className="training-meta-grid">
+                          <MetaField label="任务名称" value={job.name} />
+                          <MetaField label="状态" value={<span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>} />
+                          <MetaField label="训练数据" value={`${job.simulator.toUpperCase()} / ${job.scenarios.join(', ')}`} />
+                          <MetaField label="测试比例" value={formatMetric(job.config.test_ratio, 2)} />
+                          <MetaField label="评测间隔" value={`${job.config.eval_interval} epoch`} />
+                          <MetaField label="总 epoch" value={job.config.epochs === 0 ? '∞' : job.config.epochs} />
+                        </div>
+                      </div>
+                      <div className="training-surface">
+                        <div className="training-meta-grid">
+                          <MetaField label="batch size" value={job.config.batch_size} mono />
+                          <MetaField label="test batch" value={job.config.test_batch_size} mono />
+                          <MetaField label="workers" value={job.config.num_workers} mono />
+                          <MetaField label="learning rate" value={job.config.learning_rate} mono />
+                          <MetaField label="weight decay" value={job.config.weight_decay} mono />
+                          <MetaField label="resume" value={job.config.resume_from ? '是' : '否'} />
+                        </div>
+                      </div>
+                      <div className="training-surface md:col-span-2">
+                        <div className="training-meta-grid">
+                          <MetaField label="运行目录" value={shortPath(job.run_dir, 112)} mono title={job.run_dir} />
+                          <MetaField label="日志文件" value={shortPath(job.log_path, 112)} mono title={job.log_path} />
+                        </div>
+                        {job.error_message && (
+                          <div className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
+                            <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+                            <span>{job.error_message}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="training-card min-h-0">
+                  <div className="card-header">
+                    <Save size={16} className="text-emerald-300" />
+                    <SectionTitle title="Checkpoint" copy="当前 run 已保存的模型文件" />
+                  </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
                 </div>
               </section>
             </div>
 
-            <div className="grid gap-3 xl:grid-cols-2">
-              <ChartCard
-                title="训练损失曲线"
-                subtitle={`avg_loss vs ${trainingChart.subtitleSuffix}`}
-                actions={
-                  <div className="training-segmented">
-                    <button
-                      type="button"
-                      className={`training-segmented__button ${trainingAxisMode === 'step' ? 'training-segmented__button--active' : ''}`}
-                      onClick={() => setTrainingAxisMode('step')}
-                    >
-                      Step
-                    </button>
-                    <button
-                      type="button"
-                      className={`training-segmented__button ${trainingAxisMode === 'epoch' ? 'training-segmented__button--active' : ''}`}
-                      onClick={() => setTrainingAxisMode('epoch')}
-                    >
-                      Epoch
-                    </button>
-                  </div>
-                }
-              >
+              <div className="grid gap-4 xl:grid-cols-2">
+                <ChartCard
+                  title="训练损失"
+                  subtitle={`avg_loss vs ${trainingChart.subtitleSuffix}`}
+                  actions={
+                    <div className="training-segmented">
+                      <button
+                        type="button"
+                        className={`training-segmented__button ${trainingAxisMode === 'step' ? 'training-segmented__button--active' : ''}`}
+                        onClick={() => setTrainingAxisMode('step')}
+                      >
+                        Step
+                      </button>
+                      <button
+                        type="button"
+                        className={`training-segmented__button ${trainingAxisMode === 'epoch' ? 'training-segmented__button--active' : ''}`}
+                        onClick={() => setTrainingAxisMode('epoch')}
+                      >
+                        Epoch
+                      </button>
+                    </div>
+                  }
+                >
                 {trainingChart.data.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trainingChart.data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(51,65,85,0.3)" strokeDasharray="4 4" />
-                      <XAxis dataKey={trainingChart.xKey} stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <YAxis stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'rgba(15, 23, 42, 0.94)',
-                          border: '1px solid rgba(71, 85, 105, 0.55)',
-                          borderRadius: 16,
-                        }}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="avg_loss" name="avg_loss" stroke="#38bdf8" dot={false} strokeWidth={2} />
+                    <LineChart data={trainingChart.data} margin={CHART_MARGIN}>
+                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                      <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
+                      <ChartYAxis />
+                      <ChartTooltip />
+                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                      <Line type="monotone" dataKey="avg_loss" name="avg_loss" stroke="#38bdf8" dot={false} activeDot={{ r: 3 }} strokeWidth={2.25} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <ChartEmpty message="当前还没有训练曲线点。" />
                 )}
-              </ChartCard>
+                </ChartCard>
 
-              <ChartCard title="训练速度曲线" subtitle={`steps_per_sec vs ${trainingChart.subtitleSuffix}`}>
+                <ChartCard title="训练速度" subtitle={`steps_per_sec vs ${trainingChart.subtitleSuffix}`}>
                 {trainingChart.data.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trainingChart.data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(51,65,85,0.3)" strokeDasharray="4 4" />
-                      <XAxis dataKey={trainingChart.xKey} stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <YAxis stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'rgba(15, 23, 42, 0.94)',
-                          border: '1px solid rgba(71, 85, 105, 0.55)',
-                          borderRadius: 16,
-                        }}
-                      />
-                      <Legend />
-                      <Line
-                        type="monotone"
-                        dataKey="steps_per_sec"
-                        name="steps_per_sec"
-                        stroke="#34d399"
-                        dot={false}
-                        strokeWidth={2}
-                      />
+                    <LineChart data={trainingChart.data} margin={CHART_MARGIN}>
+                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                      <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
+                      <ChartYAxis />
+                      <ChartTooltip />
+                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                      <Line type="monotone" dataKey="steps_per_sec" name="steps_per_sec" stroke="#34d399" dot={false} activeDot={{ r: 3 }} strokeWidth={2.25} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <ChartEmpty message="当前还没有训练曲线点。" />
                 )}
-              </ChartCard>
-            </div>
+                </ChartCard>
+              </div>
 
-            <div className="grid gap-3 xl:grid-cols-2">
-              <ChartCard title="测试指标曲线" subtitle="每次测试后的整体指标">
+              <div className="grid gap-4 xl:grid-cols-2">
+                <ChartCard title="测试指标" subtitle="precision / recall / f1 / pr_auc">
                 {curves?.test_points?.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={curves.test_points} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(51,65,85,0.3)" strokeDasharray="4 4" />
-                      <XAxis dataKey="epoch" stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <YAxis domain={[0, 1]} stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'rgba(15, 23, 42, 0.94)',
-                          border: '1px solid rgba(71, 85, 105, 0.55)',
-                          borderRadius: 16,
-                        }}
-                      />
-                      <Legend />
-                      <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} strokeWidth={2} />
-                      <Line type="monotone" dataKey="recall" stroke="#f59e0b" dot={false} strokeWidth={2} />
-                      <Line type="monotone" dataKey="f1" stroke="#34d399" dot={false} strokeWidth={2} />
-                      <Line type="monotone" dataKey="pr_auc" stroke="#a78bfa" dot={false} strokeWidth={2} />
+                    <LineChart data={curves.test_points} margin={CHART_MARGIN}>
+                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                      <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
+                      <ChartYAxis domain={[0, 1]} />
+                      <ChartTooltip />
+                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                      <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
+                      <Line type="monotone" dataKey="recall" stroke="#f59e0b" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
+                      <Line type="monotone" dataKey="f1" stroke="#34d399" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
+                      <Line type="monotone" dataKey="pr_auc" stroke="#a78bfa" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
                   <ChartEmpty message="当前还没有测试点，需要等到 eval_interval 触发测试。" />
                 )}
-              </ChartCard>
+                </ChartCard>
 
-              <ChartCard title="分场景 F1 曲线" subtitle="每个子场景独立观察">
+                <ChartCard title="分场景 F1" subtitle="每个子场景单独观察">
                 {scenarioMetricData.scenarioNames.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={scenarioMetricData.data} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}>
-                      <CartesianGrid stroke="rgba(51,65,85,0.3)" strokeDasharray="4 4" />
-                      <XAxis dataKey="epoch" type="number" stroke="rgba(148,163,184,0.9)" fontSize={13} allowDecimals={false} />
-                      <YAxis domain={[0, 1]} stroke="rgba(148,163,184,0.9)" fontSize={13} />
-                      <Tooltip
-                        contentStyle={{
-                          background: 'rgba(15, 23, 42, 0.94)',
-                          border: '1px solid rgba(71, 85, 105, 0.55)',
-                          borderRadius: 16,
-                        }}
-                      />
-                      <Legend />
+                    <LineChart data={scenarioMetricData.data} margin={CHART_MARGIN}>
+                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                      <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
+                      <ChartYAxis domain={[0, 1]} />
+                      <ChartTooltip />
+                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       {scenarioMetricData.scenarioNames.map((scenario, index) => {
                         const colors = ['#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#fb7185']
                         return (
@@ -506,37 +583,71 @@ export default function TrainingJobDetailPage() {
                             name={scenario}
                             stroke={colors[index % colors.length]}
                             dot={false}
-                            strokeWidth={2}
+                            activeDot={{ r: 3 }}
+                            strokeWidth={2.1}
                           />
                         )
                       })}
                     </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <ChartEmpty message="当前还没有分场景测试曲线。" />
-                )}
-              </ChartCard>
-            </div>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ChartEmpty message="当前还没有分场景测试曲线。" />
+                  )}
+                </ChartCard>
+              </div>
 
-            <section className="training-card min-h-0">
-              <div className="card-header">
-                <FileText size={16} className="text-amber-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">训练日志</div>
-                  <div className="text-[15px] text-slate-400">最近 400 行原始输出</div>
+              <section className="training-card min-h-0">
+                <div className="card-header">
+                  <FileText size={16} className="text-amber-300" />
+                  <SectionTitle title="训练日志" copy="最近 400 行原始输出" />
                 </div>
-              </div>
-              <div className="training-card__body min-h-0">
-                <div className="rounded-2xl border border-slate-700/40 bg-slate-950/80 p-4">
-                  <pre className="h-[360px] overflow-auto whitespace-pre-wrap break-words text-[13px] leading-6 text-slate-300">
-                    {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
-                  </pre>
+                <div className="training-card__body min-h-0">
+                  <div className="grid gap-3 md:grid-cols-[0.22fr_0.78fr]">
+                    <div className="training-surface--dense">
+                      <div className="training-panel-title">日志摘要</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <MetaField label="总行数" value={logs?.lines.length ?? 0} mono />
+                        <MetaField label="状态" value={statusLabel(job.status)} />
+                        <MetaField label="最近 epoch" value={job.latest_epoch ?? '—'} mono />
+                        <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
+                      </div>
+                      <p className="mt-3 text-[12px] leading-5 text-slate-500">
+                        日志按最新 400 行截断，用于快速定位训练阶段、测试阶段和错误输出。
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="training-panel-title">终端输出</div>
+                          <div className="training-panel-copy">自动刷新，优先显示最新内容</div>
+                        </div>
+                        <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
+                      </div>
+                      <pre className="list-scroll-xl whitespace-pre-wrap break-words rounded-2xl border border-slate-800/70 bg-slate-950/65 px-3.5 py-3 text-[12px] leading-5 text-slate-300">
+                        {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
+                      </pre>
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </section>
-          </div>
-        )}
+              </section>
+            </>
+          )}
+        </div>
       </div>
     </div>
+  )
+}
+
+function ActivityIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M4 12h3l2-5 4 10 2-5h5"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }

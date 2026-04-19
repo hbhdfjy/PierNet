@@ -1,11 +1,4 @@
-let installed = false
-
-const PAGE_SCROLL_SELECTORS = [
-  '.training-page__body',
-  '.workbench-main-scroll',
-  '.page-content',
-  '.page-shell',
-]
+﻿let installed = false
 
 function resolveElement(target: EventTarget | null): HTMLElement | null {
   if (!target) return null
@@ -15,8 +8,10 @@ function resolveElement(target: EventTarget | null): HTMLElement | null {
   return null
 }
 
-function isPageScroller(el: HTMLElement): boolean {
-  return PAGE_SCROLL_SELECTORS.some(selector => el.matches(selector))
+function normalizeDeltaY(event: WheelEvent): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return event.deltaY * 16
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return event.deltaY * window.innerHeight * 0.85
+  return event.deltaY
 }
 
 function isScrollable(el: HTMLElement): boolean {
@@ -26,49 +21,40 @@ function isScrollable(el: HTMLElement): boolean {
   return el.scrollHeight > el.clientHeight + 1
 }
 
-function canScroll(el: HTMLElement, deltaY: number): boolean {
-  if (deltaY < 0) return el.scrollTop > 0
-  if (deltaY > 0) return el.scrollTop + el.clientHeight < el.scrollHeight - 1
-  return false
-}
-
-function findNearestScrollableAncestor(
-  target: EventTarget | null,
-  deltaY: number,
-  options: { excludePage?: boolean } = {},
-): HTMLElement | null {
+function collectScrollableAncestors(target: EventTarget | null): HTMLElement[] {
+  const chain: HTMLElement[] = []
   let el = resolveElement(target)
-  while (el) {
-    if (isScrollable(el) && (!options.excludePage || !isPageScroller(el)) && canScroll(el, deltaY)) {
-      return el
-    }
-    el = el.parentElement
-  }
-  return null
-}
 
-function findPageScroller(target: EventTarget | null, deltaY: number): HTMLElement | null {
-  let el = resolveElement(target)
   while (el) {
-    if (isPageScroller(el) && isScrollable(el) && canScroll(el, deltaY)) {
-      return el
-    }
+    if (isScrollable(el)) chain.push(el)
     el = el.parentElement
   }
 
   const docScroller = document.scrollingElement
-  if (docScroller instanceof HTMLElement && isScrollable(docScroller) && canScroll(docScroller, deltaY)) {
-    return docScroller
+  if (docScroller instanceof HTMLElement && isScrollable(docScroller) && !chain.includes(docScroller)) {
+    chain.push(docScroller)
   }
 
-  return null
+  return chain
 }
 
-function applyScroll(el: HTMLElement | null, deltaY: number): number {
-  if (!el || deltaY === 0) return 0
-  const before = el.scrollTop
-  el.scrollTop += deltaY
-  return el.scrollTop - before
+function consumeScroll(el: HTMLElement, deltaY: number): number {
+  if (deltaY === 0) return 0
+
+  if (deltaY < 0) {
+    const room = Math.max(el.scrollTop, 0)
+    if (room <= 0) return 0
+    const applied = -Math.min(room, -deltaY)
+    el.scrollTop += applied
+    return applied
+  }
+
+  const maxScrollTop = Math.max(el.scrollHeight - el.clientHeight, 0)
+  const room = Math.max(maxScrollTop - el.scrollTop, 0)
+  if (room <= 0) return 0
+  const applied = Math.min(room, deltaY)
+  el.scrollTop += applied
+  return applied
 }
 
 export function installWheelScrollAssist() {
@@ -84,34 +70,18 @@ export function installWheelScrollAssist() {
       const startEl = resolveElement(event.target)
       if (!startEl) return
 
-      let remaining = event.deltaY
+      const chain = collectScrollableAncestors(startEl)
+      if (chain.length === 0) return
+
+      let remaining = normalizeDeltaY(event)
       let handled = false
 
-      const componentScroller = findNearestScrollableAncestor(startEl, remaining, { excludePage: true })
-      if (componentScroller) {
-        const consumed = applyScroll(componentScroller, remaining)
+      for (const el of chain) {
+        if (Math.abs(remaining) <= 0.5) break
+        const consumed = consumeScroll(el, remaining)
         if (consumed !== 0) {
           remaining -= consumed
           handled = true
-        }
-      }
-
-      if (Math.abs(remaining) > 0.5) {
-        const pageScroller = findPageScroller(startEl, remaining)
-        if (pageScroller && pageScroller !== componentScroller) {
-          const consumed = applyScroll(pageScroller, remaining)
-          if (consumed !== 0) {
-            remaining -= consumed
-            handled = true
-          }
-        }
-      }
-
-      if (!handled) {
-        const fallback = findNearestScrollableAncestor(startEl, event.deltaY)
-        if (fallback) {
-          const consumed = applyScroll(fallback, event.deltaY)
-          if (consumed !== 0) handled = true
         }
       }
 

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from piern.training.api.schemas.training import (
     GPUInfo,
@@ -59,6 +59,17 @@ def stop_training_job(job_id: str):
         return TrainingJobSummary(**training_manager.stop_job(job_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
+
+
+@router.delete("/jobs/{job_id}", status_code=204)
+def delete_training_job(job_id: str):
+    try:
+        training_manager.delete_job(job_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return Response(status_code=204)
 
 
 @router.get("/jobs/{job_id}/curves", response_model=TrainingCurvesResponse)

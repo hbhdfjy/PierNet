@@ -1,4 +1,4 @@
-import { AlertTriangle, Gauge, PauseCircle, PlayCircle, RefreshCcw } from 'lucide-react'
+import { AlertTriangle, Gauge, PauseCircle, PlayCircle, RefreshCcw, Trash2 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
@@ -12,62 +12,95 @@ import {
   statusLabel,
 } from '../shared'
 
+function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
+  return (
+    <div className="training-kpi">
+      <div className="flex items-start justify-between gap-3">
+        <span className="training-kpi__label">{label}</span>
+        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+          {icon}
+        </span>
+      </div>
+      <div className="training-kpi__value">{value}</div>
+      <div className="training-kpi__note">{note}</div>
+    </div>
+  )
+}
+
 function JobRow({ job }: { job: TrainingJobSummary }) {
   const { mutate } = useSWRConfig()
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
+  const deletable = !stoppable
 
-  const stopJob = async () => {
-    await api.stopTrainingJob(job.job_id)
+  const refreshAll = async () => {
     await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
   }
 
+  const stopJob = async () => {
+    await api.stopTrainingJob(job.job_id)
+    await refreshAll()
+  }
+
+  const deleteJob = async () => {
+    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、run 目录、checkpoint、曲线和日志。共享 prepared cache 会保留。`)
+    if (!ok) return
+    await api.deleteTrainingJob(job.job_id)
+    await refreshAll()
+  }
+
   return (
-    <div className="training-card p-3.5">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <div className="text-[16px] font-semibold text-slate-100">{job.name}</div>
-          <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
-          <div className="mt-1 text-[15px] text-slate-400">
-            {job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景
+    <div className="training-card p-4">
+      <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-[17px] font-semibold text-slate-100">{job.name}</div>
+            <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
           </div>
+          <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+          <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
+          <div className="mt-1 training-mono-note">{job.scenarios.join(', ')}</div>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+
+        <div className="flex flex-wrap items-center gap-2 xl:justify-end">
           {stoppable && (
             <button type="button" className="btn-danger" onClick={stopJob}>
               <PauseCircle size={14} />
               终止
             </button>
           )}
-          <Link to={`/training/jobs/${job.job_id}`} className="btn-ghost">
+          {deletable && (
+            <button type="button" className="btn-ghost" onClick={deleteJob}>
+              <Trash2 size={14} />
+              删除
+            </button>
+          )}
+          <Link to={`/training/jobs/${job.job_id}`} className="btn-primary">
             <PlayCircle size={14} />
             查看详情
           </Link>
         </div>
       </div>
 
-      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-5">
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-2.5">
+      <div className="mt-4 training-meta-grid">
+        <div className="training-surface--dense">
           <div className="training-label">创建时间</div>
-          <div className="mt-1 text-[16px] text-slate-100">{formatDateTime(job.created_at)}</div>
+          <div className="mt-1 text-[15px] text-slate-100">{formatDateTime(job.created_at)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-2.5">
+        <div className="training-surface--dense">
           <div className="training-label">Epoch / Step</div>
-          <div className="mt-1 text-[16px] text-slate-100">
-            {job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}
-          </div>
+          <div className="mt-1 text-[15px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
         </div>
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-2.5">
+        <div className="training-surface--dense">
           <div className="training-label">训练损失</div>
-          <div className="mt-1 text-[16px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
+          <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-2.5">
-          <div className="training-label">最近测试 F1</div>
-          <div className="mt-1 text-[16px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+        <div className="training-surface--dense">
+          <div className="training-label">最近 F1</div>
+          <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
         </div>
-        <div className="rounded-2xl border border-slate-700/30 bg-slate-900/30 p-2.5">
+        <div className="training-surface--dense">
           <div className="training-label">预计剩余</div>
-          <div className="mt-1 text-[16px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
+          <div className="mt-1 text-[15px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
         </div>
       </div>
 
@@ -88,50 +121,41 @@ export default function TrainingJobsPage() {
   })
 
   const runningCount = data?.filter(job => ['starting', 'running', 'evaluating'].includes(job.status)).length ?? 0
+  const doneCount = data?.filter(job => job.status === 'done').length ?? 0
+  const errorCount = data?.filter(job => job.status === 'error').length ?? 0
 
   return (
     <div className="training-page">
-      <div className="page-header">
-        <div>
-          <div className="training-label uppercase tracking-[0.22em]">Training Jobs</div>
-          <h1 className="mt-2 training-title">训练任务管理</h1>
-          <p className="mt-2 max-w-3xl training-copy">
-            这里汇总所有受管训练任务，可以终止运行中的任务，并进入详情页查看训练曲线、测试曲线和日志。
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <button type="button" className="btn-ghost" onClick={() => mutate()}>
-            <RefreshCcw size={14} />
-            刷新
-          </button>
-          <Link to="/training/new" className="btn-primary">
-            <PlayCircle size={14} />
-            新建训练
-          </Link>
-        </div>
-      </div>
-
       <div className="training-page__body">
-        <div className="training-page__grid">
-          <div className="grid gap-3 md:grid-cols-3">
-          <div className="training-card p-3.5">
-            <div className="training-label uppercase tracking-[0.18em]">总任务数</div>
-            <div className="mt-1.5 text-[30px] font-semibold text-slate-100">{formatCount(data?.length ?? 0)}</div>
-          </div>
-          <div className="training-card p-3.5">
-            <div className="training-label uppercase tracking-[0.18em]">运行中</div>
-            <div className="mt-1.5 flex items-center gap-2 text-[30px] font-semibold text-slate-100">
-              <Gauge size={18} className="text-sky-300" />
-              {formatCount(runningCount)}
+        <div className="space-y-5 p-5">
+          <section className="training-hero">
+            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+              <div className="max-w-3xl">
+                <div className="training-eyebrow">Training Jobs</div>
+                <h1 className="mt-4 text-[2.05rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">任务管理</h1>
+                <p className="mt-3 max-w-2xl training-copy">
+                  查看所有受管训练任务，终止运行中的任务，清理已经不再需要的历史运行记录。
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <button type="button" className="btn-ghost" onClick={() => mutate()}>
+                  <RefreshCcw size={14} />
+                  刷新
+                </button>
+                <Link to="/training/new" className="btn-primary">
+                  <PlayCircle size={14} />
+                  新建训练
+                </Link>
+              </div>
             </div>
-          </div>
-          <div className="training-card p-3.5">
-            <div className="training-label uppercase tracking-[0.18em]">已完成</div>
-            <div className="mt-1.5 text-[30px] font-semibold text-slate-100">
-              {formatCount(data?.filter(job => job.status === 'done').length ?? 0)}
+
+            <div className="mt-6 training-kpi-grid">
+              <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="当前注册表中的全部任务" icon={<Gauge size={16} />} />
+              <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating" icon={<PlayCircle size={16} />} />
+              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 与测试结果" icon={<RefreshCcw size={16} />} />
+              <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误输出" icon={<AlertTriangle size={16} />} />
             </div>
-            </div>
-          </div>
+          </section>
 
           {error && (
             <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
@@ -139,17 +163,30 @@ export default function TrainingJobsPage() {
             </div>
           )}
 
-          <div className="training-scroll list-scroll-xl">
-            {isLoading && !data ? (
-              [0, 1, 2].map(item => <div key={item} className="skeleton h-48 rounded-3xl" />)
-            ) : data?.length ? (
-              data.map(job => <JobRow key={job.job_id} job={job} />)
-            ) : (
-              <div className="training-card p-8 text-center text-sm text-slate-400">
-                当前没有训练任务。可以直接去“新建训练”页面启动第一个任务。
+          <section className="training-card min-h-0">
+            <div className="card-header">
+              <Gauge size={16} className="text-sky-300" />
+              <div>
+                <div className="training-panel-title">任务列表</div>
+                <div className="training-panel-copy">优先处理运行中的任务，历史任务可直接删除</div>
               </div>
-            )}
-          </div>
+            </div>
+            <div className="training-card__body training-scroll list-scroll-xl">
+              {isLoading && !data ? (
+                <div className="space-y-3">
+                  {[0, 1, 2].map(item => <div key={item} className="skeleton h-40 rounded-3xl" />)}
+                </div>
+              ) : data?.length ? (
+                <div className="space-y-3">
+                  {data.map(job => <JobRow key={job.job_id} job={job} />)}
+                </div>
+              ) : (
+                <div className="training-card p-8 text-center text-sm text-slate-400">
+                  当前没有训练任务。可以直接去“新建训练”启动第一个任务。
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </div>
     </div>
