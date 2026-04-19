@@ -285,7 +285,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     logger.info(f"增强方法: 参数空间采样")
     logger.info(f"参数表示: 18维统一参数")
     modflow_exe = resolve_modflow_executable(cfg)
-    logger.info(f"MODFLOW ?????: {modflow_exe}")
+    logger.info(f"MODFLOW 可执行文件: {modflow_exe}")
     if parallel:
         logger.info(f"🚀 并行模式: {max_workers} 个进程")
 

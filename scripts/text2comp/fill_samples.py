@@ -261,7 +261,7 @@ def run_fill_samples(
         p for p in sorted(out_dir.glob("*.jsonl"))
         if p.name != output_file
     ]
-    _log(f"\n[??] ???? {len(scenario_files)} ????? ? {merged_path.name} ?")
+    _log(f"\n[合并] 准备合并 {len(scenario_files)} 个场景文件 -> {merged_path.name}")
     total_merged = 0
     with open(merged_path, "w", encoding="utf-8") as fout:
         for jl_path in scenario_files:
@@ -274,13 +274,13 @@ def run_fill_samples(
                         fout.write(line + "\n")
                         total_merged += 1
 
-    _log(f"[??] ???? {total_merged} ?")
+    _log(f"[完成] 共合并 {total_merged} 条")
     _log("\n" + "=" * 60)
-    _log("?????")
+    _log("样本填充完成")
     _log("=" * 60)
-    _log(f"????:    {stats['total']}")
-    _log(f"????:    {merged_path}  ({total_merged} ?)")
-    _log(f"\n? simulator:")
+    _log(f"写入总数:    {stats['total']}")
+    _log(f"合并文件:    {merged_path}  ({total_merged} 条)")
+    _log("\n按 simulator 统计:")
     for sim, cnt in sorted(stats.items()):
         if sim != "total":
             _log(f"  {sim:20s}: {cnt}")

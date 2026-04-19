@@ -42,21 +42,21 @@
 ## 安装
 
 ```bash
-# Python ??????????
+# 安装 Python 依赖
 pip install -r requirements.txt
 pip install -e .
-# ???SimPEG ????????? requirements?PyPSA ??? xarray<2026 ????
+# 说明：requirements 已锁定 SimPEG / PyPSA 相关兼容版本，当前保留 xarray<2026
 
-# MODFLOW ????????????????
+# 下载 MODFLOW-2005 可执行文件
 python - <<'PY'
 from pathlib import Path
 from flopy.utils import get_modflow
 get_modflow(str(Path.home() / '.flopy_bin'), subset='mf2005')
 PY
-# ??????????????
+# 然后设置环境变量
 export PIERN_MODFLOW_EXE=/path/to/mf2005
 
-# ???Node.js 18+?
+# 前端需要 Node.js 18+
 cd frontend && npm install
 ```
 
@@ -140,9 +140,9 @@ python scripts/utils/rebuild_indexes.py
 python scripts/utils/rebuild_filter_indexes.py
 ```
 
-## Token Router ??
+## Token Router 训练
 
-???????? CLI ??????????? `piern/training/router/`?????? `scripts/router/train_token_router.py`?
+训练相关 CLI 和核心实现已经迁移到 `piern/training/router/`，入口脚本为 `scripts/router/train_token_router.py`。
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
@@ -173,48 +173,48 @@ python scripts/utils/rebuild_filter_indexes.py
 ## 项目结构
 ```
 piern/
-??? piern/
-?   ??? core/                    # core numeric and storage primitives
-?   ??? shared/                  # shared infrastructure: paths, static hosting
-?   ??? synth/                   # synthesis backend surface
-?   ?   ??? api/routers/         # Stage 1-4 APIs
-?   ?   ??? api/schemas/         # synthesis schemas
-?   ?   ??? services/            # manifests, indexes, jobs, files
-?   ??? training/                # training backend surface and training core
-?   ?   ??? api/routers/         # /api/training/*
-?   ?   ??? api/schemas/         # training schemas
-?   ?   ??? services/            # training jobs, GPU allocation, curves
-?   ?   ??? router/              # Token Router training core
-?   ??? simulators/              # Stage 1 simulator implementations
-?   ??? text2comp/               # Stage 2/3 language-template logic
-?
-??? frontend/
-?   ??? src/
-?       ??? platform/            # top-level platform router
-?       ??? shared/              # shared frontend infrastructure
-?       ??? synth/               # synthesis frontend surface
-?       ?   ??? pages/
-?       ?   ??? hooks/
-?       ?   ??? components/
-?       ??? training/            # training frontend surface
-?       ??? lib/                 # shared runtime libs: api/types/utils
-?
-??? scripts/
-?   ??? text2comp/
-?   ??? router/
-?   ??? utils/
-?
-??? data/
-    ??? modflow/
-    ??? simpeg/
-    ??? power_flow/
-    ??? transient/
-    ??? gcam/
-    ??? templates/
-    ??? text2comp/
-    ??? router/
-    ??? .manifests/
-    ??? .indexes/
+  piern/
+    core/                    # core numeric and storage primitives
+    shared/                  # shared infrastructure: paths, static hosting
+    synth/                   # synthesis backend surface
+      api/routers/           # Stage 1-4 APIs
+      api/schemas/           # synthesis schemas
+      services/              # manifests, indexes, jobs, files
+    training/                # training backend surface and training core
+      api/routers/           # /api/training/*
+      api/schemas/           # training schemas
+      services/              # training jobs, GPU allocation, curves
+      router/                # Token Router training core
+    simulators/              # Stage 1 simulator implementations
+    text2comp/               # Stage 2/3 language-template logic
+
+  frontend/
+    src/
+      platform/              # top-level platform router
+      shared/                # shared frontend infrastructure
+      synth/                 # synthesis frontend surface
+        pages/
+        hooks/
+        components/
+      training/              # training frontend surface
+      lib/                   # shared runtime libs: api/types/utils
+
+  scripts/
+    text2comp/
+    router/
+    utils/
+
+  data/
+    modflow/
+    simpeg/
+    power_flow/
+    transient/
+    gcam/
+    templates/
+    text2comp/
+    router/
+    .manifests/
+    .indexes/
 ```
 
 ## HDF5 文件命名约定
@@ -288,19 +288,18 @@ MIT License
 
 ---
 
-## ???????????
+## 当前状态
 
-??????????????
+目前仓库已经演进成双平台单仓库结构：
 
-- ??????????? Stage 1-4 ???????
-- ????????????????????????????
+- 数据合成平台覆盖 Stage 1-4 全流程。
+- 训练平台承接 Token Router 数据集、GPU 资源和训练任务管理。
 
-?????????
+训练平台的当前入口和职责：
 
-- ???`/training`
-- ???????
-- ?????????
-- ?????????
+- 前端入口为 `/training`
+- 提供训练总览页面
+- 提供数据集与 GPU 状态查看
+- 提供训练任务、日志和曲线查看
 
-????????????????????????????????
-
+整体上仍然保持数据合成与训练平台共享同一套数据目录、运行目录和文档基线。

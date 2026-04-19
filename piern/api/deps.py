@@ -1,4 +1,4 @@
-"""????????????? piern.shared.runtime.paths?"""
+"""兼容旧导入路径，转发到 piern.shared.runtime.paths。"""
 
 from piern.shared.runtime.paths import CONFIG_DIR, CONFIGS_ROOT, DATA_DIR, PROJECT_ROOT, REGISTRY_PATH, TEMPLATES_DIR
 

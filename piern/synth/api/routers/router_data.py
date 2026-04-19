@@ -259,20 +259,20 @@ def get_router_status():
 async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
-    scenarios: str = Query(""),        # ??????????=??
-    chat_template: str = Query("custom"),  # chat template ??
-    user_prefix: str = Query(""),      # ??? template ??
-    user_suffix: str = Query(""),      # ??? template ??
-    assistant_prefix: str = Query(""), # ??? assistant ??
+    scenarios: str = Query(""),        # 逗号分隔的场景名；空表示全部
+    chat_template: str = Query("custom"),  # chat template 名称
+    user_prefix: str = Query(""),      # custom template 的 user 前缀
+    user_suffix: str = Query(""),      # custom template 的 user 后缀
+    assistant_prefix: str = Query(""), # custom template 的 assistant 前缀
 ):
-    """?? Stage 4 Router ??????? job_id ? SSE ???"""
+    """启动 Stage 4 Router 数据构建任务，返回 job_id 供 SSE 订阅。"""
     record = job_manager.create_job("router")
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
 
     def _run():
         try:
-            sc_desc = f"???{', '.join(scenario_list)}" if scenario_list else "????"
-            publish(record, {"type": "log", "line": f"[Stage 4] ???? Token Router ?????{sc_desc}?template={chat_template}??", "ts": time.time()})
+            sc_desc = f"场景 {', '.join(scenario_list)}" if scenario_list else "全部场景"
+            publish(record, {"type": "log", "line": f"[Stage 4] 开始构建 Token Router 数据：{sc_desc}，template={chat_template}", "ts": time.time()})
             script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
             cmd = [
                 sys.executable, str(script),
@@ -326,7 +326,7 @@ async def build_router_data(
                         })
                         publish(record, {
                             "type": "log",
-                            "line": f"[??] {sc_name}??? {total} ??",
+                            "line": f"[初始化] {sc_name} 预计 {total} 条",
                             "ts": time.time(),
                         })
                     continue
@@ -386,10 +386,10 @@ async def build_router_data(
             except Exception as exc:
                 publish(record, {"type": "log", "line": f"[警告] Router manifest 重建失败: {exc}", "ts": time.time()})
             record.status = "done"
-            publish(record, {"type": "done", "ts": time.time(), "message": "Router ??????"})
+            publish(record, {"type": "done", "ts": time.time(), "message": "Router 数据构建完成"})
         else:
             record.status = "error"
-            publish(record, {"type": "error", "ts": time.time(), "message": f"????? {proc.returncode}"})
+            publish(record, {"type": "error", "ts": time.time(), "message": f"Router 数据构建失败，退出码: {proc.returncode}"})
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": record.job_id, "status": "running"}
@@ -397,10 +397,10 @@ async def build_router_data(
 
 @router.delete("/router/scenario/{scenario}")
 def delete_router_scenario(scenario: str):
-    """??????????????by_scenario/{scenario}.jsonl??????? train.jsonl?"""
+    """删除 by_scenario/{scenario}.jsonl，并同步重写 train.jsonl。"""
     path = SCENARIO_DIR / f"{scenario}.jsonl"
     if not path.exists():
-        return {"ok": False, "message": "?????"}
+        return {"ok": False, "message": "场景文件不存在"}
     path.unlink()
     total = _rewrite_train_from_scenarios(seed=0)
     try:

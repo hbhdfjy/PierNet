@@ -55,7 +55,7 @@ def _top_up_direct_samples(
         current = sum(x.shape[0] for x in batches_ts)
         needed = n_samples - current
         batch_n = needed if n_samples <= 50 else max(needed * 2, 50)
-        logger.info(f'  ??? {round_idx} ???? {batch_n} ???? {needed} ?')
+        logger.info(f'  补充轮次 {round_idx}：再生成 {batch_n} 个候选，目标补足 {needed} 个')
         extra_ts, extra_params, _ = generate_batch(
             cfg, batch_n, seed=batch_seed,
             progress_callback=progress_callback,
@@ -67,18 +67,18 @@ def _top_up_direct_samples(
             batches_ts.append(extra_ts)
             batches_params.append(extra_params)
             current = sum(x.shape[0] for x in batches_ts)
-            logger.info(f'  ?????????{current}/{n_samples} ??')
+            logger.info(f'  当前累计有效样本 {current}/{n_samples} 条')
             if progress_callback:
                 progress_callback(current, n_samples)
         else:
-            logger.warning(f'  ? {round_idx} ????????')
+            logger.warning(f'  第 {round_idx} 轮没有产生有效样本')
         if round_idx >= 20:
             break
 
     all_ts = np.concatenate(batches_ts, axis=0)
     all_params = np.concatenate(batches_params, axis=0)
     if all_ts.shape[0] < n_samples:
-        raise RuntimeError(f'SimPEG ??????? {all_ts.shape[0]}/{n_samples} ?????')
+        raise RuntimeError(f'SimPEG 有效样本不足，仅得到 {all_ts.shape[0]}/{n_samples} 条')
 
     all_ts = all_ts[:n_samples]
     all_params = all_params[:n_samples]

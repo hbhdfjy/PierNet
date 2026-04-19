@@ -263,7 +263,7 @@ def _cleanup_runtime_config(tmp_cfg_path: Optional[Path]) -> None:
 
 
 def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """????????????????"""
+    """执行单个场景仿真，支持跳过已有结果。"""
     publish(record, {
         "type": "init",
         "scenario_totals": {req.scenario: req.n_samples},
@@ -271,9 +271,9 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
     })
     publish(record, {
         "type": "log",
-        "line": f"[??] {req.simulator}/{req.scenario}  n={req.n_samples}" +
-                (f"  [{req.max_workers}???]" if req.parallel else "") +
-                ("  [????]" if req.skip_existing else ""),
+        "line": f"[开始] {req.simulator}/{req.scenario}  n={req.n_samples}" +
+                (f"  [{req.max_workers} 并行]" if req.parallel else "") +
+                ("  [跳过已有结果]" if req.skip_existing else ""),
         "ts": time.time(),
     })
 
@@ -284,7 +284,7 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
             if existing_count > 0:
                 publish(record, {
                     "type": "log",
-                    "line": f"[??] {req.scenario} ??? {existing_count} ????{h5_path}",
+                    "line": f"[跳过] {req.scenario} 已存在 {existing_count} 条样本：{h5_path}",
                     "ts": time.time(),
                 })
                 history_entry["final_sample_count"] = existing_count
@@ -297,7 +297,7 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
 
 
 def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """??????? subprocess ??????? stdout ???"""
+    """通过子进程运行 simulator pipeline，并把 stdout 转发到 SSE。"""
     runtime_cfg_path, tmp_cfg_path = _prepare_runtime_config(req)
     cmd = [
         sys.executable, "-m", f"piern.simulators.{req.simulator}.pipeline",
@@ -348,7 +348,7 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
 
 
 def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
-    """????????? run_pipeline()?????????????? SSE?"""
+    """在当前进程直接调用 run_pipeline()，把日志和进度转发到 SSE。"""
     import logging
 
     class SSEHandler(logging.Handler):
@@ -372,7 +372,7 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
             return
         publish(record, {
             "type": "log",
-            "line": f"???{done}/{total}",
+            "line": f"进度 {done}/{total}",
             "ts": time.time(),
             "progress": {"scenario": req.scenario, "done": done, "total": total},
         })
@@ -445,17 +445,17 @@ def _run_simulate(record: JobRecord, req: SimulateRequest) -> None:
         final_count = history_entry.get("final_sample_count") or req.n_samples
         publish(record, {
             "type": "log",
-            "line": f"[??] {req.scenario} ? {final_count} ???",
+            "line": f"[完成] {req.scenario} 共 {final_count} 条样本",
             "ts": time.time(),
             "progress": {"scenario": req.scenario, "done": final_count, "total": final_count},
         })
         record.status = "done"
-        publish(record, {"type": "done", "ts": time.time(), "message": "????"})
+        publish(record, {"type": "done", "ts": time.time(), "message": "仿真完成"})
     else:
         if record.status == "terminated":
             return
         record.status = "error"
-        publish(record, {"type": "error", "ts": time.time(), "message": "??????????"})
+        publish(record, {"type": "error", "ts": time.time(), "message": "仿真失败，请检查日志"})
 
 
 def _run_batch_simulate(record: JobRecord, reqs: List[SimulateRequest]) -> None:

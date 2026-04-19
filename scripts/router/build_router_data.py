@@ -346,7 +346,7 @@ def main():
     scenario_dir = output_dir / "by_scenario"
 
     if not data_dir.exists():
-        print(f"[??] ????????{data_dir}")
+        print(f"[错误] 未找到数据目录：{data_dir}")
         raise SystemExit(1)
 
     all_jsonl_files = sorted(
@@ -354,7 +354,7 @@ def main():
         if f.name != "all_training_data.jsonl"
     )
     if not all_jsonl_files:
-        print(f"[??] {data_dir} ????? JSONL ??")
+        print(f"[错误] {data_dir} 下没有可用的 JSONL 文件")
         raise SystemExit(1)
 
     scenario_source_signatures: dict[str, dict | None] = {
@@ -370,13 +370,13 @@ def main():
         scenario_set = set(args.scenarios)
         jsonl_files = [f for f in jsonl_files if f.stem in scenario_set]
         if not jsonl_files:
-            print(f"[??] ??????????{args.scenarios}")
+            print(f"[错误] 未匹配到指定场景：{args.scenarios}")
             raise SystemExit(1)
 
-    print(f"[Router ????] ??? {len(jsonl_files)} ?????")
+    print(f"[Router 数据生成] 共处理 {len(jsonl_files)} 个场景")
 
-    # ?? init ?????????????????
-    # ???PROGRESS_INIT:???:??????= source * (1 + neg_ratio)?
+    # 先发送 init，让前端知道每个场景的预计总数。
+    # 格式：PROGRESS_INIT:场景名:预计总条数 = source_count * (1 + neg_ratio)
     for f in jsonl_files:
         expected = scenario_source_counts[f.stem] * (1 + args.neg_ratio)
         print(f"PROGRESS_INIT:{f.stem}:{expected}", flush=True)
@@ -406,7 +406,7 @@ def main():
         print(f"PROGRESS_DONE:{scenario_name}:{len(samples)}:{expected}", flush=True)
 
         # 写入场景独立文件（覆盖）
-        # ????????????
+        # 供场景级别复用和删除接口使用
         scenario_output_path = scenario_dir / f"{scenario_name}.jsonl"
         _write_jsonl(samples, scenario_output_path)
         _write_scenario_meta(
@@ -421,7 +421,7 @@ def main():
         processed_scenarios.add(scenario_name)
 
     if not new_samples:
-        print("[??] ????? router ???Stage 3 ??????? target_template ???{output_0} ???????")
+        print("[错误] 没有生成任何 router 样本；请先确认 Stage 3 输出存在，且 target_template 能解析出 {output_0} 时间序列")
         raise SystemExit(1)
 
     all_samples: list[dict] = list(new_samples)
@@ -429,7 +429,7 @@ def main():
         for existing_file in sorted(scenario_dir.glob("*.jsonl")):
             sc = existing_file.stem
             if sc in processed_scenarios:
-                continue  # ???????????????
+                continue  # 当前场景已在本轮重建，无需复用旧文件
 
             source_path = data_dir / f"{sc}.jsonl"
             reusable, reason = _can_reuse_existing_scenario(
@@ -440,7 +440,7 @@ def main():
                 source_signature=scenario_source_signatures.get(sc),
             )
             if not reusable:
-                print(f"  [??] ???? {existing_file.name}: {reason}")
+                print(f"  [跳过] 无法复用 {existing_file.name}: {reason}")
                 continue
 
             try:
@@ -449,9 +449,9 @@ def main():
                         line = line.strip()
                         if line:
                             all_samples.append(json.loads(line))
-                print(f"  ?????{existing_file.name}")
+                print(f"  复用旧文件：{existing_file.name}")
             except Exception as e:
-                print(f"  [??] ?? {existing_file.name} ??: {e}")
+                print(f"  [警告] 读取 {existing_file.name} 失败: {e}")
 
     n_pos_total = sum(1 for s in all_samples if s["label"] == 1)
     print(f"\n  总计：{len(all_samples)} 条（正={n_pos_total}, 负={len(all_samples)-n_pos_total}）")

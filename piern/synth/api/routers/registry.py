@@ -108,7 +108,7 @@ def delete_registry_entry(key: str):
 
 @router.post("/register")
 async def start_register(req: RegisterRequest):
-    """?? auto_register ?????? job_id??? SSE ?????"""
+    """启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。"""
     record = job_manager.create_job("register", {})
     job_id = record.job_id
 
@@ -140,7 +140,7 @@ async def start_register(req: RegisterRequest):
         record.proc = proc
         record.proc_uses_process_group = True
     except FileNotFoundError as e:
-        raise HTTPException(500, f"???????: {e}")
+        raise HTTPException(500, f"启动注册任务失败: {e}")
 
     def _reader():
         try:
@@ -175,7 +175,7 @@ async def start_register(req: RegisterRequest):
                 "type": "done" if rc == 0 else "error",
                 "return_code": rc,
                 "ts": time.time(),
-                "message": "????" if rc == 0 else f"?????: {rc}",
+                "message": "注册完成" if rc == 0 else f"注册失败，退出码: {rc}",
             }
             publish(record, final)
             record.status = "done" if rc == 0 else "error"

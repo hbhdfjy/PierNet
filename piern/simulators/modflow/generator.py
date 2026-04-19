@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 def resolve_modflow_executable(cfg: Dict[str, Any] | None = None) -> str:
-    """????? MODFLOW-2005 ????????"""
+    """解析并定位 MODFLOW-2005 可执行文件。"""
     from pathlib import Path
 
     cfg = cfg or {}
@@ -48,10 +48,10 @@ def resolve_modflow_executable(cfg: Dict[str, Any] | None = None) -> str:
 
     checked_text = ', '.join(checked) if checked else '<none>'
     raise FileNotFoundError(
-        '??????? MODFLOW-2005 ???'
-        '?????? modflow_exe ????? PIERN_MODFLOW_EXE?'
-        '?? mf2005 ??? ~/.flopy_bin/mf2005?'
-        f'???: {checked_text}'
+        '未找到可执行的 MODFLOW-2005 程序。'
+        '请在配置中设置 modflow_exe，或设置环境变量 PIERN_MODFLOW_EXE；'
+        '也可以先下载 mf2005 到 ~/.flopy_bin/mf2005。'
+        f'已检查路径: {checked_text}'
     )
 
 

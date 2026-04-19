@@ -60,17 +60,17 @@ data/router/      — Token Router 训练数据（Stage 4 输出，train.jsonl +
 ## 常用命令
 
 ```bash
-# ??
+# 安装依赖
 pip install -r requirements.txt
 pip install -e .
 
-# MODFLOW ????????????????
+# 下载 MODFLOW-2005 可执行文件
 python - <<'PY'
 from pathlib import Path
 from flopy.utils import get_modflow
 get_modflow(str(Path.home() / '.flopy_bin'), subset='mf2005')
 PY
-# ??? PIERN_MODFLOW_EXE=/path/to/mf2005
+# 然后设置 PIERN_MODFLOW_EXE=/path/to/mf2005
 
 # Stage 1：物理仿真（推荐通过前端管理界面启动）
 ./start_ui.sh   # 启动 FastAPI(8000) + Vite(5173)，访问 http://localhost:5173
@@ -137,45 +137,45 @@ python scripts/utils/rebuild_filter_indexes.py
 ## 项目结构
 ```
 piern/
-??? piern/
-?   ??? core/                    # llm_client, storage, validation
-?   ??? shared/                  # shared infrastructure: paths, static hosting
-?   ??? synth/                   # synthesis backend surface
-?   ?   ??? api/routers/         # Stage 1-4 APIs
-?   ?   ??? api/schemas/         # synthesis schemas
-?   ?   ??? services/            # job_manager, file_manager, manifest/index services
-?   ??? training/                # training backend surface and training core
-?   ?   ??? api/routers/         # /api/training/*
-?   ?   ??? api/schemas/         # training schemas
-?   ?   ??? services/            # training_manager and related orchestration
-?   ?   ??? router/              # Token Router data/model/metrics/train loop
-?   ??? simulators/
-?   ??? text2comp/
-?
-??? api_server.py                # compatibility entrypoint
-?
-??? frontend/
-?   ??? src/
-?       ??? platform/            # top-level platform switcher
-?       ??? shared/              # shared theme and frontend infrastructure
-?       ??? synth/               # synthesis frontend surface
-?       ?   ??? pages/
-?       ?   ??? hooks/
-?       ?   ??? components/
-?       ??? training/            # training frontend surface
-?       ??? lib/                 # api.ts, types.ts, utils.ts
-?
-??? scripts/
-?   ??? text2comp/
-?   ??? router/
-?   ??? utils/
-?
-??? data/
-    ??? templates/
-    ??? text2comp/
-    ??? router/
-    ??? .manifests/
-    ??? .indexes/
+  piern/
+    core/                    # llm_client, storage, validation
+    shared/                  # shared infrastructure: paths, static hosting
+    synth/                   # synthesis backend surface
+      api/routers/           # Stage 1-4 APIs
+      api/schemas/           # synthesis schemas
+      services/              # job_manager, file_manager, manifest/index services
+    training/                # training backend surface and training core
+      api/routers/           # /api/training/*
+      api/schemas/           # training schemas
+      services/              # training_manager and related orchestration
+      router/                # Token Router data/model/metrics/train loop
+    simulators/
+    text2comp/
+
+  api_server.py              # compatibility entrypoint
+
+  frontend/
+    src/
+      platform/              # top-level platform switcher
+      shared/                # shared theme and frontend infrastructure
+      synth/                 # synthesis frontend surface
+        pages/
+        hooks/
+        components/
+      training/              # training frontend surface
+      lib/                   # api.ts, types.ts, utils.ts
+
+  scripts/
+    text2comp/
+    router/
+    utils/
+
+  data/
+    templates/
+    text2comp/
+    router/
+    .manifests/
+    .indexes/
 ```
 
 ## 电力系统输出格式（重要）
@@ -359,19 +359,19 @@ Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件�
 - [ ] Stage 2/3：为所有场景生成语言模板和训练样本
 - [ ] Stage 4：运行 scripts/router/build_router_data.py 生成 Router 训练数据
 
-## Important Notes ? Training Platform
+## Important Notes · Training Platform
 
-- ??????????????????`/training`
-- ??????????????????????????
-- ????????????????????
-- ????????????????????
+- 训练平台前端入口统一收敛到 `/training`
+- 训练后端 API 挂载在 `/api/training/*`
+- 训练任务、日志、checkpoint 和曲线由 `training_manager.py` 统一编排
+- 当前训练平台仍以 CLI-first 为主，Web 端负责发起、查看和停止任务
 
-## Token Router ????
+## Token Router 训练
 
-- ???????`piern/training/router/`
-- CLI ???`scripts/router/train_token_router.py`
-- ??????? CLI-first???? Web API?
-- ?????
+- 训练核心位于 `piern/training/router/`
+- CLI 入口为 `scripts/router/train_token_router.py`
+- 当前仍优先维护 CLI 训练链路，再向 Web API 暴露能力
+- 训练产物默认写入统一的 `artifacts/` 与 `data/router/` 目录
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \

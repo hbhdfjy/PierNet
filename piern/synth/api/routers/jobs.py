@@ -1,4 +1,4 @@
-"""????? SSE ????/api/generate/{id}/stream, status, delete?"""
+"""统一的 SSE 作业流接口：stream、status、delete。"""
 
 import asyncio
 import json
@@ -22,12 +22,12 @@ def _sse(event: dict) -> str:
 @router.get("/generate/{job_id}/stream")
 async def stream_job(job_id: str):
     """
-    SSE ??????????????????????????
-    ????????????
+    返回指定作业的 SSE 事件流。
+    已结束作业会先回放历史事件，再结束连接。
     """
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"?? {job_id} ???")
+        raise HTTPException(404, f"任务 {job_id} 不存在")
 
     async def _generator():
         snapshot, q = subscribe(job)
@@ -62,7 +62,7 @@ async def stream_job(job_id: str):
 def get_job_status(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"?? {job_id} ???")
+        raise HTTPException(404, f"任务 {job_id} 不存在")
     return JobStatusResponse(
         job_id=job.job_id,
         status=job.status,
@@ -74,9 +74,9 @@ def get_job_status(job_id: str):
 
 @router.delete("/generate/{job_id}")
 def cancel_job(job_id: str):
-    """?????"""
+    """终止指定作业。"""
     job = job_manager.get_job(job_id)
     if not job:
-        raise HTTPException(404, f"?? {job_id} ???")
+        raise HTTPException(404, f"任务 {job_id} 不存在")
     job_manager.terminate_job(job_id)
     return {"status": "terminated", "job_id": job_id}

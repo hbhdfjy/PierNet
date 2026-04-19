@@ -1,4 +1,4 @@
-"""?????????? synth / training API ????????"""
+"""Unified FastAPI 入口，挂载 synth / training API 与前端静态资源。"""
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
