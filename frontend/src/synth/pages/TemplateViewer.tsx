@@ -75,7 +75,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
             {STYLE_LABELS[record.style] ?? record.style}
           </span>
           <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/40">
-            {record.time_mode} ? {record.n_time_points}pt
+            {record.time_mode} / {record.n_time_points}pt
           </span>
         </div>
       </div>
@@ -125,17 +125,17 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
                         {hasTransform ? (
                           <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/25">{td.transform_type}</span>
                         ) : (
-                          <span className="text-slate-700">?</span>
+                          <span className="text-slate-600">无</span>
                         )}
                       </td>
                       <td className="px-3 py-1.5 text-slate-500">
-                        {record.language === 'en' ? td.note_en : td.note_zh || td.note_en || '?'}
+                        {record.language === 'en' ? td.note_en : td.note_zh || td.note_en || '无说明'}
                       </td>
                       <td className="px-3 py-1.5 text-center">
                         {slot?.use_transformed ? (
-                          <span className="text-emerald-400 text-xs">?</span>
+                          <span className="text-emerald-400 text-xs">是</span>
                         ) : (
-                          <span className="text-slate-700 text-xs">?</span>
+                          <span className="text-slate-500 text-xs">否</span>
                         )}
                       </td>
                     </tr>
@@ -154,9 +154,9 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
             ['Time points', record.n_time_points],
             ['Observed channels', record.channel_indices?.length ?? record.timeseries_shape_obs[0]],
             ['Channel indices', record.channel_indices && record.channel_indices.length > 0 ? `[${record.channel_indices.join(', ')}]` : 'All observed'],
-            ['Outputs', record.selected_output_names.join(', ') || '?'],
-            ['Original shape', `${record.timeseries_shape_orig[0]} ? ${record.timeseries_shape_orig[1]}`],
-            ['Observed shape', `${record.timeseries_shape_obs[0]} ? ${record.timeseries_shape_obs[1]}`],
+            ['Outputs', record.selected_output_names.join(', ') || '无'],
+            ['Original shape', `${record.timeseries_shape_orig[0]} x ${record.timeseries_shape_orig[1]}`],
+            ['Observed shape', `${record.timeseries_shape_obs[0]} x ${record.timeseries_shape_obs[1]}`],
             ['Time index count', record.time_indices.length],
           ].map(([k, v]) => (
             <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
@@ -172,7 +172,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
           {record.output_schema.map(slot => (
             <div key={slot.index} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-700/30 text-xs">
               <span className="text-violet-400 font-mono font-medium flex-shrink-0">{`{output_${slot.index}}`}</span>
-              <span className="text-slate-400 flex-1 break-all">{slot.name || '?'}</span>
+              <span className="text-slate-400 flex-1 break-all">{slot.name || '未命名输出'}</span>
             </div>
           ))}
         </div>
@@ -327,7 +327,7 @@ export default function TemplateViewer() {
               }}
             >
               <option value="">All languages</option>
-              <option value="zh">??</option>
+              <option value="zh">中文</option>
               <option value="en">English</option>
             </select>
             <select

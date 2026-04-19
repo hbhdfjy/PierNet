@@ -28,7 +28,7 @@ const SIM_META: Record<string, {
   gcam:         { label: 'PyPSA/GCAM',   shortLabel: 'GC',  color: 'text-teal-400',   bg: 'bg-teal-500/10',   border: 'border-teal-500/25',   dot: 'bg-teal-500'   },
 }
 
-const fallbackMeta = { label: '未知', shortLabel: '?', color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/25', dot: 'bg-slate-500' }
+const fallbackMeta = { label: '未知', shortLabel: 'NA', color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/25', dot: 'bg-slate-500' }
 
 // ── 子组件 ────────────────────────────────────────────────────────
 

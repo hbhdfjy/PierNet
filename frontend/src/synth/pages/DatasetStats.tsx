@@ -1,4 +1,3 @@
-import type { WheelEvent } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { DashboardSummary } from '../../lib/types'
@@ -7,13 +6,22 @@ import {
 } from 'recharts'
 import {
   formatBytes, LANGUAGE_LABELS, STYLE_LABELS,
-  SIMULATOR_LABELS, SIMULATOR_BADGE, getSimulatorBadgeClass,
+  SIMULATOR_LABELS, getSimulatorBadgeClass,
 } from '../../lib/utils'
-import { RefreshCw, Database, Layers, TrendingUp, Globe, BarChart2, FileText, GitBranch } from 'lucide-react'
+import {
+  RefreshCw,
+  Database,
+  Layers,
+  TrendingUp,
+  Globe,
+  BarChart2,
+  FileText,
+  GitBranch,
+  Activity,
+  FolderOpen,
+} from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 import { cn } from '../../lib/utils'
-
-// ── 颜色 ──────────────────────────────────────────────────────────
 
 const PALETTE = ['#38bdf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#4ade80']
 
@@ -30,189 +38,352 @@ const TOOLTIP_STYLE = {
   itemStyle: { color: '#94a3b8' },
 }
 
-// ── 汇总卡片 ──────────────────────────────────────────────────────
+function formatCompact(value: number): string {
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`
+  if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}K`
+  return value.toString()
+}
 
-function StatCard({
-  label, value, sub, color, dotColor, icon,
+function OverviewHero({
+  totalSamples,
+  datasetCount,
+  scenarioCount,
+  simulatorCount,
+  routerTotal,
+  shapeCount,
+  onRefresh,
+  loading,
 }: {
-  label: string; value: string | number; sub: string
-  color: string; dotColor: string; icon: React.ReactNode
+  totalSamples: number
+  datasetCount: number
+  scenarioCount: number
+  simulatorCount: number
+  routerTotal: number
+  shapeCount: number
+  onRefresh: () => void
+  loading: boolean
 }) {
   return (
-    <div className="card-hover px-5 py-4 cursor-default group">
-      <div className="flex items-start justify-between mb-3">
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', dotColor + '/15')}>
-          <span className={color}>{icon}</span>
+    <section className="card relative overflow-hidden border border-slate-700/50 bg-slate-950/30">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.18),transparent_28%),radial-gradient(circle_at_82%_18%,rgba(52,211,153,0.14),transparent_26%),linear-gradient(180deg,rgba(15,23,42,0.12),rgba(15,23,42,0.34))]" />
+      <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-sky-400/0 via-sky-300/70 to-emerald-300/0" />
+      <div className="relative p-6 xl:p-7">
+        <div className="flex items-start justify-between gap-4">
+          <div className="max-w-3xl">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="badge border border-sky-400/20 bg-sky-500/10 text-sky-300">PiERN</span>
+              <span className="badge border border-emerald-400/20 bg-emerald-500/10 text-emerald-300">{"\u6570\u636e\u5408\u6210\u5e73\u53f0"}</span>
+              <span className="badge border border-slate-700/50 bg-slate-900/50 text-slate-400">{"\u9996\u9875\u603b\u89c8"}</span>
+            </div>
+            <h1 className="text-[2rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">{"\u6570\u636e\u603b\u89c8"}</h1>
+            <p className="mt-3 max-w-2xl text-[15px] leading-7 text-slate-300/90 xl:text-[16px]">
+              {"\u628a\u6837\u672c\u89c4\u6a21\u3001\u5185\u5bb9\u5206\u5e03\u3001\u6587\u4ef6\u7ed3\u6784\u548c Router \u8bad\u7ec3\u6570\u636e\u653e\u5728\u540c\u4e00\u4e2a\u5165\u53e3\u91cc\uff0c\u6253\u5f00\u5c31\u80fd\u76f4\u63a5\u770b\u5230\u6570\u636e\u5f53\u524d\u72b6\u6001\u3002"}
+            </p>
+            <div className="mt-5 flex flex-wrap items-center gap-3 text-sm text-slate-400">
+              <span className="inline-flex items-center gap-2 rounded-full border border-slate-700/50 bg-slate-900/35 px-3 py-1.5">
+                <Layers size={14} className="text-slate-400" />
+                <span>{scenarioCount} {"\u4e2a\u573a\u666f"}</span>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-slate-700/50 bg-slate-900/35 px-3 py-1.5">
+                <Database size={14} className="text-slate-400" />
+                <span>{datasetCount} JSONL</span>
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-full border border-slate-700/50 bg-slate-900/35 px-3 py-1.5">
+                <BarChart2 size={14} className="text-slate-400" />
+                <span>{simulatorCount} Simulator</span>
+              </span>
+            </div>
+          </div>
+          <button className="btn-ghost self-start" onClick={onRefresh}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            {"\u5237\u65b0"}
+          </button>
         </div>
-        <div className={cn('w-2 h-2 rounded-full mt-1.5', dotColor)} />
+
+        <div className="mt-7 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="rounded-[1.5rem] border border-slate-700/50 bg-slate-950/35 px-6 py-6 shadow-[0_18px_48px_rgba(2,6,23,0.22)] backdrop-blur">
+            <div className="label text-sky-300/80">{"\u5f53\u524d\u6837\u672c\u89c4\u6a21"}</div>
+            <div className="mt-3 font-mono text-[2.75rem] font-semibold leading-none tracking-tight text-white xl:text-[3.25rem]">
+              {totalSamples.toLocaleString()}
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-slate-400">
+              <span>{"\u76ee\u524d\u5df2\u805a\u5408"} {datasetCount} {"\u4e2a\u6837\u672c\u6587\u4ef6"}</span>
+              <span className="h-1 w-1 rounded-full bg-slate-600" />
+              <span>{"\u53ef\u76f4\u63a5\u7528\u4e8e\u67e5\u770b\u3001\u586b\u5145\u548c\u8bad\u7ec3"}</span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <HeroMetric
+              label={"\u573a\u666f"}
+              value={scenarioCount}
+              accent="text-emerald-300"
+              glow="bg-emerald-400/15"
+              note={`${simulatorCount} Simulator`}
+              icon={<Layers size={16} />}
+            />
+            <HeroMetric
+              label={"Router"}
+              value={routerTotal}
+              accent="text-rose-300"
+              glow="bg-rose-400/15"
+              note={"\u8def\u7531\u8bad\u7ec3\u6570\u636e"}
+              icon={<GitBranch size={16} />}
+            />
+            <HeroMetric
+              label={"JSONL"}
+              value={datasetCount}
+              accent="text-sky-300"
+              glow="bg-sky-400/15"
+              note={"\u6837\u672c\u6587\u4ef6"}
+              icon={<Database size={16} />}
+            />
+            <HeroMetric
+              label={"\u7ed3\u6784"}
+              value={shapeCount}
+              accent="text-violet-300"
+              glow="bg-violet-400/15"
+              note={"\u65f6\u5e8f\u5f62\u72b6"}
+              icon={<TrendingUp size={16} />}
+            />
+          </div>
+        </div>
       </div>
-      <div className={cn('text-2xl font-bold font-mono tabular-nums mb-1', color)}>{value}</div>
-      <div className="text-xs text-slate-500 font-medium">{label}</div>
-      <div className="text-xs text-slate-600 mt-0.5">{sub}</div>
+    </section>
+  )
+}
+
+function HeroMetric({
+  label,
+  value,
+  accent,
+  glow,
+  note,
+  icon,
+}: {
+  label: string
+  value: string | number
+  accent: string
+  glow: string
+  note: string
+  icon: React.ReactNode
+}) {
+  return (
+    <div className="rounded-[1.25rem] border border-slate-700/45 bg-slate-950/30 px-4 py-4 backdrop-blur">
+      <div className="flex items-start justify-between gap-3">
+        <div className={cn('flex h-9 w-9 items-center justify-center rounded-xl text-white', glow)}>
+          <span className={accent}>{icon}</span>
+        </div>
+        <span className="label">{label}</span>
+      </div>
+      <div className={cn('mt-4 font-mono text-[1.65rem] font-semibold leading-none tabular-nums', accent)}>
+        {typeof value === 'number' ? formatCompact(value) : value}
+      </div>
+      <div className="mt-2 text-xs text-slate-500">{note}</div>
     </div>
   )
 }
 
-// ── 饼图卡片 ──────────────────────────────────────────────────────
+function SectionBlock({
+  icon,
+  title,
+  description,
+  children,
+}: {
+  icon: React.ReactNode
+  title: string
+  description: string
+  children: React.ReactNode
+}) {
+  return (
+    <section className="space-y-4">
+      <div className="flex flex-col gap-2 xl:flex-row xl:items-end xl:justify-between">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700/45 bg-slate-900/45 text-slate-300">
+            {icon}
+          </div>
+          <div>
+            <h2 className="text-[1.15rem] font-semibold tracking-tight text-slate-100">{title}</h2>
+            <p className="mt-1 max-w-3xl text-[14px] leading-6 text-slate-400">{description}</p>
+          </div>
+        </div>
+      </div>
+      {children}
+    </section>
+  )
+}
 
-function PieCard({ title, icon, data }: {
-  title: string; icon: React.ReactNode; data: Record<string, number>
+function StatCard({
+  label,
+  value,
+  sub,
+  color,
+  dotColor,
+  icon,
+}: {
+  label: string
+  value: string | number
+  sub: string
+  color: string
+  dotColor: string
+  icon: React.ReactNode
+}) {
+  return (
+    <div className="card-hover group relative overflow-hidden px-5 py-4">
+      <div className={cn('absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-current to-transparent opacity-70', color)} />
+      <div className="mb-3 flex items-start justify-between">
+        <div className={cn('flex h-10 w-10 items-center justify-center rounded-2xl', `${dotColor}/15`)}>
+          <span className={color}>{icon}</span>
+        </div>
+        <div className={cn('mt-2 h-2.5 w-2.5 rounded-full', dotColor)} />
+      </div>
+      <div className={cn('mb-1 font-mono text-[1.9rem] font-semibold tabular-nums tracking-tight', color)}>{value}</div>
+      <div className="text-[12px] font-semibold uppercase tracking-[0.16em] text-slate-500">{label}</div>
+      <div className="mt-1 text-sm text-slate-400">{sub}</div>
+    </div>
+  )
+}
+
+function PieCard({
+  title,
+  icon,
+  data,
+  className,
+}: {
+  title: string
+  icon: React.ReactNode
+  data: Record<string, number>
+  className?: string
 }) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1])
+  if (entries.length === 0) return null
+
   const total = entries.reduce((s, [, v]) => s + v, 0)
   const chartData = entries.map(([k, v]) => ({ name: k, value: v }))
 
   return (
-    <div className="card overflow-hidden">
-      <div className="card-header gap-2">
-        <span className="text-slate-400">{icon}</span>
-        <span className="text-base font-semibold text-slate-200">{title}</span>
-        <span className="ml-auto badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
-          {entries.length} 项
-        </span>
-      </div>
-      <div className="p-5 flex gap-5 items-center">
-        {/* 饼图 */}
-        <div className="flex-shrink-0">
-          <ResponsiveContainer width={120} height={120}>
-            <PieChart>
-              <Pie
-                data={chartData} cx="50%" cy="50%"
-                innerRadius={28} outerRadius={54}
-                dataKey="value" paddingAngle={2} strokeWidth={0}
-              >
-                {chartData.map((_, i) => (
-                  <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
-                ))}
-              </Pie>
-              <Tooltip
-                {...TOOLTIP_STYLE}
-                formatter={(v: number) => [`${v.toLocaleString()}  (${((v / total) * 100).toFixed(1)}%)`, '']}
-              />
-            </PieChart>
-          </ResponsiveContainer>
+    <div className={cn('card relative overflow-hidden', className)}>
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.08),transparent_32%)]" />
+      <div className="relative">
+        <div className="card-header gap-2">
+          <span className="text-slate-400">{icon}</span>
+          <span className="text-base font-semibold text-slate-200">{title}</span>
+          <span className="ml-auto badge border border-slate-600/30 bg-slate-700/60 text-slate-400">
+            {entries.length} {"\u9879"}
+          </span>
         </div>
-        {/* 图例 */}
-        <div className="flex-1 space-y-2.5 min-w-0">
-          {entries.map(([k, v], i) => {
-            const pct = ((v / total) * 100).toFixed(0)
-            return (
-              <div key={k}>
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                    style={{ background: PALETTE[i % PALETTE.length] }} />
-                  <span className="text-sm text-slate-300 truncate flex-1">
-                    {LANGUAGE_LABELS[k] ?? STYLE_LABELS[k] ?? SIMULATOR_LABELS[k] ?? k}
-                  </span>
-                  <span className="text-sm font-mono tabular-nums text-slate-400 flex-shrink-0">
-                    {v.toLocaleString()}
-                  </span>
-                </div>
-                {/* 进度条 */}
-                <div className="h-1 bg-slate-700/40 rounded-full overflow-hidden ml-4">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%`, background: PALETTE[i % PALETTE.length] }}
-                  />
-                </div>
+        <div className="flex items-center gap-5 p-5">
+          <div className="relative flex-shrink-0">
+            <ResponsiveContainer width={124} height={124}>
+              <PieChart>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={28}
+                  outerRadius={54}
+                  dataKey="value"
+                  paddingAngle={2}
+                  strokeWidth={0}
+                >
+                  {chartData.map((_, i) => (
+                    <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
+                  ))}
+                </Pie>
+                <Tooltip
+                  {...TOOLTIP_STYLE}
+                  formatter={(v: number) => [`${v.toLocaleString()} (${((v / total) * 100).toFixed(1)}%)`, '']}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div className="rounded-full bg-slate-950/75 px-3 py-1 text-center backdrop-blur">
+                <div className="font-mono text-sm font-semibold text-white">{formatCompact(total)}</div>
+                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">total</div>
               </div>
-            )
-          })}
+            </div>
+          </div>
+          <div className="min-w-0 flex-1 space-y-3">
+            {entries.map(([k, v], i) => {
+              const pct = ((v / total) * 100).toFixed(0)
+              return (
+                <div key={k}>
+                  <div className="mb-1.5 flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: PALETTE[i % PALETTE.length] }} />
+                    <span className="flex-1 truncate text-sm font-medium text-slate-300">
+                      {LANGUAGE_LABELS[k] ?? STYLE_LABELS[k] ?? SIMULATOR_LABELS[k] ?? k}
+                    </span>
+                    <span className="flex-shrink-0 font-mono text-sm tabular-nums text-slate-400">{v.toLocaleString()}</span>
+                  </div>
+                  <div className="ml-4 h-1.5 overflow-hidden rounded-full bg-slate-800/70">
+                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: PALETTE[i % PALETTE.length] }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </div>
       </div>
     </div>
   )
-}
-
-// ── 场景横向柱状图 ────────────────────────────────────────────────
-
-// 数值格式化：自动选合适单位
-function fmtCount(v: number): string {
-  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`
-  if (v >= 1_000) return `${(v / 1_000).toFixed(0)}k`
-  return String(v)
 }
 
 function ScenarioBar({ data }: { data: Record<string, number> }) {
   const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 22)
+  if (entries.length === 0) return null
+
   const maxVal = Math.max(...entries.map(([, v]) => v))
   const minVal = Math.min(...entries.map(([, v]) => v))
-  // 数据跨度超过 100 倍时用对数轴，避免小值柱子不可见
   const useLog = maxVal / Math.max(minVal, 1) > 100
 
-  const chartData = entries.map(([k, v]) => ({
-    name: k.length > 24 ? k.slice(0, 22) + '…' : k,
-    count: v,
-    // 对数轴时存 log 值用于渲染，实际 tooltip 仍显示原始值
-    display: useLog ? Math.log10(Math.max(v, 1)) : v,
-  }))
-
   return (
-    <div className="card overflow-hidden">
-      <div className="card-header">
-        <Layers size={15} className="text-slate-400" />
-        <span className="text-base font-semibold text-slate-200">按场景分布</span>
-        <div className="ml-auto flex items-center gap-2">
-          {useLog && (
-            <span className="badge bg-amber-500/10 text-amber-400 border border-amber-500/20 text-xs">
-              对数轴
-            </span>
-          )}
-          <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
-            {entries.length} 个场景
-          </span>
+    <div className="card relative overflow-hidden">
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.08),transparent_30%)]" />
+      <div className="relative">
+        <div className="card-header">
+          <Layers size={15} className="text-slate-400" />
+          <span className="text-base font-semibold text-slate-200">{"\u6309\u573a\u666f\u5206\u5e03"}</span>
+          <div className="ml-auto flex items-center gap-2">
+            {useLog && (
+              <span className="badge border border-amber-500/20 bg-amber-500/10 text-amber-400 text-xs">{"\u5bf9\u6570\u8f74"}</span>
+            )}
+            <span className="badge border border-slate-600/30 bg-slate-700/60 text-slate-400">{entries.length} {"\u4e2a\u573a\u666f"}</span>
+          </div>
         </div>
-      </div>
-      <div className="p-5">
-        {/* 自定义横向条形图（用 div 实现，避免 recharts 对数轴的问题）*/}
-        <div className="list-scroll-lg space-y-2 pr-1">
-          {chartData.map(({ name, count }, i) => {
-            const pct = useLog
-              ? (Math.log10(Math.max(count, 1)) / Math.log10(Math.max(maxVal, 1))) * 100
-              : (count / maxVal) * 100
-            return (
-              <div key={name} className="flex items-center gap-3 group">
-                {/* 场景名 */}
-                <div className="w-44 flex-shrink-0 text-right">
-                  <span className="text-sm text-slate-400 group-hover:text-slate-200 transition-colors font-mono truncate block">
-                    {name}
-                  </span>
+        <div className="p-5">
+          <div className="list-scroll-lg space-y-3 pr-1">
+            {entries.map(([name, count], index) => {
+              const pct = useLog
+                ? (Math.log10(Math.max(count, 1)) / Math.log10(Math.max(maxVal, 1))) * 100
+                : (count / maxVal) * 100
+              return (
+                <div key={name} className="group rounded-2xl border border-slate-800/50 bg-slate-900/20 px-3 py-3 transition-colors hover:border-slate-700/60 hover:bg-slate-900/35">
+                  <div className="mb-2 flex items-center gap-3">
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/60 font-mono text-[11px] text-slate-500">
+                      {index + 1}
+                    </span>
+                    <span className="flex-1 truncate font-mono text-sm text-slate-300">{name}</span>
+                    <span className="font-mono text-sm tabular-nums text-sky-300">{count.toLocaleString()}</span>
+                  </div>
+                  <div className="relative h-2.5 overflow-hidden rounded-full bg-slate-800/70">
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{
+                        width: `${Math.max(pct, 1)}%`,
+                        background: 'linear-gradient(90deg, rgba(14,165,233,0.88), rgba(56,189,248,1))',
+                      }}
+                    />
+                  </div>
                 </div>
-                {/* 进度条 */}
-                <div className="flex-1 h-6 bg-slate-800/60 rounded-md overflow-hidden relative">
-                  <div
-                    className="h-full rounded-md transition-all duration-500"
-                    style={{
-                      width: `${Math.max(pct, 1)}%`,
-                      background: `linear-gradient(90deg, #0ea5e9cc, #38bdf8)`,
-                    }}
-                  />
-                  {/* 数值标签叠在条上 */}
-                  <span className="absolute inset-y-0 left-2 flex items-center text-xs font-mono text-white/80 tabular-nums">
-                    {pct > 15 ? fmtCount(count) : ''}
-                  </span>
-                </div>
-                {/* 右侧数值（条短时显示在外面）*/}
-                <div className="w-16 flex-shrink-0 text-left">
-                  <span className="text-xs font-mono tabular-nums text-slate-400">
-                    {pct <= 15 ? fmtCount(count) : ''}
-                  </span>
-                </div>
-              </div>
-            )
-          })}
+              )
+            })}
+          </div>
+          {useLog && <p className="mt-3 text-center text-xs text-slate-600">{"* \u6570\u636e\u91cf\u8de8\u5ea6\u8d85\u8fc7 100 \u500d\uff0c\u6761\u5f62\u957f\u5ea6\u6309\u5bf9\u6570\u6bd4\u4f8b\u663e\u793a"}</p>}
         </div>
-        {useLog && (
-          <p className="text-xs text-slate-600 mt-3 text-center">
-            * 数据量跨度超过 100 倍，条形长度按对数比例显示
-          </p>
-        )}
       </div>
     </div>
   )
 }
-
-// ── 时序形状表 ────────────────────────────────────────────────────
 
 function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
   const entries = Object.entries(shapes)
@@ -222,38 +393,29 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
     <div className="card overflow-hidden">
       <div className="card-header">
         <TrendingUp size={15} className="text-slate-400" />
-        <span className="text-base font-semibold text-slate-200">时序形状（观测后）</span>
+        <span className="text-base font-semibold text-slate-200">{"\u65f6\u5e8f\u5f62\u72b6"}</span>
       </div>
       <div className="list-table-scroll">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-700/40 bg-slate-800/30">
               <th className="px-5 py-3 text-left label">Simulator</th>
-              <th className="px-5 py-3 text-right label">通道数</th>
-              <th className="px-5 py-3 text-right label">时间点</th>
-              <th className="px-5 py-3 text-right label">形状</th>
-              <th className="px-5 py-3 text-right label">总元素</th>
+              <th className="px-5 py-3 text-right label">{"\u901a\u9053\u6570"}</th>
+              <th className="px-5 py-3 text-right label">{"\u65f6\u95f4\u70b9"}</th>
+              <th className="px-5 py-3 text-right label">{"\u5f62\u72b6"}</th>
+              <th className="px-5 py-3 text-right label">{"\u603b\u5143\u7d20"}</th>
             </tr>
           </thead>
           <tbody>
             {entries.map(([sim, [ch, ts]], i) => (
-              <tr key={sim} className={cn(
-                'border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors',
-                i % 2 === 0 ? '' : 'bg-slate-800/10',
-              )}>
+              <tr key={sim} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', i % 2 === 0 ? '' : 'bg-slate-800/10')}>
                 <td className="px-5 py-3">
-                  <span className={cn('badge border', getSimulatorBadgeClass(sim))}>
-                    {SIMULATOR_LABELS[sim] ?? sim}
-                  </span>
+                  <span className={cn('badge border', getSimulatorBadgeClass(sim))}>{SIMULATOR_LABELS[sim] ?? sim}</span>
                 </td>
-                <td className="px-5 py-3 text-right tabular-nums text-slate-400">{ch}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-slate-400">{ts}</td>
-                <td className="px-5 py-3 text-right font-mono text-slate-500">
-                  ({ch}, {ts})
-                </td>
-                <td className="px-5 py-3 text-right tabular-nums font-semibold text-sky-400">
-                  {(ch * ts).toLocaleString()}
-                </td>
+                <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{ch}</td>
+                <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{ts}</td>
+                <td className="px-5 py-3 text-right font-mono text-slate-500">({ch}, {ts})</td>
+                <td className="px-5 py-3 text-right font-mono tabular-nums font-semibold text-sky-400">{(ch * ts).toLocaleString()}</td>
               </tr>
             ))}
           </tbody>
@@ -263,241 +425,164 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
   )
 }
 
-// ── 主页面 ────────────────────────────────────────────────────────
-
 export default function DatasetStats() {
-  // Avoid periodic heavy scans until manifest-backed summary reads are in place.
   const statsSwrOptions = { revalidateOnFocus: false }
-
   const { data: summary, isLoading: loading, mutate: refreshSummary } =
     useSWR<DashboardSummary>('dashboard-summary', () => api.getDashboardSummary(), statsSwrOptions)
 
   const stats = summary?.stats
-  const datasets = summary?.datasets
+  const datasets = summary?.datasets ?? []
   const routerStatus = summary?.router
 
-  const handleRouterTableWheel = (event: WheelEvent<HTMLDivElement>) => {
-    if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return
+  const datasetCount = datasets.length
+  const scenarioCount = stats ? Object.keys(stats.by_scenario).length : 0
+  const simulatorCount = stats ? Object.keys(stats.by_simulator).length : 0
+  const shapeCount = stats ? Object.keys(stats.timeseries_shapes).length : 0
 
-    const el = event.currentTarget
-    const maxScrollTop = el.scrollHeight - el.clientHeight
-    if (maxScrollTop <= 0) return
-
-    const nextScrollTop = Math.max(0, Math.min(maxScrollTop, el.scrollTop + event.deltaY))
-    if (nextScrollTop === el.scrollTop) return
-
-    el.scrollTop = nextScrollTop
-    event.preventDefault()
-    event.stopPropagation()
-  }
+  const routerTotal = routerStatus?.total ?? 0
+  const routerPositive = routerStatus?.label_counts['1'] ?? 0
+  const routerNegative = routerStatus?.label_counts['0'] ?? 0
+  const routerPositiveRate = routerTotal > 0 ? ((routerPositive / routerTotal) * 100).toFixed(1) : '0.0'
+  const routerNegativeRate = routerTotal > 0 ? ((routerNegative / routerTotal) * 100).toFixed(1) : '0.0'
 
   return (
     <div className="page-shell">
-
-      {/* 页头 */}
-      <div className="page-header flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-sky-500/15 border border-sky-500/25 flex items-center justify-center flex-shrink-0">
-            <BarChart2 size={16} className="text-sky-400" />
-          </div>
-          <div>
-            <h1 className="text-lg font-bold text-white leading-none">数据集统计</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Stage 3 生成样本的分布概览</p>
-          </div>
-        </div>
-        <button
-          className="btn-ghost"
-          onClick={() => { refreshSummary() }}
-        >
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          刷新
-        </button>
-      </div>
-
-      <div className="page-content overflow-y-auto p-6 space-y-6">
-
-        {/* 加载中 */}
+      <div className="page-content p-6 space-y-8">
         {loading && !stats && (
-          <div className="flex items-center justify-center gap-2.5 h-48 text-slate-500">
+          <div className="flex h-48 items-center justify-center gap-2.5 text-slate-500">
             <RefreshCw size={16} className="animate-spin" />
-            <span>加载中…</span>
+            <span>{"\u52a0\u8f7d\u4e2d\u2026"}</span>
           </div>
         )}
 
         {stats && (
           <>
-            {/* 汇总卡片 */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-              <StatCard
-                label="总样本数" value={stats.total_samples.toLocaleString()} sub="条训练样本"
-                color="text-sky-400" dotColor="bg-sky-500" icon={<Database size={18} />}
-              />
-              <StatCard
-                label="场景数" value={Object.keys(stats.by_scenario).length} sub="个仿真场景"
-                color="text-emerald-400" dotColor="bg-emerald-500" icon={<Layers size={18} />}
-              />
-              <StatCard
-                label="Simulator" value={Object.keys(stats.by_simulator).length} sub="种仿真器"
-                color="text-amber-400" dotColor="bg-amber-500" icon={<BarChart2 size={18} />}
-              />
-              <StatCard
-                label="时序形状" value={Object.keys(stats.timeseries_shapes).length} sub="种输出形状"
-                color="text-purple-400" dotColor="bg-purple-500" icon={<TrendingUp size={18} />}
-              />
-            </div>
+            <OverviewHero
+              totalSamples={stats.total_samples}
+              datasetCount={datasetCount}
+              scenarioCount={scenarioCount}
+              simulatorCount={simulatorCount}
+              routerTotal={routerTotal}
+              shapeCount={shapeCount}
+              onRefresh={() => { refreshSummary() }}
+              loading={loading}
+            />
 
-            {/* 分布饼图 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
-              <PieCard title="语言分布" icon={<Globe size={15} />} data={stats.by_language} />
-              <PieCard title="写作风格" icon={<FileText size={15} />} data={stats.by_style} />
-              <PieCard title="时间采样" icon={<TrendingUp size={15} />} data={stats.by_time_mode} />
-              {Object.keys(stats.by_simulator).length > 0 && (
-                <PieCard title="Simulator" icon={<Layers size={15} />} data={stats.by_simulator} />
-              )}
-            </div>
+            <SectionBlock
+              icon={<Globe size={17} />}
+              title={"\u5185\u5bb9\u5206\u5e03"}
+              description={"\u628a\u573a\u666f\u89c4\u6a21\u3001\u8bed\u8a00\u5206\u5e03\u3001\u5199\u4f5c\u98ce\u683c\u548c\u65f6\u95f4\u91c7\u6837\u6536\u5728\u4e00\u5c4f\u91cc\uff0c\u76f4\u63a5\u770b\u51fa\u6570\u636e\u7684\u5185\u5bb9\u6c14\u8d28\u3002"}
+            >
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.22fr_0.78fr]">
+                <ScenarioBar data={stats.by_scenario} />
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <PieCard title={"\u8bed\u8a00\u5206\u5e03"} icon={<Globe size={15} />} data={stats.by_language} />
+                  <PieCard title={"\u5199\u4f5c\u98ce\u683c"} icon={<FileText size={15} />} data={stats.by_style} />
+                  <PieCard title={"\u65f6\u95f4\u91c7\u6837"} icon={<TrendingUp size={15} />} data={stats.by_time_mode} className="md:col-span-2" />
+                </div>
+              </div>
+            </SectionBlock>
 
-            {/* 场景分布柱状图 */}
-            {Object.keys(stats.by_scenario).length > 0 && (
-              <ScenarioBar data={stats.by_scenario} />
-            )}
-
-            {/* 时序形状表 */}
-            {Object.keys(stats.timeseries_shapes).length > 0 && (
-              <ShapeTable shapes={stats.timeseries_shapes} />
-            )}
+            <SectionBlock
+              icon={<FolderOpen size={17} />}
+              title={"\u6587\u4ef6\u4e0e\u7ed3\u6784"}
+              description={"\u5c06\u65f6\u5e8f\u7ed3\u6784\u548c JSONL \u6587\u4ef6\u653e\u5728\u540c\u4e00\u7ec4\uff0c\u67e5\u770b\u65f6\u53ea\u9700\u5173\u5fc3\u7ed3\u6784\u548c\u843d\u76d8\u72b6\u6001\u3002"}
+            >
+              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
+                <ShapeTable shapes={stats.timeseries_shapes} />
+                <div className="card overflow-hidden">
+                  <div className="card-header">
+                    <Database size={15} className="text-slate-400" />
+                    <span className="text-base font-semibold text-slate-200">JSONL {"\u6587\u4ef6"}</span>
+                  </div>
+                  <div className="list-table-scroll">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-700/40 bg-slate-800/30">
+                          <th className="px-5 py-3 text-left label">{"\u573a\u666f"}</th>
+                          <th className="px-5 py-3 text-left label">Simulator</th>
+                          <th className="px-5 py-3 text-right label">{"\u6837\u672c\u6570"}</th>
+                          <th className="px-5 py-3 text-right label">{"\u6587\u4ef6\u5927\u5c0f"}</th>
+                          <th className="px-5 py-3 text-right label">{"\u4fee\u6539\u65f6\u95f4"}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {datasets.map((d, i) => (
+                          <tr key={d.name} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', i % 2 === 0 ? '' : 'bg-slate-800/10')}>
+                            <td className="px-5 py-3 font-mono text-slate-200">{d.name}</td>
+                            <td className="px-5 py-3">
+                              <span className={cn('badge border', getSimulatorBadgeClass(d.simulator))}>{SIMULATOR_LABELS[d.simulator] ?? d.simulator}</span>
+                            </td>
+                            <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-400">{d.sample_count.toLocaleString()}</td>
+                            <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{formatBytes(d.file_size_bytes)}</td>
+                            <td className="px-5 py-3 text-right text-slate-500">{new Date(d.mtime * 1000).toLocaleString('zh-CN')}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </SectionBlock>
           </>
         )}
 
-        {/* JSONL 文件列表 */}
-        {datasets && datasets.length > 0 && (
-          <div className="card overflow-hidden">
-            <div className="card-header">
-              <Database size={15} className="text-slate-400" />
-              <span className="text-base font-semibold text-slate-200">JSONL 文件</span>
-              <span className="ml-auto badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
-                {datasets.length} 个文件
-              </span>
-            </div>
-            <div className="list-table-scroll">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700/40 bg-slate-800/30">
-                    <th className="px-5 py-3 text-left label">场景</th>
-                    <th className="px-5 py-3 text-left label">Simulator</th>
-                    <th className="px-5 py-3 text-right label">样本数</th>
-                    <th className="px-5 py-3 text-right label">文件大小</th>
-                    <th className="px-5 py-3 text-right label">修改时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {datasets.map((d, i) => (
-                    <tr key={d.name} className={cn(
-                      'border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors',
-                      i % 2 === 0 ? '' : 'bg-slate-800/10',
-                    )}>
-                      <td className="px-5 py-3 font-mono text-slate-200">{d.name}</td>
-                      <td className="px-5 py-3">
-                        <span className={cn('badge border', getSimulatorBadgeClass(d.simulator))}>
-                          {SIMULATOR_LABELS[d.simulator] ?? d.simulator}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-sky-400 font-semibold">
-                        {d.sample_count.toLocaleString()}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-slate-400">
-                        {formatBytes(d.file_size_bytes)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-slate-500">
-                        {new Date(d.mtime * 1000).toLocaleString('zh-CN')}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Stage 4 Router 数据 */}
         {routerStatus && routerStatus.scenarios.length > 0 && (
-          <div className="card overflow-hidden">
-            <div className="card-header">
-              <GitBranch size={15} className="text-rose-400" />
-              <span className="text-base font-semibold text-slate-200">路由训练数据</span>
-              <div className="ml-auto flex items-center gap-2">
-                <span className="badge bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                  总计 {routerStatus.total.toLocaleString()} 条
-                </span>
-                <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/30">
-                  {routerStatus.scenarios.length} 个场景
-                </span>
-              </div>
+          <SectionBlock
+            icon={<GitBranch size={17} />}
+            title={"\u8def\u7531\u8bad\u7ec3\u6570\u636e"}
+            description={"\u628a Router \u8bad\u7ec3\u771f\u6b63\u9700\u8981\u7684\u4e1c\u897f\u6536\u5230\u4e00\u8d77\uff1a\u6e90\u6837\u672c\u89c4\u6a21\u3001\u6b63\u8d1f\u5206\u5e03\u548c\u6309\u573a\u666f\u7684\u843d\u76d8\u660e\u7ec6\u3002"}
+          >
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <StatCard label={"\u6e90\u6837\u672c\u6570"} value={(routerStatus.source_count ?? 0).toLocaleString()} sub={"\u4e0e Router \u6e90\u6570\u636e\u4e00\u4e00\u5bf9\u5e94"} color="text-sky-400" dotColor="bg-sky-500" icon={<Database size={18} />} />
+              <StatCard label={"\u6b63\u6837\u672c"} value={routerPositive.toLocaleString()} sub={`${routerPositiveRate}% / label = 1`} color="text-emerald-400" dotColor="bg-emerald-500" icon={<Activity size={18} />} />
+              <StatCard label={"\u8d1f\u6837\u672c"} value={routerNegative.toLocaleString()} sub={`${routerNegativeRate}% / label = 0`} color="text-amber-400" dotColor="bg-amber-500" icon={<FileText size={18} />} />
             </div>
-            {/* 汇总行 */}
-            <div className="px-5 py-3 border-b border-slate-700/40 flex items-center gap-6 bg-slate-800/20">
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 uppercase font-bold">总计</span>
-                <span className="text-sm font-mono font-semibold text-sky-400">
-                  {(routerStatus.splits.train.count).toLocaleString()}
-                </span>
+
+            <div className="card overflow-hidden">
+              <div className="card-header">
+                <GitBranch size={15} className="text-rose-400" />
+                <span className="text-base font-semibold text-slate-200">{"\u6309\u573a\u666f\u843d\u76d8\u660e\u7ec6"}</span>
               </div>
-              <div className="ml-auto flex items-center gap-3 text-xs text-slate-500">
-                <span>正样本 <span className="text-emerald-400 font-mono">{(routerStatus.label_counts['1'] ?? 0).toLocaleString()}</span></span>
-                <span>负样本 <span className="text-slate-400 font-mono">{(routerStatus.label_counts['0'] ?? 0).toLocaleString()}</span></span>
-              </div>
-            </div>
-            <div className="list-table-scroll-compact" onWheelCapture={handleRouterTableWheel}>
-              <table className="w-full table-fixed text-sm">
-                <thead>
-                  <tr className="border-b border-slate-700/40">
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-left label backdrop-blur">场景</th>
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-left label backdrop-blur">Simulator</th>
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-right label backdrop-blur">样本数（正+负）</th>
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-right label backdrop-blur">源数据</th>
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-right label backdrop-blur">文件大小</th>
-                    <th className="sticky top-0 z-10 bg-slate-900/95 px-5 py-3 text-right label backdrop-blur">修改时间</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {routerStatus.scenarios.map((sc, i) => (
-                    <tr key={sc.scenario} className={cn(
-                      'border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors',
-                      i % 2 === 0 ? '' : 'bg-slate-800/10',
-                    )}>
-                      <td className="px-5 py-3 font-mono text-slate-200">{sc.scenario}</td>
-                      <td className="px-5 py-3">
-                        <span className={cn('badge border', getSimulatorBadgeClass(sc.simulator))}>
-                          {SIMULATOR_LABELS[sc.simulator] ?? sc.simulator}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-rose-400 font-semibold">
-                        {(sc.router_count ?? 0).toLocaleString()}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-slate-400">
-                        {(routerStatus.source_by_scenario[sc.scenario] ?? 0).toLocaleString()}
-                      </td>
-                      <td className="px-5 py-3 text-right tabular-nums text-slate-400">
-                        {formatBytes(sc.file_size_bytes ?? 0)}
-                      </td>
-                      <td className="px-5 py-3 text-right text-slate-500">
-                        {sc.mtime ? new Date(sc.mtime * 1000).toLocaleString('zh-CN') : '-'}
-                      </td>
+              <div className="list-table-scroll-compact">
+                <table className="w-full table-fixed text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-700/40 bg-slate-800/30">
+                      <th className="px-5 py-3 text-left label">{"\u573a\u666f"}</th>
+                      <th className="px-5 py-3 text-left label">Simulator</th>
+                      <th className="px-5 py-3 text-right label">{"Router \u6837\u672c\u6570"}</th>
+                      <th className="px-5 py-3 text-right label">{"\u6e90\u6570\u636e"}</th>
+                      <th className="px-5 py-3 text-right label">{"\u6587\u4ef6\u5927\u5c0f"}</th>
+                      <th className="px-5 py-3 text-right label">{"\u4fee\u6539\u65f6\u95f4"}</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {routerStatus.scenarios.map((sc, i) => (
+                      <tr key={sc.scenario} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', i % 2 === 0 ? '' : 'bg-slate-800/10')}>
+                        <td className="px-5 py-3 font-mono text-slate-200">{sc.scenario}</td>
+                        <td className="px-5 py-3">
+                          <span className={cn('badge border', getSimulatorBadgeClass(sc.simulator))}>{SIMULATOR_LABELS[sc.simulator] ?? sc.simulator}</span>
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-rose-400">{(sc.router_count ?? 0).toLocaleString()}</td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{(routerStatus.source_by_scenario[sc.scenario] ?? 0).toLocaleString()}</td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{formatBytes(sc.file_size_bytes ?? 0)}</td>
+                        <td className="px-5 py-3 text-right text-slate-500">{sc.mtime ? new Date(sc.mtime * 1000).toLocaleString('zh-CN') : '-'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
+          </SectionBlock>
         )}
 
         {!loading && (!stats || stats.total_samples === 0) && (
           <EmptyState
             icon={Database}
-            title="暂无数据"
-            description="请先在「注册数据集」页面注册 Simulator，然后运行 Stage 3 生成训练样本"
+            title={"\u6682\u65e0\u6570\u636e"}
+            description={"\u8bf7\u5148\u5728\u6570\u636e\u5408\u6210\u6d41\u7a0b\u4e2d\u4ea7\u51fa\u6837\u672c\u6570\u636e\uff0c\u6570\u636e\u603b\u89c8\u624d\u4f1a\u663e\u793a\u7edf\u8ba1\u7ed3\u679c\u3002"}
           />
         )}
-
       </div>
     </div>
   )

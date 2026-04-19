@@ -666,7 +666,7 @@
 
   .page-content {
     @apply flex-1 flex flex-col overflow-y-auto overflow-x-hidden min-h-0 min-w-0;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
     background: linear-gradient(180deg, hsl(var(--bg) / 0.34), transparent 24%);
   }
 
@@ -702,7 +702,7 @@
 
   .workbench-main-scroll {
     @apply flex-1 min-h-0 min-w-0 flex flex-col overflow-y-auto p-4 space-y-3;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
   }
 
   .workbench-main-scroll > * {
@@ -716,7 +716,7 @@
 
   .training-page__body {
     @apply flex-1 min-h-0 overflow-y-auto overflow-x-hidden px-3.5 pb-3.5 pt-2.5;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
   }
 
   .training-page__grid {
@@ -725,48 +725,48 @@
 
   .training-scroll {
     @apply min-h-0 overflow-y-auto space-y-2.5 pr-1;
-    overscroll-behavior: contain;
+    overscroll-behavior: auto;
   }
 
   .list-scroll-sm {
-    @apply min-h-0 h-32 overflow-y-auto overflow-x-hidden pr-1;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-32 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-scroll-compact {
-    @apply min-h-0 h-44 overflow-y-auto overflow-x-hidden pr-1;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-44 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-scroll-md {
-    @apply min-h-0 h-56 overflow-y-auto overflow-x-hidden pr-1;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-56 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-scroll-lg {
-    @apply min-h-0 h-72 overflow-y-auto overflow-x-hidden pr-1;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-72 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-scroll-xl {
-    @apply min-h-0 h-80 overflow-y-auto overflow-x-hidden pr-1;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-80 overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-table-scroll-compact {
-    @apply min-h-0 h-44 overflow-y-auto overflow-x-hidden;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-44 overflow-y-auto overflow-x-hidden;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-table-scroll {
-    @apply min-h-0 h-56 overflow-y-auto overflow-x-hidden;
-    overscroll-behavior: contain;
+    @apply min-h-0 max-h-56 overflow-y-auto overflow-x-hidden;
+    overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
