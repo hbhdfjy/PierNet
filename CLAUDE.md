@@ -2,380 +2,715 @@
 
 ## 文档定位
 
-本文件是开发者与代码代理在 PiERN 仓库中工作的上下文说明，不再单独承担项目总览的全部职责。
+本文件是 PiERN 仓库内面向开发者和代码代理的工作说明，强调当前真实实现、运行边界和改动约束。
 
-默认文档优先级如下：
+文档优先级：
 
-1. `PROJECT_OVERVIEW.md`：项目整体 overview，作为系统边界和阶段划分的基线。
-2. `README.md`：安装、启动、运行入口。
-3. `CLAUDE.md`：开发约定、代码结构、实现细节与操作提示。
+1. `PROJECT_OVERVIEW.md`
+   项目级总览，定义系统边界、平台划分和阶段职责。
+2. `README.md`
+   安装、启动、运行和常用命令入口。
+3. `CLAUDE.md`
+   面向实现层的结构说明、工程约束、关键契约和改动提示。
 
-`UPGRADE_PLAN.md` 只作为路线图和待办计划，不作为 overview 的事实来源。
+`UPGRADE_PLAN.md`、`PERFORMANCE_IMPLEMENTATION_PLAN.md`、`TOKEN_ROUTER_TRAINING_PLAN.md` 都是计划文档，不是事实源。改代码时，事实以当前仓库实现为准。
 
-本文件为 Claude Code 在此仓库中工作提供指导。
+---
 
-## 项目定位
+## 一句话说明
 
-**PiERN 多模拟器数据合成管线**。
+PiERN 当前是一个**单仓库、单 FastAPI 应用、单前端包**承载的双平台系统：
 
-跨物理域仿真数据合成工程，同时覆盖五种数学结构，全部使用成熟开源工具。
+- `/synth`：数据合成平台
+- `/training`：Token Router 训练平台
 
-## 五大模拟器 · 五种数学结构
+两边在产品层已经分开，但仍共享同一套部署入口、主题系统和少量基础设施。
 
-| 模拟器 | 数学类型 | 领域 | 输出形状 | 场景数 | 状态 |
-|--------|---------|------|---------|--------|---------|------|
-| **MODFLOW** | 抛物型PDE | 地下水 | (5, 365) | 7 | ✅ 代码完成 |
-| **SimPEG** | 椭圆型PDE | 地球物理 | (1, 100) | 4 | ✅ 代码完成 |
-| **pandapower** | 非线性代数方程组 | 稳态潮流 | (43, 365) | 5 | ✅ 代码完成 |
-| **ANDES** | DAE系统 | 暂态稳定 | (5, 1000) | 3 | ✅ 代码完成 |
-| **GCAM简化版** | 动态代数系统 | 能源-气候 | (5, 16) | 3 | ✅ 代码完成 |
-| **总计** | 5种数学结构 | 3大领域 | — | **22** | — |
+---
 
-## 数学原理说明
+## 当前产品入口
 
+### 前端路由
+
+- `/`
+  引导页，位于 `frontend/src/platform/LandingPage.tsx`
+- `/synth`
+  数据合成平台首页，当前直接展示数据总览页
+- `/training`
+  训练平台首页
+
+### 旧路由兼容
+
+`frontend/src/platform/PlatformRouter.tsx` 里保留了 synth 旧路径重定向：
+
+- `/simulate` → `/synth/simulate`
+- `/register` → `/synth/register`
+- `/templates` → `/synth/templates`
+- `/fill` → `/synth/fill`
+- `/router` → `/synth/router`
+- `/template-viewer` → `/synth/template-viewer`
+- `/samples` → `/synth/samples`
+- `/router-viewer` → `/synth/router-viewer`
+- `/stats` → `/synth/stats`，随后又收敛到 `/synth`
+- `/registry` → `/synth/registry`
+- `/llm-config` → `/synth/llm-config`
+
+如果改顶层路由，必须同时检查：
+
+- `frontend/src/platform/PlatformRouter.tsx`
+- `frontend/src/synth/SynthApp.tsx`
+- `frontend/src/training/TrainingApp.tsx`
+- `piern/shared/api/static.py`
+
+---
+
+## 当前后端装配方式
+
+### 真实入口
+
+- `api_server.py`
+  向后兼容入口，只 re-export `piern.api.main.app`
+- `piern/api/main.py`
+  当前唯一真实 FastAPI 装配入口
+
+### 路由装配
+
+`piern/api/main.py` 当前直接挂载：
+
+- synth 路由：来自 `piern.synth.api.routers.*`
+- training 路由：来自 `piern.training.api.routers.training`
+- 静态前端：`SPAStaticFiles`
+
+### 兼容层状态
+
+`piern/api/routers/*`、`piern/api/services/*`、`piern/api/schemas/*` 目前仍保留了一层**兼容 re-export**。
+
+例如：
+
+- `piern/api/routers/simulation.py`
+  只是 `from piern.synth.api.routers.simulation import *`
+- `piern/api/routers/training.py`
+  只是 `from piern.training.api.routers.training import *`
+- `piern/api/services/training_manager.py`
+  只是 `from piern.training.services.training_manager import *`
+
+这意味着：
+
+- 当前真实实现已经迁到 `piern/synth/` 和 `piern/training/`
+- 但 `piern/api/*` 还没有完全删除
+- 如果要做大规模整理，要把兼容层删除当成单独阶段处理
+
+---
+
+## 当前仓库结构
+
+### 后端
+
+```text
+piern/
+  api/                     # 兼容壳层 + 统一 app 装配
+  core/                    # 通用底层：llm_client / storage / validation
+  shared/                  # 真正共享的基础设施
+    api/static.py          # SPA history fallback
+    runtime/paths.py       # 全局路径常量
+  simulators/              # Stage 1 五类模拟器实现
+  synth/                   # 数据合成平台后端
+    api/routers/           # Stage 1-4 API
+    api/schemas/
+    services/              # manifest / index / file / jobs
+  text2comp/               # Stage 2/3 核心逻辑
+  training/                # 训练平台后端和训练核心
+    api/routers/
+    api/schemas/
+    services/
+    router/                # Token Router 数据准备、模型、训练、指标
 ```
-MODFLOW:    S_s * dh/dt = ∇(K∇h) + W          → 抛物型PDE，FDM+PCG
-SimPEG:     ∇·(σ∇φ) = -Iδ                     → 椭圆型PDE，FVM+直接求解
-pandapower: P_i = ΣV_iV_j(G_ij cosθ_ij + ...) → 非线性代数，Newton-Raphson
-ANDES:      δ̇=ω, Mω̇=Pm-Pe-Dω, 0=g(x,y)       → DAE系统，隐式梯形法
-GCAM:       多期LP能源优化（PyPSA+HiGHS）        → 动态代数，LP求解
+
+### 前端
+
+```text
+frontend/src/
+  platform/                # 顶层平台路由与 landing
+  shared/                  # 主题等共享基础设施
+  lib/                     # api/types/utils/scrollAssist 等通用运行时代码
+  synth/                   # 数据合成平台
+    pages/
+    hooks/
+    components/
+  training/                # 训练平台
+    pages/
+    shared.ts
 ```
 
-## 当前数据状态
+### 脚本
 
-```
-data/modflow/     — 7场景，文件名 modflow_{scenario}.h5
-data/simpeg/      — 4场景，文件名 simpeg_{scenario}.h5
-data/power_flow/  — 5潮流场景，文件名 power_flow_{scenario}.h5
-data/transient/   — 3暂态场景，文件名 transient_{scenario}.h5
-data/gcam/        — 3场景，文件名 gcam_{scenario}.h5
-data/templates/   — 多场景模板库（Stage 2 输出，{scenario}_templates.jsonl）
-data/text2comp/   — 最终训练样本（Stage 3 输出，{scenario}.jsonl）
-data/router/      — Token Router 训练数据（Stage 4 输出，train.jsonl + by_scenario/）
+```text
+scripts/
+  text2comp/               # Stage 2/3 CLI
+  router/                  # Stage 4 与训练 CLI
+  utils/                   # manifests / indexes / summary 等工具
 ```
 
-**HDF5 文件命名约定**：`{simulator}_{scenario}.h5`，如 `modflow_unified_aquifer.h5`。
-目录名即 simulator 名，Stage 2/3 脚本自动扫描 `data/` 下各子目录，无需额外配置。
+### 数据与产物
+
+```text
+data/
+  modflow/
+  simpeg/
+  power_flow/
+  transient/
+  gcam/
+  templates/
+  text2comp/
+  router/
+  .manifests/
+  .indexes/
+
+artifacts/
+  token_router/
+```
+
+---
+
+## 数据合成平台（/synth）
+
+### 作用范围
+
+数据合成平台覆盖 Stage 1-4：
+
+1. 物理仿真
+2. 注册与模板生成
+3. 样本填充
+4. Router 数据构建
+
+### Synth 前端入口
+
+`frontend/src/synth/SynthApp.tsx` 当前管理这些页面：
+
+- `/synth`
+  数据总览，当前使用 `DatasetStats.tsx`
+- `/synth/simulate`
+  `SimulationRunner.tsx`
+- `/synth/register`
+  `RegisterSimulator.tsx`
+- `/synth/templates`
+  `TemplateGenerator.tsx`
+- `/synth/fill`
+  `SampleFiller.tsx`
+- `/synth/router`
+  `RouterDataBuilder.tsx`
+- `/synth/template-viewer`
+  `TemplateViewer.tsx`
+- `/synth/samples`
+  `SampleViewer.tsx`
+- `/synth/router-viewer`
+  `RouterViewer.tsx`
+- `/synth/registry`
+  `RegistryPage.tsx`
+- `/synth/llm-config`
+  `LLMConfig.tsx`
+
+### Synth 后端 API
+
+真实实现位于 `piern/synth/api/routers/`：
+
+- `config.py`
+- `datasets.py`
+- `files.py`
+- `generation.py`
+- `interview.py`
+- `jobs.py`
+- `registry.py`
+- `router_data.py`
+- `simulation.py`
+
+### Synth 服务层
+
+真实实现位于 `piern/synth/services/`：
+
+- `job_manager.py`
+  生成任务流、SSE、作业状态
+- `file_manager.py`
+  模板/样本/router 文件列表与删除
+- `manifest_store.py`
+  Stage 2-4 sidecar manifest
+- `jsonl_index.py`
+  大 JSONL 的稀疏分页索引
+- `jsonl_filter_index.py`
+  常用筛选索引
+
+### Stage 1 模拟器
+
+当前支持：
+
+- `modflow`
+- `simpeg`
+- `power_flow`
+- `transient`
+- `gcam`
+
+注意：
+
+- `piern/simulators/power_system/` 是共享工具目录，不是可直接运行的 simulator
+- `power_flow` 和 `transient` 是两个独立 simulator
+
+### Stage 2/3 核心
+
+主要在 `piern/text2comp/`：
+
+- `pipeline.py`
+- `generator.py`
+- `template_store.py`
+- `auto_register.py`
+- `interview_agent.py`
+
+当前注册契约仍是：
+
+- `configs/text2comp/registry.yaml`
+
+当前 Stage 2/3 默认配置：
+
+- `configs/text2comp/default.yaml`
+
+### 数据读取层
+
+当前页面读大数据时，不再默认全扫 JSONL。
+
+主要约定：
+
+- Stage 2-4 的源产物仍然是 JSONL
+- 交互式摘要优先读 `data/.manifests/`
+- 大文件分页优先读 `data/.indexes/`
+
+如果改了模板、样本、router 产物格式或清理逻辑，要同时检查：
+
+- `scripts/utils/rebuild_manifests.py`
+- `scripts/utils/rebuild_indexes.py`
+- `scripts/utils/rebuild_filter_indexes.py`
+- `piern/synth/services/manifest_store.py`
+- `piern/synth/services/jsonl_index.py`
+- `piern/synth/services/jsonl_filter_index.py`
+
+---
+
+## 训练平台（/training）
+
+### 当前范围
+
+当前训练平台只支持：
+
+- Token Router 训练
+- 单 GPU 训练
+- 训练任务管理
+- 曲线、日志、checkpoint 查看
+
+当前**不支持**：
+
+- 多 GPU 分配
+- DDP
+- 通用模型训练平台
+- 模型注册中心
+
+### Training 前端入口
+
+`frontend/src/training/TrainingApp.tsx` 当前管理这些页面：
+
+- `/training`
+  `TrainingOverviewPage.tsx`
+- `/training/new`
+  `TrainingNewJobPage.tsx`
+- `/training/jobs`
+  `TrainingJobsPage.tsx`
+- `/training/jobs/:jobId`
+  `TrainingJobDetailPage.tsx`
+
+### Training 后端 API
+
+真实实现位于：
+
+- `piern/training/api/routers/training.py`
+- `piern/training/api/schemas/training.py`
+- `piern/training/services/training_manager.py`
+
+API 路径前缀是：
+
+- `/api/training/*`
+
+当前主要接口：
+
+- `GET /api/training/overview`
+- `GET /api/training/datasets`
+- `GET /api/training/gpus`
+- `GET /api/training/jobs`
+- `POST /api/training/jobs`
+- `GET /api/training/jobs/{job_id}`
+- `GET /api/training/jobs/{job_id}/curves`
+- `GET /api/training/jobs/{job_id}/logs`
+- `POST /api/training/jobs/{job_id}/stop`
+
+### 训练任务状态
+
+当前状态集合：
+
+- `queued`
+- `starting`
+- `running`
+- `evaluating`
+- `done`
+- `error`
+- `terminated`
+
+### 训练任务持久化
+
+当前训练平台不是用 synth 的 `job_manager`，而是独立 file-backed registry。
+
+关键文件：
+
+- `artifacts/token_router/training_jobs.json`
+
+训练日志：
+
+- `.runlogs/`
+
+训练输出：
+
+- `artifacts/token_router/{simulator}/runs/{run_name}/`
+
+### GPU 分配约束
+
+当前 `training_manager.py` 用的是简单探测和锁定策略：
+
+- `GPU_AVAILABLE_MEMORY_THRESHOLD_MIB = 2048`
+- `GPU_AVAILABLE_UTIL_THRESHOLD = 20`
+
+这是保守策略，不是抢占式调度。
+
+如果要改 GPU 选择逻辑，必须同时检查：
+
+- `piern/training/services/training_manager.py`
+- `frontend/src/training/pages/TrainingNewJobPage.tsx`
+- `frontend/src/training/pages/TrainingOverviewPage.tsx`
+
+### 当前训练核心实现
+
+不要假设当前训练平台用的是 Transformers 或外部 embedding 模型。
+
+当前真实实现是：
+
+- tokenizer：`CharTokenizer`
+  - 文件：`piern/training/router/tokenizer.py`
+- 模型：`FullSeqDilatedConvRouter`
+  - 文件：`piern/training/router/model.py`
+- 数据准备：
+  - 文件：`piern/training/router/data.py`
+- 训练循环：
+  - 文件：`piern/training/router/train.py`
+
+### 当前训练数据约定
+
+训练平台直接消费：
+
+- `data/router/by_scenario/*.jsonl`
+- `data/.manifests/router.json`
+
+当前数据准备不是重新生成 Stage 4 数据，而是：
+
+1. 读取 router JSONL
+2. 按 `context + scenario` 做稳定 hash 切分
+3. 生成 `train/test` 两个 split
+4. 写入 prepared token cache
+
+当前没有 validation split，只有：
+
+- train
+- test
+
+### 当前切分与模型假设
+
+这几条很重要：
+
+- split 由 `build_group_key(context, scenario)` 推导
+- 默认 `test_ratio = 0.10`
+- 训练输入是**全量字符序列**
+- tokenizer 是字符级，不是 BPE
+- 模型是 dilated conv 序列分类器，不是 Transformer
+
+如果要改训练假设，至少要同步检查：
+
+- `piern/training/router/tokenizer.py`
+- `piern/training/router/data.py`
+- `piern/training/router/model.py`
+- `piern/training/router/train.py`
+- `scripts/router/train_token_router.py`
+- `frontend/src/training/pages/TrainingNewJobPage.tsx`
+- `piern/training/api/schemas/training.py`
+
+### 训练 CLI
+
+CLI 入口：
+
+- `scripts/router/train_token_router.py`
+
+当前核心参数：
+
+- `--simulator`
+- `--scenarios`
+- `--router-dir`
+- `--artifact-root`
+- `--prepared-name`
+- `--run-name`
+- `--test-ratio`
+- `--batch-size`
+- `--test-batch-size`
+- `--epochs`
+- `--eval-interval`
+- `--learning-rate`
+- `--weight-decay`
+- `--embedding-dim`
+- `--model-dim`
+- `--scene-dim`
+- `--dropout`
+- `--kernel-size`
+- `--num-workers`
+- `--device`
+- `--seed`
+- `--force-prepare`
+- `--resume-from`
+- `--max-train-samples`
+- `--max-test-samples`
+
+---
+
+## 数据目录与产物约定
+
+### Stage 1
+
+HDF5 命名统一为：
+
+- `{simulator}_{scenario}.h5`
+
+例如：
+
+- `data/modflow/modflow_unified_aquifer.h5`
+- `data/power_flow/power_flow_ieee14_baseload.h5`
+
+### Stage 2
+
+- `data/templates/{scenario}_templates.jsonl`
+
+### Stage 3
+
+- `data/text2comp/{scenario}.jsonl`
+- 合并文件：`data/text2comp/all_training_data.jsonl`
+
+### Stage 4
+
+- `data/router/train.jsonl`
+- `data/router/by_scenario/{scenario}.jsonl`
+
+### 训练产物
+
+- `artifacts/token_router/{simulator}/prepared/{prepared_name}/`
+- `artifacts/token_router/{simulator}/runs/{run_name}/`
+
+---
+
+## 当前共享基础设施
+
+### 后端 shared
+
+`piern/shared/` 现在只放真正跨平台基础设施：
+
+- `runtime/paths.py`
+  - `PROJECT_ROOT`
+  - `DATA_DIR`
+  - `TEMPLATES_DIR`
+  - `CONFIG_DIR`
+  - `CONFIGS_ROOT`
+  - `REGISTRY_PATH`
+- `api/static.py`
+  - `SPAStaticFiles`
+
+### 前端 shared
+
+当前前端共享层仍然比较薄：
+
+- `frontend/src/shared/theme.ts`
+
+其余公共运行时代码主要还在：
+
+- `frontend/src/lib/`
+
+这意味着前端还没有完全抽成一个纯粹的 `shared/ui` 组件系统，别把它误判为已经完成。
+
+---
+
+## 前端滚动与布局约定
+
+当前前端存在一套全局滚轮辅助逻辑：
+
+- `frontend/src/lib/scrollAssist.ts`
+- `frontend/src/main.tsx` 中安装
+
+用途：
+
+- 鼠标悬停在内部滚动组件时，优先滚组件
+- 组件到边界后，再把滚动量交给右侧主页面
+
+如果修改以下内容，必须一起检查滚轮行为：
+
+- `.page-content`
+- `.workbench-main-scroll`
+- `.training-page__body`
+- `.training-scroll`
+- `.list-scroll-*`
+- `.list-table-scroll*`
+
+对应文件：
+
+- `frontend/src/index.css`
+- `frontend/src/lib/scrollAssist.ts`
+
+不要只改 CSS 而忽略滚轮链路。
+
+---
+
+## 当前测试与验证覆盖
+
+当前自动测试覆盖很薄。
+
+仓库里目前明确看到的测试文件：
+
+- `tests/test_training_manager_fallbacks.py`
+
+它只覆盖：
+
+- router manifest 缺失时训练数据列表回退为空
+- `nvidia-smi` 不可用时 GPU 列表回退为空
+
+这意味着：
+
+- 训练平台 UI 行为几乎没有自动化前端测试
+- synth/training 的大多数集成路径主要靠构建和手工回归
+
+当前较可靠的回归方式仍然是：
+
+```bash
+python -m compileall piern scripts api_server.py
+cd frontend && npm run build
+```
+
+如果动了训练平台或大文件读取逻辑，建议至少补一个：
+
+- Python 层单元测试
+- 或最小端到端 smoke test
+
+---
 
 ## 常用命令
 
+### 安装
+
 ```bash
-# 安装依赖
 pip install -r requirements.txt
 pip install -e .
+```
 
-# 下载 MODFLOW-2005 可执行文件
-python - <<'PY'
-from pathlib import Path
-from flopy.utils import get_modflow
-get_modflow(str(Path.home() / '.flopy_bin'), subset='mf2005')
-PY
-# 然后设置 PIERN_MODFLOW_EXE=/path/to/mf2005
+### 启动
 
-# Stage 1：物理仿真（推荐通过前端管理界面启动）
-./start_ui.sh   # 启动 FastAPI(8000) + Vite(5173)，访问 http://localhost:5173
+```bash
+./start_ui.sh
+./start_ui.sh --dev
+```
 
-# 也可 CLI 直接运行：
+`start_ui.sh` 当前行为：
 
-# MODFLOW（抛物型PDE，输出 data/modflow/modflow_{scenario}.h5）
-python -m piern.simulators.modflow.pipeline \
-    --config configs/modflow/variants/unified_aquifer.yaml --n-samples 1000
+- 尝试激活 `piern-project` conda 环境
+- 启动 FastAPI：`8000`
+- 启动 Vite：`5173`
 
-# SimPEG（椭圆型PDE，输出 data/simpeg/simpeg_{scenario}.h5）
-python -m piern.simulators.simpeg.pipeline \
-    --config configs/simpeg/variants/dc_resistivity.yaml --n-samples 1000
+### 前端构建
 
-# pandapower 潮流（非线性代数，输出 data/power_flow/power_flow_{scenario}.h5）
-python -m piern.simulators.power_flow.pipeline \
-    --config configs/power_flow/variants/ieee14_baseload.yaml --n-samples 1000
+```bash
+cd frontend
+npm run build
+```
 
-# ANDES 暂态（DAE，输出 data/transient/transient_{scenario}.h5）
-python -m piern.simulators.transient.pipeline \
-    --config configs/transient/variants/ieee14_fault.yaml --n-samples 500
+### 后端快速检查
 
-# GCAM（动态代数，输出 data/gcam/gcam_{scenario}.h5）
-python -m piern.simulators.gcam.pipeline \
-    --config configs/gcam/variants/energy_transition.yaml --n-samples 1000
+```bash
+python -m compileall piern scripts api_server.py
+```
 
-# 汇总
-python scripts/utils/summarize_all.py
+### Manifest / Index 重建
 
-# Stage 2：语言模板生成
-
-# Step 0：自动注册元数据（新数据集必须先跑）
-python -m piern.text2comp.auto_register \
-    --config configs/text2comp/default.yaml \
-    --output configs/text2comp/registry.yaml
-
-# Step 1：生成语言模板（调 LLM，结果存 data/templates/）
-python scripts/text2comp/generate_templates.py \
-    --config configs/text2comp/default.yaml \
-    --n-templates 1000
-python scripts/text2comp/generate_templates.py \
-    --scenarios unified_aquifer ieee14_baseload \
-    --n-templates 200 --language-mix 0.6 --max-workers 8
-
-# Stage 3：数值填充（不调 LLM，结果存 data/text2comp/）
-python scripts/text2comp/fill_samples.py \
-    --config configs/text2comp/default.yaml \
-    --n-samples 1000 --skip-existing
-
-# Stage 4：Token Router 数据生成（不调 LLM）
-python scripts/router/build_router_data.py \
-    --seed 42 --neg-ratio 1
-
-# 重建 Stage 2-4 摘要 manifest
+```bash
 python scripts/utils/rebuild_manifests.py
-
-# 重建 Stage 2-4 无筛选分页索引
 python scripts/utils/rebuild_indexes.py
-
-# 重建 Stage 2-4 常用筛选索引
 python scripts/utils/rebuild_filter_indexes.py
 ```
 
-## 项目结构
-```
-piern/
-  piern/
-    core/                    # llm_client, storage, validation
-    shared/                  # shared infrastructure: paths, static hosting
-    synth/                   # synthesis backend surface
-      api/routers/           # Stage 1-4 APIs
-      api/schemas/           # synthesis schemas
-      services/              # job_manager, file_manager, manifest/index services
-    training/                # training backend surface and training core
-      api/routers/           # /api/training/*
-      api/schemas/           # training schemas
-      services/              # training_manager and related orchestration
-      router/                # Token Router data/model/metrics/train loop
-    simulators/
-    text2comp/
-
-  api_server.py              # compatibility entrypoint
-
-  frontend/
-    src/
-      platform/              # top-level platform switcher
-      shared/                # shared theme and frontend infrastructure
-      synth/                 # synthesis frontend surface
-        pages/
-        hooks/
-        components/
-      training/              # training frontend surface
-      lib/                   # api.ts, types.ts, utils.ts
-
-  scripts/
-    text2comp/
-    router/
-    utils/
-
-  data/
-    templates/
-    text2comp/
-    router/
-    .manifests/
-    .indexes/
-```
-
-## 电力系统输出格式（重要）
-
-**潮流仿真（pandapower）** 三个物理量垂直拼接：
-```
-V_bus(n_bus, 365) + theta_bus(n_bus, 365) + P_line(n_line, 365)
-→ (n_bus×2+n_line, 365)
-
-IEEE 14节点: (14+14+15, 365) = (43, 365)
-```
-
-**暂态仿真（ANDES）** 输出发电机转子角：
-```
-delta(n_gen, 1000)，10秒×100Hz
-IEEE 14: (5, 1000)
-```
-
-power_flow 和 transient 是两个完全独立的 simulator：
-- `piern/simulators/power_flow/` — pandapower 潮流，configs 在 `configs/power_flow/`，输出到 `data/power_flow/`
-- `piern/simulators/transient/` — ANDES 暂态，configs 在 `configs/transient/`，输出到 `data/transient/`
-- `piern/simulators/power_system/` — 共享工具库（18维参数转换 + 增强生成器），不含 pipeline
-
-## 四阶段架构
-
-```
-Stage 1  物理仿真
-  输入: configs/{simulator}/variants/*.yaml
-  运行: python -m piern.simulators.{simulator}.pipeline
-  输出: data/{simulator}/{simulator}_{scenario}.h5
-
-Stage 2  语言模板生成（调 LLM）
-  输入: HDF5（只读 param_names + timeseries_shape）+ registry.yaml
-  运行: scripts/text2comp/generate_templates.py
-  输出: data/templates/{scenario}_templates.jsonl
-
-Stage 3  数值填充（不调 LLM）
-  输入: data/templates/ + HDF5（读取实际数值）+ registry.yaml
-  运行: scripts/text2comp/fill_samples.py
-  输出: data/text2comp/{scenario}.jsonl（最终训练样本，5字段）
-
-Stage 4  Token Router 数据生成（不调 LLM）
-  输入: data/text2comp/*.jsonl（Stage 3 输出）
-  运行: scripts/router/build_router_data.py
-  输出: data/router/train.jsonl（全量合并）+ data/router/by_scenario/{scenario}.jsonl
-  格式: {"context": str, "label": 0|1, "metadata": {...}}
-  说明: label=1（chat_template(input) + 完整引导语，触发专家）
-        label=0（chat_template(input) + 引导语内部随机截断，继续 LLM）
-        Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
-        正负比例可配置（默认1:1），支持 qwen/deepseek/llama3/mistral/custom chat template
-```
-
-## 摘要读取约定
-
-- Stage 2/3/4 的源数据仍然是 `data/templates/`、`data/text2comp/`、`data/router/` 下的 JSONL。
-- 交互式摘要接口优先读取 `data/.manifests/` 下的 sidecar manifest，而不是在请求时全量扫描大文件。
-- 无筛选分页接口优先读取 `data/.indexes/` 下的 sparse offset index，而不是从文件头顺扫到目标页。
-- 常用筛选分页接口优先读取 `data/.indexes/` 下的 filter index，当前覆盖 `language`、`style`、`label`。
-- 变更模板、样本或 router 文件后，可以执行 `python scripts/utils/rebuild_manifests.py` 主动刷新 manifest。
-- 变更后如果需要预热分页性能，可以执行 `python scripts/utils/rebuild_indexes.py` 主动刷新索引。
-- 如果需要预热筛选分页性能，可以执行 `python scripts/utils/rebuild_filter_indexes.py` 主动刷新 filter index。
-- 统计页通过 `/api/dashboard/summary` 聚合接口读取摘要，而不是并发请求三个重接口。
-- 如果 manifest 或索引缺失或快照过期，后端会按需自动重建。
-
-## 最终训练样本格式（5字段）
-
-```json
-{
-  "input":              "自然语言描述（含参数数值）",
-  "number":             [18维原始参数数组],
-  "params_transformed": [18维变换后参数数组],
-  "target":             "引导语 + 时序数值（JSON矩阵）",
-  "metadata":           { "simulator", "scenario", "language", "style", ... }
-}
-```
-
-## 配置文件说明
-
-`configs/text2comp/default.yaml` 是唯一的配置文件，包含：
-- `data_root`：HDF5 数据根目录（默认 `data`），自动扫描各子目录
-- `registry`：元数据注册表路径
-- `output_dir` / `output_file`：Stage 3 输出位置
-- `llm`：LLM 提供商、模型、API key、温度等
-- `generation`：并发数、语言比例、风格权重、变换概率等
-- `seed`：全局随机种子
-
-Stage 2/3 脚本通过 `piern.text2comp.pipeline.load_config()` 加载此文件。
-
-## 前端侧边栏结构
-
-```
-── Stage 1 · 物理仿真 ──────────
-  仿真运行  /simulate   (amber)
-
-── Stage 2 · 语言模板 ──────────
-  01 注册数据集  /register  (sky)
-  02 模板生成    /templates (violet)
-
-── Stage 3 · 样本填充 ──────────
-  01 样本填充    /fill      (emerald)
-
-── Stage 4 · 路由数据 ──────────
-  路由数据  /router     (rose)
-
-── 数据查看 ────────────────────
-  模板浏览 /template-viewer
-  样本浏览 /samples
-  路由浏览 /router-viewer
-  数据统计 /stats
-
-── 设置 ────────────────────────
-  注册信息 /registry   （含 LLM 配置入口）
-  LLM 配置 /llm-config
-```
-
-默认路由：`/simulate`
-
-## Key Files — Stage 1 API
-
-- `piern/api/routers/simulation.py`
-  - `SIMULATORS = ["modflow", "simpeg", "power_flow", "transient", "gcam"]`
-  - `_get_run_pipeline(simulator)` 直接路由：power_flow → power_flow.pipeline，transient → transient.pipeline
-  - `GET /api/simulation/scenarios` — 扫描场景，用 YAML 里的 output_dir 字段定位 HDF5
-  - `POST /api/simulate` — 单场景仿真
-  - `POST /api/simulate/batch` — 批量顺序仿真，每个场景完成发 scenario_done 事件
-  - `GET /api/simulation/history` — 历史记录（内存 deque，重启清空）
-
-## Key Files — Stage 2/3
-
-- `piern/text2comp/pipeline.py` — 工具函数库
-  - `load_config(cfg_path)` — 加载 default.yaml（兼容旧 generation_config 引用）
-  - `_scan_h5_files(cfg, base_dir)` — 扫描 data_root 下各子目录的 HDF5 文件
-  - `_scenario_name_from_path(h5_path)` — 从文件名提取场景名（去掉 `{simulator}_` 前缀）
-  - `_load_registry(registry_path)` — 加载 registry.yaml
-  - `_resolve_domain(simulator, scenario, registry)` — 解析 domain 元数据
-- `piern/text2comp/generator.py` — LLMTextGenerator，fixed_channels 支持名字或整数索引
-- `piern/text2comp/template_store.py` — TemplateRecord，fill_sample（接受 output_info 参数）
-- `piern/text2comp/auto_register.py` — LLM 自动推断 HDF5 元数据
-- `piern/text2comp/interview_agent.py` — 多智能体交互式注册（6步状态机）
-
-## Important Notes — Stage 1
-
-- `filter_sample()` 用 `.get()` 有默认值，传空 dict 不会 KeyError
-- power_flow pipeline 在 `piern/simulators/power_flow/`，YAML 在 `configs/power_flow/`，输出到 `data/power_flow/`
-- transient pipeline 在 `piern/simulators/transient/`，YAML 在 `configs/transient/`，输出到 `data/transient/`
-- `power_system/` 目录现在只是共享工具库：`unified_params.py`（18维参数转换）和 `generator_with_params.py`（增强用）
-- ANDES IEEE14 有 5 台发电机，暂态输出 (5, 1000)
-- 增强循环有 max_rounds=50 上限（各 simulator 均已设置）
-- macOS 上用 `ThreadPoolExecutor`（ProcessPoolExecutor+PIPE 会死锁）
-- `terminate_job` 时 `os.killpg` kill 整个进程组
-- 历史记录：内存 deque(maxlen=200)，重启后清空
-- 批量仿真每个场景完成后发 `scenario_done` SSE 事件，前端实时刷新
-
-## Important Notes — Stage 4
-
-- Router 数据格式：`{"context": str, "label": 0|1, "metadata": {...}}`
-- 正样本（label=1）：`user_prefix + input + user_suffix + assistant_prefix + 完整引导语`
-- 负样本（label=0）：`user_prefix + input + user_suffix + assistant_prefix + 引导语[:pos]`，pos 在 `[0, len(引导语)-1]` 均匀随机
-- Router 推理时永远看到完整 input，截断只发生在 assistant 侧引导语内部
-- Chat template 通过 `--chat-template` CLI 参数指定，内置：`qwen`/`chatml`/`deepseek`/`llama3`/`mistral`，自定义用 `custom`
-- `--neg-ratio N`：每条正样本生成 N 条负样本（默认1:1），各负样本截断位置独立随机
-- 输出：`data/router/by_scenario/{scenario}.jsonl`（各场景独立）+ `data/router/train.jsonl`（全量合并打乱）
-- 进度协议：`PROGRESS_INIT:scene:total` → `PROGRESS_UPDATE:scene:done:total` → `PROGRESS_DONE:scene:done:total`
-- metadata 字段：`simulator`、`scenario`、`language`、`chat_template`、`trigger_prefix`（正样本）
-
-## Important Notes — Stage 2/3
-
-- 并发线程数：`default.yaml` 的 `generation.max_workers`，生产建议 32-100
-- API key：`default.yaml` 的 `llm.api_key`，也可用 `SILICONFLOW_API_KEY` 环境变量
-- `fill_sample` 接受 `output_info` 参数，从 registry 传入完整元数据（name_zh/unit）
-- `generator.py` 的 `fixed_channels` 支持名字字符串（按 output_info.name 查找索引）
-- `parseTimeseries.ts` 用括号深度匹配提取 target 中的 [[...]] 矩阵
-
-## 待办
-
-- [ ] MODFLOW：运行 Stage 1 生成所有场景数据
-- [ ] SimPEG：运行 Stage 1 生成所有场景数据
-- [ ] 电力潮流：运行 Stage 1 生成所有场景数据
-- [ ] 电力暂态：运行 Stage 1 生成所有场景数据
-- [ ] GCAM：运行 Stage 1 生成所有场景数据
-- [ ] Stage 2/3：为所有场景生成语言模板和训练样本
-- [ ] Stage 4：运行 scripts/router/build_router_data.py 生成 Router 训练数据
-
-## Important Notes · Training Platform
-
-- 训练平台前端入口统一收敛到 `/training`
-- 训练后端 API 挂载在 `/api/training/*`
-- 训练任务、日志、checkpoint 和曲线由 `training_manager.py` 统一编排
-- 当前训练平台仍以 CLI-first 为主，Web 端负责发起、查看和停止任务
-
-## Token Router 训练
-
-- 训练核心位于 `piern/training/router/`
-- CLI 入口为 `scripts/router/train_token_router.py`
-- 当前仍优先维护 CLI 训练链路，再向 Web API 暴露能力
-- 训练产物默认写入统一的 `artifacts/` 与 `data/router/` 目录
+### Token Router 训练
 
 ```bash
 CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
-    --simulator modflow \
-    --device cuda:0 \
-    --epochs 1
+  --simulator modflow \
+  --device cuda:0 \
+  --epochs 1
 ```
+
+---
+
+## 改动时必须联动检查的文档
+
+### 改“用户怎么启动/使用”
+
+更新：
+
+- `README.md`
+
+### 改“平台结构、阶段边界、目录归属”
+
+更新：
+
+- `PROJECT_OVERVIEW.md`
+- `CLAUDE.md`
+
+### 改“训练平台能力、训练契约、训练路线”
+
+更新：
+
+- `TOKEN_ROUTER_TRAINING_PLAN.md`
+- 必要时同步 `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
+
+### 改“性能读路径、manifest/index 行为”
+
+更新：
+
+- `PERFORMANCE_IMPLEMENTATION_PLAN.md`
+- 必要时同步 `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
+
+---
+
+## 当前开发约束
+
+1. synth 和 training 在产品层已经分开，但仓库层仍共享同一应用和同一前端包。
+2. `piern/api/*` 仍然存在兼容层，不要误删。
+3. training 当前是**单 GPU**系统，前端和后端都按这个边界设计。
+4. 训练核心当前是**字符级 full-sequence conv router**，不要按 Transformer 平台来改。
+5. Stage 2-4 的在线读取优化依赖 `data/.manifests/` 与 `data/.indexes/`，不要绕开它们直接退回全量扫描。
+6. 前端内部滚动和页面滚动是当前易出问题区域；只改样式经常不够，需要同时看 `scrollAssist.ts`。
+7. 文档必须跟实现同步，不能继续把计划文档写成事实。
+
+---
+
+## 最后一句
+
+如果开始改这个仓库，优先把它当成：
+
+- 一个双平台产品
+- 一个仍带兼容层的过渡态代码库
+- 一个以 JSONL/HDF5 为源产物、以 manifest/index 为交互读取层的系统
+- 一个当前只对 Token Router 单 GPU 训练负责的训练平台
+
+不要沿用旧的“单一 Stage 1-4 工具页面”心智模型，也不要默认训练平台已经演进成通用训练基础设施。

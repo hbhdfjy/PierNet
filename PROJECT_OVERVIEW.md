@@ -2,45 +2,108 @@
 
 ## Role Of This Document
 
-This file is the maintained project-level overview for PiERN.
+This file is the maintained high-level overview for PiERN.
 
-- Read this first when you need a concise understanding of the system.
-- Update this file when the architecture, stage boundaries, supported simulators, or runtime surfaces change.
-- Do not use this file as a changelog, troubleshooting notebook, or implementation backlog.
+- Read this first to understand the system boundary.
+- Update this file when platform structure, runtime surfaces, stage ownership, or core contracts change.
+- Do not turn this file into a changelog or implementation notebook.
 
 ## One-Sentence Summary
 
-PiERN is a multi-simulator data generation pipeline that turns heterogeneous physics and engineering simulators into a unified Stage 1-4 workflow for simulation, registration, template generation, sample filling, and router-data construction.
+PiERN is a dual-surface application that combines a Stage 1-4 data synthesis platform with a single-GPU Token Router training platform inside one repository and one deployable FastAPI + React app.
+
+## Product Surfaces
+
+### Landing
+
+- Frontend route: `/`
+- Purpose: top-level entry page that routes operators into synth vs training
+- Implementation: `frontend/src/platform/LandingPage.tsx`
+
+### Data Synthesis Platform
+
+- Frontend route prefix: `/synth/*`
+- Frontend namespace: `frontend/src/synth/`
+- Backend namespace: `piern/synth/`
+- Scope: Stage 1 simulation, Stage 2 registration/template generation, Stage 3 sample filling, Stage 4 router dataset construction
+
+### Training Platform
+
+- Frontend route prefix: `/training/*`
+- Frontend namespace: `frontend/src/training/`
+- Backend namespace: `piern/training/`
+- Scope: Token Router training data selection, single-GPU training jobs, logs, curves, checkpoints
+
+## Backend Assembly
+
+### Unified Entry Point
+
+- Runtime entry: `piern/api/main.py`
+- Compatibility entry: `api_server.py`
+
+`piern/api/main.py` mounts:
+
+- synth routers from `piern.synth.api.routers`
+- training router from `piern.training.api.routers.training`
+- frontend static hosting through `piern.shared.api.static.SPAStaticFiles`
+
+### Compatibility Layer
+
+The repository still keeps compatibility wrappers under:
+
+- `piern/api/routers/*`
+- `piern/api/services/*`
+- `piern/api/schemas/*`
+
+These files mainly re-export real implementations from `piern/synth/*` and `piern/training/*`.
+This compatibility layer still exists and must be treated as transitional infrastructure, not as the primary implementation home.
 
 ## Core Workflow
 
 ### Stage 1: Physical Simulation
 
-- Input: simulator-specific YAML configs under `configs/{simulator}/variants/`
+- Input: simulator-specific YAML under `configs/{simulator}/variants/`
 - Execution: `python -m piern.simulators.{simulator}.pipeline`
 - Output: `data/{simulator}/{simulator}_{scenario}.h5`
 
 ### Stage 2: Registration And Template Generation
 
-- Registration contract lives in `configs/text2comp/registry.yaml`
-- Metadata can be produced by auto-registration and refined in the UI
-- Template generation writes scenario template libraries into `data/templates/`
-- Interactive summary reads use sidecar manifests under `data/.manifests/templates.json`
-- Template pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `language/style`
+- Registry contract: `configs/text2comp/registry.yaml`
+- Default config: `configs/text2comp/default.yaml`
+- Output: `data/templates/{scenario}_templates.jsonl`
+- Read path acceleration: `data/.manifests/templates.json` + `data/.indexes/`
 
 ### Stage 3: Sample Filling
 
-- Filled training samples are generated from Stage 1 numeric outputs plus Stage 2 templates
-- Output lives in `data/text2comp/`
-- Dataset lists and aggregate stats are served from `data/.manifests/samples.json` in the common read path
-- Sample pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `language/style`
+- Output: `data/text2comp/{scenario}.jsonl`
+- Optional merged artifact: `data/text2comp/all_training_data.jsonl`
+- Read path acceleration: `data/.manifests/samples.json` + `data/.indexes/`
 
 ### Stage 4: Router Data Construction
 
-- Router training data is derived from Stage 3 outputs
-- Output lives in `data/router/`
-- Router status summaries are served from `data/.manifests/router.json` in the common read path
-- Router pagination uses sparse indexes under `data/.indexes/`, with dedicated filter indexes for `label`
+- Output: `data/router/train.jsonl` and `data/router/by_scenario/*.jsonl`
+- Read path acceleration: `data/.manifests/router.json` + `data/.indexes/`
+
+## Training Workflow
+
+The current training platform consumes Stage 4 outputs and builds prepared caches under `artifacts/token_router/`.
+
+Current training assumptions:
+
+- model family: Token Router only
+- device mode: single GPU only
+- tokenizer: character-level tokenizer
+- model: `FullSeqDilatedConvRouter`
+- split: `train / test` only
+- training input: full character sequence
+
+Primary implementation files:
+
+- `piern/training/router/tokenizer.py`
+- `piern/training/router/model.py`
+- `piern/training/router/data.py`
+- `piern/training/router/train.py`
+- `scripts/router/train_token_router.py`
 
 ## Supported Simulators
 
@@ -53,54 +116,58 @@ PiERN is a multi-simulator data generation pipeline that turns heterogeneous phy
 | `gcam` | Energy-climate planning | Dynamic algebraic / LP | `(5, 16)` | 3 |
 
 ## Runtime Surfaces
-- `frontend/src/platform/`: top-level platform switcher for synth vs training UI
-- `frontend/src/synth/`: data synthesis frontend surface
-- `frontend/src/training/`: training frontend surface
-- `frontend/src/shared/`: shared theme and frontend infrastructure
-- `piern/synth/`: synthesis backend routers and services
-- `piern/training/`: training backend routers, services, and training core
-- `piern/shared/`: shared backend infrastructure such as paths and static hosting
-- `piern/simulators/`: Stage 1 simulator pipelines
-- `piern/text2comp/`: Stage 2/3 registration, template generation, and filling logic
-- `scripts/router/`: Stage 4 router dataset construction and training CLI entrypoints
+
+- `frontend/src/platform/`
+  Landing page and top-level platform routing
+- `frontend/src/synth/`
+  Data synthesis frontend surface
+- `frontend/src/training/`
+  Training frontend surface
+- `frontend/src/shared/`
+  Shared frontend theme layer
+- `frontend/src/lib/`
+  Shared frontend runtime utilities such as API client, types, utils, scroll behavior
+- `piern/synth/`
+  Synthesis backend routers, schemas, and services
+- `piern/training/`
+  Training backend routers, schemas, services, and router training core
+- `piern/shared/`
+  Shared backend infrastructure such as paths and static hosting
+- `piern/simulators/`
+  Stage 1 simulator implementations
+- `piern/text2comp/`
+  Stage 2/3 registration, template generation, and sample filling
 
 ## Key Project Contracts
 
 - HDF5 naming: `{simulator}_{scenario}.h5`
-- Data root: all generated artifacts are currently under `data/`
-- Sidecar manifests: `data/.manifests/` is the summary/index layer for Stage 2-4 interactive reads
-- Sparse indexes: `data/.indexes/` is the unfiltered pagination layer for large Stage 2-4 JSONL files
-- Dashboard summary: `/api/dashboard/summary` is the statistics page aggregation endpoint
-- Registry contract: `configs/text2comp/registry.yaml`
-- Stage 2/3 default config: `configs/text2comp/default.yaml`
+- Data root: generated data remains under `data/`
+- Stage 2 templates: `data/templates/`
+- Stage 3 samples: `data/text2comp/`
+- Stage 4 router data: `data/router/`
+- Read acceleration layer:
+  - manifests under `data/.manifests/`
+  - sparse indexes under `data/.indexes/`
+- Dashboard summary endpoint: `/api/dashboard/summary`
+- Training artifacts: `artifacts/token_router/`
+- Training API prefix: `/api/training/*`
+
+## Operational Notes
+
+- `start_ui.sh` is the main local startup path for backend + Vite dev server.
+- The unified app can serve built frontend assets from `8000`; Vite dev remains on `5173`.
+- Frontend nested scroll behavior is currently mediated by `frontend/src/lib/scrollAssist.ts`; scroll changes should be treated as application behavior, not just styling.
+- Training and synthesis are separated at the product surface and namespace level, but still share one deployed app and one repository.
 
 ## Documentation Set To Maintain
 
-The maintained documentation set for project overview is:
+The maintained documentation set is:
 
 1. `PROJECT_OVERVIEW.md`
-   The source-of-truth high-level system overview.
+   High-level system boundary and product overview.
 2. `README.md`
-   The user-facing entrypoint for installation, quick start, and common commands.
+   User-facing install, startup, and quick-start guide.
 3. `CLAUDE.md`
-   The developer and coding-agent operating context, grounded on the overview above.
+   Developer and coding-agent implementation context.
 
-`UPGRADE_PLAN.md` remains useful, but it is a roadmap document rather than part of the overview contract.
-
-## Dual Platform Layout
-The repository now exposes two clearly separated product surfaces inside one repo and one deployable app:
-
-- Data synthesis platform
-  - Frontend namespace: `frontend/src/synth/`
-  - Backend namespace: `piern/synth/`
-  - Covers Stage 1 simulation, Stage 2 template generation, Stage 3 sample filling, and Stage 4 router dataset construction
-- Model training platform
-  - Frontend namespace: `frontend/src/training/`
-  - Backend namespace: `piern/training/`
-  - Frontend route prefix: `/training`
-  - Backend API prefix: `/api/training/*`
-  - Current scope: single-GPU Token Router training, job management, curve viewing, log viewing
-
-Shared code is intentionally narrowed to `frontend/src/shared/` and `piern/shared/`.
-The training platform depends on the synthesis platform only through stable router-data contracts under `data/router/` and `data/.manifests/router.json`, not through Stage 1-3 implementation details.
-
+Plan documents remain useful, but are not source-of-truth documents.
