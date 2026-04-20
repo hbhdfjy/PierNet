@@ -73,8 +73,174 @@ const LEGEND_STYLE = {
   paddingTop: 10,
 }
 
-function ChartTooltip() {
-  return <Tooltip {...CHART_TOOLTIP_STYLE} cursor={{ stroke: 'rgba(148,163,184,0.22)', strokeDasharray: '4 4' }} />
+type ChartTooltipEntry = {
+  color?: string
+  dataKey?: string | number
+  name?: string
+  value?: unknown
+}
+
+type ChartHoverSnapshot = {
+  label: string
+  rows: Array<{
+    color: string
+    key: string
+    label: string
+    value: string
+  }>
+}
+
+type ChartMouseState = {
+  activeLabel?: unknown
+  activePayload?: ChartTooltipEntry[]
+}
+
+/*
+function formatChartTooltipValue(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return '—'
+  }
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return String(value)
+  }
+  const abs = Math.abs(value)
+  const maximumFractionDigits = abs >= 1000 ? 2 : abs >= 100 ? 3 : abs >= 1 ? 4 : 6
+  return value.toLocaleString('en-US', { maximumFractionDigits })
+}
+*/
+
+function formatChartTooltipValue(value: unknown) {
+  if (value === null || value === undefined || value === '') {
+    return '--'
+  }
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return String(value)
+  }
+  const abs = Math.abs(value)
+  const maximumFractionDigits = abs >= 1000 ? 2 : abs >= 100 ? 3 : abs >= 1 ? 4 : 6
+  return value.toLocaleString('en-US', { maximumFractionDigits })
+}
+
+function formatChartTooltipLabel(axisLabel: string, label: unknown) {
+  if (label === null || label === undefined || label === '') {
+    return axisLabel
+  }
+  if (typeof label === 'number') {
+    return `${axisLabel}: ${label.toLocaleString('en-US')}`
+  }
+  return `${axisLabel}: ${String(label)}`
+}
+
+function buildActiveDot(fill: string) {
+  return {
+    r: 4.5,
+    fill,
+    stroke: 'rgba(15,23,42,0.96)',
+    strokeWidth: 2,
+  }
+}
+
+function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | null): ChartHoverSnapshot | null {
+  const entries = state?.activePayload?.filter(item => item.value !== null && item.value !== undefined) ?? []
+  if (!entries.length) {
+    return null
+  }
+
+  return {
+    label: formatChartTooltipLabel(axisLabel, state?.activeLabel),
+    rows: entries.map(item => ({
+      color: item.color ?? '#38bdf8',
+      key: String(item.dataKey ?? item.name ?? 'value'),
+      label: String(item.name ?? item.dataKey ?? 'value'),
+      value: formatChartTooltipValue(item.value),
+    })),
+  }
+}
+
+function ChartTooltip({ axisLabel }: { axisLabel: string }) {
+  return (
+    <Tooltip
+      {...CHART_TOOLTIP_STYLE}
+      allowEscapeViewBox={{ x: true, y: true }}
+      wrapperStyle={{ outline: 'none', pointerEvents: 'none', zIndex: 30 }}
+      cursor={{ stroke: 'rgba(148,163,184,0.4)', strokeDasharray: '4 4', strokeWidth: 1.2 }}
+      content={({ active, label, payload }) => {
+        const entries = (payload as ChartTooltipEntry[] | undefined)?.filter(item => item.value !== null && item.value !== undefined) ?? []
+        if (!active || entries.length === 0) {
+          return null
+        }
+
+        return (
+          <div
+            style={{
+              background: 'rgba(15, 23, 42, 0.97)',
+              border: '1px solid rgba(71, 85, 105, 0.55)',
+              borderRadius: 16,
+              boxShadow: '0 16px 40px rgba(2, 6, 23, 0.42)',
+              padding: '10px 12px',
+              minWidth: 164,
+            }}
+          >
+            <div style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 12, marginBottom: 8 }}>
+              {formatChartTooltipLabel(axisLabel, label)}
+            </div>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {entries.map(item => (
+                <div
+                  key={String(item.dataKey ?? item.name)}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '10px minmax(0, 1fr) auto',
+                    gap: 8,
+                    alignItems: 'center',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 999,
+                      background: item.color ?? '#38bdf8',
+                      boxShadow: '0 0 0 2px rgba(15, 23, 42, 0.96)',
+                    }}
+                  />
+                  <span style={{ color: '#cbd5e1', fontSize: 12, minWidth: 0 }}>
+                    {item.name ?? item.dataKey ?? 'value'}
+                  </span>
+                  <span style={{ color: '#f8fafc', fontSize: 12, fontWeight: 600, marginLeft: 8 }}>
+                    {formatChartTooltipValue(item.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      }}
+    />
+  )
+}
+
+function ChartHoverPanel({ snapshot }: { snapshot: ChartHoverSnapshot | null }) {
+  return (
+    <div className="pointer-events-none min-w-[180px] max-w-[240px] rounded-2xl border border-slate-700/50 bg-slate-950/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(2,6,23,0.34)] backdrop-blur">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
+        {snapshot ? snapshot.label : 'Hover values'}
+      </div>
+      {snapshot ? (
+        <div className="mt-2 grid gap-2">
+          {snapshot.rows.map(row => (
+            <div key={row.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
+              <span className="truncate text-[12px] text-slate-300">{row.label}</span>
+              <span className="mono text-[12px] font-semibold text-slate-100">{row.value}</span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 text-[12px] text-slate-400">Move the pointer over the chart.</div>
+      )}
+    </div>
+  )
 }
 
 function ChartXAxis({ dataKey, type = 'category', allowDecimals = true }: { dataKey: string; type?: 'category' | 'number'; allowDecimals?: boolean }) {
@@ -155,15 +321,17 @@ function ChartCard({
   title,
   subtitle,
   actions,
+  overlay,
   children,
 }: {
   title: string
   subtitle: string
   actions?: React.ReactNode
+  overlay?: React.ReactNode
   children: React.ReactNode
 }) {
   return (
-    <div className="training-card overflow-hidden">
+    <div className="training-card training-card--chart">
       <div className="card-header justify-between gap-4">
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
@@ -173,7 +341,10 @@ function ChartCard({
         </div>
         {actions}
       </div>
-      <div className="h-[320px] p-4">{children}</div>
+      <div className="relative h-[320px] overflow-visible p-4">
+        {overlay ? <div className="absolute right-4 top-4 z-20">{overlay}</div> : null}
+        {children}
+      </div>
     </div>
   )
 }
@@ -234,6 +405,10 @@ export default function TrainingJobDetailPage() {
   const navigate = useNavigate()
   const { mutate } = useSWRConfig()
   const [trainingAxisMode, setTrainingAxisMode] = useState<TrainingAxisMode>('step')
+  const [lossHover, setLossHover] = useState<ChartHoverSnapshot | null>(null)
+  const [speedHover, setSpeedHover] = useState<ChartHoverSnapshot | null>(null)
+  const [metricHover, setMetricHover] = useState<ChartHoverSnapshot | null>(null)
+  const [scenarioHover, setScenarioHover] = useState<ChartHoverSnapshot | null>(null)
 
   const { data: job, error: jobError } = useSWR<TrainingJobDetail>(
     jobId ? `training-job-${jobId}` : null,
@@ -491,6 +666,7 @@ export default function TrainingJobDetailPage() {
                 <ChartCard
                   title="训练损失"
                   subtitle={`avg_loss vs ${trainingChart.subtitleSuffix}`}
+                  overlay={<ChartHoverPanel snapshot={lossHover} />}
                   actions={
                     <div className="training-segmented">
                       <button
@@ -512,13 +688,27 @@ export default function TrainingJobDetailPage() {
                 >
                 {trainingChart.data.length ? (
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trainingChart.data} margin={CHART_MARGIN}>
+                    <LineChart
+                      data={trainingChart.data}
+                      margin={CHART_MARGIN}
+                      onMouseMove={(state: ChartMouseState) => setLossHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? 'Step' : 'Epoch', state))}
+                      onMouseLeave={() => setLossHover(null)}
+                    >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
                       <ChartYAxis />
-                      <ChartTooltip />
+                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="avg_loss" name="avg_loss" stroke="#38bdf8" dot={false} activeDot={{ r: 3 }} strokeWidth={2.25} />
+                      <Line
+                        type="monotone"
+                        dataKey="avg_loss"
+                        name="avg_loss"
+                        stroke="#38bdf8"
+                        dot={false}
+                        activeDot={buildActiveDot('#38bdf8')}
+                        strokeWidth={2.25}
+                        isAnimationActive={false}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
@@ -528,16 +718,35 @@ export default function TrainingJobDetailPage() {
 
                 <ChartCard title="训练速度" subtitle={`steps_per_sec vs ${trainingChart.subtitleSuffix}`}>
                 {trainingChart.data.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trainingChart.data} margin={CHART_MARGIN}>
+                  <>
+                    <div className="pointer-events-none absolute right-8 top-8 z-20">
+                      <ChartHoverPanel snapshot={speedHover} />
+                    </div>
+                    <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={trainingChart.data}
+                      margin={CHART_MARGIN}
+                      onMouseMove={(state: ChartMouseState) => setSpeedHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? 'Step' : 'Epoch', state))}
+                      onMouseLeave={() => setSpeedHover(null)}
+                    >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
                       <ChartYAxis />
-                      <ChartTooltip />
+                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="steps_per_sec" name="steps_per_sec" stroke="#34d399" dot={false} activeDot={{ r: 3 }} strokeWidth={2.25} />
+                      <Line
+                        type="monotone"
+                        dataKey="steps_per_sec"
+                        name="steps_per_sec"
+                        stroke="#34d399"
+                        dot={false}
+                        activeDot={buildActiveDot('#34d399')}
+                        strokeWidth={2.25}
+                        isAnimationActive={false}
+                      />
                     </LineChart>
                   </ResponsiveContainer>
+                  </>
                 ) : (
                   <ChartEmpty message="当前还没有训练曲线点。" />
                 )}
@@ -547,19 +756,29 @@ export default function TrainingJobDetailPage() {
               <div className="grid gap-4 xl:grid-cols-2">
                 <ChartCard title="测试指标" subtitle="precision / recall / f1 / pr_auc">
                 {curves?.test_points?.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={curves.test_points} margin={CHART_MARGIN}>
+                  <>
+                    <div className="pointer-events-none absolute right-8 top-8 z-20">
+                      <ChartHoverPanel snapshot={metricHover} />
+                    </div>
+                    <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={curves.test_points}
+                      margin={CHART_MARGIN}
+                      onMouseMove={(state: ChartMouseState) => setMetricHover(buildChartHoverSnapshot('Epoch', state))}
+                      onMouseLeave={() => setMetricHover(null)}
+                    >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
                       <ChartYAxis domain={[0, 1]} />
-                      <ChartTooltip />
+                      <ChartTooltip axisLabel="Epoch" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
-                      <Line type="monotone" dataKey="recall" stroke="#f59e0b" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
-                      <Line type="monotone" dataKey="f1" stroke="#34d399" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
-                      <Line type="monotone" dataKey="pr_auc" stroke="#a78bfa" dot={false} activeDot={{ r: 3 }} strokeWidth={2.1} />
+                      <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="recall" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="f1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="pr_auc" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
+                  </>
                 ) : (
                   <ChartEmpty message="当前还没有测试点，需要等到 eval_interval 触发测试。" />
                 )}
@@ -567,12 +786,21 @@ export default function TrainingJobDetailPage() {
 
                 <ChartCard title="分场景 F1" subtitle="每个子场景单独观察">
                 {scenarioMetricData.scenarioNames.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={scenarioMetricData.data} margin={CHART_MARGIN}>
+                  <>
+                    <div className="pointer-events-none absolute right-8 top-8 z-20">
+                      <ChartHoverPanel snapshot={scenarioHover} />
+                    </div>
+                    <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                      data={scenarioMetricData.data}
+                      margin={CHART_MARGIN}
+                      onMouseMove={(state: ChartMouseState) => setScenarioHover(buildChartHoverSnapshot('Epoch', state))}
+                      onMouseLeave={() => setScenarioHover(null)}
+                    >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
                       <ChartYAxis domain={[0, 1]} />
-                      <ChartTooltip />
+                      <ChartTooltip axisLabel="Epoch" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       {scenarioMetricData.scenarioNames.map((scenario, index) => {
                         const colors = ['#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#fb7185']
@@ -583,13 +811,15 @@ export default function TrainingJobDetailPage() {
                             name={scenario}
                             stroke={colors[index % colors.length]}
                             dot={false}
-                            activeDot={{ r: 3 }}
+                            activeDot={buildActiveDot(colors[index % colors.length])}
                             strokeWidth={2.1}
+                            isAnimationActive={false}
                           />
                         )
                       })}
                     </LineChart>
                     </ResponsiveContainer>
+                  </>
                   ) : (
                     <ChartEmpty message="当前还没有分场景测试曲线。" />
                   )}

@@ -795,6 +795,10 @@
     border-radius: 1rem;
   }
 
+  .training-card--chart {
+    overflow: visible;
+  }
+
   .training-card__body {
     @apply min-h-0 flex-1 p-4;
   }
