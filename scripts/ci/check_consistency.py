@@ -204,10 +204,10 @@ class Checker:
             }
             for sim, pipeline in sim_dirs.items():
                 if not pipeline.exists():
-                    if f"✅" in content and sim in content:
+                    if "✅" in content and sim in content:
                         self.error(f"README 标记 {sim} 为 ✅ 但 pipeline.py 不存在")
                 else:
-                    if f"❌" in content:
+                    if "❌" in content:
                         # 找到 ❌ 标记的行，看是否是这个 simulator
                         for line in content.split("\n"):
                             if sim in line and "❌" in line:

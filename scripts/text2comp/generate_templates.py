@@ -35,8 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from piern.core.llm_client import LLMClient
 from piern.core.storage import load_dataset
-from piern.text2comp.generator import DOMAIN_REGISTRY, LLMTextGenerator
-from piern.text2comp.template_store import save_templates
+from piern.text2comp.generator import LLMTextGenerator
 from piern.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
 
 logging.basicConfig(
@@ -160,7 +159,7 @@ def run_generate_templates(
         if append_existing and out_path.exists():
             try:
                 with open(out_path, "r", encoding="utf-8") as f:
-                    already_have = sum(1 for l in f if l.strip())
+                    already_have = sum(1 for line in f if line.strip())
             except Exception:
                 already_have = 0
             if already_have >= n_per_scenario:
@@ -220,7 +219,7 @@ def run_generate_templates(
         # 截断到精确目标行数（并发写入可能超出）
         # 先按模板序号排序，再截断，保证截掉的是序号最大的而非随机的
         with open(out_path, "r", encoding="utf-8") as f:
-            lines = [l for l in f if l.strip()]
+            lines = [line for line in f if line.strip()]
         actual = len(lines)
         if actual > n_per_scenario:
             def _sort_key(line):

@@ -8,7 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.training.router import RouterTrainingConfig, run_training
+from piern.training.router import RouterTrainingConfig, run_training  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -38,6 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume-from")
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-test-samples", type=int)
+    parser.add_argument("--input-representation", choices=("auto", "char", "embedding"), default="auto")
     return parser
 
 
@@ -69,6 +70,7 @@ def main() -> None:
         resume_from=args.resume_from,
         max_train_samples=args.max_train_samples,
         max_test_samples=args.max_test_samples,
+        input_representation=args.input_representation,
     )
     run_dir = run_training(config)
     print(f"[done] run_dir={Path(run_dir).resolve()}")

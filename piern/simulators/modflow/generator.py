@@ -19,7 +19,6 @@ MODFLOW 地下水位时序数据生成器。
 import numpy as np
 import tempfile
 import os
-import shutil
 import logging
 from typing import Dict, Any
 
@@ -399,14 +398,14 @@ def _run_modflow(
         if os.path.exists(log_path):
             with open(log_path, "r") as f:
                 log_lines = f.readlines()
-            error_lines = [l for l in log_lines if "ERROR" in l.upper() or "FAILED" in l.upper()]
+            error_lines = [line for line in log_lines if "ERROR" in line.upper() or "FAILED" in line.upper()]
             if error_lines:
                 logger.debug(f"MODFLOW 运行失败，错误信息:\n{''.join(error_lines[-5:])}")
             else:
                 logger.debug(f"MODFLOW 运行失败，日志尾部:\n{''.join(log_lines[-5:])}")
         elif buff:
             # 从 run_model 的 stdout 缓冲里找错误信息
-            err_lines = [l for l in buff if l.strip() and ("ERROR" in l.upper() or "FAILED" in l.upper())]
+            err_lines = [line for line in buff if line.strip() and ("ERROR" in line.upper() or "FAILED" in line.upper())]
             if err_lines:
                 logger.debug(f"MODFLOW 运行失败: {err_lines[-1].strip()}")
             else:
@@ -611,9 +610,6 @@ def _generate_batch_sequential(
     from tqdm import tqdm
 
     rng = np.random.default_rng(seed)
-    n_wells = cfg["n_wells"]
-    n_timesteps = cfg["n_timesteps"]
-
     # 动态提取参数名称
     param_names = _get_param_names_from_config(cfg)
     logger.info(f"检测到 {len(param_names)} 个参数: {param_names}")
@@ -702,9 +698,6 @@ def _generate_batch_parallel(
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from tqdm import tqdm
     import time
-
-    n_wells = cfg["n_wells"]
-    n_timesteps = cfg["n_timesteps"]
 
     # 动态提取参数名称
     param_names = _get_param_names_from_config(cfg)

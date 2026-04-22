@@ -9,7 +9,6 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Query
-
 from piern.shared.runtime.paths import PROJECT_ROOT
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.synth.services.job_manager import publish
@@ -264,6 +263,9 @@ async def build_router_data(
     user_prefix: str = Query(""),      # custom template 的 user 前缀
     user_suffix: str = Query(""),      # custom template 的 user 后缀
     assistant_prefix: str = Query(""), # custom template 的 assistant 前缀
+    embedding_provider: str = Query(""),
+    embedding_model: str = Query(""),
+    embedding_tokenizer: str = Query(""),
 ):
     """启动 Stage 4 Router 数据构建任务，返回 job_id 供 SSE 订阅。"""
     record = job_manager.create_job("router")
@@ -272,7 +274,24 @@ async def build_router_data(
     def _run():
         try:
             sc_desc = f"场景 {', '.join(scenario_list)}" if scenario_list else "全部场景"
+            resolved_embedding_provider = embedding_provider.strip()
+            resolved_embedding_model = embedding_model.strip()
+            resolved_embedding_tokenizer = embedding_tokenizer.strip() or resolved_embedding_model
+            resolved_embedding_source = "api" if (resolved_embedding_provider or resolved_embedding_model or resolved_embedding_tokenizer) else ""
             publish(record, {"type": "log", "line": f"[Stage 4] 开始构建 Token Router 数据：{sc_desc}，template={chat_template}", "ts": time.time()})
+            if resolved_embedding_model:
+                publish(
+                    record,
+                    {
+                        "type": "log",
+                        "line": (
+                            "[Stage 4] embedding metadata: "
+                            f"provider={resolved_embedding_provider or 'unknown'} "
+                            f"model={resolved_embedding_model} tokenizer={resolved_embedding_tokenizer}"
+                        ),
+                        "ts": time.time(),
+                    },
+                )
             script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
             cmd = [
                 sys.executable, str(script),
@@ -282,6 +301,14 @@ async def build_router_data(
                 "--neg-ratio",     str(neg_ratio),
                 "--chat-template", chat_template,
             ]
+            if resolved_embedding_source:
+                cmd += ["--embedding-source", resolved_embedding_source]
+            if resolved_embedding_provider:
+                cmd += ["--embedding-provider", resolved_embedding_provider]
+            if resolved_embedding_model:
+                cmd += ["--embedding-model", resolved_embedding_model]
+            if resolved_embedding_tokenizer and resolved_embedding_model:
+                cmd += ["--embedding-tokenizer", resolved_embedding_tokenizer]
             if chat_template == "custom":
                 cmd += [
                     "--user-prefix",      user_prefix,

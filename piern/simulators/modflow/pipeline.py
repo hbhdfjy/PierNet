@@ -278,12 +278,12 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     dir_name = os.path.basename(cfg.get("output_dir", ""))
     scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
 
-    logger.info(f"===== MODFLOW 数据合成管线 V2 启动 =====")
+    logger.info("===== MODFLOW 数据合成管线 V2 启动 =====")
     logger.info(f"场景名称: {scenario_name}")
     logger.info(f"配置样本数: {n_samples}")
     logger.info(f"输出路径: {output_path}")
-    logger.info(f"增强方法: 参数空间采样")
-    logger.info(f"参数表示: 18维统一参数")
+    logger.info("增强方法: 参数空间采样")
+    logger.info("参数表示: 18维统一参数")
     modflow_exe = resolve_modflow_executable(cfg)
     logger.info(f"MODFLOW 可执行文件: {modflow_exe}")
     if parallel:
@@ -401,7 +401,7 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     logger.info(f"===== 完成！耗时 {elapsed:.1f}s =====")
     logger.info(f"数据集形状: timeseries={aug_ts.shape}, params={unified_params_array.shape}")
     logger.info(f"增强比例: {(aug_ts.shape[0] - timeseries.shape[0]) / timeseries.shape[0] * 100:.1f}%")
-    logger.info(f"参数表示: 18维统一参数")
+    logger.info("参数表示: 18维统一参数")
     logger.info(f"输出文件: {output_path}")
 
     return output_path

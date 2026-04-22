@@ -584,9 +584,6 @@ class LLMTextGenerator:
         ts_obs = ts_time[np.array(template.channel_indices), :]
 
         # ── 阶段二：填充数值（纯本地，不调 LLM）────────────────
-        # 计算 params_transformed（供 fill_sample 使用）
-        params_transformed = self._apply_transform_descs(params, template.transform_descs)
-
         return fill_sample(template, params, ts_obs, sample_idx=sample_idx)
 
     def generate_batch(
@@ -781,8 +778,6 @@ class LLMTextGenerator:
         """
         params_transformed = params.copy().astype(float)
         transform_notes = []
-        param_info = domain.get("param_info", {})
-
         for i, (name, orig_val) in enumerate(zip(param_names, params)):
             # 元数据参数跳过变换
             if name in ("scenario_type", "output_type", "complexity"):
@@ -922,7 +917,6 @@ class LLMTextGenerator:
             (placeholder_schema, placeholder_index_meta)
             placeholder_index_meta: list of (ph_key, param_index, note_str)
         """
-        param_info = domain.get("param_info", {})
         schema: list[PlaceholderSlot] = []
         meta: list[tuple] = []  # (ph_key, param_index, note_str)
         slot = 0
@@ -1027,20 +1021,6 @@ class LLMTextGenerator:
         n_params = len(placeholder_index)
         all_ph_en = ", ".join(ph for ph, _, _ in placeholder_index)
         all_ph_zh = "、".join(ph for ph, _, _ in placeholder_index)
-
-        # 变换提示：告知 LLM 哪些参数经过了换算，但不要求照抄操作词
-        transformed_lines_en = [
-            f"  - {ph}: {note}"
-            for ph, _, note in placeholder_index
-            if note
-        ]
-        transformed_lines_zh = [
-            f"  - {ph}：{note}"
-            for ph, _, note in placeholder_index
-            if note
-        ]
-        transformed_section_en = "\n".join(transformed_lines_en) if transformed_lines_en else "  (none)"
-        transformed_section_zh = "\n".join(transformed_lines_zh) if transformed_lines_zh else "  （无）"
 
         if language == "en":
             style_map = {

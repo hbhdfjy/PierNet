@@ -59,13 +59,17 @@ const CHART_TOOLTIP_STYLE = {
   },
 }
 
-const CHART_MARGIN = { top: 10, right: 10, left: -14, bottom: 0 }
+const CHART_MARGIN = { top: 10, right: 12, left: 6, bottom: 0 }
 const AXIS_STYLE = {
   stroke: 'rgba(148,163,184,0.86)',
   fontSize: 12,
   tickLine: false,
   axisLine: false,
   tickMargin: 8,
+}
+const AXIS_TICK_STYLE = {
+  fill: 'rgba(148,163,184,0.9)',
+  fontSize: 12,
 }
 const LEGEND_STYLE = {
   fontSize: 12,
@@ -93,6 +97,17 @@ type ChartHoverSnapshot = {
 type ChartMouseState = {
   activeLabel?: unknown
   activePayload?: ChartTooltipEntry[]
+}
+
+type ChartHoverPanelVariant = 'default' | 'emphasis'
+
+type NumericDomainOptions = {
+  maxClamp?: number
+  minClamp?: number
+  minPad?: number
+  padRatio?: number
+  lowerQuantile?: number
+  upperQuantile?: number
 }
 
 /*
@@ -138,6 +153,70 @@ function buildActiveDot(fill: string) {
     stroke: 'rgba(15,23,42,0.96)',
     strokeWidth: 2,
   }
+}
+
+function quantile(sortedValues: number[], ratio: number) {
+  if (sortedValues.length === 0) return undefined
+  const index = (sortedValues.length - 1) * ratio
+  const lower = Math.floor(index)
+  const upper = Math.ceil(index)
+  if (lower === upper) {
+    return sortedValues[lower]
+  }
+  const weight = index - lower
+  return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight
+}
+
+function buildNumericDomain(values: Array<number | null | undefined>, options: NumericDomainOptions = {}): [number, number] | undefined {
+  const {
+    padRatio = 0.08,
+    minPad = 0.0001,
+    minClamp,
+    maxClamp,
+    lowerQuantile = 0,
+    upperQuantile = 1,
+  } = options
+
+  const numericValues = values
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    .sort((a, b) => a - b)
+  if (numericValues.length === 0) {
+    return undefined
+  }
+
+  let minValue = quantile(numericValues, lowerQuantile) ?? numericValues[0]
+  let maxValue = quantile(numericValues, upperQuantile) ?? numericValues[numericValues.length - 1]
+  if (maxValue < minValue) {
+    ;[minValue, maxValue] = [maxValue, minValue]
+  }
+  const span = maxValue - minValue
+  const padding = span === 0
+    ? Math.max(Math.abs(maxValue) * padRatio, minPad)
+    : Math.max(span * padRatio, minPad)
+
+  minValue -= padding
+  maxValue += padding
+
+  if (typeof minClamp === 'number') {
+    minValue = Math.max(minClamp, minValue)
+  }
+  if (typeof maxClamp === 'number') {
+    maxValue = Math.min(maxClamp, maxValue)
+  }
+
+  if (maxValue <= minValue) {
+    const fallbackPad = Math.max(Math.abs(maxValue || minValue || 1) * padRatio, minPad)
+    minValue -= fallbackPad
+    maxValue += fallbackPad
+    if (typeof minClamp === 'number') {
+      minValue = Math.max(minClamp, minValue)
+    }
+    if (typeof maxClamp === 'number') {
+      maxValue = Math.min(maxClamp, maxValue)
+    }
+  }
+
+  return [minValue, maxValue]
 }
 
 function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | null): ChartHoverSnapshot | null {
@@ -220,24 +299,55 @@ function ChartTooltip({ axisLabel }: { axisLabel: string }) {
   )
 }
 
-function ChartHoverPanel({ snapshot }: { snapshot: ChartHoverSnapshot | null }) {
+function ChartHoverPanel({
+  snapshot,
+  variant = 'default',
+}: {
+  snapshot: ChartHoverSnapshot | null
+  variant?: ChartHoverPanelVariant
+}) {
+  const isEmphasis = variant === 'emphasis'
   return (
-    <div className="pointer-events-none min-w-[180px] max-w-[240px] rounded-2xl border border-slate-700/50 bg-slate-950/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(2,6,23,0.34)] backdrop-blur">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-        {snapshot ? snapshot.label : 'Hover values'}
+    <div
+      className={`pointer-events-none rounded-2xl border backdrop-blur ${
+        isEmphasis
+          ? 'min-w-[240px] max-w-[300px] border-sky-400/25 bg-slate-950/92 px-4 py-3.5 shadow-[0_24px_44px_rgba(14,165,233,0.16)]'
+          : 'min-w-[180px] max-w-[240px] border-slate-700/50 bg-slate-950/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(2,6,23,0.34)]'
+      }`}
+    >
+      <div className={`font-semibold uppercase tracking-[0.16em] ${isEmphasis ? 'text-[10px] text-sky-300/80' : 'text-[11px] text-slate-500'}`}>
+        {snapshot ? snapshot.label : isEmphasis ? 'Current point' : 'Hover values'}
       </div>
       {snapshot ? (
-        <div className="mt-2 grid gap-2">
+        <div className={`mt-2 ${isEmphasis ? 'grid gap-2.5' : 'grid gap-2'}`}>
           {snapshot.rows.map(row => (
-            <div key={row.key} className="grid grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: row.color }} />
-              <span className="truncate text-[12px] text-slate-300">{row.label}</span>
-              <span className="mono text-[12px] font-semibold text-slate-100">{row.value}</span>
+            <div
+              key={row.key}
+              className={`grid items-center ${
+                isEmphasis
+                  ? 'grid-cols-[12px_minmax(0,1fr)_auto] gap-2.5 rounded-xl border px-3 py-2'
+                  : 'grid-cols-[10px_minmax(0,1fr)_auto] gap-2'
+              }`}
+              style={
+                isEmphasis
+                  ? {
+                      borderColor: `${row.color}33`,
+                      background: `linear-gradient(90deg, ${row.color}18, rgba(15,23,42,0.16) 42%)`,
+                    }
+                  : undefined
+              }
+            >
+              <span
+                className={isEmphasis ? 'h-3 w-3 rounded-full shadow-[0_0_0_3px_rgba(15,23,42,0.92)]' : 'h-2.5 w-2.5 rounded-full'}
+                style={{ backgroundColor: row.color }}
+              />
+              <span className={`truncate ${isEmphasis ? 'text-[12.5px] font-medium text-slate-200' : 'text-[12px] text-slate-300'}`}>{row.label}</span>
+              <span className={`mono font-semibold ${isEmphasis ? 'text-[13px] text-white' : 'text-[12px] text-slate-100'}`}>{row.value}</span>
             </div>
           ))}
         </div>
       ) : (
-        <div className="mt-2 text-[12px] text-slate-400">Move the pointer over the chart.</div>
+        <div className={`mt-2 ${isEmphasis ? 'text-[12.5px] text-slate-300' : 'text-[12px] text-slate-400'}`}>Move the pointer over the chart.</div>
       )}
     </div>
   )
@@ -250,13 +360,26 @@ function ChartXAxis({ dataKey, type = 'category', allowDecimals = true }: { data
       type={type}
       allowDecimals={allowDecimals}
       minTickGap={20}
+      tick={AXIS_TICK_STYLE}
       {...AXIS_STYLE}
     />
   )
 }
 
-function ChartYAxis({ domain }: { domain?: [number, number] }) {
-  return <YAxis width={40} domain={domain} {...AXIS_STYLE} />
+function ChartYAxis({
+  domain,
+  tickCount,
+  tickFormatter,
+  width = 56,
+  allowDataOverflow,
+}: {
+  domain?: [number, number]
+  tickCount?: number
+  tickFormatter?: (value: number) => string
+  width?: number
+  allowDataOverflow?: boolean
+}) {
+  return <YAxis width={width} domain={domain} tickCount={tickCount} tickFormatter={tickFormatter} allowDataOverflow={allowDataOverflow} tick={AXIS_TICK_STYLE} {...AXIS_STYLE} />
 }
 
 function SectionTitle({ title, copy }: { title: string; copy: string }) {
@@ -308,7 +431,7 @@ function MetaField({
     <div>
       <div className="training-label">{label}</div>
       <div
-        className={`mt-1 text-[15px] ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
+        className={`mt-1 min-w-0 text-[15px] leading-6 ${mono ? 'mono break-all text-slate-200' : 'break-words text-slate-100'}`}
         title={title}
       >
         {value}
@@ -455,15 +578,57 @@ export default function TrainingJobDetailPage() {
     }
   }, [curves?.training_epoch_points, curves?.training_points, trainingAxisMode])
 
+  const lossDomain = useMemo(
+    () =>
+      buildNumericDomain(trainingChart.data.map(point => point.avg_loss), {
+        minClamp: 0,
+        minPad: 0.00005,
+        padRatio: 0.06,
+        lowerQuantile: 0.08,
+        upperQuantile: 0.92,
+      }),
+    [trainingChart.data],
+  )
+
+  const speedDomain = useMemo(
+    () =>
+      buildNumericDomain(trainingChart.data.map(point => point.steps_per_sec), {
+        minPad: 0.02,
+        padRatio: 0.06,
+        lowerQuantile: 0.08,
+        upperQuantile: 0.92,
+      }),
+    [trainingChart.data],
+  )
+
+  const testMetricDomain = useMemo(
+    () =>
+      buildNumericDomain(
+        (curves?.test_points ?? []).flatMap(point => [point.precision, point.recall, point.f1, point.pr_auc]),
+        { minClamp: 0, maxClamp: 1, minPad: 0.0001, padRatio: 0.05, lowerQuantile: 0.12, upperQuantile: 0.88 },
+      ),
+    [curves?.test_points],
+  )
+
   const scenarioMetricData = useMemo(() => {
     const scenarioNames = new Set<string>()
     const rows = new Map<number, Record<string, number>>()
+    const values: number[] = []
 
     for (const point of curves?.test_points ?? []) {
       const row = rows.get(point.epoch) ?? { epoch: point.epoch }
       for (const [scenario, metrics] of Object.entries(point.per_scenario)) {
         scenarioNames.add(scenario)
-        row[scenario] = Number(metrics.f1 ?? 0)
+        const rawValue = metrics.f1
+        if (rawValue === null || rawValue === undefined) {
+          continue
+        }
+        const value = Number(rawValue)
+        if (!Number.isFinite(value)) {
+          continue
+        }
+        row[scenario] = value
+        values.push(value)
       }
       rows.set(point.epoch, row)
     }
@@ -471,6 +636,15 @@ export default function TrainingJobDetailPage() {
     return {
       scenarioNames: Array.from(scenarioNames),
       data: Array.from(rows.values()).sort((a, b) => Number(a.epoch) - Number(b.epoch)),
+      domain:
+        buildNumericDomain(values, {
+          minClamp: 0,
+          maxClamp: 1,
+          minPad: 0.0001,
+          padRatio: 0.05,
+          lowerQuantile: 0.12,
+          upperQuantile: 0.88,
+        }) ?? [0, 1],
     }
   }, [curves?.test_points])
 
@@ -636,7 +810,7 @@ export default function TrainingJobDetailPage() {
                         </div>
                       </div>
                       <div className="training-surface md:col-span-2">
-                        <div className="training-meta-grid">
+                        <div className="grid gap-3 md:grid-cols-2">
                           <MetaField label="运行目录" value={shortPath(job.run_dir, 112)} mono title={job.run_dir} />
                           <MetaField label="日志文件" value={shortPath(job.log_path, 112)} mono title={job.log_path} />
                         </div>
@@ -696,7 +870,13 @@ export default function TrainingJobDetailPage() {
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
-                      <ChartYAxis />
+                      <ChartYAxis
+                        domain={lossDomain}
+                        tickCount={5}
+                        width={52}
+                        tickFormatter={(value: number) => value.toFixed(value >= 1 ? 3 : 4)}
+                        allowDataOverflow
+                      />
                       <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       <Line
@@ -731,7 +911,13 @@ export default function TrainingJobDetailPage() {
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
-                      <ChartYAxis />
+                      <ChartYAxis
+                        domain={speedDomain}
+                        tickCount={5}
+                        width={52}
+                        tickFormatter={(value: number) => value.toFixed(2)}
+                        allowDataOverflow
+                      />
                       <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       <Line
@@ -769,7 +955,13 @@ export default function TrainingJobDetailPage() {
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
-                      <ChartYAxis domain={[0, 1]} />
+                      <ChartYAxis
+                        domain={testMetricDomain}
+                        tickCount={5}
+                        width={56}
+                        tickFormatter={(value: number) => value.toFixed(value >= 0.99 ? 4 : 3)}
+                        allowDataOverflow
+                      />
                       <ChartTooltip axisLabel="Epoch" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
@@ -787,8 +979,8 @@ export default function TrainingJobDetailPage() {
                 <ChartCard title="分场景 F1" subtitle="每个子场景单独观察">
                 {scenarioMetricData.scenarioNames.length ? (
                   <>
-                    <div className="pointer-events-none absolute right-8 top-8 z-20">
-                      <ChartHoverPanel snapshot={scenarioHover} />
+                    <div className="pointer-events-none absolute right-6 top-6 z-20">
+                      <ChartHoverPanel snapshot={scenarioHover} variant="emphasis" />
                     </div>
                     <ResponsiveContainer width="100%" height="100%">
                     <LineChart
@@ -799,7 +991,13 @@ export default function TrainingJobDetailPage() {
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
-                      <ChartYAxis domain={[0, 1]} />
+                      <ChartYAxis
+                        domain={scenarioMetricData.domain}
+                        tickCount={5}
+                        width={56}
+                        tickFormatter={(value: number) => value.toFixed(value >= 0.99 ? 4 : 3)}
+                        allowDataOverflow
+                      />
                       <ChartTooltip axisLabel="Epoch" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       {scenarioMetricData.scenarioNames.map((scenario, index) => {
@@ -811,8 +1009,8 @@ export default function TrainingJobDetailPage() {
                             name={scenario}
                             stroke={colors[index % colors.length]}
                             dot={false}
-                            activeDot={buildActiveDot(colors[index % colors.length])}
-                            strokeWidth={2.1}
+                            activeDot={{ ...buildActiveDot(colors[index % colors.length]), r: 6 }}
+                            strokeWidth={2.6}
                             isAnimationActive={false}
                           />
                         )

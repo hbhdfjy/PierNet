@@ -175,8 +175,6 @@ class InterviewerAgent:
         """为当前步骤生成开场问题。"""
         step = session.step
         sim = session.simulator
-        sc = session.scenario
-
         if step == 1:
             hdf5_hint = ""
             if session.timeseries_shape:
@@ -215,7 +213,7 @@ class InterviewerAgent:
 
 用中文，简洁展示，不要逐条解释。"""
             else:
-                prompt = f"""我们需要了解这个仿真器的输入参数含义。
+                prompt = """我们需要了解这个仿真器的输入参数含义。
 
 请向用户询问：请列出所有参数名称及其物理含义和单位。
 例如格式：E - 杨氏模量 (GPa)，nu - 泊松比 (无量纲)
@@ -1093,7 +1091,6 @@ def create_session(
 
     # 创建 Agent 实例
     llm = _make_llm(llm_cfg)
-    interviewer = InterviewerAgent(llm)
     extractor = ExtractorAgent(llm)
 
     # Step 2 预推断（有 HDF5 时）
@@ -1309,7 +1306,7 @@ def _build_prefill_confirm_message(
         # ⚠️ 输出通道结构直接决定训练数据的 target 格式，需要仔细核对
         oi = prefilled_fields.get("output_info", [])
         if isinstance(oi, list) and oi:
-            lines.append(f"\n⚠️ **输出通道结构（直接影响 target 数据格式）**")
+            lines.append("\n⚠️ **输出通道结构（直接影响 target 数据格式）**")
             lines.append(f"共 {len(oi)} 个通道组：")
             for o in oi:
                 s = o.get("slice", [0, None])
@@ -1335,9 +1332,9 @@ def _build_prefill_confirm_message(
             tmpl = obs.get("channel_name_template", "")
             tmpl_zh = obs.get("channel_name_template_zh", "")
 
-            lines.append(f"\n⚠️ **通道采样（决定每条样本观测哪些通道）**")
+            lines.append("\n⚠️ **通道采样（决定每条样本观测哪些通道）**")
             if fc is None:
-                lines.append(f"  - fixed_channels：**null**（全选所有通道）")
+                lines.append("  - fixed_channels：**null**（全选所有通道）")
             else:
                 lines.append(f"  - fixed_channels：**{fc}**（0-based 整数索引）")
             if tmpl:
@@ -1353,7 +1350,7 @@ def _build_prefill_confirm_message(
             modes = obs.get("time_modes", [])
             mode_desc = next((m.get("desc_en", "") for m in modes if m.get("name") == fixed), "")
 
-            lines.append(f"\n⚠️ **时间采样（决定每条样本观测哪些时间点）**")
+            lines.append("\n⚠️ **时间采样（决定每条样本观测哪些时间点）**")
             lines.append(f"  - 固定时间模式：**{fixed}**")
             if mode_desc:
                 lines.append(f"    （{mode_desc}）")
@@ -1785,7 +1782,7 @@ def _make_partial_default(step: int, session: InterviewSession) -> dict:
     if step == 1:
         return {
             "domain_context": f"{session.simulator} physics simulation.",
-            "output_description": f"{{ch}} channels × {{ts}} timesteps of simulation output",
+            "output_description": "{ch} channels × {ts} timesteps of simulation output",
         }
     elif step == 2:
         return {"param_info": {n: ["?", "?"] for n in session.param_names}}

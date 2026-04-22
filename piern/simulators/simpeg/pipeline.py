@@ -249,7 +249,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
     dir_name = os.path.basename(cfg.get("output_dir", ""))
     scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
 
-    logger.info(f"===== SimPEG 数据合成管线启动 =====")
+    logger.info("===== SimPEG 数据合成管线启动 =====")
     logger.info(f"场景名称: {scenario_name}")
     logger.info(f"配置样本数: {n_samples}")
     logger.info(f"输出路径: {output_path}")

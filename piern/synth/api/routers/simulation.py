@@ -1,6 +1,5 @@
 """Stage 1 物理仿真路由：场景扫描、单场景/批量仿真、历史记录。"""
 
-import json
 import os
 import re
 import subprocess

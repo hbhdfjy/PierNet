@@ -118,7 +118,7 @@ def trim_template_file(scenario: str, n: int = Query(..., ge=1, description="保
         raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
     try:
         with open(path, "r", encoding="utf-8") as f:
-            lines = [l for l in f if l.strip()]
+            lines = [line for line in f if line.strip()]
         original = len(lines)
         if n >= original:
             return {"ok": True, "scenario": scenario, "before": original, "after": original, "changed": False}

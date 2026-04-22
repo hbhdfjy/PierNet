@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import torch
+
 from piern.training.services import training_manager
 
 
@@ -22,6 +24,36 @@ def test_get_gpu_inventory_returns_empty_when_nvidia_smi_is_unavailable(monkeypa
     monkeypatch.setattr(training_manager.subprocess, "check_output", _raise)
 
     assert training_manager.get_gpu_inventory() == []
+
+
+def test_validate_resume_checkpoint_rejects_input_representation_mismatch(tmp_path: Path):
+    checkpoint_path = tmp_path / "router_latest.pt"
+    torch.save(
+        {
+            "prepared_summary": {
+                "simulator": "modflow",
+                "scenarios": ["coastal_seawater"],
+                "test_ratio": 0.10,
+                "input_representation": "pretrained_embeddings",
+                "embedding_model": "Qwen/Qwen2.5-7B-Instruct",
+                "embedding_tokenizer": "Qwen/Qwen2.5-7B-Instruct",
+            }
+        },
+        checkpoint_path,
+    )
+
+    try:
+        training_manager._validate_resume_checkpoint(
+            resume_from=str(checkpoint_path),
+            simulator="modflow",
+            scenarios=["coastal_seawater"],
+            test_ratio=0.10,
+            input_representation="char_tokens",
+        )
+    except ValueError as exc:
+        assert "input_representation mismatch" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for resume checkpoint representation mismatch")
 
 
 
@@ -90,3 +122,4 @@ def test_delete_job_rejects_running_entry(monkeypatch, tmp_path: Path):
         assert 'still active' in str(exc)
     else:
         raise AssertionError('expected ValueError for active job deletion')
+

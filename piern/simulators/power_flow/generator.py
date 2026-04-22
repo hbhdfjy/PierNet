@@ -27,7 +27,6 @@ def _create_pandapower_network(scenario: str, params: Dict[str, float]) -> Any:
     已经包含了 load_scale。此处只设置基准网络结构相关的参数。
     """
     try:
-        import pandapower as pp
         import pandapower.networks as pn
     except ImportError:
         raise ImportError("请安装 pandapower：pip install pandapower")

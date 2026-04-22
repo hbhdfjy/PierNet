@@ -16,6 +16,11 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from piern.training.router.data import (
+    PRETRAINED_EMBEDDINGS,
+    SUPPORTED_INPUT_REPRESENTATIONS,
+    inspect_router_input_representation,
+)
 from piern.shared.runtime.paths import PROJECT_ROOT
 
 PYTHON_BIN = Path("/home/fjy/miniconda3/envs/piern-project/bin/python")
@@ -24,6 +29,7 @@ ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "token_router"
 RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
+ROUTER_DATA_DIR = PROJECT_ROOT / "data" / "router"
 GPU_AVAILABLE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
 
@@ -73,12 +79,23 @@ def _normalize_job_name(value: Any, *, fallback: str) -> str:
     return name[:80] if name else fallback
 
 
-def _hash_prepared_name(simulator: str, scenarios: list[str], test_ratio: float) -> str:
+def _hash_prepared_name(
+    simulator: str,
+    scenarios: list[str],
+    test_ratio: float,
+    *,
+    input_representation: str,
+    embedding_model: str = "",
+    embedding_tokenizer: str = "",
+) -> str:
     payload = json.dumps(
         {
             "simulator": simulator,
             "scenarios": sorted(scenarios),
             "test_ratio": test_ratio,
+            "input_representation": input_representation,
+            "embedding_model": embedding_model,
+            "embedding_tokenizer": embedding_tokenizer,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -116,7 +133,7 @@ def _load_checkpoint_metadata(path_str: str, mtime_ns: int, size_bytes: int) -> 
     try:
         import torch
 
-        checkpoint = torch.load(path_str, map_location="cpu")
+        checkpoint = torch.load(path_str, map_location="cpu", weights_only=True)
     except Exception:
         return None
     prepared_summary = checkpoint.get("prepared_summary") or {}
@@ -132,6 +149,9 @@ def _load_checkpoint_metadata(path_str: str, mtime_ns: int, size_bytes: int) -> 
         "simulator": prepared_summary.get("simulator") or config.get("simulator"),
         "scenarios": sorted(prepared_summary.get("scenarios") or config.get("scenarios") or []),
         "test_ratio": prepared_summary.get("test_ratio") if prepared_summary.get("test_ratio") is not None else config.get("test_ratio"),
+        "input_representation": prepared_summary.get("input_representation") or config.get("input_representation"),
+        "embedding_model": prepared_summary.get("embedding_model") or config.get("embedding_model"),
+        "embedding_tokenizer": prepared_summary.get("embedding_tokenizer") or config.get("embedding_tokenizer"),
     }
 
 
@@ -191,6 +211,9 @@ def _validate_resume_checkpoint(
     simulator: str,
     scenarios: list[str],
     test_ratio: float,
+    input_representation: str,
+    embedding_model: str = "",
+    embedding_tokenizer: str = "",
 ) -> None:
     checkpoint_path = Path(resume_from)
     if not checkpoint_path.exists():
@@ -204,6 +227,9 @@ def _validate_resume_checkpoint(
     checkpoint_simulator = metadata.get("simulator")
     checkpoint_scenarios = sorted(metadata.get("scenarios") or [])
     checkpoint_ratio = metadata.get("test_ratio")
+    checkpoint_input_representation = metadata.get("input_representation")
+    checkpoint_embedding_model = str(metadata.get("embedding_model") or "")
+    checkpoint_embedding_tokenizer = str(metadata.get("embedding_tokenizer") or "")
 
     if checkpoint_simulator and checkpoint_simulator != simulator:
         raise ValueError(
@@ -218,6 +244,22 @@ def _validate_resume_checkpoint(
         raise ValueError(
             f"resume checkpoint test_ratio mismatch: expected {test_ratio}, got {checkpoint_ratio}"
         )
+    if checkpoint_input_representation and checkpoint_input_representation != input_representation:
+        raise ValueError(
+            "resume checkpoint input_representation mismatch: "
+            f"expected {input_representation}, got {checkpoint_input_representation}"
+        )
+    if input_representation == PRETRAINED_EMBEDDINGS:
+        if checkpoint_embedding_model and checkpoint_embedding_model != embedding_model:
+            raise ValueError(
+                "resume checkpoint embedding_model mismatch: "
+                f"expected {embedding_model}, got {checkpoint_embedding_model}"
+            )
+        if checkpoint_embedding_tokenizer and checkpoint_embedding_tokenizer != embedding_tokenizer:
+            raise ValueError(
+                "resume checkpoint embedding_tokenizer mismatch: "
+                f"expected {embedding_tokenizer}, got {checkpoint_embedding_tokenizer}"
+            )
 
 
 
@@ -458,11 +500,30 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
 
     simulator = str(payload["simulator"])
     scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
+    requested_input_representation = str(payload.get("input_representation") or "auto").strip().lower()
+    if requested_input_representation not in SUPPORTED_INPUT_REPRESENTATIONS:
+        raise ValueError(
+            "Unsupported input_representation: "
+            f"{requested_input_representation!r}. Expected one of {sorted(SUPPORTED_INPUT_REPRESENTATIONS)!r}"
+        )
+    resolved_input_representation, embedding_metadata = inspect_router_input_representation(
+        simulator=simulator,
+        router_dir=ROUTER_DATA_DIR,
+        scenarios=scenarios,
+        input_representation=requested_input_representation,
+    )
     artifact_root = ARTIFACTS_ROOT / simulator
     job_id = _make_job_id()
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
     test_ratio = float(payload["test_ratio"])
-    prepared_name = _hash_prepared_name(simulator, scenarios, test_ratio)
+    prepared_name = _hash_prepared_name(
+        simulator,
+        scenarios,
+        test_ratio,
+        input_representation=resolved_input_representation,
+        embedding_model=embedding_metadata.embedding_model,
+        embedding_tokenizer=embedding_metadata.tokenizer_name,
+    )
     run_dir = artifact_root / "runs" / job_id
     log_path = RUNLOGS_ROOT / f"{job_id}.log"
     resume_from = payload.get("resume_from") or None
@@ -472,6 +533,9 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             simulator=simulator,
             scenarios=scenarios,
             test_ratio=test_ratio,
+            input_representation=resolved_input_representation,
+            embedding_model=embedding_metadata.embedding_model,
+            embedding_tokenizer=embedding_metadata.tokenizer_name,
         )
 
     command = [
@@ -504,6 +568,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         prepared_name,
         "--run-name",
         job_id,
+        "--input-representation",
+        resolved_input_representation,
     ]
     if scenarios:
         command.extend(["--scenarios", *scenarios])
@@ -548,6 +614,9 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             "num_workers": int(payload["num_workers"]),
             "test_ratio": test_ratio,
             "resume_from": resume_from,
+            "input_representation": resolved_input_representation,
+            "embedding_model": embedding_metadata.embedding_model,
+            "embedding_tokenizer": embedding_metadata.tokenizer_name,
         },
         "command": command,
         "prepared_name": prepared_name,
@@ -654,3 +723,4 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
         "test_points": test_points,
         "checkpoints": _checkpoint_entries(run_dir),
     }
+

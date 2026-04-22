@@ -8,7 +8,7 @@ import numpy as np
 import tempfile
 import logging
 from typing import Dict, Any
-from .generator import _run_modflow, _get_well_positions
+from .generator import _run_modflow
 
 logger = logging.getLogger(__name__)
 
@@ -59,9 +59,6 @@ def generate_batch_from_params(
     from tqdm import tqdm
 
     N = params_array.shape[0]
-    n_wells = cfg["n_wells"]
-    n_timesteps = cfg["n_timesteps"]
-
     ts_list = []
     params_success_list = []
 

@@ -68,7 +68,8 @@ def run_pypsa_energy_transition(
     try:
         import pypsa
         import pandas as pd
-        import warnings, logging as _logging
+        import warnings
+        import logging as _logging
         warnings.filterwarnings('ignore')
         _logging.getLogger('pypsa').setLevel(_logging.ERROR)
         _logging.getLogger('linopy').setLevel(_logging.ERROR)
@@ -184,7 +185,8 @@ def run_pypsa_energy_transition(
 
     # 求解（静默 HiGHS 输出，避免大量日志污染 SSE 流）
     try:
-        import io, contextlib
+        import io
+        import contextlib
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             status, cond = n.optimize(solver_name='highs', solver_options={'output_flag': False})
         if cond != 'optimal':

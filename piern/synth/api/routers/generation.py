@@ -1,7 +1,6 @@
 """两阶段生成路由：/api/generate-templates, /api/fill-samples, /api/templates。"""
 
 import sys
-import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
@@ -13,12 +12,12 @@ _PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from piern.shared.runtime.paths import PROJECT_ROOT, TEMPLATES_DIR
-from piern.synth.api.schemas.generation import GenerateTemplatesRequest, FillSamplesRequest, JobStartResponse
-from piern.synth.services import job_manager
-from piern.synth.services.job_manager import JobRecord, publish
-from scripts.text2comp.generate_templates import run_generate_templates
-from scripts.text2comp.fill_samples import run_fill_samples
+from piern.shared.runtime.paths import PROJECT_ROOT, TEMPLATES_DIR  # noqa: E402
+from piern.synth.api.schemas.generation import GenerateTemplatesRequest, FillSamplesRequest, JobStartResponse  # noqa: E402
+from piern.synth.services import job_manager  # noqa: E402
+from piern.synth.services.job_manager import JobRecord, publish  # noqa: E402
+from scripts.text2comp.generate_templates import run_generate_templates  # noqa: E402
+from scripts.text2comp.fill_samples import run_fill_samples  # noqa: E402
 
 router = APIRouter()
 

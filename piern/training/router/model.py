@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from .data import CHAR_TOKENS, PRETRAINED_EMBEDDINGS
+
 
 class CausalDepthwiseConvBlock(nn.Module):
     def __init__(
@@ -51,18 +53,50 @@ class FullSeqDilatedConvRouter(nn.Module):
         vocab_size: int,
         num_scenarios: int,
         max_sequence_length: int,
-        embedding_dim: int = 192,
+        input_representation: str = CHAR_TOKENS,
+        input_embedding_dim: int = 192,
         model_dim: int = 256,
         scene_dim: int = 16,
         kernel_size: int = 5,
         dilations: tuple[int, ...] = (1, 2, 4, 8, 16, 32),
         dropout: float = 0.1,
         pad_id: int = 0,
+        pretrained_embedding_weights: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
-        self.token_embedding = nn.Embedding(vocab_size, embedding_dim, padding_idx=pad_id)
-        self.input_norm = nn.LayerNorm(embedding_dim)
-        self.input_proj = nn.Linear(embedding_dim, model_dim)
+        self.input_representation = input_representation
+        if input_representation == CHAR_TOKENS:
+            if vocab_size <= 0:
+                raise ValueError("vocab_size must be positive for char token inputs")
+            self.token_embedding: nn.Embedding | None = nn.Embedding(
+                vocab_size,
+                input_embedding_dim,
+                padding_idx=pad_id,
+            )
+        elif input_representation == PRETRAINED_EMBEDDINGS:
+            if pretrained_embedding_weights is None:
+                raise ValueError("pretrained_embedding_weights are required for pretrained embedding mode")
+            if pretrained_embedding_weights.ndim != 2:
+                raise ValueError("pretrained_embedding_weights must be a rank-2 tensor")
+            inferred_vocab_size, inferred_dim = pretrained_embedding_weights.shape
+            if vocab_size > 0 and inferred_vocab_size != vocab_size:
+                raise ValueError(
+                    f"pretrained embedding vocab_size mismatch: expected {vocab_size}, got {inferred_vocab_size}"
+                )
+            if inferred_dim != input_embedding_dim:
+                raise ValueError(
+                    f"pretrained embedding hidden_size mismatch: expected {input_embedding_dim}, got {inferred_dim}"
+                )
+            self.token_embedding = nn.Embedding.from_pretrained(
+                pretrained_embedding_weights,
+                freeze=True,
+                padding_idx=pad_id,
+            )
+        else:
+            raise ValueError(f"Unsupported input_representation: {input_representation}")
+
+        self.input_norm = nn.LayerNorm(input_embedding_dim)
+        self.input_proj = nn.Linear(input_embedding_dim, model_dim)
         self.position_embedding = nn.Embedding(max_sequence_length, model_dim)
         self.blocks = nn.ModuleList(
             [
@@ -91,14 +125,24 @@ class FullSeqDilatedConvRouter(nn.Module):
     def forward(
         self,
         *,
-        input_ids: torch.Tensor,
         attention_mask: torch.Tensor,
         scenario_ids: torch.Tensor,
+        input_ids: torch.Tensor | None = None,
+        input_embeds: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        x = self.token_embedding(input_ids)
+        if input_embeds is not None:
+            x = input_embeds
+            seq_len = input_embeds.size(1)
+        else:
+            if input_ids is None or self.token_embedding is None:
+                raise ValueError("input_ids are required when input_embeds are not provided")
+            x = self.token_embedding(input_ids)
+            seq_len = input_ids.size(1)
+
+        x = x.to(dtype=self.input_proj.weight.dtype)
         x = self.input_norm(x)
         x = self.input_proj(x)
-        positions = torch.arange(input_ids.size(1), device=input_ids.device).unsqueeze(0)
+        positions = torch.arange(seq_len, device=attention_mask.device).unsqueeze(0)
         x = x + self.position_embedding(positions)
         for block in self.blocks:
             x = block(x)

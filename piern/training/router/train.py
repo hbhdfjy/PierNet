@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import math
 import time
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
@@ -15,6 +14,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from .data import (
+    CHAR_TOKENS,
     LengthBucketBatchSampler,
     PackedSequenceDataset,
     collate_batch,
@@ -22,6 +22,7 @@ from .data import (
 )
 from .metrics import binary_classification_metrics
 from .model import FullSeqDilatedConvRouter
+from .pretrained_embeddings import EmbeddingBackboneSpec, PretrainedEmbeddingEncoder
 from .tokenizer import CharTokenizer
 
 
@@ -53,6 +54,7 @@ class RouterTrainingConfig:
     resume_from: str | None = None
     max_train_samples: int | None = None
     max_test_samples: int | None = None
+    input_representation: str = "auto"
 
 
 def _set_seed(seed: int) -> None:
@@ -72,6 +74,18 @@ def _autocast_context(device: torch.device):
     return nullcontext()
 
 
+def _forward_logits(model: FullSeqDilatedConvRouter, batch: dict[str, torch.Tensor]) -> torch.Tensor:
+    kwargs = {
+        "attention_mask": batch["attention_mask"],
+        "scenario_ids": batch["scenario_ids"],
+    }
+    if "input_embeds" in batch:
+        kwargs["input_embeds"] = batch["input_embeds"]
+    else:
+        kwargs["input_ids"] = batch["input_ids"]
+    return model(**kwargs)
+
+
 def _evaluate(
     model: FullSeqDilatedConvRouter,
     loader: DataLoader,
@@ -87,11 +101,7 @@ def _evaluate(
         for batch in loader:
             batch = _to_device(batch, device)
             with _autocast_context(device):
-                logits = model(
-                    input_ids=batch["input_ids"],
-                    attention_mask=batch["attention_mask"],
-                    scenario_ids=batch["scenario_ids"],
-                )
+                logits = _forward_logits(model, batch)
             logits_buffer.append(logits.float().cpu().numpy())
             labels_buffer.append(batch["labels"].cpu().numpy())
             scenario_buffer.append(batch["scenario_ids"].cpu().numpy())
@@ -101,7 +111,6 @@ def _evaluate(
     scenarios_np = np.concatenate(scenario_buffer) if scenario_buffer else np.empty((0,), dtype=np.int64)
 
     overall = binary_classification_metrics(labels_np, logits_np)
-    per_scenario: dict[str, dict[str, float | int]] = {}
     return overall, {"_scenario_ids": scenarios_np.tolist(), "_logits": logits_np.tolist(), "_labels": labels_np.tolist()}
 
 
@@ -197,21 +206,43 @@ def run_training(config: RouterTrainingConfig) -> Path:
         output_dir=prepared_dir,
         test_ratio=config.test_ratio,
         force=config.force_prepare,
+        input_representation=config.input_representation,
     )
-    tokenizer = CharTokenizer.load(prepared_dir / "vocab.json")
+    tokenizer = CharTokenizer.load(prepared_dir / "vocab.json") if summary.input_representation == CHAR_TOKENS else None
+    pad_id = tokenizer.pad_id if tokenizer is not None else 0
+    pretrained_embedding_weights = None
+    if summary.input_representation != CHAR_TOKENS:
+        encoder = PretrainedEmbeddingEncoder(
+            EmbeddingBackboneSpec(
+                model_name=summary.embedding_model,
+                tokenizer_name=summary.embedding_tokenizer or summary.embedding_model,
+                provider=summary.embedding_provider,
+                chat_template=summary.chat_template,
+                source=summary.embedding_source,
+            )
+        )
+        pretrained_embedding_weights = encoder.build_model_embedding_tensor()
+        if summary.vocab_size != encoder.model_vocab_size:
+            raise ValueError(
+                f"Prepared vocab_size mismatch: expected {summary.vocab_size}, got {encoder.model_vocab_size}"
+            )
+        if summary.input_hidden_size != encoder.hidden_size:
+            raise ValueError(
+                f"Prepared input_hidden_size mismatch: expected {summary.input_hidden_size}, got {encoder.hidden_size}"
+            )
 
     train_dataset = PackedSequenceDataset(
         prepared_dir=prepared_dir,
         split="train",
-        token_dtype=summary.token_dtype,
-        pad_id=tokenizer.pad_id,
+        summary=summary,
+        pad_id=pad_id,
         max_samples=config.max_train_samples,
     )
     test_dataset = PackedSequenceDataset(
         prepared_dir=prepared_dir,
         split="test",
-        token_dtype=summary.token_dtype,
-        pad_id=tokenizer.pad_id,
+        summary=summary,
+        pad_id=pad_id,
         max_samples=config.max_test_samples,
     )
 
@@ -227,7 +258,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         shuffle=False,
         seed=config.seed,
     )
-    collate = partial(collate_batch, pad_id=tokenizer.pad_id)
+    collate = partial(collate_batch, pad_id=pad_id)
     pin_memory = device.type == "cuda"
     train_loader = DataLoader(
         train_dataset,
@@ -250,13 +281,19 @@ def run_training(config: RouterTrainingConfig) -> Path:
         vocab_size=summary.vocab_size,
         num_scenarios=len(summary.scenarios),
         max_sequence_length=summary.max_sequence_length,
-        embedding_dim=config.embedding_dim,
+        input_representation=summary.input_representation,
+        input_embedding_dim=(
+            config.embedding_dim
+            if summary.input_representation == CHAR_TOKENS
+            else summary.input_hidden_size
+        ),
         model_dim=config.model_dim,
         scene_dim=config.scene_dim,
         kernel_size=config.kernel_size,
         dilations=config.dilations,
         dropout=config.dropout,
-        pad_id=tokenizer.pad_id,
+        pad_id=pad_id,
+        pretrained_embedding_weights=pretrained_embedding_weights,
     ).to(device)
 
     optimizer = torch.optim.AdamW(
@@ -267,7 +304,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
     start_epoch = 0
     global_step = 0
     if config.resume_from:
-        checkpoint = torch.load(config.resume_from, map_location="cpu")
+        checkpoint = torch.load(config.resume_from, map_location="cpu", weights_only=True)
         model.load_state_dict(checkpoint["model_state"])
         optimizer_state = checkpoint.get("optimizer_state")
         if optimizer_state:
@@ -295,8 +332,14 @@ def run_training(config: RouterTrainingConfig) -> Path:
     total_steps = len(train_loader)
     print(
         f"[train] simulator={config.simulator} train_samples={len(train_dataset)} "
-        f"test_samples={len(test_dataset)} steps_per_epoch={total_steps} device={config.device}"
+        f"test_samples={len(test_dataset)} steps_per_epoch={total_steps} device={config.device} "
+        f"input_representation={summary.input_representation}"
     )
+    if summary.input_representation != CHAR_TOKENS:
+        print(
+            f"[train] embedding_model={summary.embedding_model} "
+            f"tokenizer={summary.embedding_tokenizer} hidden_size={summary.input_hidden_size}"
+        )
     if config.resume_from:
         print(
             f"[train] resume_from={config.resume_from} start_epoch={start_epoch} "
@@ -316,11 +359,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
                 batch = _to_device(batch, device)
                 optimizer.zero_grad(set_to_none=True)
                 with _autocast_context(device):
-                    logits = model(
-                        input_ids=batch["input_ids"],
-                        attention_mask=batch["attention_mask"],
-                        scenario_ids=batch["scenario_ids"],
-                    )
+                    logits = _forward_logits(model, batch)
                     loss = F.binary_cross_entropy_with_logits(logits, batch["labels"])
                 loss.backward()
                 optimizer.step()
@@ -403,3 +442,4 @@ def run_training(config: RouterTrainingConfig) -> Path:
         global_step=global_step,
     )
     return run_dir
+

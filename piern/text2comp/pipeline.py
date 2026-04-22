@@ -70,7 +70,6 @@ def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
                 if not sim_dir.is_dir() or sim_dir.name in skip:
                     continue
                 simulator = sim_dir.name
-                prefix = simulator + "_"
                 for h5_file in sorted(sim_dir.glob("*.h5")):
                     found.append((h5_file, simulator, None))
                     logger.info(f"发现文件: {h5_file.name} → simulator={simulator}")

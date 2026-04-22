@@ -3,8 +3,7 @@
 import h5py
 import numpy as np
 from pathlib import Path
-from typing import Dict, List
-import yaml
+from typing import Dict
 
 
 def analyze_h5_file(file_path: Path) -> Dict:
@@ -146,7 +145,7 @@ def main():
     print(f"  未生成: {len(missing_configs)}")
 
     if missing_configs:
-        print(f"\n  未生成的配置:")
+        print("\n  未生成的配置:")
         for config in sorted(missing_configs):
             print(f"    - {config}")
 

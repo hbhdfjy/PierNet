@@ -175,26 +175,26 @@ def _build_observation_prompt(
 ) -> str:
     header = _dataset_header(simulator, scenario_name, param_names, timeseries_shape, params_sample)
     _, channels, timesteps = timeseries_shape
-    return header + f"""
+    return header + """
 Infer the observation_config field that defines the default downsampling strategy for this dataset.
 Respond with a JSON object with exactly this key:
 
-{{
-  "observation_config": {{
+{
+  "observation_config": {
     "fixed_time_mode": "<mode_name, e.g. monthly / weekly / full / every_10>",
     "fixed_channels": <list_of_int_or_null>,
     "time_modes": [
-      {{
+      {
         "name": "<same as fixed_time_mode>",
         "indices": "<same as fixed_time_mode>",
         "desc_en": "<English description, e.g. 'monthly, 12 time points'>",
         "desc_zh": "<Chinese description>"
-      }}
+      }
     ],
-    "channel_name_template": "<optional, e.g. 'well {{i}}'>",
-    "channel_name_template_zh": "<optional Chinese template, e.g. '第{{i}}号观测井'>"
-  }}
-}}
+    "channel_name_template": "<optional, e.g. 'well {i}'>",
+    "channel_name_template_zh": "<optional Chinese template, e.g. '第{i}号观测井'>"
+  }
+}
 
 Rules:
 - fixed_channels: list of 0-based integer indices (e.g. [0,1,2,3,4]), or null to select all channels.
@@ -467,7 +467,7 @@ def run_auto_register(
                     fc = entry["observation_config"].get("fixed_channels")
                     if isinstance(fc, list) and fc and isinstance(fc[0], str):
                         # 旧版遗留的字符串名称列表，自动转为 null（全选）
-                        print(f"  ⚠ 一致性警告: fixed_channels 含字符串元素，已自动重置为 null（全选）")
+                        print("  ⚠ 一致性警告: fixed_channels 含字符串元素，已自动重置为 null（全选）")
                         entry["observation_config"]["fixed_channels"] = None
             except RuntimeError as e:
                 logger.error(str(e))

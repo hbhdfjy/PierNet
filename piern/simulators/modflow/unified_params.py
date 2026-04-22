@@ -5,7 +5,7 @@ MODFLOW 统一参数表示转换器。
 """
 
 import numpy as np
-from typing import Dict, List
+from typing import Dict
 
 
 class UnifiedParamConverter:
@@ -77,9 +77,6 @@ class UnifiedParamConverter:
 
         # 季节场景（1个）
         seasonal_scenarios = ['monsoon_seasonal']
-
-        # 特殊场景（4个）
-        special_scenarios = ['coastal_seawater', 'land_subsidence', 'contaminant_transport', 'geothermal_reservoir']
 
         if scenario_name in basic_scenarios:
             return (0, 0, 1)  # 基础，水头，简单

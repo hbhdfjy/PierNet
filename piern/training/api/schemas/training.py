@@ -1,11 +1,13 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
 
 TrainingJobStatus = Literal["queued", "starting", "running", "evaluating", "done", "error", "terminated"]
+TrainingJobInputRepresentation = Literal["auto", "char", "embedding", "char_tokens", "pretrained_embeddings"]
+TrainingJobRequestedInputRepresentation = Literal["auto", "char", "embedding"]
 
 
 class TrainingDatasetScenario(BaseModel):
@@ -44,6 +46,7 @@ class TrainingJobConfig(BaseModel):
     num_workers: int = 8
     test_ratio: float = 0.10
     resume_from: str | None = None
+    input_representation: TrainingJobInputRepresentation = "auto"
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -60,6 +63,7 @@ class TrainingJobCreateRequest(BaseModel):
     num_workers: int = 8
     test_ratio: float = 0.10
     resume_from: str | None = None
+    input_representation: TrainingJobRequestedInputRepresentation = "auto"
 
 
 class TrainingMetricsSummary(BaseModel):
@@ -149,3 +153,4 @@ class TrainingOverviewResponse(BaseModel):
     jobs: list[TrainingJobSummary]
     running_job_count: int
     completed_job_count: int
+
