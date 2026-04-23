@@ -3,9 +3,9 @@ Build Stage 4 Token Router training data from Stage 3 `data/text2comp/*.jsonl`.
 
 Each Stage 3 sample becomes:
 - 1 positive sample:
-  `user_prefix + input + user_suffix + assistant_prefix + trigger_prefix`
+  `qwen_user_prefix + input + qwen_user_suffix + qwen_assistant_prefix + trigger_prefix`
 - `neg_ratio` negative samples:
-  `user_prefix + input + user_suffix + assistant_prefix + trigger_prefix[:pos]`
+  `qwen_user_prefix + input + qwen_user_suffix + qwen_assistant_prefix + trigger_prefix[:pos]`
 
 The input portion is always complete. Negatives only truncate inside the assistant
 trigger prefix so router inference sees the same user context shape as training.
@@ -18,32 +18,14 @@ import json
 import random
 from pathlib import Path
 
-CHAT_TEMPLATES: dict[str, dict[str, str]] = {
-    "qwen": {
-        "user_prefix": "<|im_start|>user\n",
-        "user_suffix": "<|im_end|>\n",
-        "assistant_prefix": "<|im_start|>assistant\n",
-    },
-    "chatml": {
-        "user_prefix": "<|im_start|>user\n",
-        "user_suffix": "<|im_end|>\n",
-        "assistant_prefix": "<|im_start|>assistant\n",
-    },
-    "deepseek": {
-        "user_prefix": "<｜User｜>",
-        "user_suffix": "",
-        "assistant_prefix": "<｜Assistant｜>",
-    },
-    "llama3": {
-        "user_prefix": "<|start_header_id|>user<|end_header_id|>\n\n",
-        "user_suffix": "<|eot_id|>",
-        "assistant_prefix": "<|start_header_id|>assistant<|end_header_id|>\n\n",
-    },
-    "mistral": {
-        "user_prefix": "[INST] ",
-        "user_suffix": " [/INST]",
-        "assistant_prefix": "",
-    },
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
+
+QWEN_TEMPLATE = {
+    "_name": "qwen",
+    "user_prefix": "<|im_start|>user\n",
+    "user_suffix": "<|im_end|>\n",
+    "assistant_prefix": "<|im_start|>assistant\n",
 }
 
 
@@ -63,14 +45,11 @@ def _apply_chat_template_neg(
     tmpl: dict[str, str],
     rng: random.Random,
 ) -> str:
-    user_prefix = tmpl["user_prefix"]
-    user_suffix = tmpl["user_suffix"]
-    assistant_prefix = tmpl["assistant_prefix"]
     trigger_length = len(trigger_prefix)
     if trigger_length <= 1:
-        return user_prefix + input_text + user_suffix + assistant_prefix
+        return tmpl["user_prefix"] + input_text + tmpl["user_suffix"] + tmpl["assistant_prefix"]
     pos = rng.randint(0, trigger_length - 1)
-    return user_prefix + input_text + user_suffix + assistant_prefix + trigger_prefix[:pos]
+    return tmpl["user_prefix"] + input_text + tmpl["user_suffix"] + tmpl["assistant_prefix"] + trigger_prefix[:pos]
 
 
 def _count_nonempty_lines(path: Path) -> int:
@@ -99,20 +78,10 @@ def _scenario_meta_path(jsonl_path: Path) -> Path:
     return jsonl_path.with_suffix(".meta.json")
 
 
-def _build_embedding_metadata(
-    *,
-    provider: str,
-    model: str,
-    tokenizer: str,
-    source: str,
-) -> dict[str, str]:
-    model_name = model.strip()
-    tokenizer_name = tokenizer.strip() or model_name
+def _build_embedding_metadata() -> dict[str, str]:
     return {
-        "embedding_provider": provider.strip(),
-        "embedding_model": model_name,
-        "embedding_tokenizer": tokenizer_name,
-        "embedding_source": source.strip(),
+        "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+        "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_TOKENIZER,
     }
 
 
@@ -120,7 +89,6 @@ def _write_scenario_meta(
     output_path: Path,
     *,
     source_path: Path,
-    chat_template_name: str,
     neg_ratio: int,
     source_signature: dict[str, object] | None,
     output_count: int,
@@ -129,7 +97,7 @@ def _write_scenario_meta(
     payload = {
         "scenario": output_path.stem,
         "source_file": source_path.name,
-        "chat_template": chat_template_name,
+        "chat_template": QWEN_TEMPLATE["_name"],
         "neg_ratio": neg_ratio,
         "source_signature": source_signature,
         "output_count": output_count,
@@ -146,16 +114,16 @@ def _load_scenario_meta(output_path: Path) -> dict[str, object] | None:
     if not meta_path.exists():
         return None
     try:
-        return json.loads(meta_path.read_text(encoding="utf-8"))
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
     except Exception:
         return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _can_reuse_existing_scenario(
     output_path: Path,
     *,
     source_path: Path,
-    chat_template_name: str,
     neg_ratio: int,
     source_signature: dict[str, object] | None,
     embedding_metadata: dict[str, str],
@@ -165,14 +133,14 @@ def _can_reuse_existing_scenario(
     meta = _load_scenario_meta(output_path)
     if not meta:
         return False, "missing build metadata"
-    if meta.get("chat_template") != chat_template_name:
+    if (meta.get("chat_template") or "") != QWEN_TEMPLATE["_name"]:
         return False, "chat_template mismatch"
     if int(meta.get("neg_ratio", -1)) != neg_ratio:
         return False, "neg_ratio mismatch"
     if meta.get("source_signature") != source_signature:
         return False, "Stage 3 source file changed"
-    for key, value in embedding_metadata.items():
-        if (meta.get(key) or "") != value:
+    for key in ("embedding_model", "embedding_tokenizer"):
+        if (meta.get(key) or "") != embedding_metadata.get(key, ""):
             return False, f"{key} mismatch"
     return True, ""
 
@@ -188,8 +156,6 @@ def _extract_trigger_prefix(target_template: str) -> str:
 def _build_samples_from_file(
     jsonl_path: Path,
     rng: random.Random,
-    chat_tmpl: dict[str, str],
-    embedding_metadata: dict[str, str],
     neg_ratio: int = 1,
     progress_callback=None,
     progress_interval: int = 500,
@@ -209,7 +175,7 @@ def _build_samples_from_file(
             input_text = record.get("input", "")
             metadata = record.get("metadata", {})
             target_template = metadata.get("target_template", "")
-            if not input_text:
+            if not input_text or not isinstance(metadata, dict):
                 continue
 
             trigger_prefix = _extract_trigger_prefix(target_template)
@@ -220,24 +186,22 @@ def _build_samples_from_file(
                 "simulator": metadata.get("simulator", "unknown"),
                 "scenario": metadata.get("scenario", "unknown"),
                 "language": metadata.get("language", "unknown"),
-                "chat_template": chat_tmpl.get("_name", "plain"),
-                **embedding_metadata,
             }
 
             samples.append(
                 {
-                    "context": _apply_chat_template_pos(input_text, trigger_prefix, chat_tmpl),
+                    "context": _apply_chat_template_pos(input_text, trigger_prefix, QWEN_TEMPLATE),
                     "label": 1,
-                    "metadata": {**base_meta, "trigger_prefix": trigger_prefix},
+                    "metadata": base_meta,
                 }
             )
 
             for _ in range(neg_ratio):
                 samples.append(
                     {
-                        "context": _apply_chat_template_neg(input_text, trigger_prefix, chat_tmpl, rng),
+                        "context": _apply_chat_template_neg(input_text, trigger_prefix, QWEN_TEMPLATE, rng),
                         "label": 0,
-                        "metadata": {**base_meta, "trigger_prefix": ""},
+                        "metadata": base_meta,
                     }
                 )
 
@@ -270,50 +234,22 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--scenarios", nargs="*", default=None)
     parser.add_argument("--neg-ratio", type=int, default=1)
-    parser.add_argument("--chat-template", type=str, default="custom", choices=list(CHAT_TEMPLATES.keys()) + ["custom"])
-    parser.add_argument("--user-prefix", type=str, default="")
-    parser.add_argument("--user-suffix", type=str, default="")
-    parser.add_argument("--assistant-prefix", type=str, default="")
-    parser.add_argument("--embedding-provider", type=str, default="")
-    parser.add_argument("--embedding-model", type=str, default="")
-    parser.add_argument("--embedding-tokenizer", type=str, default="")
-    parser.add_argument("--embedding-source", type=str, default="router_build")
+    parser.add_argument("--chat-template", type=str, default="qwen", choices=["qwen"])
     args = parser.parse_args()
 
-    template_name = args.chat_template
-    if template_name == "custom":
-        chat_tmpl = {
-            "_name": "custom",
-            "user_prefix": args.user_prefix,
-            "user_suffix": args.user_suffix,
-            "assistant_prefix": args.assistant_prefix,
-        }
-    else:
-        chat_tmpl = dict(CHAT_TEMPLATES.get(template_name, {"user_prefix": "", "user_suffix": "", "assistant_prefix": ""}))
-        chat_tmpl["_name"] = template_name
+    if args.chat_template != "qwen":
+        print("[error] only qwen chat template is supported", flush=True)
+        raise SystemExit(1)
 
-    embedding_metadata = _build_embedding_metadata(
-        provider=args.embedding_provider,
-        model=args.embedding_model,
-        tokenizer=args.embedding_tokenizer,
-        source=args.embedding_source,
+    embedding_metadata = _build_embedding_metadata()
+
+    print(f"[router-build] chat_template={QWEN_TEMPLATE['_name']}", flush=True)
+    print(
+        "[router-build] embedding "
+        f"model={embedding_metadata['embedding_model']} "
+        f"tokenizer={embedding_metadata['embedding_tokenizer']}",
+        flush=True,
     )
-
-    print(f"[router-build] chat_template={template_name}", flush=True)
-    if embedding_metadata["embedding_model"]:
-        print(
-            "[router-build] embedding "
-            f"provider={embedding_metadata['embedding_provider'] or 'unknown'} "
-            f"model={embedding_metadata['embedding_model']} "
-            f"tokenizer={embedding_metadata['embedding_tokenizer']}",
-            flush=True,
-        )
-    else:
-        print(
-            "[router-build] embedding metadata missing; "
-            "router training will remain on char tokens unless embedding mode is forced",
-            flush=True,
-        )
 
     project_root = Path(__file__).resolve().parents[2]
     data_dir = project_root / args.data_dir
@@ -352,6 +288,9 @@ def main() -> None:
         expected = scenario_source_counts[path.stem] * (1 + args.neg_ratio)
         print(f"PROGRESS_INIT:{path.stem}:{expected}", flush=True)
 
+    output_dir.mkdir(parents=True, exist_ok=True)
+    scenario_dir.mkdir(parents=True, exist_ok=True)
+
     rng = random.Random(args.seed)
     new_samples: list[dict[str, object]] = []
     processed_scenarios: set[str] = set()
@@ -367,8 +306,6 @@ def main() -> None:
         samples = _build_samples_from_file(
             jsonl_path,
             rng,
-            chat_tmpl=chat_tmpl,
-            embedding_metadata=embedding_metadata,
             neg_ratio=args.neg_ratio,
             progress_callback=_progress,
         )
@@ -384,7 +321,6 @@ def main() -> None:
         _write_scenario_meta(
             scenario_output_path,
             source_path=jsonl_path,
-            chat_template_name=chat_tmpl["_name"],
             neg_ratio=args.neg_ratio,
             source_signature=scenario_source_signatures.get(scenario_name),
             output_count=len(samples),
@@ -395,8 +331,7 @@ def main() -> None:
 
     if not new_samples:
         print(
-            "[error] no router samples were generated; "
-            "make sure Stage 3 data exists and target_template contains {output_0}",
+            "[error] no router samples were generated; make sure Stage 3 data exists and target_template contains {output_0}",
             flush=True,
         )
         raise SystemExit(1)
@@ -410,7 +345,6 @@ def main() -> None:
             reusable, reason = _can_reuse_existing_scenario(
                 existing_file,
                 source_path=data_dir / f"{scenario_name}.jsonl",
-                chat_template_name=chat_tmpl["_name"],
                 neg_ratio=args.neg_ratio,
                 source_signature=scenario_source_signatures.get(scenario_name),
                 embedding_metadata=embedding_metadata,
@@ -430,8 +364,7 @@ def main() -> None:
 
     n_pos_total = sum(1 for sample in all_samples if sample["label"] == 1)
     print(
-        f"\n  total={len(all_samples)} rows "
-        f"(pos={n_pos_total}, neg={len(all_samples) - n_pos_total})",
+        f"\n  total={len(all_samples)} rows (pos={n_pos_total}, neg={len(all_samples) - n_pos_total})",
         flush=True,
     )
     total = _write_all(all_samples, output_dir, args.seed)
@@ -440,3 +373,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

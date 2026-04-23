@@ -12,13 +12,6 @@ const PAGE_SIZE = 10
 
 function SampleCard({ sample, index }: { sample: RouterSample; index: number }) {
   const isPos = sample.label === 1
-  const trigger = sample.metadata.trigger_prefix
-  let contextHead = sample.context
-  let contextTrigger = ''
-  if (isPos && trigger && sample.context.endsWith(trigger)) {
-    contextHead = sample.context.slice(0, sample.context.length - trigger.length)
-    contextTrigger = trigger
-  }
 
   return (
     <div className={cn(
@@ -32,31 +25,20 @@ function SampleCard({ sample, index }: { sample: RouterSample; index: number }) 
             ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
             : 'bg-slate-700/40 text-slate-400 border-slate-600/30',
         )}>
-          {isPos ? 'label=1  专家' : 'label=0  LLM'}
+          {isPos ? 'label=1  \u4e13\u5bb6' : 'label=0  LLM'}
         </span>
         <span className="text-xs text-slate-500 font-mono">{sample.metadata.language}</span>
         <span className="ml-auto text-xs text-slate-600 font-mono">#{index}</span>
       </div>
       <div className="px-4 py-3">
         <div className="text-xs text-slate-500 mb-1.5 font-medium">context</div>
-        <div className="text-sm text-slate-300 leading-relaxed font-mono bg-slate-800/40 rounded-lg px-3 py-2.5 break-all">
-          {contextHead}
-          {contextTrigger && (
-            <span className="bg-emerald-500/20 text-emerald-300 rounded px-0.5">
-              {contextTrigger}
-            </span>
-          )}
+        <div className="text-sm text-slate-300 leading-relaxed font-mono bg-slate-800/40 rounded-lg px-3 py-2.5 break-all whitespace-pre-wrap">
+          {sample.context}
         </div>
-        {isPos && trigger && (
-          <div className="mt-1.5 text-xs text-slate-500">
-            触发词：<span className="font-mono text-emerald-400">「{trigger}」</span>
-          </div>
-        )}
       </div>
     </div>
   )
 }
-
 // ── 主页面 ────────────────────────────────────────────────────────
 
 export default function RouterViewer() {

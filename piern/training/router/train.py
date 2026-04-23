@@ -14,7 +14,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 
 from .data import (
-    CHAR_TOKENS,
     LengthBucketBatchSampler,
     PackedSequenceDataset,
     collate_batch,
@@ -23,7 +22,6 @@ from .data import (
 from .metrics import binary_classification_metrics
 from .model import FullSeqDilatedConvRouter
 from .pretrained_embeddings import EmbeddingBackboneSpec, PretrainedEmbeddingEncoder
-from .tokenizer import CharTokenizer
 
 
 @dataclass(slots=True)
@@ -54,7 +52,11 @@ class RouterTrainingConfig:
     resume_from: str | None = None
     max_train_samples: int | None = None
     max_test_samples: int | None = None
-    input_representation: str = "auto"
+    input_representation: str = "embedding"
+
+
+def _log_startup(phase: str, message: str) -> None:
+    print(f"[startup] phase={phase} {message}")
 
 
 def _set_seed(seed: int) -> None:
@@ -187,6 +189,8 @@ def _run_test(
 
 
 def run_training(config: RouterTrainingConfig) -> Path:
+    startup_started_at = time.perf_counter()
+    _log_startup("bootstrap", f"seed={config.seed} device={config.device}")
     _set_seed(config.seed)
     device = torch.device(config.device)
     if device.type == "cuda":
@@ -199,6 +203,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
     prepared_dir = artifact_root / "prepared"
     if config.prepared_name:
         prepared_dir = prepared_dir / config.prepared_name
+    prepare_started_at = time.perf_counter()
+    _log_startup(
+        "prepare",
+        f"router_dir={config.router_dir} output_dir={prepared_dir} force_prepare={config.force_prepare}",
+    )
     summary = prepare_router_dataset(
         simulator=config.simulator,
         scenarios=list(config.scenarios) if config.scenarios else None,
@@ -208,29 +217,49 @@ def run_training(config: RouterTrainingConfig) -> Path:
         force=config.force_prepare,
         input_representation=config.input_representation,
     )
-    tokenizer = CharTokenizer.load(prepared_dir / "vocab.json") if summary.input_representation == CHAR_TOKENS else None
-    pad_id = tokenizer.pad_id if tokenizer is not None else 0
-    pretrained_embedding_weights = None
-    if summary.input_representation != CHAR_TOKENS:
-        encoder = PretrainedEmbeddingEncoder(
-            EmbeddingBackboneSpec(
-                model_name=summary.embedding_model,
-                tokenizer_name=summary.embedding_tokenizer or summary.embedding_model,
-                provider=summary.embedding_provider,
-                chat_template=summary.chat_template,
-                source=summary.embedding_source,
-            )
+    _log_startup(
+        "prepare",
+        "done "
+        f"elapsed={time.perf_counter() - prepare_started_at:.1f}s "
+        f"train_samples={summary.train_samples} test_samples={summary.test_samples} "
+        f"max_sequence_length={summary.max_sequence_length}",
+    )
+    pad_id = 0
+    _log_startup(
+        "encoder",
+        f"initializing tokenizer/model metadata for {summary.embedding_model}",
+    )
+    encoder = PretrainedEmbeddingEncoder(
+        EmbeddingBackboneSpec(
+            model_name=summary.embedding_model,
+            tokenizer_name=summary.embedding_tokenizer or summary.embedding_model,
+            provider=summary.embedding_provider,
+            chat_template=summary.chat_template,
+            source=summary.embedding_source,
         )
-        pretrained_embedding_weights = encoder.build_model_embedding_tensor()
-        if summary.vocab_size != encoder.model_vocab_size:
-            raise ValueError(
-                f"Prepared vocab_size mismatch: expected {summary.vocab_size}, got {encoder.model_vocab_size}"
-            )
-        if summary.input_hidden_size != encoder.hidden_size:
-            raise ValueError(
-                f"Prepared input_hidden_size mismatch: expected {summary.input_hidden_size}, got {encoder.hidden_size}"
-            )
+    )
+    embedding_started_at = time.perf_counter()
+    _log_startup(
+        "encoder",
+        f"loading pretrained embedding weights tokenizer={summary.embedding_tokenizer or summary.embedding_model}",
+    )
+    pretrained_embedding_weights = encoder.build_model_embedding_tensor()
+    _log_startup(
+        "encoder",
+        "weights ready "
+        f"elapsed={time.perf_counter() - embedding_started_at:.1f}s "
+        f"vocab_size={encoder.model_vocab_size} hidden_size={encoder.hidden_size}",
+    )
+    if summary.vocab_size != encoder.model_vocab_size:
+        raise ValueError(
+            f"Prepared vocab_size mismatch: expected {summary.vocab_size}, got {encoder.model_vocab_size}"
+        )
+    if summary.input_hidden_size != encoder.hidden_size:
+        raise ValueError(
+            f"Prepared input_hidden_size mismatch: expected {summary.input_hidden_size}, got {encoder.hidden_size}"
+        )
 
+    _log_startup("dataset", "constructing train/test datasets from dynamic router records")
     train_dataset = PackedSequenceDataset(
         prepared_dir=prepared_dir,
         split="train",
@@ -244,6 +273,10 @@ def run_training(config: RouterTrainingConfig) -> Path:
         summary=summary,
         pad_id=pad_id,
         max_samples=config.max_test_samples,
+    )
+    _log_startup(
+        "dataset",
+        f"datasets ready train={len(train_dataset)} test={len(test_dataset)}",
     )
 
     train_sampler = LengthBucketBatchSampler(
@@ -260,6 +293,10 @@ def run_training(config: RouterTrainingConfig) -> Path:
     )
     collate = partial(collate_batch, pad_id=pad_id)
     pin_memory = device.type == "cuda"
+    _log_startup(
+        "dataloader",
+        f"building DataLoaders train_workers={config.num_workers} pin_memory={pin_memory}",
+    )
     train_loader = DataLoader(
         train_dataset,
         batch_sampler=train_sampler,
@@ -277,16 +314,20 @@ def run_training(config: RouterTrainingConfig) -> Path:
         pin_memory=pin_memory,
         persistent_workers=test_num_workers > 0,
     )
+    _log_startup(
+        "dataloader",
+        f"dataloaders ready train_steps={len(train_loader)} test_steps={len(test_loader)}",
+    )
+    _log_startup(
+        "model",
+        f"initializing router model model_dim={config.model_dim} scene_dim={config.scene_dim}",
+    )
     model = FullSeqDilatedConvRouter(
         vocab_size=summary.vocab_size,
         num_scenarios=len(summary.scenarios),
         max_sequence_length=summary.max_sequence_length,
         input_representation=summary.input_representation,
-        input_embedding_dim=(
-            config.embedding_dim
-            if summary.input_representation == CHAR_TOKENS
-            else summary.input_hidden_size
-        ),
+        input_embedding_dim=summary.input_hidden_size,
         model_dim=config.model_dim,
         scene_dim=config.scene_dim,
         kernel_size=config.kernel_size,
@@ -296,6 +337,10 @@ def run_training(config: RouterTrainingConfig) -> Path:
         pretrained_embedding_weights=pretrained_embedding_weights,
     ).to(device)
 
+    _log_startup(
+        "optimizer",
+        f"initializing AdamW learning_rate={config.learning_rate} weight_decay={config.weight_decay}",
+    )
     optimizer = torch.optim.AdamW(
         model.parameters(),
         lr=config.learning_rate,
@@ -304,6 +349,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
     start_epoch = 0
     global_step = 0
     if config.resume_from:
+        _log_startup("resume", f"loading checkpoint {config.resume_from}")
         checkpoint = torch.load(config.resume_from, map_location="cpu", weights_only=True)
         model.load_state_dict(checkpoint["model_state"])
         optimizer_state = checkpoint.get("optimizer_state")
@@ -312,10 +358,15 @@ def run_training(config: RouterTrainingConfig) -> Path:
         checkpoint_config = checkpoint.get("config", {})
         start_epoch = int(checkpoint.get("epoch", checkpoint_config.get("epochs", 0)))
         global_step = int(checkpoint.get("global_step", 0))
+        _log_startup(
+            "resume",
+            f"checkpoint ready start_epoch={start_epoch} global_step={global_step}",
+        )
 
     run_dir = artifact_root / "runs" / (config.run_name or datetime.now().strftime("%Y%m%d-%H%M%S"))
     run_dir.mkdir(parents=True, exist_ok=True)
     print(f"[run] run_dir={run_dir.resolve()}")
+    _log_startup("run_dir", f"writing run config to {run_dir / 'config.json'}")
     (run_dir / "config.json").write_text(
         json.dumps(
             {
@@ -327,6 +378,10 @@ def run_training(config: RouterTrainingConfig) -> Path:
         ),
         encoding="utf-8",
     )
+    _log_startup(
+        "loop",
+        f"entering training loop after {time.perf_counter() - startup_started_at:.1f}s",
+    )
 
     log_path = run_dir / "train_log.jsonl"
     total_steps = len(train_loader)
@@ -335,11 +390,10 @@ def run_training(config: RouterTrainingConfig) -> Path:
         f"test_samples={len(test_dataset)} steps_per_epoch={total_steps} device={config.device} "
         f"input_representation={summary.input_representation}"
     )
-    if summary.input_representation != CHAR_TOKENS:
-        print(
-            f"[train] embedding_model={summary.embedding_model} "
-            f"tokenizer={summary.embedding_tokenizer} hidden_size={summary.input_hidden_size}"
-        )
+    print(
+        f"[train] embedding_model={summary.embedding_model} "
+        f"tokenizer={summary.embedding_tokenizer} hidden_size={summary.input_hidden_size}"
+    )
     if config.resume_from:
         print(
             f"[train] resume_from={config.resume_from} start_epoch={start_epoch} "
@@ -441,5 +495,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         epoch=current_epoch,
         global_step=global_step,
     )
+    print(f"[done] training finished final_checkpoint={run_dir / 'router_final.pt'}")
     return run_dir
+
 

@@ -4,7 +4,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .data import CHAR_TOKENS, PRETRAINED_EMBEDDINGS
+from .data import PRETRAINED_EMBEDDINGS
 
 
 class CausalDepthwiseConvBlock(nn.Module):
@@ -53,7 +53,7 @@ class FullSeqDilatedConvRouter(nn.Module):
         vocab_size: int,
         num_scenarios: int,
         max_sequence_length: int,
-        input_representation: str = CHAR_TOKENS,
+        input_representation: str = PRETRAINED_EMBEDDINGS,
         input_embedding_dim: int = 192,
         model_dim: int = 256,
         scene_dim: int = 16,
@@ -65,35 +65,26 @@ class FullSeqDilatedConvRouter(nn.Module):
     ) -> None:
         super().__init__()
         self.input_representation = input_representation
-        if input_representation == CHAR_TOKENS:
-            if vocab_size <= 0:
-                raise ValueError("vocab_size must be positive for char token inputs")
-            self.token_embedding: nn.Embedding | None = nn.Embedding(
-                vocab_size,
-                input_embedding_dim,
-                padding_idx=pad_id,
-            )
-        elif input_representation == PRETRAINED_EMBEDDINGS:
-            if pretrained_embedding_weights is None:
-                raise ValueError("pretrained_embedding_weights are required for pretrained embedding mode")
-            if pretrained_embedding_weights.ndim != 2:
-                raise ValueError("pretrained_embedding_weights must be a rank-2 tensor")
-            inferred_vocab_size, inferred_dim = pretrained_embedding_weights.shape
-            if vocab_size > 0 and inferred_vocab_size != vocab_size:
-                raise ValueError(
-                    f"pretrained embedding vocab_size mismatch: expected {vocab_size}, got {inferred_vocab_size}"
-                )
-            if inferred_dim != input_embedding_dim:
-                raise ValueError(
-                    f"pretrained embedding hidden_size mismatch: expected {input_embedding_dim}, got {inferred_dim}"
-                )
-            self.token_embedding = nn.Embedding.from_pretrained(
-                pretrained_embedding_weights,
-                freeze=True,
-                padding_idx=pad_id,
-            )
-        else:
+        if input_representation != PRETRAINED_EMBEDDINGS:
             raise ValueError(f"Unsupported input_representation: {input_representation}")
+        if pretrained_embedding_weights is None:
+            raise ValueError("pretrained_embedding_weights are required for pretrained embedding mode")
+        if pretrained_embedding_weights.ndim != 2:
+            raise ValueError("pretrained_embedding_weights must be a rank-2 tensor")
+        inferred_vocab_size, inferred_dim = pretrained_embedding_weights.shape
+        if vocab_size > 0 and inferred_vocab_size != vocab_size:
+            raise ValueError(
+                f"pretrained embedding vocab_size mismatch: expected {vocab_size}, got {inferred_vocab_size}"
+            )
+        if inferred_dim != input_embedding_dim:
+            raise ValueError(
+                f"pretrained embedding hidden_size mismatch: expected {input_embedding_dim}, got {inferred_dim}"
+            )
+        self.token_embedding = nn.Embedding.from_pretrained(
+            pretrained_embedding_weights,
+            freeze=True,
+            padding_idx=pad_id,
+        )
 
         self.input_norm = nn.LayerNorm(input_embedding_dim)
         self.input_proj = nn.Linear(input_embedding_dim, model_dim)

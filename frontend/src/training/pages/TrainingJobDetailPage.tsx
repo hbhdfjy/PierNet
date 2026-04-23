@@ -1,4 +1,4 @@
-import {
+﻿import {
   AlertTriangle,
   ArrowLeft,
   BarChart3,
@@ -7,6 +7,7 @@ import {
   RadioTower,
   RefreshCcw,
   Save,
+  Sparkles,
   Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -523,11 +524,40 @@ function buildEpochSeries(points: TrainingPoint[]): TrainingPoint[] {
   return Array.from(lastPointByEpoch.values()).sort((a, b) => a.epoch - b.epoch)
 }
 
+function isStartupLogLine(line: string) {
+  return line.startsWith('[launch]') || line.startsWith('[startup]') || line.startsWith('[prepare')
+}
+
+function describeStartupPhase(line?: string) {
+  if (!line) return '等待启动日志'
+  if (line.startsWith('[launch]')) return '提交启动任务'
+  if (line.startsWith('[prepare:scan]')) return '扫描 Router 数据'
+  if (line.startsWith('[prepare:embed]')) return '构建动态索引'
+  const phaseMatch = line.match(/\[startup\] phase=([a-z_]+)/)
+  const phase = phaseMatch?.[1]
+  if (phase === 'bootstrap') return '初始化运行环境'
+  if (phase === 'prepare') return '准备训练数据'
+  if (phase === 'encoder') return '加载 Qwen tokenizer / embedding'
+  if (phase === 'dataset') return '构建训练数据集'
+  if (phase === 'dataloader') return '构建 DataLoader'
+  if (phase === 'model') return '初始化路由模型'
+  if (phase === 'optimizer') return '初始化优化器'
+  if (phase === 'resume') return '恢复 checkpoint'
+  if (phase === 'run_dir') return '写入运行目录'
+  if (phase === 'loop') return '进入训练循环'
+  if (line.startsWith('[train]')) return '训练中'
+  if (line.startsWith('[test]')) return '评测中'
+  if (line.startsWith('[done]')) return '训练完成'
+  if (line.startsWith('[error]')) return '启动失败'
+  return '处理中'
+}
+
 export default function TrainingJobDetailPage() {
   const { jobId = '' } = useParams()
   const navigate = useNavigate()
   const { mutate } = useSWRConfig()
   const [trainingAxisMode, setTrainingAxisMode] = useState<TrainingAxisMode>('step')
+  const [isStopping, setIsStopping] = useState(false)
   const [lossHover, setLossHover] = useState<ChartHoverSnapshot | null>(null)
   const [speedHover, setSpeedHover] = useState<ChartHoverSnapshot | null>(null)
   const [metricHover, setMetricHover] = useState<ChartHoverSnapshot | null>(null)
@@ -538,16 +568,18 @@ export default function TrainingJobDetailPage() {
     () => api.getTrainingJob(jobId),
     {
       refreshInterval: current => {
-        if (!current) return 5000
-        return ['starting', 'running', 'evaluating'].includes(current.status) ? 5000 : 0
+        if (!current) return 2000
+        if (current.status === 'starting') return 2000
+        return ['running', 'evaluating'].includes(current.status) ? 5000 : 0
       },
       revalidateOnFocus: false,
     },
   )
 
   const refreshInterval = useMemo(() => {
-    if (!job) return 5000
-    return ['starting', 'running', 'evaluating'].includes(job.status) ? 5000 : 0
+    if (!job) return 2000
+    if (job.status === 'starting') return 2000
+    return ['running', 'evaluating'].includes(job.status) ? 5000 : 0
   }, [job])
 
   const { data: curves } = useSWR<TrainingCurvesResponse>(
@@ -567,6 +599,14 @@ export default function TrainingJobDetailPage() {
       revalidateOnFocus: false,
     },
   )
+  const allLogLines = logs?.lines ?? []
+
+  const startupLogLines = useMemo(
+    () => allLogLines.filter(isStartupLogLine).slice(-12),
+    [allLogLines],
+  )
+  const latestStartupLine = startupLogLines[startupLogLines.length - 1] ?? allLogLines[allLogLines.length - 1]
+  const startupPhaseLabel = useMemo(() => describeStartupPhase(latestStartupLine), [latestStartupLine])
 
   const trainingChart = useMemo(() => {
     const raw = curves?.training_points ?? []
@@ -649,15 +689,21 @@ export default function TrainingJobDetailPage() {
   }, [curves?.test_points])
 
   const stopJob = async () => {
-    await api.stopTrainingJob(jobId)
-    await Promise.all([
-      mutate(`training-job-${jobId}`),
-      mutate(`training-curves-${jobId}`),
-      mutate(`training-logs-${jobId}`),
-      mutate('training-jobs'),
-      mutate('training-overview'),
-      mutate('training-gpus'),
-    ])
+    if (isStopping) return
+    setIsStopping(true)
+    try {
+      await api.stopTrainingJob(jobId)
+      await Promise.all([
+        mutate(`training-job-${jobId}`),
+        mutate(`training-curves-${jobId}`),
+        mutate(`training-logs-${jobId}`),
+        mutate('training-jobs'),
+        mutate('training-overview'),
+        mutate('training-gpus'),
+      ])
+    } finally {
+      setIsStopping(false)
+    }
   }
 
   const deleteJob = async () => {
@@ -724,9 +770,9 @@ export default function TrainingJobDetailPage() {
                   刷新
                 </button>
                 {job && ['starting', 'running', 'evaluating'].includes(job.status) ? (
-                  <button type="button" className="btn-danger" onClick={stopJob}>
+                  <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping}>
                     <PauseCircle size={14} />
-                    终止训练
+                    {isStopping ? '\u7ec8\u6b62\u4e2d...' : '\u7ec8\u6b62\u8bad\u7ec3'}
                   </button>
                 ) : job ? (
                   <button type="button" className="btn-ghost" onClick={deleteJob}>
@@ -781,6 +827,42 @@ export default function TrainingJobDetailPage() {
 
           {job && (
             <>
+              <section className="training-card">
+                <div className="card-header">
+                  <Sparkles size={16} className="text-sky-300" />
+                  <SectionTitle title="启动进度" copy="把最近的启动阶段日志提到顶部，便于判断卡在哪一步" />
+                </div>
+                <div className="training-card__body">
+                  <div className="grid gap-3 md:grid-cols-[0.28fr_0.72fr]">
+                    <div className="training-surface--dense">
+                      <div className="training-panel-title">当前阶段</div>
+                      <div className="mt-2 text-[15px] font-medium text-slate-100">{startupPhaseLabel}</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        <MetaField label="任务状态" value={statusLabel(job.status)} />
+                        <MetaField label="启动日志" value={startupLogLines.length} mono />
+                        <MetaField label="最近 epoch" value={job.latest_epoch ?? '—'} mono />
+                        <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
+                      </div>
+                      <p className="mt-3 text-[12px] leading-5 text-slate-500">
+                        启动期会更高频刷新；如果长时间停在同一阶段，就能直接看出是数据准备、embedding 加载还是模型初始化。
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <div className="training-panel-title">最近启动日志</div>
+                          <div className="training-panel-copy">优先显示 launch / startup / prepare 阶段输出</div>
+                        </div>
+                        <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
+                      </div>
+                      <pre className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-800/70 bg-slate-950/65 px-3.5 py-3 text-[12px] leading-5 text-slate-300">
+                        {startupLogLines.join('\n') || '任务已提交，等待第一条启动日志...'}
+                      </pre>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
               <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
                 <section className="training-card">
                   <div className="card-header">

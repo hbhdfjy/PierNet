@@ -5,6 +5,7 @@ from pathlib import Path
 import torch
 
 from piern.training.services import training_manager
+from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 
 
 def test_list_datasets_returns_empty_when_router_manifest_is_missing(monkeypatch, tmp_path: Path):
@@ -35,8 +36,8 @@ def test_validate_resume_checkpoint_rejects_input_representation_mismatch(tmp_pa
                 "scenarios": ["coastal_seawater"],
                 "test_ratio": 0.10,
                 "input_representation": "pretrained_embeddings",
-                "embedding_model": "Qwen/Qwen2.5-7B-Instruct",
-                "embedding_tokenizer": "Qwen/Qwen2.5-7B-Instruct",
+                "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+                "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
             }
         },
         checkpoint_path,

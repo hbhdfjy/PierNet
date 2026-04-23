@@ -6,8 +6,8 @@ from pydantic import BaseModel, Field
 
 
 TrainingJobStatus = Literal["queued", "starting", "running", "evaluating", "done", "error", "terminated"]
-TrainingJobInputRepresentation = Literal["auto", "char", "embedding", "char_tokens", "pretrained_embeddings"]
-TrainingJobRequestedInputRepresentation = Literal["auto", "char", "embedding"]
+TrainingJobInputRepresentation = Literal["pretrained_embeddings"]
+TrainingJobRequestedInputRepresentation = Literal["embedding"]
 
 
 class TrainingDatasetScenario(BaseModel):
@@ -46,7 +46,7 @@ class TrainingJobConfig(BaseModel):
     num_workers: int = 8
     test_ratio: float = 0.10
     resume_from: str | None = None
-    input_representation: TrainingJobInputRepresentation = "auto"
+    input_representation: TrainingJobInputRepresentation = "pretrained_embeddings"
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -63,7 +63,7 @@ class TrainingJobCreateRequest(BaseModel):
     num_workers: int = 8
     test_ratio: float = 0.10
     resume_from: str | None = None
-    input_representation: TrainingJobRequestedInputRepresentation = "auto"
+    input_representation: TrainingJobRequestedInputRepresentation = "embedding"
 
 
 class TrainingMetricsSummary(BaseModel):

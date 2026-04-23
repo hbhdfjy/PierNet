@@ -94,10 +94,6 @@ export default function RouterDataBuilder() {
   // 参数
   const { seed } = useSeed()
   const [negRatio, setNegRatio] = useState(1)
-  const [chatTemplate, setChatTemplate] = useState('custom')
-  const [userPrefix, setUserPrefix] = useState('')
-  const [userSuffix, setUserSuffix] = useState('')
-  const [assistantPrefix, setAssistantPrefix] = useState('')
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -140,7 +136,7 @@ export default function RouterDataBuilder() {
     setError(null)
     setLaunching(true)
     try {
-      const res = await api.buildRouterData(seed, Array.from(selected), negRatio, chatTemplate, userPrefix, userSuffix, assistantPrefix)
+      const res = await api.buildRouterData(seed, Array.from(selected), negRatio)
       monitor.start(res.job_id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -292,72 +288,16 @@ export default function RouterDataBuilder() {
                 <span>1:1</span><span>1:5</span><span>1:10</span>
               </div>
             </div>
-
-            {/* Chat Template */}
-            <div>
-              <span className="label text-xs block mb-1.5">Chat Template</span>
-              <div className="grid grid-cols-3 gap-1">
-                {(['custom', 'qwen', 'deepseek', 'llama3', 'mistral', 'chatml'] as const).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => setChatTemplate(t)}
-                    className={cn(
-                      'px-2 py-1.5 rounded-lg border text-xs font-mono transition-all',
-                      chatTemplate === t
-                        ? 'bg-rose-500/15 border-rose-500/40 text-rose-300'
-                        : 'bg-slate-800/40 border-slate-700/40 text-slate-400 hover:border-slate-600 hover:text-slate-200',
-                    )}
-                  >
-                    {t}
-                  </button>
-                ))}
-              </div>
-              {/* 自定义 template 输入 */}
-              {chatTemplate === 'custom' && (
-                <div className="mt-2 space-y-1.5">
-                  {([
-                    ['用户前缀', userPrefix, setUserPrefix, '<|im_start|>user\\n'],
-                    ['用户后缀', userSuffix, setUserSuffix, '<|im_end|>\\n'],
-                    ['Assistant 前缀', assistantPrefix, setAssistantPrefix, '<|im_start|>assistant\\n'],
-                  ] as [string, string, (v: string) => void, string][]).map(([label, val, setter, ph]) => (
-                    <div key={label}>
-                      <span className="text-xs text-slate-500 block mb-0.5">{label}</span>
-                      <input
-                        type="text"
-                        className="input w-full text-xs font-mono py-1"
-                        placeholder={ph}
-                        value={val}
-                        onChange={e => setter(e.target.value)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              )}
-              {/* 预览 */}
-              {(() => {
-                // 用实际填写的值（custom）或内置模板构造预览
-                const T = {
-                  up: chatTemplate === 'custom' ? userPrefix      : ({ qwen: '<|im_start|>user\n', chatml: '<|im_start|>user\n', deepseek: '<｜User｜>', llama3: '<|start_header_id|>user<|end_header_id|>\n\n', mistral: '[INST] ' } as Record<string,string>)[chatTemplate] ?? '',
-                  us: chatTemplate === 'custom' ? userSuffix      : ({ qwen: '<|im_end|>\n',       chatml: '<|im_end|>\n',       deepseek: '',            llama3: '<|eot_id|>',                                                      mistral: ' [/INST]' } as Record<string,string>)[chatTemplate] ?? '',
-                  ap: chatTemplate === 'custom' ? assistantPrefix : ({ qwen: '<|im_start|>assistant\n', chatml: '<|im_start|>assistant\n', deepseek: '<｜Assistant｜>', llama3: '<|start_header_id|>assistant<|end_header_id|>\n\n', mistral: '' } as Record<string,string>)[chatTemplate] ?? '',
-                }
-                return (
-                  <div className="mt-2 bg-slate-900/60 rounded-lg px-2.5 py-2 border border-slate-700/30 space-y-2">
-                    <div>
-                      <span className="text-xs text-emerald-600 block mb-0.5">正样本（label=1）</span>
-                      <code className="text-xs text-slate-400 break-all whitespace-pre-wrap font-mono">{`${T.up}input${T.us}${T.ap}引导语`}</code>
-                    </div>
-                    <div className="border-t border-slate-700/30 pt-2">
-                      <span className="text-xs text-slate-600 block mb-0.5">负样本（label=0）— input 完整，引导语内部均匀随机截断</span>
-                      <code className="text-xs text-slate-500 break-all whitespace-pre-wrap font-mono">{`${T.up}input${T.us}${T.ap}截断的引导语`}</code>
-                    </div>
-                  </div>
-                )
-              })()}
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5 text-sm text-slate-400">
+              {'Chat Template \u56fa\u5b9a\u4e3a '}<span className="font-mono text-sky-300">qwen</span>
+            </div>
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5 text-sm text-slate-400">
+              {'Embedding Backbone \u56fa\u5b9a\u4e3a '}<span className="font-mono text-sky-300">Qwen/Qwen2.5-7B-Instruct</span>
             </div>
           </div>
 
           {error && (
+
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
               <span className="text-sm">{error}</span>

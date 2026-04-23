@@ -1,4 +1,6 @@
-"""Stage 4 Token Router 数据路由：/api/router/*"""
+"""Stage 4 Token Router routes under /api/router/*."""
+
+from __future__ import annotations
 
 import json
 import random
@@ -9,20 +11,24 @@ import time
 from pathlib import Path
 
 from fastapi import APIRouter, Query
+
 from piern.shared.runtime.paths import PROJECT_ROOT
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.synth.services.job_manager import publish
 
 router = APIRouter()
 
-ROUTER_DIR    = PROJECT_ROOT / "data" / "router"
-SCENARIO_DIR  = ROUTER_DIR / "by_scenario"
+ROUTER_DIR = PROJECT_ROOT / "data" / "router"
+SCENARIO_DIR = ROUTER_DIR / "by_scenario"
 TEXT2COMP_DIR = PROJECT_ROOT / "data" / "text2comp"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
 
 
 def _count_lines(path: Path) -> int:
     try:
-        return sum(1 for line in open(path, "rb") if line.strip())
+        with path.open("rb") as handle:
+            return sum(1 for line in handle if line.strip())
     except Exception:
         return 0
 
@@ -31,8 +37,8 @@ def _load_jsonl_samples(path: Path) -> list[dict]:
     samples: list[dict] = []
     if not path.exists():
         return samples
-    with open(path, "r", encoding="utf-8") as f:
-        for line in f:
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
             line = line.strip()
             if line:
                 samples.append(json.loads(line))
@@ -54,17 +60,14 @@ def _rewrite_train_from_scenarios(seed: int = 0) -> int:
     rng.shuffle(samples)
 
     out_path = ROUTER_DIR / "train.jsonl"
-    with open(out_path, "w", encoding="utf-8") as f:
+    with out_path.open("w", encoding="utf-8") as handle:
         for sample in samples:
-            f.write(json.dumps(sample, ensure_ascii=False) + "\n")
+            handle.write(json.dumps(sample, ensure_ascii=False) + "\n")
     return len(samples)
 
 
 def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: dict) -> dict:
-    sample_items = {
-        item["scenario"]: item
-        for item in sample_manifest.get("items", [])
-    }
+    sample_items = {item["scenario"]: item for item in sample_manifest.get("items", [])}
     source_by_scenario = {
         scenario: item.get("sample_count", 0)
         for scenario, item in sample_items.items()
@@ -116,12 +119,12 @@ def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: 
 
 
 def _legacy_get_router_status() -> dict:
-    splits = {}
+    splits: dict[str, dict] = {}
     total = 0
-    path = ROUTER_DIR / "train.jsonl"
-    if path.exists():
-        stat = path.stat()
-        count = _count_lines(path)
+    train_path = ROUTER_DIR / "train.jsonl"
+    if train_path.exists():
+        stat = train_path.stat()
+        count = _count_lines(train_path)
         splits["train"] = {
             "exists": True,
             "count": count,
@@ -133,11 +136,10 @@ def _legacy_get_router_status() -> dict:
         splits["train"] = {"exists": False, "count": 0, "file_size_bytes": 0, "mtime": 0}
 
     label_counts = {"0": 0, "1": 0}
-    train_path = ROUTER_DIR / "train.jsonl"
     if train_path.exists():
         try:
-            with open(train_path, "r", encoding="utf-8") as f:
-                for line in f:
+            with train_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
                     line = line.strip()
                     if not line:
                         continue
@@ -150,20 +152,20 @@ def _legacy_get_router_status() -> dict:
 
     scenarios: list[dict] = []
     if SCENARIO_DIR.exists():
-        for f in sorted(SCENARIO_DIR.glob("*.jsonl")):
-            count = _count_lines(f)
-            stat = f.stat()
+        for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
+            count = _count_lines(path)
+            stat = path.stat()
             simulator = "unknown"
             try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    first = fh.readline().strip()
+                with path.open("r", encoding="utf-8") as handle:
+                    first = handle.readline().strip()
                     if first:
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
                 pass
             scenarios.append(
                 {
-                    "scenario": f.stem,
+                    "scenario": path.stem,
                     "simulator": simulator,
                     "count": count,
                     "file_size_bytes": stat.st_size,
@@ -174,22 +176,22 @@ def _legacy_get_router_status() -> dict:
     source_by_scenario: dict[str, int] = {}
     source_scenarios: list[dict] = []
     if TEXT2COMP_DIR.exists():
-        for f in sorted(TEXT2COMP_DIR.glob("*.jsonl")):
-            if f.name == "all_training_data.jsonl":
+        for path in sorted(TEXT2COMP_DIR.glob("*.jsonl")):
+            if path.name == "all_training_data.jsonl":
                 continue
-            count = _count_lines(f)
-            source_by_scenario[f.stem] = count
+            count = _count_lines(path)
+            source_by_scenario[path.stem] = count
             simulator = "unknown"
             try:
-                with open(f, "r", encoding="utf-8") as fh:
-                    first = fh.readline().strip()
+                with path.open("r", encoding="utf-8") as handle:
+                    first = handle.readline().strip()
                     if first:
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
                 pass
             source_scenarios.append(
                 {
-                    "scenario": f.stem,
+                    "scenario": path.stem,
                     "simulator": simulator,
                     "source_count": count,
                 }
@@ -243,7 +245,7 @@ def _router_total_from_manifest(split: str, scenario: str) -> int | None:
 
 @router.get("/router/status")
 def get_router_status():
-    """返回 Router 数据目录的整体状态 + 按场景统计。"""
+    """Return router dataset status and per-scenario stats."""
     try:
         router_manifest = manifest_store.ensure_router_manifest()
         sample_manifest = manifest_store.ensure_sample_manifest()
@@ -252,71 +254,58 @@ def get_router_status():
         return _legacy_get_router_status()
 
 
-# ── 触发生成 ──────────────────────────────────────────────────────
-
 @router.post("/router/build")
 async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
-    scenarios: str = Query(""),        # 逗号分隔的场景名；空表示全部
-    chat_template: str = Query("custom"),  # chat template 名称
-    user_prefix: str = Query(""),      # custom template 的 user 前缀
-    user_suffix: str = Query(""),      # custom template 的 user 后缀
-    assistant_prefix: str = Query(""), # custom template 的 assistant 前缀
-    embedding_provider: str = Query(""),
-    embedding_model: str = Query(""),
-    embedding_tokenizer: str = Query(""),
+    scenarios: str = Query(""),
 ):
-    """启动 Stage 4 Router 数据构建任务，返回 job_id 供 SSE 订阅。"""
+    """Start Stage 4 router build and return a job id for SSE."""
     record = job_manager.create_job("router")
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
 
     def _run():
         try:
-            sc_desc = f"场景 {', '.join(scenario_list)}" if scenario_list else "全部场景"
-            resolved_embedding_provider = embedding_provider.strip()
-            resolved_embedding_model = embedding_model.strip()
-            resolved_embedding_tokenizer = embedding_tokenizer.strip() or resolved_embedding_model
-            resolved_embedding_source = "api" if (resolved_embedding_provider or resolved_embedding_model or resolved_embedding_tokenizer) else ""
-            publish(record, {"type": "log", "line": f"[Stage 4] 开始构建 Token Router 数据：{sc_desc}，template={chat_template}", "ts": time.time()})
-            if resolved_embedding_model:
-                publish(
-                    record,
-                    {
-                        "type": "log",
-                        "line": (
-                            "[Stage 4] embedding metadata: "
-                            f"provider={resolved_embedding_provider or 'unknown'} "
-                            f"model={resolved_embedding_model} tokenizer={resolved_embedding_tokenizer}"
-                        ),
-                        "ts": time.time(),
-                    },
-                )
+            sc_desc = f"scenarios: {', '.join(scenario_list)}" if scenario_list else "all scenarios"
+            publish(
+                record,
+                {
+                    "type": "log",
+                    "line": f"[Stage 4] start building Token Router data: {sc_desc}, chat_template=qwen",
+                    "ts": time.time(),
+                },
+            )
+            publish(
+                record,
+                {
+                    "type": "log",
+                    "line": (
+                        "[Stage 4] embedding backbone: "
+                        f"model={DEFAULT_QWEN_EMBEDDING_MODEL} "
+                        f"tokenizer={DEFAULT_QWEN_EMBEDDING_TOKENIZER}"
+                    ),
+                    "ts": time.time(),
+                },
+            )
+
             script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
             cmd = [
-                sys.executable, str(script),
-                "--data-dir",      "data/text2comp",
-                "--output-dir",    "data/router",
-                "--seed",          str(seed),
-                "--neg-ratio",     str(neg_ratio),
-                "--chat-template", chat_template,
+                sys.executable,
+                str(script),
+                "--data-dir",
+                "data/text2comp",
+                "--output-dir",
+                "data/router",
+                "--seed",
+                str(seed),
+                "--neg-ratio",
+                str(neg_ratio),
+                "--chat-template",
+                "qwen",
             ]
-            if resolved_embedding_source:
-                cmd += ["--embedding-source", resolved_embedding_source]
-            if resolved_embedding_provider:
-                cmd += ["--embedding-provider", resolved_embedding_provider]
-            if resolved_embedding_model:
-                cmd += ["--embedding-model", resolved_embedding_model]
-            if resolved_embedding_tokenizer and resolved_embedding_model:
-                cmd += ["--embedding-tokenizer", resolved_embedding_tokenizer]
-            if chat_template == "custom":
-                cmd += [
-                    "--user-prefix",      user_prefix,
-                    "--user-suffix",      user_suffix,
-                    "--assistant-prefix", assistant_prefix,
-                ]
             if scenario_list:
-                cmd += ["--scenarios"] + scenario_list
+                cmd += ["--scenarios", *scenario_list]
+
             proc = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
@@ -330,6 +319,9 @@ async def build_router_data(
             record.proc_uses_process_group = True
 
             scenario_totals: dict[str, int] = {}
+
+            if proc.stdout is None:
+                raise RuntimeError("router build subprocess did not provide stdout")
 
             for line in proc.stdout:
                 line = line.rstrip()
@@ -346,16 +338,22 @@ async def build_router_data(
                             total = 0
                         scenario_totals[sc_name] = total
                         record.scenario_totals[sc_name] = total
-                        publish(record, {
-                            "type": "init",
-                            "scenario_totals": dict(record.scenario_totals),
-                            "ts": time.time(),
-                        })
-                        publish(record, {
-                            "type": "log",
-                            "line": f"[初始化] {sc_name} 预计 {total} 条",
-                            "ts": time.time(),
-                        })
+                        publish(
+                            record,
+                            {
+                                "type": "init",
+                                "scenario_totals": dict(record.scenario_totals),
+                                "ts": time.time(),
+                            },
+                        )
+                        publish(
+                            record,
+                            {
+                                "type": "log",
+                                "line": f"[init] {sc_name} expected {total} rows",
+                                "ts": time.time(),
+                            },
+                        )
                     continue
 
                 if line.startswith("PROGRESS_UPDATE:"):
@@ -367,12 +365,15 @@ async def build_router_data(
                             total = int(parts[3])
                         except ValueError:
                             done, total = 0, 0
-                        publish(record, {
-                            "type": "log",
-                            "line": f"  {sc_name}: {done}/{total}",
-                            "ts": time.time(),
-                            "progress": {"scenario": sc_name, "done": done, "total": total},
-                        })
+                        publish(
+                            record,
+                            {
+                                "type": "log",
+                                "line": f"  {sc_name}: {done}/{total}",
+                                "ts": time.time(),
+                                "progress": {"scenario": sc_name, "done": done, "total": total},
+                            },
+                        )
                     continue
 
                 if line.startswith("PROGRESS_DONE:"):
@@ -384,21 +385,24 @@ async def build_router_data(
                             total = int(parts[3]) if len(parts) == 4 else scenario_totals.get(sc_name, done)
                         except ValueError:
                             done, total = 0, 0
-                        publish(record, {
-                            "type": "log",
-                            "line": f"  {sc_name}: {done}/{total}",
-                            "ts": time.time(),
-                            "progress": {"scenario": sc_name, "done": done, "total": total},
-                        })
+                        publish(
+                            record,
+                            {
+                                "type": "log",
+                                "line": f"  {sc_name}: {done}/{total}",
+                                "ts": time.time(),
+                                "progress": {"scenario": sc_name, "done": done, "total": total},
+                            },
+                        )
                     continue
 
                 publish(record, {"type": "log", "line": line, "ts": time.time()})
 
             proc.wait()
-        except Exception as e:
+        except Exception as exc:
             if not record.stop_event.is_set():
                 record.status = "error"
-                publish(record, {"type": "error", "ts": time.time(), "message": str(e)})
+                publish(record, {"type": "error", "ts": time.time(), "message": str(exc)})
             return
         finally:
             record.proc = None
@@ -411,12 +415,26 @@ async def build_router_data(
             try:
                 manifest_store.rebuild_router_manifest()
             except Exception as exc:
-                publish(record, {"type": "log", "line": f"[警告] Router manifest 重建失败: {exc}", "ts": time.time()})
+                publish(
+                    record,
+                    {
+                        "type": "log",
+                        "line": f"[warn] Router manifest rebuild failed: {exc}",
+                        "ts": time.time(),
+                    },
+                )
             record.status = "done"
-            publish(record, {"type": "done", "ts": time.time(), "message": "Router 数据构建完成"})
+            publish(record, {"type": "done", "ts": time.time(), "message": "Router build completed"})
         else:
             record.status = "error"
-            publish(record, {"type": "error", "ts": time.time(), "message": f"Router 数据构建失败，退出码: {proc.returncode}"})
+            publish(
+                record,
+                {
+                    "type": "error",
+                    "ts": time.time(),
+                    "message": f"Router build failed with exit code {proc.returncode}",
+                },
+            )
 
     threading.Thread(target=_run, daemon=True).start()
     return {"job_id": record.job_id, "status": "running"}
@@ -424,11 +442,14 @@ async def build_router_data(
 
 @router.delete("/router/scenario/{scenario}")
 def delete_router_scenario(scenario: str):
-    """删除 by_scenario/{scenario}.jsonl，并同步重写 train.jsonl。"""
+    """Delete one scenario file and rewrite train.jsonl."""
     path = SCENARIO_DIR / f"{scenario}.jsonl"
+    meta_path = path.with_suffix(".meta.json")
     if not path.exists():
-        return {"ok": False, "message": "场景文件不存在"}
+        return {"ok": False, "message": "scenario file does not exist"}
     path.unlink()
+    if meta_path.exists():
+        meta_path.unlink()
     total = _rewrite_train_from_scenarios(seed=0)
     try:
         manifest_store.rebuild_router_manifest()
@@ -439,15 +460,18 @@ def delete_router_scenario(scenario: str):
 
 @router.delete("/router/all")
 def delete_all_router_data():
-    """清空所有路由数据（by_scenario/ 目录及 train.jsonl）。"""
+    """Delete all per-scenario router files and train.jsonl."""
     deleted = 0
     if SCENARIO_DIR.exists():
-        for f in SCENARIO_DIR.glob("*.jsonl"):
-            f.unlink()
+        for path in SCENARIO_DIR.glob("*.jsonl"):
+            path.unlink()
             deleted += 1
-    p = ROUTER_DIR / "train.jsonl"
-    if p.exists():
-        p.unlink()
+        for meta_path in SCENARIO_DIR.glob("*.meta.json"):
+            meta_path.unlink()
+            deleted += 1
+    train_path = ROUTER_DIR / "train.jsonl"
+    if train_path.exists():
+        train_path.unlink()
         deleted += 1
     try:
         manifest_store.rebuild_router_manifest()
@@ -456,30 +480,22 @@ def delete_all_router_data():
     return {"ok": True, "deleted": deleted}
 
 
-# ── 样本浏览 ──────────────────────────────────────────────────────
-
 @router.get("/router/samples")
 def get_router_samples(
-    split: str    = Query("train"),
-    scenario: str = Query(""),        # 空=全部场景；非空=从 by_scenario/ 读取
-    page: int     = Query(0, ge=0),
+    split: str = Query("train"),
+    scenario: str = Query(""),
+    page: int = Query(0, ge=0),
     page_size: int = Query(20, ge=1, le=100),
-    label: int    = Query(-1, ge=-1, le=1),
+    label: int = Query(-1, ge=-1, le=1),
 ):
-    """分页读取 Router 样本，支持按场景或按 split 筛选。"""
-
-    # 按场景读取（from by_scenario/）
-    if scenario:
-        path = SCENARIO_DIR / f"{scenario}.jsonl"
-    else:
-        path = ROUTER_DIR / f"{split}.jsonl"
-
+    """Read router samples page-wise, optionally filtered by split, scenario and label."""
+    path = SCENARIO_DIR / f"{scenario}.jsonl" if scenario else ROUTER_DIR / f"{split}.jsonl"
     if not path.exists():
         return {"total": 0, "page": page, "page_size": page_size, "items": []}
 
     has_label_filter = label in (0, 1)
     start = page * page_size
-    end   = start + page_size
+    end = start + page_size
 
     try:
         if not has_label_filter:
@@ -510,21 +526,22 @@ def get_router_samples(
 
         items: list[dict] = []
         total = 0
-        with open(path, "r", encoding="utf-8") as f:
-            for line in f:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
                 line = line.strip()
                 if not line:
                     continue
                 try:
                     obj = json.loads(line)
-                    if has_label_filter and obj.get("label") != label:
-                        continue
-                    if start <= total < end:
-                        items.append(obj)
-                    total += 1
                 except json.JSONDecodeError:
                     continue
-    except Exception as e:
-        return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": str(e)}
+                if has_label_filter and obj.get("label") != label:
+                    continue
+                if start <= total < end:
+                    items.append(obj)
+                total += 1
+    except Exception as exc:
+        return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": str(exc)}
 
     return {"total": total, "page": page, "page_size": page_size, "items": items}
+

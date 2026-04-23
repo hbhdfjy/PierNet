@@ -38,7 +38,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--resume-from")
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-test-samples", type=int)
-    parser.add_argument("--input-representation", choices=("auto", "char", "embedding"), default="auto")
+    parser.add_argument("--input-representation", choices=("embedding",), default="embedding")
     return parser
 
 

@@ -1,4 +1,5 @@
 import { AlertTriangle, Gauge, PauseCircle, PlayCircle, RefreshCcw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
@@ -29,6 +30,7 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
 
 function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?: boolean }) {
   const { mutate } = useSWRConfig()
+  const [isStopping, setIsStopping] = useState(false)
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
   const deletable = !stoppable
 
@@ -37,8 +39,14 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   }
 
   const stopJob = async () => {
-    await api.stopTrainingJob(job.job_id)
-    await refreshAll()
+    if (isStopping) return
+    setIsStopping(true)
+    try {
+      await api.stopTrainingJob(job.job_id)
+      await refreshAll()
+    } finally {
+      setIsStopping(false)
+    }
   }
 
   const deleteJob = async () => {
@@ -64,9 +72,9 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
             {stoppable && (
-              <button type="button" className="btn-danger" onClick={stopJob}>
+              <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping}>
                 <PauseCircle size={14} />
-                终止
+                {isStopping ? '终止中...' : '终止'}
               </button>
             )}
             {deletable && (
@@ -81,7 +89,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
             </Link>
           </div>
         </div>
- 
+
         <div className="training-meta-grid">
           <div className="training-surface--dense">
             <div className="training-label">创建时间</div>
@@ -136,7 +144,7 @@ export default function TrainingJobsPage() {
                 <div className="training-eyebrow">Training Jobs</div>
                 <h1 className="mt-4 text-[2.05rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">任务管理</h1>
                 <p className="mt-3 max-w-2xl training-copy">
-                  查看所有受管训练任务，终止运行中的任务，清理已经不再需要的历史运行记录。
+                  查看全部训练任务，终止运行中的任务，并清理已经不再需要的历史记录。
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
@@ -154,7 +162,7 @@ export default function TrainingJobsPage() {
             <div className="mt-6 training-kpi-grid">
               <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="当前注册表中的全部任务" icon={<Gauge size={16} />} />
               <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating" icon={<PlayCircle size={16} />} />
-              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 与测试结果" icon={<RefreshCcw size={16} />} />
+              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 和测试结果" icon={<RefreshCcw size={16} />} />
               <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误输出" icon={<AlertTriangle size={16} />} />
             </div>
           </section>

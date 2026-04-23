@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -29,8 +31,16 @@ MODEL_TYPE_EMBEDDING_KEYS: dict[str, tuple[str, ...]] = {
     "deepseek_v3": ("model.embed_tokens.weight",),
 }
 
+LEGACY_QWEN_REPO_IDS = {
+    "Qwen/Qwen2.5-7B-Instruct",
+    "Qwen/Qwen2.5-0.5B-Instruct",
+}
+DEFAULT_LOCAL_QWEN_DIR = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+QWEN_MODEL_ENV = "PIERN_QWEN_EMBEDDING_MODEL"
+QWEN_TOKENIZER_ENV = "PIERN_QWEN_EMBEDDING_TOKENIZER"
 
-@dataclass(slots=True)
+
+@dataclass(slots=True, frozen=True)
 class EmbeddingBackboneSpec:
     model_name: str
     tokenizer_name: str
@@ -50,11 +60,84 @@ def _candidate_embedding_keys(model_type: str | None) -> tuple[str, ...]:
     return DEFAULT_EMBEDDING_KEYS
 
 
-def _load_tokenizer(name: str):
+def _candidate_qwen_local_dir() -> str | None:
+    configured_model_dir = os.getenv(QWEN_MODEL_ENV, "").strip()
+    if configured_model_dir and Path(configured_model_dir).exists():
+        return configured_model_dir
+    default_model_dir = Path(DEFAULT_LOCAL_QWEN_DIR)
+    if default_model_dir.exists():
+        return str(default_model_dir)
+    return None
+
+
+def _resolve_model_name(name: str) -> str:
+    stripped = name.strip()
+    if not stripped:
+        return stripped
+    if Path(stripped).exists():
+        return stripped
+    if stripped in LEGACY_QWEN_REPO_IDS:
+        local_dir = _candidate_qwen_local_dir()
+        if local_dir:
+            return local_dir
+    return stripped
+
+
+def _resolve_tokenizer_name(name: str, fallback_model_name: str) -> str:
+    stripped = (name or fallback_model_name).strip()
+    if not stripped:
+        return stripped
+    if Path(stripped).exists():
+        return stripped
+    if stripped in LEGACY_QWEN_REPO_IDS:
+        configured_tokenizer_dir = os.getenv(QWEN_TOKENIZER_ENV, "").strip()
+        if configured_tokenizer_dir and Path(configured_tokenizer_dir).exists():
+            return configured_tokenizer_dir
+        local_dir = _candidate_qwen_local_dir()
+        if local_dir:
+            return local_dir
+    return stripped
+
+
+def _offline_hint(model_name: str) -> str:
+    if model_name.strip() in LEGACY_QWEN_REPO_IDS:
+        return (
+            f"Set {QWEN_MODEL_ENV} to the Ordos local snapshot directory "
+            f"(default {DEFAULT_LOCAL_QWEN_DIR}); optionally set {QWEN_TOKENIZER_ENV}."
+        )
+    return "Provide a local model directory or cache the backbone before starting training."
+
+
+def _load_tokenizer(name: str, *, local_files_only: bool = False):
     try:
-        return AutoTokenizer.from_pretrained(name, trust_remote_code=True, use_fast=True)
+        return AutoTokenizer.from_pretrained(
+            name,
+            trust_remote_code=True,
+            use_fast=True,
+            local_files_only=local_files_only,
+        )
     except Exception:
-        return AutoTokenizer.from_pretrained(name, trust_remote_code=True, use_fast=False)
+        return AutoTokenizer.from_pretrained(
+            name,
+            trust_remote_code=True,
+            use_fast=False,
+            local_files_only=local_files_only,
+        )
+
+
+def _config_hidden_size(config: Any) -> int:
+    for attr in ("hidden_size", "n_embd", "d_model", "dim"):
+        value = getattr(config, attr, None)
+        if value is not None:
+            return int(value)
+    raise ValueError(f"Unable to infer hidden size from config type={type(config).__name__}")
+
+
+def _config_vocab_size(config: Any) -> int:
+    value = getattr(config, "vocab_size", None)
+    if value is None:
+        raise ValueError(f"Unable to infer vocab size from config type={type(config).__name__}")
+    return int(value)
 
 
 def _load_tensor_from_safetensors(path: Path, keys: tuple[str, ...]) -> tuple[str, torch.Tensor] | None:
@@ -136,28 +219,68 @@ def _ensure_tensor_available_on_hub(repo_id: str, keys: tuple[str, ...]) -> None
     raise FileNotFoundError(f"Unable to locate input embedding weights for {repo_id}")
 
 
+def _ensure_tensor_available_in_cache(repo_id: str, keys: tuple[str, ...]) -> None:
+    for filename in ("model.safetensors.index.json", "pytorch_model.bin.index.json"):
+        try:
+            index_path = hf_hub_download(repo_id=repo_id, filename=filename, local_files_only=True)
+        except Exception:
+            index_path = None
+        if not index_path:
+            continue
+        payload = json.loads(Path(index_path).read_text(encoding="utf-8"))
+        weight_map = payload.get("weight_map", {})
+        for key in keys:
+            shard = weight_map.get(key)
+            if not shard:
+                continue
+            try:
+                hf_hub_download(repo_id=repo_id, filename=shard, local_files_only=True)
+            except Exception:
+                continue
+            return
+
+    for filename in ("model.safetensors", "pytorch_model.bin"):
+        try:
+            hf_hub_download(repo_id=repo_id, filename=filename, local_files_only=True)
+            return
+        except Exception:
+            continue
+
+    raise FileNotFoundError(
+        f"embedding backbone {repo_id!r} is not available locally; cache or mount it before starting training"
+    )
+
+
+@lru_cache(maxsize=64)
 def can_resolve_embedding_backbone(spec: EmbeddingBackboneSpec) -> tuple[bool, str]:
-    model_name = spec.model_name.strip()
-    tokenizer_name = (spec.tokenizer_name or spec.model_name).strip()
+    original_model_name = spec.model_name.strip()
+    model_name = _resolve_model_name(spec.model_name)
+    tokenizer_name = _resolve_tokenizer_name(spec.tokenizer_name, spec.model_name)
     if not model_name:
         return False, "embedding_model is empty"
     if not tokenizer_name:
         return False, "embedding_tokenizer is empty"
     try:
-        _load_tokenizer(tokenizer_name)
+        _load_tokenizer(tokenizer_name, local_files_only=True)
     except Exception as exc:
-        return False, f"unable to load tokenizer {tokenizer_name!r}: {exc}"
+        return False, (
+            f"tokenizer {tokenizer_name!r} is not available locally: {exc}. "
+            f"{_offline_hint(original_model_name)}"
+        )
     try:
-        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
+        config = AutoConfig.from_pretrained(model_name, trust_remote_code=True, local_files_only=True)
     except Exception as exc:
-        return False, f"unable to load model config {model_name!r}: {exc}"
+        return False, (
+            f"model config {model_name!r} is not available locally: {exc}. "
+            f"{_offline_hint(original_model_name)}"
+        )
     keys = _candidate_embedding_keys(getattr(config, "model_type", None))
     model_path = Path(model_name)
     try:
         if model_path.exists():
             _ensure_tensor_available_in_local_dir(model_path, keys)
         else:
-            _ensure_tensor_available_on_hub(model_name, keys)
+            _ensure_tensor_available_in_cache(model_name, keys)
     except Exception as exc:
         return False, str(exc)
     return True, ""
@@ -264,19 +387,17 @@ def _normalize_embedding_matrix(tensor: torch.Tensor) -> np.ndarray:
 class PretrainedEmbeddingEncoder:
     def __init__(self, spec: EmbeddingBackboneSpec) -> None:
         self.spec = spec
-        self.tokenizer = _load_tokenizer(spec.tokenizer_name)
-        config = AutoConfig.from_pretrained(spec.model_name, trust_remote_code=True)
-        keys = _candidate_embedding_keys(getattr(config, "model_type", None))
-        model_path = Path(spec.model_name)
-        if model_path.exists():
-            key, tensor = _load_tensor_from_local_dir(model_path, keys)
-        else:
-            key, tensor = _load_tensor_from_hub(spec.model_name, keys)
-        self.embedding_key = key
-        self.embedding_matrix = _normalize_embedding_matrix(tensor)
-        self.hidden_size = int(self.embedding_matrix.shape[1])
-        self.storage_dtype = str(self.embedding_matrix.dtype)
-        self.raw_vocab_size = int(self.embedding_matrix.shape[0])
+        self.model_name = _resolve_model_name(spec.model_name)
+        self.tokenizer_name = _resolve_tokenizer_name(spec.tokenizer_name, spec.model_name)
+        self.tokenizer = _load_tokenizer(self.tokenizer_name)
+        config = AutoConfig.from_pretrained(self.model_name, trust_remote_code=True)
+        self._config = config
+        self._keys = _candidate_embedding_keys(getattr(config, "model_type", None))
+        self.embedding_key = ""
+        self.embedding_matrix: np.ndarray | None = None
+        self.hidden_size = _config_hidden_size(config)
+        self.storage_dtype = np.dtype(np.float16).name
+        self.raw_vocab_size = _config_vocab_size(config)
         self.model_vocab_size = self.raw_vocab_size + 1
         self.pad_id = 0
         self._model_embedding_matrix: np.ndarray | None = None
@@ -288,9 +409,26 @@ class PretrainedEmbeddingEncoder:
         }.items():
             if token_id is not None and int(token_id) >= self.raw_vocab_size:
                 raise ValueError(
-                    f"Tokenizer {self.spec.tokenizer_name} exposes {token_name}={token_id}, "
-                    f"but embedding matrix from {self.spec.model_name} only has {self.raw_vocab_size} rows"
+                    f"Tokenizer {self.tokenizer_name} exposes {token_name}={token_id}, "
+                    f"but embedding matrix from {self.model_name} only has {self.raw_vocab_size} rows"
                 )
+
+    def _ensure_embedding_matrix(self) -> np.ndarray:
+        if self.embedding_matrix is None:
+            model_path = Path(self.model_name)
+            if model_path.exists():
+                key, tensor = _load_tensor_from_local_dir(model_path, self._keys)
+            else:
+                key, tensor = _load_tensor_from_hub(self.model_name, self._keys)
+            matrix = _normalize_embedding_matrix(tensor)
+            self.embedding_key = key
+            self.embedding_matrix = matrix
+            self.hidden_size = int(matrix.shape[1])
+            self.storage_dtype = str(matrix.dtype)
+            self.raw_vocab_size = int(matrix.shape[0])
+            self.model_vocab_size = self.raw_vocab_size + 1
+            self._model_embedding_matrix = None
+        return self.embedding_matrix
 
     def encode_ids(self, text: str) -> np.ndarray:
         encoded = self.tokenizer(
@@ -310,21 +448,22 @@ class PretrainedEmbeddingEncoder:
             )
             if fallback_id is None:
                 raise ValueError(
-                    f"Tokenizer {self.spec.tokenizer_name} produced no ids and has no fallback token id"
+                    f"Tokenizer {self.tokenizer_name} produced no ids and has no fallback token id"
                 )
             input_ids = [int(fallback_id)]
         ids_np = np.asarray(input_ids, dtype=np.int64)
         if ids_np.size and int(ids_np.max()) >= self.raw_vocab_size:
             raise ValueError(
-                f"Tokenizer {self.spec.tokenizer_name} produced token id {int(ids_np.max())}, "
-                f"but embedding matrix from {self.spec.model_name} only has {self.raw_vocab_size} rows"
+                f"Tokenizer {self.tokenizer_name} produced token id {int(ids_np.max())}, "
+                f"but embedding matrix from {self.model_name} only has {self.raw_vocab_size} rows"
             )
         return ids_np + 1
 
     def build_model_embedding_matrix(self) -> np.ndarray:
         if self._model_embedding_matrix is None:
+            embedding_matrix = self._ensure_embedding_matrix()
             padded = np.zeros((self.model_vocab_size, self.hidden_size), dtype=np.float16)
-            padded[1:] = self.embedding_matrix
+            padded[1:] = embedding_matrix
             self._model_embedding_matrix = padded
         return self._model_embedding_matrix
 
@@ -333,14 +472,14 @@ class PretrainedEmbeddingEncoder:
 
     def encode(self, text: str) -> tuple[np.ndarray, np.ndarray]:
         ids_np = self.encode_ids(text)
-        embeds_np = np.take(self.embedding_matrix, ids_np - 1, axis=0)
+        embeds_np = np.take(self._ensure_embedding_matrix(), ids_np - 1, axis=0)
         return ids_np, embeds_np
 
     def describe(self) -> dict[str, Any]:
         return {
             "provider": self.spec.provider,
-            "model": self.spec.model_name,
-            "tokenizer": self.spec.tokenizer_name,
+            "model": self.model_name,
+            "tokenizer": self.tokenizer_name,
             "chat_template": self.spec.chat_template,
             "source": self.spec.source,
             "embedding_key": self.embedding_key,
@@ -349,3 +488,5 @@ class PretrainedEmbeddingEncoder:
             "vocab_size": self.model_vocab_size,
             "pad_id": self.pad_id,
         }
+
+

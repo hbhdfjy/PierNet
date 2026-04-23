@@ -7,7 +7,7 @@ import pytest
 import torch
 
 from piern.training.router.data import (
-    CHAR_TOKENS,
+    DEFAULT_QWEN_EMBEDDING_MODEL,
     PRETRAINED_EMBEDDINGS,
     PackedSequenceDataset,
     collate_batch,
@@ -22,7 +22,12 @@ def _write_router_jsonl(path, records):
             handle.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def test_prepare_router_dataset_embedding_mode_writes_token_ids(tmp_path, monkeypatch):
+def _write_router_meta(path, payload):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+
+
+def test_prepare_router_dataset_embedding_mode_indexes_router_records(tmp_path, monkeypatch):
     router_dir = tmp_path / "router"
     scenario_path = router_dir / "by_scenario" / "coastal_seawater.jsonl"
     records = [
@@ -32,11 +37,7 @@ def test_prepare_router_dataset_embedding_mode_writes_token_ids(tmp_path, monkey
             "metadata": {
                 "simulator": "modflow",
                 "scenario": "coastal_seawater",
-                "chat_template": "qwen",
-                "embedding_provider": "siliconflow",
-                "embedding_model": "Qwen/Qwen2.5-7B-Instruct",
-                "embedding_tokenizer": "Qwen/Qwen2.5-7B-Instruct",
-                "embedding_source": "llm_config",
+                "language": "en",
             },
         },
         {
@@ -45,15 +46,21 @@ def test_prepare_router_dataset_embedding_mode_writes_token_ids(tmp_path, monkey
             "metadata": {
                 "simulator": "modflow",
                 "scenario": "coastal_seawater",
-                "chat_template": "qwen",
-                "embedding_provider": "siliconflow",
-                "embedding_model": "Qwen/Qwen2.5-7B-Instruct",
-                "embedding_tokenizer": "Qwen/Qwen2.5-7B-Instruct",
-                "embedding_source": "llm_config",
+                "language": "en",
             },
         },
     ]
     _write_router_jsonl(scenario_path, records)
+    _write_router_meta(
+        scenario_path.with_suffix(".meta.json"),
+        {
+            "scenario": "coastal_seawater",
+            "chat_template": "qwen",
+            "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+            "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
+            "output_count": len(records),
+        },
+    )
 
     class FakeEncoder:
         hidden_size = 3
@@ -81,9 +88,11 @@ def test_prepare_router_dataset_embedding_mode_writes_token_ids(tmp_path, monkey
 
     assert summary.input_representation == PRETRAINED_EMBEDDINGS
     assert summary.input_hidden_size == 3
-    assert summary.embedding_model == "Qwen/Qwen2.5-7B-Instruct"
+    assert summary.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
     assert summary.vocab_size == 17
-    assert (prepared_dir / "train_tokens.bin").exists()
+    assert (prepared_dir / "source_files.json").exists()
+    assert (prepared_dir / "train_file_ids.npy").exists()
+    assert not (prepared_dir / "train_tokens.bin").exists()
     assert not (prepared_dir / "train_embeddings.bin").exists()
 
     dataset = PackedSequenceDataset(
@@ -100,37 +109,7 @@ def test_prepare_router_dataset_embedding_mode_writes_token_ids(tmp_path, monkey
     assert batch["attention_mask"].dtype == torch.bool
 
 
-def test_prepare_router_dataset_auto_falls_back_to_char_tokens(tmp_path):
-    router_dir = tmp_path / "router"
-    scenario_path = router_dir / "by_scenario" / "coastal_seawater.jsonl"
-    records = [
-        {
-            "context": "<|im_start|>user\nhello one<|im_end|>\n<|im_start|>assistant\nanswer",
-            "label": 1,
-            "metadata": {
-                "simulator": "modflow",
-                "scenario": "coastal_seawater",
-                "chat_template": "qwen",
-            },
-        }
-    ]
-    _write_router_jsonl(scenario_path, records)
-
-    prepared_dir = tmp_path / "prepared"
-    summary = prepare_router_dataset(
-        simulator="modflow",
-        router_dir=router_dir,
-        output_dir=prepared_dir,
-        test_ratio=0.0,
-        force=True,
-        input_representation="auto",
-    )
-
-    assert summary.input_representation == CHAR_TOKENS
-    assert (prepared_dir / "vocab.json").exists()
-
-
-def test_prepare_router_dataset_auto_falls_back_when_backbone_unresolvable(tmp_path, monkeypatch):
+def test_prepare_router_dataset_embedding_defaults_to_qwen_backbone(tmp_path, monkeypatch):
     router_dir = tmp_path / "router"
     scenario_path = router_dir / "by_scenario" / "coastal_seawater.jsonl"
     _write_router_jsonl(
@@ -142,19 +121,23 @@ def test_prepare_router_dataset_auto_falls_back_when_backbone_unresolvable(tmp_p
                 "metadata": {
                     "simulator": "modflow",
                     "scenario": "coastal_seawater",
-                    "chat_template": "qwen",
-                    "embedding_provider": "siliconflow",
-                    "embedding_model": "not-a-real-model",
-                    "embedding_tokenizer": "not-a-real-tokenizer",
-                    "embedding_source": "llm_config",
                 },
             }
         ],
     )
-    monkeypatch.setattr(
-        "piern.training.router.data.can_resolve_embedding_backbone",
-        lambda spec: (False, "unreachable backbone"),
-    )
+
+    class FakeEncoder:
+        hidden_size = 3
+        model_vocab_size = 17
+
+        def __init__(self, spec):
+            self.spec = spec
+
+        def encode_ids(self, text: str):
+            return np.arange(1, 3, dtype=np.int64)
+
+    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     summary = prepare_router_dataset(
         simulator="modflow",
@@ -162,13 +145,14 @@ def test_prepare_router_dataset_auto_falls_back_when_backbone_unresolvable(tmp_p
         output_dir=tmp_path / "prepared",
         test_ratio=0.0,
         force=True,
-        input_representation="auto",
+        input_representation="embedding",
     )
 
-    assert summary.input_representation == CHAR_TOKENS
+    assert summary.input_representation == PRETRAINED_EMBEDDINGS
+    assert summary.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
 
 
-def test_prepare_router_dataset_forced_embedding_requires_metadata(tmp_path):
+def test_prepare_router_dataset_embedding_requires_resolvable_backbone(tmp_path, monkeypatch):
     router_dir = tmp_path / "router"
     scenario_path = router_dir / "by_scenario" / "coastal_seawater.jsonl"
     _write_router_jsonl(
@@ -184,8 +168,20 @@ def test_prepare_router_dataset_forced_embedding_requires_metadata(tmp_path):
             }
         ],
     )
+    _write_router_meta(
+        scenario_path.with_suffix(".meta.json"),
+        {
+            "scenario": "coastal_seawater",
+            "chat_template": "qwen",
+            "output_count": 1,
+        },
+    )
+    monkeypatch.setattr(
+        "piern.training.router.data.can_resolve_embedding_backbone",
+        lambda spec: (False, "unreachable backbone"),
+    )
 
-    with pytest.raises(ValueError, match="embedding_model"):
+    with pytest.raises(ValueError, match="resolvable embedding backbone"):
         prepare_router_dataset(
             simulator="modflow",
             router_dir=router_dir,
@@ -194,3 +190,4 @@ def test_prepare_router_dataset_forced_embedding_requires_metadata(tmp_path):
             force=True,
             input_representation="embedding",
         )
+

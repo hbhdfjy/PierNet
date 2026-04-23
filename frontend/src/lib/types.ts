@@ -417,7 +417,6 @@ export interface RouterSample {
     simulator: string
     scenario: string
     language: string
-    trigger_prefix: string
   }
 }
 

@@ -1,6 +1,5 @@
 import { Check, Cpu, Database, PlayCircle, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import type {
@@ -52,7 +51,6 @@ function UsageBar({ value }: { value: number }) {
 }
 
 export default function TrainingNewJobPage() {
-  const navigate = useNavigate()
   const { mutate } = useSWRConfig()
 
   const { data: datasets } = useSWR<TrainingDatasetInfo[]>('training-datasets', api.getTrainingDatasets, {
@@ -173,7 +171,8 @@ export default function TrainingNewJobPage() {
         mutate('training-gpus'),
         mutate('training-jobs'),
       ])
-      navigate(`/training/jobs/${job.job_id}`)
+      window.location.assign(`/training/jobs/${job.job_id}?ts=${Date.now()}`)
+      return
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动训练失败')
     } finally {
@@ -196,7 +195,7 @@ export default function TrainingNewJobPage() {
               </div>
               <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
                 <PlayCircle size={14} />
-                {submitting ? '启动中…' : '启动训练'}
+                {submitting ? '启动中...' : '启动训练'}
               </button>
             </div>
           </section>

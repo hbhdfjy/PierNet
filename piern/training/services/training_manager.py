@@ -18,7 +18,6 @@ from typing import Any
 
 from piern.training.router.data import (
     PRETRAINED_EMBEDDINGS,
-    SUPPORTED_INPUT_REPRESENTATIONS,
     inspect_router_input_representation,
 )
 from piern.shared.runtime.paths import PROJECT_ROOT
@@ -52,6 +51,13 @@ def _load_registry() -> list[dict[str, Any]]:
 def _save_registry(entries: list[dict[str, Any]]) -> None:
     _ensure_dirs()
     REGISTRY_PATH.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _append_launch_log(path: Path, *lines: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        for line in lines:
+            handle.write(f"{line}\n")
 
 
 def _with_registry_lock(func):
@@ -107,6 +113,18 @@ def _hash_prepared_name(
 def _pid_alive(pid: int | None) -> bool:
     if not pid:
         return False
+    proc_stat = Path(f"/proc/{pid}/stat")
+    if proc_stat.exists():
+        try:
+            stat_text = proc_stat.read_text(encoding="utf-8").strip()
+        except OSError:
+            stat_text = ""
+        if stat_text:
+            parts = stat_text.split()
+            if len(parts) >= 3:
+                state = parts[2]
+                if state in {"Z", "X"}:
+                    return False
     try:
         os.kill(pid, 0)
         return True
@@ -487,9 +505,7 @@ def _validate_scenarios(simulator: str, scenarios: list[str]) -> list[str]:
     return sorted(scenarios)
 
 
-@_with_registry_lock
 def create_job(payload: dict[str, Any]) -> dict[str, Any]:
-    entries = _load_registry()
     gpu_id = int(payload["gpu_id"])
     gpu_map = {gpu["index"]: gpu for gpu in get_gpu_inventory()}
     gpu = gpu_map.get(gpu_id)
@@ -500,12 +516,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
 
     simulator = str(payload["simulator"])
     scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
-    requested_input_representation = str(payload.get("input_representation") or "auto").strip().lower()
-    if requested_input_representation not in SUPPORTED_INPUT_REPRESENTATIONS:
-        raise ValueError(
-            "Unsupported input_representation: "
-            f"{requested_input_representation!r}. Expected one of {sorted(SUPPORTED_INPUT_REPRESENTATIONS)!r}"
-        )
+    requested_input_representation = "embedding"
     resolved_input_representation, embedding_metadata = inspect_router_input_representation(
         simulator=simulator,
         router_dir=ROUTER_DATA_DIR,
@@ -537,7 +548,6 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             embedding_model=embedding_metadata.embedding_model,
             embedding_tokenizer=embedding_metadata.tokenizer_name,
         )
-
     command = [
         str(PYTHON_BIN),
         "-u",
@@ -569,73 +579,109 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         "--run-name",
         job_id,
         "--input-representation",
-        resolved_input_representation,
+        requested_input_representation,
     ]
     if scenarios:
         command.extend(["--scenarios", *scenarios])
     if resume_from:
         command.extend(["--resume-from", str(resume_from)])
 
-    log_handle = log_path.open("a", encoding="utf-8")
-    env = os.environ.copy()
-    env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-    process = subprocess.Popen(
-        command,
-        cwd=PROJECT_ROOT,
-        stdout=log_handle,
-        stderr=subprocess.STDOUT,
-        start_new_session=True,
-        env=env,
-        text=True,
-    )
-    log_handle.close()
+    with _REGISTRY_LOCK:
+        entries = _load_registry()
+        current_gpu_map = {item["index"]: item for item in get_gpu_inventory()}
+        current_gpu = current_gpu_map.get(gpu_id)
+        if current_gpu is None:
+            raise ValueError(f"GPU {gpu_id} not found")
+        if not current_gpu["available"]:
+            raise ValueError(f"GPU {gpu_id} is not available: {current_gpu['reason']}")
 
-    entry = {
-        "job_id": job_id,
-        "name": job_name,
-        "status": "starting",
-        "simulator": simulator,
-        "scenarios": scenarios,
-        "gpu_id": gpu_id,
-        "created_at": time.time(),
-        "started_at": time.time(),
-        "ended_at": None,
-        "pid": process.pid,
-        "artifact_root": str(artifact_root),
-        "run_dir": str(run_dir),
-        "log_path": str(log_path),
-        "config": {
-            "epochs": int(payload["epochs"]),
-            "eval_interval": int(payload["eval_interval"]),
-            "batch_size": int(payload["batch_size"]),
-            "test_batch_size": int(payload["test_batch_size"]),
-            "learning_rate": float(payload["learning_rate"]),
-            "weight_decay": float(payload["weight_decay"]),
-            "num_workers": int(payload["num_workers"]),
-            "test_ratio": test_ratio,
-            "resume_from": resume_from,
-            "input_representation": resolved_input_representation,
-            "embedding_model": embedding_metadata.embedding_model,
-            "embedding_tokenizer": embedding_metadata.tokenizer_name,
-        },
-        "command": command,
-        "prepared_name": prepared_name,
-        "terminated": False,
-        "latest_epoch": None,
-        "latest_step": None,
-        "steps_per_epoch": None,
-        "global_step": None,
-        "avg_loss": None,
-        "steps_per_sec": None,
-        "eta_seconds": None,
-        "latest_test_epoch": None,
-        "latest_metrics": None,
-        "error_message": None,
-        "checkpoints": [],
-    }
-    entries.append(entry)
-    _save_registry(entries)
-    return _refresh_entry(entry)
+        launch_started_at = time.time()
+        _append_launch_log(
+            log_path,
+            f"[launch] job_id={job_id} name={job_name} created_at={launch_started_at:.3f}",
+            f"[launch] status=starting simulator={simulator} scenarios={','.join(scenarios)} gpu={gpu_id}",
+            (
+                f"[launch] prepared_name={prepared_name} "
+                f"requested_input_representation={requested_input_representation} "
+                f"prepared_input_representation={resolved_input_representation}"
+            ),
+            (
+                f"[launch] embedding_model={embedding_metadata.embedding_model} "
+                f"tokenizer={embedding_metadata.tokenizer_name or embedding_metadata.embedding_model}"
+            ),
+            f"[launch] run_dir={run_dir}",
+            f"[launch] log_path={log_path}",
+            "[launch] spawning training subprocess...",
+        )
+
+        log_handle = log_path.open("a", encoding="utf-8")
+        env = os.environ.copy()
+        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        try:
+            process = subprocess.Popen(
+                command,
+                cwd=PROJECT_ROOT,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                env=env,
+                text=True,
+            )
+        except Exception as exc:
+            log_handle.write(f"[error] failed to spawn training subprocess: {exc}\n")
+            log_handle.flush()
+            log_handle.close()
+            raise
+        log_handle.write(f"[launch] subprocess pid={process.pid} cwd={PROJECT_ROOT}\n")
+        log_handle.flush()
+        log_handle.close()
+
+        entry = {
+            "job_id": job_id,
+            "name": job_name,
+            "status": "starting",
+            "simulator": simulator,
+            "scenarios": scenarios,
+            "gpu_id": gpu_id,
+            "created_at": time.time(),
+            "started_at": time.time(),
+            "ended_at": None,
+            "pid": process.pid,
+            "artifact_root": str(artifact_root),
+            "run_dir": str(run_dir),
+            "log_path": str(log_path),
+            "config": {
+                "epochs": int(payload["epochs"]),
+                "eval_interval": int(payload["eval_interval"]),
+                "batch_size": int(payload["batch_size"]),
+                "test_batch_size": int(payload["test_batch_size"]),
+                "learning_rate": float(payload["learning_rate"]),
+                "weight_decay": float(payload["weight_decay"]),
+                "num_workers": int(payload["num_workers"]),
+                "test_ratio": test_ratio,
+                "resume_from": resume_from,
+                "input_representation": resolved_input_representation,
+                "embedding_model": embedding_metadata.embedding_model,
+                "embedding_tokenizer": embedding_metadata.tokenizer_name,
+            },
+            "command": command,
+            "prepared_name": prepared_name,
+            "terminated": False,
+            "latest_epoch": None,
+            "latest_step": None,
+            "steps_per_epoch": None,
+            "global_step": None,
+            "avg_loss": None,
+            "steps_per_sec": None,
+            "eta_seconds": None,
+            "latest_test_epoch": None,
+            "latest_metrics": None,
+            "error_message": None,
+            "checkpoints": [],
+        }
+        entries.append(entry)
+        _save_registry(entries)
+        return _refresh_entry(entry)
 
 
 @_with_registry_lock
@@ -723,4 +769,5 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
         "test_points": test_points,
         "checkpoints": _checkpoint_entries(run_dir),
     }
+
 

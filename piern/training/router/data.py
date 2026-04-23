@@ -5,7 +5,7 @@ import json
 from collections import Counter, defaultdict
 from dataclasses import MISSING, asdict, dataclass, fields
 from pathlib import Path
-from typing import Iterable
+from typing import BinaryIO, Iterable
 
 import numpy as np
 import torch
@@ -16,13 +16,18 @@ from .pretrained_embeddings import (
     PretrainedEmbeddingEncoder,
     can_resolve_embedding_backbone,
 )
-from .tokenizer import CharTokenizer
 
 ASSISTANT_MARKER = "<|im_start|>assistant\n"
-CHAR_TOKENS = "char_tokens"
 PRETRAINED_EMBEDDINGS = "pretrained_embeddings"
-SUPPORTED_INPUT_REPRESENTATIONS = {"auto", "char", "embedding"}
-PREPARED_FORMAT = "router_token_ids_v2"
+SUPPORTED_INPUT_REPRESENTATIONS = {"embedding"}
+PREPARED_FORMAT = "router_dynamic_tokens_v3"
+DEFAULT_CHAT_TEMPLATE = "qwen"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
+
+
+def _log_prepare(message: str) -> None:
+    print(f"[prepare] {message}")
 
 
 @dataclass(slots=True)
@@ -67,7 +72,7 @@ class PrepareSummary:
     train_tokens: int = 0
     test_tokens: int = 0
     max_sequence_length: int = 0
-    input_representation: str = CHAR_TOKENS
+    input_representation: str = PRETRAINED_EMBEDDINGS
     input_storage_dtype: str = ""
     input_hidden_size: int = 0
     chat_template: str = ""
@@ -147,28 +152,42 @@ def _first_record(path: Path) -> dict[str, object]:
     except StopIteration as exc:
         raise ValueError(f"Router scenario file is empty: {path}") from exc
 
+def _scenario_meta_path(path: Path) -> Path:
+    return path.with_suffix(".meta.json")
+
+
+def _load_scenario_meta(path: Path) -> dict[str, object]:
+    meta_path = _scenario_meta_path(path)
+    if not meta_path.exists():
+        return {}
+    try:
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
 
 def _collect_embedding_metadata(files: list[Path]) -> RouterEmbeddingMetadata:
     chat_templates: set[str] = set()
-    embedding_specs: set[tuple[str, str, str, str]] = set()
+    embedding_specs: set[tuple[str, str]] = set()
     missing_embedding_metadata = False
 
     for path in files:
+        scenario_meta = _load_scenario_meta(path)
         metadata = _first_record(path).get("metadata", {})
         if not isinstance(metadata, dict):
             raise ValueError(f"Router record metadata must be an object: {path}")
-        chat_template = str(metadata.get("chat_template") or "").strip()
+
+        chat_template = str(scenario_meta.get("chat_template") or metadata.get("chat_template") or DEFAULT_CHAT_TEMPLATE).strip()
         if chat_template:
             chat_templates.add(chat_template)
 
-        provider = str(metadata.get("embedding_provider") or "").strip()
-        model = str(metadata.get("embedding_model") or "").strip()
-        tokenizer = str(metadata.get("embedding_tokenizer") or "").strip()
-        source = str(metadata.get("embedding_source") or "").strip()
-        if model or tokenizer or provider or source:
+        model = str(scenario_meta.get("embedding_model") or metadata.get("embedding_model") or "").strip()
+        tokenizer = str(scenario_meta.get("embedding_tokenizer") or metadata.get("embedding_tokenizer") or "").strip()
+        if model or tokenizer:
             if not model:
                 raise ValueError(f"Router metadata is missing embedding_model in {path}")
-            embedding_specs.add((provider, model, tokenizer or model, source))
+            embedding_specs.add((model, tokenizer or model))
         else:
             missing_embedding_metadata = True
 
@@ -179,16 +198,21 @@ def _collect_embedding_metadata(files: list[Path]) -> RouterEmbeddingMetadata:
     if embedding_specs and missing_embedding_metadata:
         raise ValueError("Selected router files mix old records without embedding metadata and new embedding-aware records")
 
+    chat_template = next(iter(chat_templates), DEFAULT_CHAT_TEMPLATE)
     if embedding_specs:
-        provider, model, tokenizer, source = next(iter(embedding_specs))
+        model, tokenizer = next(iter(embedding_specs))
         return RouterEmbeddingMetadata(
-            chat_template=next(iter(chat_templates), ""),
-            embedding_provider=provider,
+            chat_template=chat_template,
             embedding_model=model,
             embedding_tokenizer=tokenizer,
-            embedding_source=source,
         )
-    return RouterEmbeddingMetadata(chat_template=next(iter(chat_templates), ""))
+    if chat_template == DEFAULT_CHAT_TEMPLATE:
+        return RouterEmbeddingMetadata(
+            chat_template=chat_template,
+            embedding_model=DEFAULT_QWEN_EMBEDDING_MODEL,
+            embedding_tokenizer=DEFAULT_QWEN_EMBEDDING_TOKENIZER,
+        )
+    return RouterEmbeddingMetadata(chat_template=chat_template)
 
 
 def _resolve_input_representation(
@@ -198,31 +222,16 @@ def _resolve_input_representation(
     requested = requested.strip().lower()
     if requested not in SUPPORTED_INPUT_REPRESENTATIONS:
         raise ValueError(
-            f"Unsupported input_representation={requested!r}; "
-            f"expected one of {sorted(SUPPORTED_INPUT_REPRESENTATIONS)!r}"
+            f"Unsupported input_representation={requested!r}; expected one of {sorted(SUPPORTED_INPUT_REPRESENTATIONS)!r}"
         )
-    if requested == "char":
-        return CHAR_TOKENS
-    if requested == "auto":
-        if not metadata.has_embedding_backbone:
-            return CHAR_TOKENS
-        ok, reason = can_resolve_embedding_backbone(metadata.to_backbone_spec())
-        if ok:
-            return PRETRAINED_EMBEDDINGS
-        print(
-            "[prepare] embedding backbone could not be resolved; "
-            f"falling back to char tokens ({reason})"
-        )
-        return CHAR_TOKENS
     if not metadata.has_embedding_backbone:
         raise ValueError(
-            "Embedding mode requested, but router metadata does not include embedding_model / embedding_tokenizer. "
-            "Rebuild Stage 4 router data with embedding metadata first."
+            "Embedding-only training requires embedding_model metadata. Rebuild Stage 4 router data with embedding metadata first."
         )
     ok, reason = can_resolve_embedding_backbone(metadata.to_backbone_spec())
     if not ok:
         raise ValueError(
-            "Embedding mode requested, but embedding backbone cannot be resolved: "
+            "Embedding-only training requires a resolvable embedding backbone: "
             f"{reason}"
         )
     return PRETRAINED_EMBEDDINGS
@@ -249,7 +258,7 @@ def inspect_router_input_representation(
     simulator: str,
     router_dir: Path,
     scenarios: list[str] | None = None,
-    input_representation: str = "auto",
+    input_representation: str = "embedding",
 ) -> tuple[str, RouterEmbeddingMetadata]:
     files = _selected_scenario_files(router_dir, simulator, scenarios)
     metadata = _collect_embedding_metadata(files)
@@ -259,19 +268,18 @@ def inspect_router_input_representation(
 
 def _required_prepared_files(output_dir: Path, representation: str) -> list[Path]:
     paths = [
-        output_dir / "train_tokens.bin",
-        output_dir / "test_tokens.bin",
+        output_dir / "source_files.json",
+        output_dir / "train_file_ids.npy",
         output_dir / "train_offsets.npy",
         output_dir / "train_lengths.npy",
         output_dir / "train_labels.npy",
         output_dir / "train_scenario_ids.npy",
+        output_dir / "test_file_ids.npy",
         output_dir / "test_offsets.npy",
         output_dir / "test_lengths.npy",
         output_dir / "test_labels.npy",
         output_dir / "test_scenario_ids.npy",
     ]
-    if representation == CHAR_TOKENS:
-        paths.append(output_dir / "vocab.json")
     return paths
 
 
@@ -318,15 +326,13 @@ def _prepared_summary_matches(
 def _cleanup_prepared_dir(output_dir: Path) -> None:
     for name in (
         "meta.json",
-        "vocab.json",
-        "train_tokens.bin",
-        "test_tokens.bin",
-        "train_embeddings.bin",
-        "test_embeddings.bin",
+        "source_files.json",
+        "train_file_ids.npy",
         "train_offsets.npy",
         "train_lengths.npy",
         "train_labels.npy",
         "train_scenario_ids.npy",
+        "test_file_ids.npy",
         "test_offsets.npy",
         "test_lengths.npy",
         "test_labels.npy",
@@ -367,109 +373,22 @@ def _scan_router_files(
     return scenario_counts, train_samples, test_samples, train_positive, test_positive
 
 
-def _prepare_char_router_dataset(
-    *,
-    simulator: str,
-    files: list[Path],
-    router_dir: Path,
-    output_dir: Path,
-    test_ratio: float,
-    metadata: RouterEmbeddingMetadata,
-) -> PrepareSummary:
-    train_counter: Counter[str] = Counter()
-    max_sequence_length = 0
-    train_samples = 0
-    test_samples = 0
-    train_positive = 0
-    test_positive = 0
-    scenario_counts: Counter[str] = Counter()
-
-    for path in files:
-        for idx, record in enumerate(_load_jsonl(path), start=1):
-            text = str(record["context"])
-            label = int(record["label"])
-            scenario = str(record["metadata"]["scenario"])
-            split = assign_split(text, scenario, test_ratio)
-            scenario_counts[scenario] += 1
-            max_sequence_length = max(max_sequence_length, len(text))
-            if split == "train":
-                train_counter.update(text)
-                train_samples += 1
-                train_positive += label
-            else:
-                test_samples += 1
-                test_positive += label
-            if idx % 200_000 == 0:
-                print(f"[prepare:scan] {path.name}: {idx} records")
-
-    vocab_path = output_dir / "vocab.json"
-    tokenizer = CharTokenizer.from_counter(train_counter)
-    tokenizer.save(vocab_path)
-    token_dtype = np.uint16 if tokenizer.vocab_size <= (np.iinfo(np.uint16).max + 1) else np.uint32
-    scenario_to_id = {name: idx for idx, name in enumerate(sorted(scenario_counts))}
-    scenario_id_dtype = np.uint8 if len(scenario_to_id) <= (np.iinfo(np.uint8).max + 1) else np.uint16
-    writers = {
-        "train": (output_dir / "train_tokens.bin").open("wb"),
-        "test": (output_dir / "test_tokens.bin").open("wb"),
-    }
-    buffers: dict[str, defaultdict[str, list[int]]] = {
-        "train": defaultdict(list),
-        "test": defaultdict(list),
-    }
-    token_totals = {"train": 0, "test": 0}
-
-    try:
-        for path in files:
-            for idx, record in enumerate(_load_jsonl(path), start=1):
-                text = str(record["context"])
-                label = int(record["label"])
-                scenario = str(record["metadata"]["scenario"])
-                split = assign_split(text, scenario, test_ratio)
-                token_ids = tokenizer.encode(text)
-                token_array = np.asarray(token_ids, dtype=token_dtype)
-                buffers[split]["offsets"].append(token_totals[split])
-                buffers[split]["lengths"].append(len(token_ids))
-                buffers[split]["labels"].append(label)
-                buffers[split]["scenario_ids"].append(scenario_to_id[scenario])
-                writers[split].write(token_array.tobytes())
-                token_totals[split] += len(token_ids)
-                if idx % 200_000 == 0:
-                    print(f"[prepare:write] {path.name}: {idx} records")
-    finally:
-        for handle in writers.values():
-            handle.close()
-
-    for split in ("train", "test"):
-        _save_array(output_dir / f"{split}_offsets.npy", np.asarray(buffers[split]["offsets"], dtype=np.uint64))
-        _save_array(output_dir / f"{split}_lengths.npy", np.asarray(buffers[split]["lengths"], dtype=np.uint32))
-        _save_array(output_dir / f"{split}_labels.npy", np.asarray(buffers[split]["labels"], dtype=np.uint8))
-        _save_array(output_dir / f"{split}_scenario_ids.npy", np.asarray(buffers[split]["scenario_ids"], dtype=scenario_id_dtype))
-
-    return PrepareSummary(
-        simulator=simulator,
-        router_dir=str(router_dir),
-        test_ratio=test_ratio,
-        scenarios=sorted(scenario_counts),
-        scenario_to_id=scenario_to_id,
-        vocab_size=tokenizer.vocab_size,
-        token_dtype=np.dtype(token_dtype).name,
-        train_samples=train_samples,
-        test_samples=test_samples,
-        train_positive=train_positive,
-        test_positive=test_positive,
-        train_tokens=token_totals["train"],
-        test_tokens=token_totals["test"],
-        max_sequence_length=max_sequence_length,
-        input_representation=CHAR_TOKENS,
-        input_storage_dtype=np.dtype(token_dtype).name,
-        input_hidden_size=0,
-        chat_template=metadata.chat_template,
-        embedding_provider=metadata.embedding_provider,
-        embedding_model=metadata.embedding_model,
-        embedding_tokenizer=metadata.tokenizer_name,
-        embedding_source=metadata.embedding_source,
-        prepared_format=PREPARED_FORMAT,
-    )
+def _iter_jsonl_with_offsets(path: Path) -> Iterable[tuple[int, dict[str, object]]]:
+    with path.open("rb") as handle:
+        while True:
+            offset = handle.tell()
+            raw = handle.readline()
+            if not raw:
+                break
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                payload = json.loads(line.decode("utf-8"))
+            except Exception:
+                continue
+            if isinstance(payload, dict):
+                yield offset, payload
 
 
 def _prepare_embedding_router_dataset(
@@ -481,18 +400,32 @@ def _prepare_embedding_router_dataset(
     test_ratio: float,
     metadata: RouterEmbeddingMetadata,
 ) -> PrepareSummary:
+    _log_prepare(
+        "starting dataset preparation "
+        f"simulator={simulator} files={len(files)} test_ratio={test_ratio:.2f}"
+    )
     scenario_counts, train_samples, test_samples, train_positive, test_positive = _scan_router_files(
         files,
         test_ratio=test_ratio,
     )
+    _log_prepare(
+        "scan complete "
+        f"train_samples={train_samples} test_samples={test_samples} "
+        f"train_positive={train_positive} test_positive={test_positive}"
+    )
     scenario_to_id = {name: idx for idx, name in enumerate(sorted(scenario_counts))}
     scenario_id_dtype = np.uint8 if len(scenario_to_id) <= (np.iinfo(np.uint8).max + 1) else np.uint16
+    _log_prepare(
+        "loading tokenizer metadata "
+        f"chat_template={metadata.chat_template or DEFAULT_CHAT_TEMPLATE} "
+        f"embedding_model={metadata.embedding_model} tokenizer={metadata.tokenizer_name}"
+    )
     encoder = PretrainedEmbeddingEncoder(metadata.to_backbone_spec())
+    _log_prepare(
+        f"tokenizer ready vocab_size={encoder.model_vocab_size} hidden_size={encoder.hidden_size}"
+    )
     token_dtype = np.uint16 if encoder.model_vocab_size <= (np.iinfo(np.uint16).max + 1) else np.uint32
-    writers = {
-        "train": (output_dir / "train_tokens.bin").open("wb"),
-        "test": (output_dir / "test_tokens.bin").open("wb"),
-    }
+    file_id_dtype = np.uint16 if len(files) <= (np.iinfo(np.uint16).max + 1) else np.uint32
     buffers: dict[str, defaultdict[str, list[int]]] = {
         "train": defaultdict(list),
         "test": defaultdict(list),
@@ -500,34 +433,42 @@ def _prepare_embedding_router_dataset(
     token_totals = {"train": 0, "test": 0}
     max_sequence_length = 0
 
-    try:
-        for path in files:
-            for idx, record in enumerate(_load_jsonl(path), start=1):
-                text = str(record["context"])
-                label = int(record["label"])
-                scenario = str(record["metadata"]["scenario"])
-                split = assign_split(text, scenario, test_ratio)
-                token_ids = encoder.encode_ids(text)
-                length = int(token_ids.shape[0])
-                max_sequence_length = max(max_sequence_length, length)
-                token_array = np.asarray(token_ids, dtype=token_dtype)
-                buffers[split]["offsets"].append(token_totals[split])
-                buffers[split]["lengths"].append(length)
-                buffers[split]["labels"].append(label)
-                buffers[split]["scenario_ids"].append(scenario_to_id[scenario])
-                writers[split].write(token_array.tobytes())
-                token_totals[split] += length
-                if idx % 50_000 == 0:
-                    print(f"[prepare:embed] {path.name}: {idx} records")
-    finally:
-        for handle in writers.values():
-            handle.close()
+    for file_id, path in enumerate(files):
+        _log_prepare(f"indexing router file {file_id + 1}/{len(files)}: {path.name}")
+        for idx, (offset, record) in enumerate(_iter_jsonl_with_offsets(path), start=1):
+            text = str(record["context"])
+            label = int(record["label"])
+            scenario = str(record["metadata"]["scenario"])
+            split = assign_split(text, scenario, test_ratio)
+            token_ids = encoder.encode_ids(text)
+            length = int(token_ids.shape[0])
+            max_sequence_length = max(max_sequence_length, length)
+            buffers[split]["file_ids"].append(file_id)
+            buffers[split]["lengths"].append(length)
+            buffers[split]["labels"].append(label)
+            buffers[split]["scenario_ids"].append(scenario_to_id[scenario])
+            buffers[split]["line_offsets"].append(offset)
+            token_totals[split] += length
+            if idx % 50_000 == 0:
+                print(f"[prepare:embed] {path.name}: {idx} records")
+
+    (output_dir / "source_files.json").write_text(
+        json.dumps([str(path) for path in files], ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
     for split in ("train", "test"):
-        _save_array(output_dir / f"{split}_offsets.npy", np.asarray(buffers[split]["offsets"], dtype=np.uint64))
+        _save_array(output_dir / f"{split}_file_ids.npy", np.asarray(buffers[split]["file_ids"], dtype=file_id_dtype))
+        _save_array(output_dir / f"{split}_offsets.npy", np.asarray(buffers[split]["line_offsets"], dtype=np.uint64))
         _save_array(output_dir / f"{split}_lengths.npy", np.asarray(buffers[split]["lengths"], dtype=np.uint32))
         _save_array(output_dir / f"{split}_labels.npy", np.asarray(buffers[split]["labels"], dtype=np.uint8))
         _save_array(output_dir / f"{split}_scenario_ids.npy", np.asarray(buffers[split]["scenario_ids"], dtype=scenario_id_dtype))
+
+    _log_prepare(
+        "prepared arrays written "
+        f"output_dir={output_dir} max_sequence_length={max_sequence_length} "
+        f"train_tokens={token_totals['train']} test_tokens={token_totals['test']}"
+    )
 
     return PrepareSummary(
         simulator=simulator,
@@ -545,7 +486,7 @@ def _prepare_embedding_router_dataset(
         test_tokens=token_totals["test"],
         max_sequence_length=max_sequence_length,
         input_representation=PRETRAINED_EMBEDDINGS,
-        input_storage_dtype=np.dtype(token_dtype).name,
+        input_storage_dtype="",
         input_hidden_size=encoder.hidden_size,
         chat_template=metadata.chat_template,
         embedding_provider=metadata.embedding_provider,
@@ -564,7 +505,7 @@ def prepare_router_dataset(
     test_ratio: float,
     scenarios: list[str] | None = None,
     force: bool = False,
-    input_representation: str = "auto",
+    input_representation: str = "embedding",
 ) -> PrepareSummary:
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "meta.json"
@@ -572,6 +513,11 @@ def prepare_router_dataset(
     files = _selected_scenario_files(router_dir, simulator, scenarios)
     metadata = _collect_embedding_metadata(files)
     resolved_representation = _resolve_input_representation(input_representation, metadata)
+    _log_prepare(
+        "requested dataset "
+        f"simulator={simulator} scenarios={','.join(path.stem for path in files)} "
+        f"representation={resolved_representation} output_dir={output_dir}"
+    )
 
     if summary_path.exists() and not force:
         cached = PrepareSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
@@ -584,29 +530,30 @@ def prepare_router_dataset(
             selected_scenarios=[path.stem for path in files],
             metadata=metadata,
         ):
+            _log_prepare(
+                "reusing cached prepared dataset "
+                f"train_samples={cached.train_samples} test_samples={cached.test_samples} "
+                f"prepared_format={cached.prepared_format}"
+            )
             return cached
 
+    _log_prepare(f"rebuilding prepared dataset in {output_dir}")
     _cleanup_prepared_dir(output_dir)
-    if resolved_representation == PRETRAINED_EMBEDDINGS:
-        summary = _prepare_embedding_router_dataset(
-            simulator=simulator,
-            files=files,
-            router_dir=router_dir,
-            output_dir=output_dir,
-            test_ratio=test_ratio,
-            metadata=metadata,
-        )
-    else:
-        summary = _prepare_char_router_dataset(
-            simulator=simulator,
-            files=files,
-            router_dir=router_dir,
-            output_dir=output_dir,
-            test_ratio=test_ratio,
-            metadata=metadata,
-        )
+    summary = _prepare_embedding_router_dataset(
+        simulator=simulator,
+        files=files,
+        router_dir=router_dir,
+        output_dir=output_dir,
+        test_ratio=test_ratio,
+        metadata=metadata,
+    )
 
     summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    _log_prepare(
+        "prepared dataset ready "
+        f"train_samples={summary.train_samples} test_samples={summary.test_samples} "
+        f"max_sequence_length={summary.max_sequence_length}"
+    )
     return summary
 
 
@@ -626,44 +573,80 @@ class PackedSequenceDataset(Dataset):
         self.pad_id = pad_id
         self.input_representation = summary.input_representation
         self.token_dtype = np.dtype(summary.token_dtype) if summary.token_dtype else None
-        self.input_hidden_size = int(summary.input_hidden_size)
-        self.total_tokens = int(summary.train_tokens if split == "train" else summary.test_tokens)
+        self.source_files = json.loads((prepared_dir / "source_files.json").read_text(encoding="utf-8"))
+        self.file_ids = _load_array(prepared_dir / f"{split}_file_ids.npy")
         self.offsets = _load_array(prepared_dir / f"{split}_offsets.npy")
         self.lengths = _load_array(prepared_dir / f"{split}_lengths.npy")
         self.labels = _load_array(prepared_dir / f"{split}_labels.npy")
         self.scenario_ids = _load_array(prepared_dir / f"{split}_scenario_ids.npy")
         if max_samples is not None:
+            self.file_ids = self.file_ids[:max_samples]
             self.offsets = self.offsets[:max_samples]
             self.lengths = self.lengths[:max_samples]
             self.labels = self.labels[:max_samples]
             self.scenario_ids = self.scenario_ids[:max_samples]
-        self._tokens: np.memmap | None = None
+        self._handles: dict[int, BinaryIO] = {}
+        self._encoder: PretrainedEmbeddingEncoder | None = None
 
-    def _token_buffer(self) -> np.memmap:
-        if self._tokens is None:
-            if self.token_dtype is None:
-                raise RuntimeError("Token buffer requested for dataset without token_dtype")
-            self._tokens = np.memmap(
-                self.prepared_dir / f"{self.split}_tokens.bin",
-                dtype=self.token_dtype,
-                mode="r",
+    def _get_handle(self, file_id: int) -> BinaryIO:
+        handle = self._handles.get(file_id)
+        if handle is None:
+            handle = Path(self.source_files[file_id]).open("rb")
+            self._handles[file_id] = handle
+        return handle
+
+    def _get_encoder(self) -> PretrainedEmbeddingEncoder:
+        if self._encoder is None:
+            self._encoder = PretrainedEmbeddingEncoder(
+                EmbeddingBackboneSpec(
+                    model_name=self.summary.embedding_model,
+                    tokenizer_name=self.summary.embedding_tokenizer or self.summary.embedding_model,
+                    provider=self.summary.embedding_provider,
+                    chat_template=self.summary.chat_template,
+                    source=self.summary.embedding_source,
+                )
             )
-        return self._tokens
+        return self._encoder
+
+    def _load_record(self, file_id: int, offset: int) -> dict[str, object]:
+        handle = self._get_handle(file_id)
+        handle.seek(offset)
+        raw = handle.readline()
+        if not raw:
+            raise RuntimeError(f"missing router record at file_id={file_id}, offset={offset}")
+        payload = json.loads(raw.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise RuntimeError(f"router record at file_id={file_id}, offset={offset} is not an object")
+        return payload
 
     def __len__(self) -> int:
         return int(self.lengths.shape[0])
 
     def __getitem__(self, index: int) -> dict[str, object]:
-        start = int(self.offsets[index])
+        file_id = int(self.file_ids[index])
+        offset = int(self.offsets[index])
         length = int(self.lengths[index])
-        token_buffer = self._token_buffer()
-        token_ids = np.asarray(token_buffer[start : start + length], dtype=np.int64)
+        record = self._load_record(file_id, offset)
+        text = str(record["context"])
+        token_ids = self._get_encoder().encode_ids(text)
+        if int(token_ids.shape[0]) != length:
+            raise RuntimeError(
+                f"dynamic token length mismatch at file_id={file_id}, offset={offset}: "
+                f"expected {length}, got {int(token_ids.shape[0])}"
+            )
         return {
             "length": length,
             "label": int(self.labels[index]),
             "scenario_id": int(self.scenario_ids[index]),
             "input_ids": torch.from_numpy(token_ids),
         }
+
+    def __del__(self) -> None:
+        for handle in self._handles.values():
+            try:
+                handle.close()
+            except Exception:
+                pass
 
 
 class LengthBucketBatchSampler(Sampler[list[int]]):
@@ -723,3 +706,5 @@ def collate_batch(batch: list[dict[str, object]], pad_id: int) -> dict[str, torc
         "labels": labels,
         "scenario_ids": scenario_ids,
     }
+
+
