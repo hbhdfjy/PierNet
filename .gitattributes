@@ -1,1 +1,8 @@
 # 所有数据文件直接用 git 追踪（单文件均 < 100MB，无需 LFS）
+* text=auto eol=lf
+
+*.h5 binary
+*.safetensors binary
+*.pt binary
+*.npy binary
+*.npz binary

@@ -479,6 +479,9 @@ export interface TrainingJobConfig {
   num_workers: number
   test_ratio: number
   resume_from: string | null
+  input_representation?: 'pretrained_embeddings'
+  embedding_model?: string
+  embedding_tokenizer?: string
 }
 
 export interface TrainingMetricsSummary {

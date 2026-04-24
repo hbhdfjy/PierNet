@@ -1,4 +1,4 @@
-﻿import {
+import {
   AlertTriangle,
   ArrowLeft,
   BarChart3,
@@ -82,6 +82,7 @@ type ChartTooltipEntry = {
   color?: string
   dataKey?: string | number
   name?: string
+  payload?: Record<string, unknown>
   value?: unknown
 }
 
@@ -145,6 +146,22 @@ function formatChartTooltipLabel(axisLabel: string, label: unknown) {
     return `${axisLabel}: ${label.toLocaleString('en-US')}`
   }
   return `${axisLabel}: ${String(label)}`
+}
+
+function tooltipActualValue(item: ChartTooltipEntry): unknown {
+  const payload = item.payload
+  if (!payload) {
+    return item.value
+  }
+  const nameKey = typeof item.name === 'string' ? item.name : undefined
+  if (nameKey && Object.prototype.hasOwnProperty.call(payload, nameKey)) {
+    return payload[nameKey]
+  }
+  const dataKey = item.dataKey == null ? undefined : String(item.dataKey)
+  if (dataKey && Object.prototype.hasOwnProperty.call(payload, dataKey)) {
+    return payload[dataKey]
+  }
+  return item.value
 }
 
 function buildActiveDot(fill: string) {
@@ -220,6 +237,60 @@ function buildNumericDomain(values: Array<number | null | undefined>, options: N
   return [minValue, maxValue]
 }
 
+function buildUnitMetricDomain(values: Array<number | null | undefined>): [number, number] | undefined {
+  const numericValues = values
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+    .sort((a, b) => a - b)
+  if (numericValues.length === 0) {
+    return undefined
+  }
+
+  const minValue = numericValues[0]
+  const maxValue = numericValues[numericValues.length - 1]
+  const highScoreBand = minValue >= 0.9
+  const span = Math.max(maxValue - minValue, 0)
+  const minVisibleSpan = highScoreBand ? 0.003 : 0.03
+  const pad = Math.max(span * 0.25, highScoreBand ? 0.0005 : 0.005)
+  let lower = minValue - pad
+  let upper = maxValue + pad
+
+  if (highScoreBand) {
+    lower = Math.max(0.9, lower)
+    upper = Math.max(upper, maxValue >= 0.995 ? 1.001 : 1)
+  }
+
+  if (upper - lower < minVisibleSpan) {
+    const center = (upper + lower) / 2
+    lower = center - minVisibleSpan / 2
+    upper = center + minVisibleSpan / 2
+  }
+
+  lower = Math.max(0, lower)
+  upper = Math.min(highScoreBand ? 1.001 : 1, upper)
+
+  if (upper <= lower) {
+    upper = Math.min(1.001, lower + minVisibleSpan)
+  }
+
+  return [lower, upper]
+}
+
+function normalizeToDomain(value: number | null | undefined, domain: [number, number]): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return undefined
+  }
+  const span = domain[1] - domain[0]
+  if (span <= 0) {
+    return 0.5
+  }
+  return (value - domain[0]) / span
+}
+
+function formatUnitDomainTick(value: number, domain: [number, number]) {
+  const actual = domain[0] + value * (domain[1] - domain[0])
+  return actual.toFixed(actual >= 0.99 ? 4 : 3)
+}
+
 function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | null): ChartHoverSnapshot | null {
   const entries = state?.activePayload?.filter(item => item.value !== null && item.value !== undefined) ?? []
   if (!entries.length) {
@@ -232,7 +303,7 @@ function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | nu
       color: item.color ?? '#38bdf8',
       key: String(item.dataKey ?? item.name ?? 'value'),
       label: String(item.name ?? item.dataKey ?? 'value'),
-      value: formatChartTooltipValue(item.value),
+      value: formatChartTooltipValue(tooltipActualValue(item)),
     })),
   }
 }
@@ -288,7 +359,7 @@ function ChartTooltip({ axisLabel }: { axisLabel: string }) {
                     {item.name ?? item.dataKey ?? 'value'}
                   </span>
                   <span style={{ color: '#f8fafc', fontSize: 12, fontWeight: 600, marginLeft: 8 }}>
-                    {formatChartTooltipValue(item.value)}
+                    {formatChartTooltipValue(tooltipActualValue(item))}
                   </span>
                 </div>
               ))}
@@ -643,12 +714,19 @@ export default function TrainingJobDetailPage() {
 
   const testMetricDomain = useMemo(
     () =>
-      buildNumericDomain(
-        (curves?.test_points ?? []).flatMap(point => [point.precision, point.recall, point.f1, point.pr_auc]),
-        { minClamp: 0, maxClamp: 1, minPad: 0.0001, padRatio: 0.05, lowerQuantile: 0.12, upperQuantile: 0.88 },
-      ),
+      buildUnitMetricDomain((curves?.test_points ?? []).flatMap(point => [point.precision, point.recall, point.f1, point.pr_auc])),
     [curves?.test_points],
   )
+  const testMetricPlotData = useMemo(() => {
+    const domain = testMetricDomain ?? [0, 1]
+    return (curves?.test_points ?? []).map(point => ({
+      ...point,
+      f1_plot: normalizeToDomain(point.f1, domain),
+      pr_auc_plot: normalizeToDomain(point.pr_auc, domain),
+      precision_plot: normalizeToDomain(point.precision, domain),
+      recall_plot: normalizeToDomain(point.recall, domain),
+    }))
+  }, [curves?.test_points, testMetricDomain])
 
   const scenarioMetricData = useMemo(() => {
     const scenarioNames = new Set<string>()
@@ -673,18 +751,25 @@ export default function TrainingJobDetailPage() {
       rows.set(point.epoch, row)
     }
 
+    const domain = buildUnitMetricDomain(values) ?? [0.9, 1.001]
+    const names = Array.from(scenarioNames)
+    const data = Array.from(rows.values())
+      .sort((a, b) => Number(a.epoch) - Number(b.epoch))
+      .map(row => {
+        const nextRow: Record<string, number> = { ...row }
+        for (const scenario of names) {
+          const normalized = normalizeToDomain(row[scenario], domain)
+          if (normalized !== undefined) {
+            nextRow[`${scenario}__plot`] = normalized
+          }
+        }
+        return nextRow
+      })
+
     return {
-      scenarioNames: Array.from(scenarioNames),
-      data: Array.from(rows.values()).sort((a, b) => Number(a.epoch) - Number(b.epoch)),
-      domain:
-        buildNumericDomain(values, {
-          minClamp: 0,
-          maxClamp: 1,
-          minPad: 0.0001,
-          padRatio: 0.05,
-          lowerQuantile: 0.12,
-          upperQuantile: 0.88,
-        }) ?? [0, 1],
+      scenarioNames: names,
+      data,
+      domain,
     }
   }, [curves?.test_points])
 
@@ -889,6 +974,13 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="learning rate" value={job.config.learning_rate} mono />
                           <MetaField label="weight decay" value={job.config.weight_decay} mono />
                           <MetaField label="resume" value={job.config.resume_from ? '是' : '否'} />
+                          <MetaField label="输入表示" value={job.config.input_representation ?? 'pretrained_embeddings'} mono />
+                          <MetaField
+                            label="Embedding"
+                            value={shortPath(job.config.embedding_model || job.config.embedding_tokenizer || '—', 64)}
+                            mono
+                            title={job.config.embedding_model || job.config.embedding_tokenizer || undefined}
+                          />
                         </div>
                       </div>
                       <div className="training-surface md:col-span-2">
@@ -1030,7 +1122,7 @@ export default function TrainingJobDetailPage() {
                     </div>
                     <ResponsiveContainer width="100%" height="100%">
                     <LineChart
-                      data={curves.test_points}
+                      data={testMetricPlotData}
                       margin={CHART_MARGIN}
                       onMouseMove={(state: ChartMouseState) => setMetricHover(buildChartHoverSnapshot('Epoch', state))}
                       onMouseLeave={() => setMetricHover(null)}
@@ -1038,18 +1130,18 @@ export default function TrainingJobDetailPage() {
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
                       <ChartYAxis
-                        domain={testMetricDomain}
+                        domain={[0, 1]}
                         tickCount={5}
                         width={56}
-                        tickFormatter={(value: number) => value.toFixed(value >= 0.99 ? 4 : 3)}
+                        tickFormatter={(value: number) => formatUnitDomainTick(value, testMetricDomain ?? [0, 1])}
                         allowDataOverflow
                       />
                       <ChartTooltip axisLabel="Epoch" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="precision" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="recall" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="f1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="pr_auc" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="precision_plot" name="precision" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="recall_plot" name="recall" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="f1_plot" name="f1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="pr_auc_plot" name="pr_auc" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
                   </>
@@ -1074,10 +1166,10 @@ export default function TrainingJobDetailPage() {
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
                       <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
                       <ChartYAxis
-                        domain={scenarioMetricData.domain}
+                        domain={[0, 1]}
                         tickCount={5}
                         width={56}
-                        tickFormatter={(value: number) => value.toFixed(value >= 0.99 ? 4 : 3)}
+                        tickFormatter={(value: number) => formatUnitDomainTick(value, scenarioMetricData.domain)}
                         allowDataOverflow
                       />
                       <ChartTooltip axisLabel="Epoch" />
@@ -1087,7 +1179,7 @@ export default function TrainingJobDetailPage() {
                         return (
                           <Line
                             key={scenario}
-                            dataKey={scenario}
+                            dataKey={`${scenario}__plot`}
                             name={scenario}
                             stroke={colors[index % colors.length]}
                             dot={false}

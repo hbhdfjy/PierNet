@@ -111,19 +111,21 @@
 
 ## 5. 当前训练核心
 
-当前训练核心不是 Transformer 平台，而是轻量字符级序列分类器。
+当前训练核心不是通用 Transformer 平台，而是轻量 Token Router 序列分类器。
 
 组成：
 
-- tokenizer：`CharTokenizer`
 - model：`FullSeqDilatedConvRouter`
-- data prepare：router JSONL → prepared token cache
+- embedding encoder：动态 Qwen tokenizer + 冻结的预训练 embedding table
+- data prepare：router JSONL → source 文件、offset、长度、label、scenario id 等轻量索引
 - split：`train / test`
 - device：单 GPU
+- default backbone：`/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- storage：不离线存储 embedding，训练时动态转换
 
 实现文件：
 
-- `piern/training/router/tokenizer.py`
+- `piern/training/router/pretrained_embeddings.py`
 - `piern/training/router/model.py`
 - `piern/training/router/data.py`
 - `piern/training/router/train.py`

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 
+from piern.training.api.schemas.training import TrainingJobSummary
 from piern.training.services import training_manager
 from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 
@@ -55,6 +56,39 @@ def test_validate_resume_checkpoint_rejects_input_representation_mismatch(tmp_pa
         assert "input_representation mismatch" in str(exc)
     else:
         raise AssertionError("expected ValueError for resume checkpoint representation mismatch")
+
+
+def test_training_job_summary_exposes_embedding_config():
+    summary = TrainingJobSummary(
+        job_id="train-test",
+        name="train-test",
+        status="starting",
+        simulator="modflow",
+        scenarios=["coastal_seawater"],
+        gpu_id=0,
+        created_at=1.0,
+        artifact_root="/tmp/artifacts",
+        run_dir="/tmp/run",
+        log_path="/tmp/run.log",
+        config={
+            "epochs": 1,
+            "eval_interval": 1,
+            "batch_size": 2,
+            "test_batch_size": 2,
+            "learning_rate": 2e-4,
+            "weight_decay": 0.01,
+            "num_workers": 0,
+            "test_ratio": 0.1,
+            "resume_from": None,
+            "input_representation": "pretrained_embeddings",
+            "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+            "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
+        },
+    )
+
+    assert summary.config.input_representation == "pretrained_embeddings"
+    assert summary.config.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
+    assert summary.config.embedding_tokenizer == DEFAULT_QWEN_EMBEDDING_MODEL
 
 
 

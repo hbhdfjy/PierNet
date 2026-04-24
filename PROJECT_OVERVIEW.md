@@ -92,14 +92,15 @@ Current training assumptions:
 
 - model family: Token Router only
 - device mode: single GPU only
-- tokenizer: character-level tokenizer
 - model: `FullSeqDilatedConvRouter`
 - split: `train / test` only
-- training input: full character sequence
+- chat template: Qwen chat format in Stage 4 router data
+- embedding backbone: default local Qwen snapshot at `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- training input: router JSONL context is dynamically tokenized during training and passed through the frozen pretrained embedding table; embeddings are not stored offline
 
 Primary implementation files:
 
-- `piern/training/router/tokenizer.py`
+- `piern/training/router/pretrained_embeddings.py`
 - `piern/training/router/model.py`
 - `piern/training/router/data.py`
 - `piern/training/router/train.py`

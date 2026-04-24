@@ -265,16 +265,17 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 
 ## 当前训练核心
 
-当前训练平台的真实实现不是 Transformer 平台，而是：
+当前训练平台的真实实现不是通用 Transformer 训练平台，而是：
 
-- 字符级 tokenizer：`CharTokenizer`
 - 模型：`FullSeqDilatedConvRouter`
 - 数据切分：`train / test`
-- 训练输入：全量字符序列
+- Stage 4 约定：Qwen chat template
+- Embedding backbone：默认 `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- 训练输入：训练时动态 tokenize router JSONL 的 `context`，再通过冻结的 Qwen embedding table 转成输入向量；不离线存储 embedding
 
 核心代码位于：
 
-- `piern/training/router/tokenizer.py`
+- `piern/training/router/pretrained_embeddings.py`
 - `piern/training/router/model.py`
 - `piern/training/router/data.py`
 - `piern/training/router/train.py`

@@ -1,4 +1,4 @@
-﻿let installed = false
+let installed = false
 
 function resolveElement(target: EventTarget | null): HTMLElement | null {
   if (!target) return null

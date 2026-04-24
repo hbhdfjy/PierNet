@@ -23,6 +23,15 @@ if ! command -v python >/dev/null 2>&1; then
     echo "未找到 python，请先激活正确环境"
     exit 1
 fi
+
+if ! command -v node >/dev/null 2>&1; then
+    NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+    if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+        # shellcheck disable=SC1090
+        source "$NVM_DIR/nvm.sh"
+        nvm use 20 >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || true
+    fi
+fi
 if ! command -v node >/dev/null 2>&1; then
     echo "未找到 node，请先安装 Node.js 18+"
     exit 1

@@ -47,6 +47,8 @@ class TrainingJobConfig(BaseModel):
     test_ratio: float = 0.10
     resume_from: str | None = None
     input_representation: TrainingJobInputRepresentation = "pretrained_embeddings"
+    embedding_model: str = ""
+    embedding_tokenizer: str = ""
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -153,4 +155,3 @@ class TrainingOverviewResponse(BaseModel):
     jobs: list[TrainingJobSummary]
     running_job_count: int
     completed_job_count: int
-

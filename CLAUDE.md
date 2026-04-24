@@ -393,12 +393,12 @@ API 路径前缀是：
 
 ### 当前训练核心实现
 
-不要假设当前训练平台用的是 Transformers 或外部 embedding 模型。
+不要假设当前训练平台是通用 Transformer 训练平台，也不要退回旧 tokenizer 实现。
 
 当前真实实现是：
 
-- tokenizer：`CharTokenizer`
-  - 文件：`piern/training/router/tokenizer.py`
+- embedding encoder：动态调用 Qwen tokenizer，并使用冻结的预训练 embedding table
+  - 文件：`piern/training/router/pretrained_embeddings.py`
 - 模型：`FullSeqDilatedConvRouter`
   - 文件：`piern/training/router/model.py`
 - 数据准备：
@@ -418,7 +418,8 @@ API 路径前缀是：
 1. 读取 router JSONL
 2. 按 `context + scenario` 做稳定 hash 切分
 3. 生成 `train/test` 两个 split
-4. 写入 prepared token cache
+4. 写入 source 文件、offset、长度、label、scenario id 等轻量索引
+5. 训练时动态读取原始 `context`，动态 tokenize，并通过 Qwen embedding table 转成输入向量
 
 当前没有 validation split，只有：
 
@@ -431,8 +432,9 @@ API 路径前缀是：
 
 - split 由 `build_group_key(context, scenario)` 推导
 - 默认 `test_ratio = 0.10`
-- 训练输入是**全量字符序列**
-- tokenizer 是字符级，不是 BPE
+- Stage 4 router 数据默认使用 Qwen chat template
+- 默认 embedding backbone 是 `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- 训练输入不是离线 embedding 文件，而是训练时动态 tokenize + 冻结 embedding lookup
 - 模型是 dilated conv 序列分类器，不是 Transformer
 
 如果要改训练假设，至少要同步检查：
@@ -478,6 +480,7 @@ CLI 入口：
 - `--resume-from`
 - `--max-train-samples`
 - `--max-test-samples`
+- `--input-representation embedding`
 
 ---
 
@@ -697,7 +700,7 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 1. synth 和 training 在产品层已经分开，但仓库层仍共享同一应用和同一前端包。
 2. `piern/api/*` 仍然存在兼容层，不要误删。
 3. training 当前是**单 GPU**系统，前端和后端都按这个边界设计。
-4. 训练核心当前是**字符级 full-sequence conv router**，不要按 Transformer 平台来改。
+4. 训练核心当前是基于 Qwen embedding 输入的 full-sequence conv router，不要按通用 Transformer 平台来改。
 5. Stage 2-4 的在线读取优化依赖 `data/.manifests/` 与 `data/.indexes/`，不要绕开它们直接退回全量扫描。
 6. 前端内部滚动和页面滚动是当前易出问题区域；只改样式经常不够，需要同时看 `scrollAssist.ts`。
 7. 文档必须跟实现同步，不能继续把计划文档写成事实。
