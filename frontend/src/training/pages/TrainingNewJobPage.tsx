@@ -1,5 +1,6 @@
 import { Check, Cpu, Database, PlayCircle, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import type {
@@ -52,6 +53,7 @@ function UsageBar({ value }: { value: number }) {
 
 export default function TrainingNewJobPage() {
   const { mutate } = useSWRConfig()
+  const navigate = useNavigate()
 
   const { data: datasets } = useSWR<TrainingDatasetInfo[]>('training-datasets', api.getTrainingDatasets, {
     refreshInterval: 15000,
@@ -171,7 +173,7 @@ export default function TrainingNewJobPage() {
         mutate('training-gpus'),
         mutate('training-jobs'),
       ])
-      window.location.assign(`/training/jobs/${job.job_id}?ts=${Date.now()}`)
+      navigate(`/training/jobs/${job.job_id}`)
       return
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动训练失败')
@@ -185,13 +187,10 @@ export default function TrainingNewJobPage() {
       <div className="training-page__body">
         <div className="space-y-5 p-5">
           <section className="training-hero">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <div className="training-eyebrow">New Training</div>
-                <h1 className="mt-4 text-[2.05rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">新建 Token Router 训练</h1>
-                <p className="mt-3 max-w-2xl training-copy">
-                  当前直接使用现有 router 数据，按单 GPU 启动训练任务，测试集比例由训练脚本内部切出。
-                </p>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="training-eyebrow">新建训练</div>
+                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">Token Router 训练</h1>
               </div>
               <button type="button" className="btn-primary" onClick={submit} disabled={submitting}>
                 <PlayCircle size={14} />
@@ -211,7 +210,7 @@ export default function TrainingNewJobPage() {
               <div className="training-card flex-1 min-h-0">
                 <div className="card-header">
                   <Database size={16} className="text-sky-300" />
-                  <SectionTitle title="训练数据" copy="先定任务名、大场景和子场景范围" />
+                  <SectionTitle title="训练数据" copy="选择大场景和子场景范围" />
                 </div>
                 <div className="training-card__body training-scroll list-scroll-xl">
                   <div className="grid gap-3 md:grid-cols-2">
@@ -286,7 +285,7 @@ export default function TrainingNewJobPage() {
               <div className="training-card min-h-0">
                 <div className="card-header">
                   <Cpu size={16} className="text-emerald-300" />
-                  <SectionTitle title="GPU 分配" copy="当前版本只支持单张空闲 GPU" />
+                  <SectionTitle title="GPU 分配" copy="选择一张空闲 GPU" />
                 </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <div className="space-y-3">
@@ -333,7 +332,7 @@ export default function TrainingNewJobPage() {
               <div className="training-card">
                 <div className="card-header">
                   <Sparkles size={16} className="text-violet-300" />
-                  <SectionTitle title="训练参数" copy="单模型、单 GPU、全量 sequence 训练" />
+                  <SectionTitle title="训练参数" copy="全量 sequence 训练配置" />
                 </div>
                 <div className="grid gap-3 p-3.5 md:grid-cols-2">
                   <Field label="Epochs">
@@ -390,7 +389,7 @@ export default function TrainingNewJobPage() {
               <div className="training-card">
                 <div className="card-header">
                   <Database size={16} className="text-amber-300" />
-                  <SectionTitle title="当前配置" copy="提交前最后核对" />
+                  <SectionTitle title="当前配置" copy="提交前核对" />
                 </div>
                 <div className="space-y-3 p-3.5">
                   <div className="training-surface">
@@ -422,41 +421,6 @@ export default function TrainingNewJobPage() {
                 </div>
               </div>
 
-              <div className="training-card min-h-0 flex-1">
-                <div className="card-header">
-                  <Cpu size={16} className="text-sky-300" />
-                  <SectionTitle title="最近完成任务" copy="可作为恢复训练的参考" />
-                </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
-                  <div className="space-y-3">
-                    {(jobs ?? [])
-                      .filter(job => job.status === 'done')
-                      .slice(0, 4)
-                      .map(job => (
-                        <div key={job.job_id} className="training-surface">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-[15px] font-semibold text-slate-100">{job.name}</div>
-                              <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
-                            </div>
-                            <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
-                          </div>
-                          <div className="mt-2 training-note">{formatDateTime(job.created_at)}</div>
-                          <div className="mt-3 grid grid-cols-2 gap-2.5 text-[14px] text-slate-400">
-                            <div>
-                              <div className="training-label">F1</div>
-                              <div className="mt-1 text-[15px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
-                            </div>
-                            <div>
-                              <div className="training-label">PR-AUC</div>
-                              <div className="mt-1 text-[15px] text-slate-200">{formatMetric(job.latest_metrics?.pr_auc, 4)}</div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
-                </div>
-              </div>
             </section>
           </div>
         </div>

@@ -24,16 +24,22 @@ if ! command -v python >/dev/null 2>&1; then
     exit 1
 fi
 
-if ! command -v node >/dev/null 2>&1; then
-    NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
-    if [[ -s "$NVM_DIR/nvm.sh" ]]; then
-        # shellcheck disable=SC1090
-        source "$NVM_DIR/nvm.sh"
-        nvm use 20 >/dev/null 2>&1 || nvm use --lts >/dev/null 2>&1 || true
-    fi
+NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
+if [[ -s "$NVM_DIR/nvm.sh" ]]; then
+    # shellcheck disable=SC1090
+    source "$NVM_DIR/nvm.sh"
+    nvm use "${PIERN_NODE_VERSION:-default}" >/dev/null 2>&1 || \
+        nvm use --lts >/dev/null 2>&1 || \
+        nvm use 20 >/dev/null 2>&1 || true
 fi
 if ! command -v node >/dev/null 2>&1; then
     echo "未找到 node，请先安装 Node.js 18+"
+    exit 1
+fi
+
+NODE_MAJOR="$(node -p "Number(process.versions.node.split('.')[0])" 2>/dev/null || echo 0)"
+if [[ "$NODE_MAJOR" -lt 18 ]]; then
+    echo "当前 Node.js 版本过低：$(node --version 2>&1)，请安装或切换到 Node.js 18+"
     exit 1
 fi
 

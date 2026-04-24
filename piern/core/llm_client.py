@@ -236,7 +236,12 @@ class LLMClient:
         response.raise_for_status()
 
         result = response.json()
-        return result["content"][0]["text"].strip()
+        content = result.get("content", [])
+        if not content:
+            raise RuntimeError(
+                f"Anthropic API returned empty content: {json.dumps(result, ensure_ascii=False)[:500]}"
+            )
+        return content[0]["text"].strip()
 
     def batch_generate(
         self,

@@ -1,30 +1,5 @@
-import { ArrowRight, Database, GitBranch, LayoutPanelTop, Sparkles } from 'lucide-react'
+import { ArrowRight, Database, GitBranch } from 'lucide-react'
 import { Link } from 'react-router-dom'
-
-function KpiCard({
-  label,
-  value,
-  note,
-  icon,
-}: {
-  label: string
-  value: string
-  note: string
-  icon: React.ReactNode
-}) {
-  return (
-    <div className="training-kpi">
-      <div className="flex items-start justify-between gap-3">
-        <span className="training-kpi__label">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-          {icon}
-        </span>
-      </div>
-      <div className="training-kpi__value">{value}</div>
-      <div className="training-kpi__note">{note}</div>
-    </div>
-  )
-}
 
 function EntryCard({
   to,
@@ -71,34 +46,25 @@ export default function LandingPage() {
       <div className="platform-home-wrap">
         <header className="training-hero">
           <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-3xl">
+            <div className="max-w-2xl">
               <div className="training-eyebrow">
-                <span>PiERN</span>
-                <span className="text-slate-500">/</span>
-                <span>Gateway</span>
+                <span>PiERN Gateway</span>
               </div>
-              <h1 className="mt-4 text-[2.4rem] font-semibold tracking-tight text-white xl:text-[2.9rem]">选择平台</h1>
-              <p className="mt-3 max-w-2xl training-copy">
-                数据合成和模型训练已经拆成两个独立入口。从这里直接进入对应工作面。
+              <h1 className="mt-4 text-[2.2rem] font-semibold tracking-tight text-white xl:text-[2.6rem]">选择工作平台</h1>
+              <p className="mt-3 max-w-xl training-copy">
+                数据合成与模型训练已拆为独立入口，请选择要进入的工作面。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
               <Link to="/synth" className="btn-primary">
                 <Database size={15} />
-                进入数据合成
+                数据合成
               </Link>
               <Link to="/training" className="btn-ghost">
                 <GitBranch size={15} />
-                进入模型训练
+                模型训练
               </Link>
             </div>
-          </div>
-
-          <div className="mt-6 training-kpi-grid">
-            <KpiCard label="入口" value="3" note="landing / synth / training" icon={<LayoutPanelTop size={16} />} />
-            <KpiCard label="数据平台" value="/synth" note="样本、模板、Router 数据" icon={<Database size={16} />} />
-            <KpiCard label="训练平台" value="/training" note="Token Router 单 GPU 训练" icon={<GitBranch size={16} />} />
-            <KpiCard label="状态" value="Live" note="当前界面与服务已联通" icon={<Sparkles size={16} />} />
           </div>
         </header>
 
@@ -106,26 +72,26 @@ export default function LandingPage() {
           <EntryCard
             to="/synth"
             title="数据合成"
-            copy="用于物理仿真、注册、模板生成、样本填充和 Router 数据构建。"
+            copy="物理仿真、场景注册、模板生成、样本填充与 Router 数据构建。"
             tone="bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_34%)]"
             icon={<Database size={22} className="text-sky-300" />}
             points={[
-              '样本统计与内容总览',
-              '模板、样本、Router 数据流转',
-              '注册与配置管理',
+              'Stage 1–4 完整数据流水线',
+              '样本统计、模板与 Router 数据浏览',
+              '注册表与 LLM 配置管理',
             ]}
           />
 
           <EntryCard
             to="/training"
             title="模型训练"
-            copy="用于 Token Router 训练、GPU 分配、任务管理、曲线查看和 checkpoint 跟踪。"
+            copy="Token Router 单 GPU 训练、任务调度、指标曲线与 checkpoint 管理。"
             tone="bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.12),transparent_34%)]"
             icon={<GitBranch size={22} className="text-emerald-300" />}
             points={[
-              '单 GPU 训练调度',
-              '运行日志、指标曲线与测试结果',
-              '任务列表与 checkpoint 管理',
+              '单 GPU 训练任务创建与调度',
+              '实时损失曲线、测试指标与分场景 F1',
+              '任务列表、checkpoint 与运行日志',
             ]}
           />
         </main>

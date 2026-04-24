@@ -23,6 +23,15 @@ router = APIRouter()
 
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sim-worker")
 
+# 清理上次遗留的临时 config 文件
+_tmp_configs_dir = PROJECT_ROOT / ".runlogs" / "tmp_configs"
+if _tmp_configs_dir.exists():
+    for _f in _tmp_configs_dir.glob("*.yaml"):
+        try:
+            _f.unlink()
+        except OSError:
+            pass
+
 SIMULATORS = ["modflow", "simpeg", "power_flow", "transient", "gcam"]
 
 # 历史记录（内存，最多保留 200 条；重启后清空）
@@ -154,8 +163,8 @@ _scenario_cache_ts: float = 0
 _CACHE_TTL = 3.0  # seconds
 
 _SIM_PROGRESS_PATTERNS = (
-    re.compile("(?:生成|增强)?进度[：:]\s*(\d+)\s*/\s*(\d+)"),
-    re.compile("progress[：:]\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE),
+    re.compile(r"(?:生成|增强)?进度[：:]\s*(\d+)\s*/\s*(\d+)"),
+    re.compile(r"progress[：:]\s*(\d+)\s*/\s*(\d+)", re.IGNORECASE),
     re.compile(r'^\s*(\d+)\s*/\s*(\d+)\s*$'),
 )
 
@@ -188,18 +197,23 @@ def _invalidate_cache():
 
 def _get_run_pipeline(simulator: str):
     """动态导入对应 simulator 的 run_pipeline 函数。"""
-    if simulator == "modflow":
-        from piern.simulators.modflow.pipeline import run_pipeline
-    elif simulator == "simpeg":
-        from piern.simulators.simpeg.pipeline import run_pipeline
-    elif simulator == "power_flow":
-        from piern.simulators.power_flow.pipeline import run_pipeline
-    elif simulator == "transient":
-        from piern.simulators.transient.pipeline import run_pipeline
-    elif simulator == "gcam":
-        from piern.simulators.gcam.pipeline import run_pipeline
-    else:
-        raise ValueError(f"未知 simulator: {simulator}")
+    try:
+        if simulator == "modflow":
+            from piern.simulators.modflow.pipeline import run_pipeline
+        elif simulator == "simpeg":
+            from piern.simulators.simpeg.pipeline import run_pipeline
+        elif simulator == "power_flow":
+            from piern.simulators.power_flow.pipeline import run_pipeline
+        elif simulator == "transient":
+            from piern.simulators.transient.pipeline import run_pipeline
+        elif simulator == "gcam":
+            from piern.simulators.gcam.pipeline import run_pipeline
+        else:
+            raise ValueError(f"未知 simulator: {simulator}")
+    except ImportError as exc:
+        raise ImportError(
+            f"Simulator '{simulator}' dependencies are not installed: {exc}"
+        ) from exc
     return run_pipeline
 
 

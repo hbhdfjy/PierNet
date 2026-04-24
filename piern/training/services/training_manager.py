@@ -13,7 +13,7 @@ import uuid
 from collections import deque
 from functools import lru_cache
 from pathlib import Path
-from threading import RLock
+from threading import RLock, Thread
 from typing import Any
 
 from piern.training.router.data import (
@@ -29,7 +29,7 @@ RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
 ROUTER_DATA_DIR = PROJECT_ROOT / "data" / "router"
-GPU_AVAILABLE_MEMORY_THRESHOLD_MIB = 2048
+GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
 
 _REGISTRY_LOCK = RLock()
@@ -50,7 +50,9 @@ def _load_registry() -> list[dict[str, Any]]:
 
 def _save_registry(entries: list[dict[str, Any]]) -> None:
     _ensure_dirs()
-    REGISTRY_PATH.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path = REGISTRY_PATH.with_suffix(REGISTRY_PATH.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    tmp_path.replace(REGISTRY_PATH)
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -113,18 +115,6 @@ def _hash_prepared_name(
 def _pid_alive(pid: int | None) -> bool:
     if not pid:
         return False
-    proc_stat = Path(f"/proc/{pid}/stat")
-    if proc_stat.exists():
-        try:
-            stat_text = proc_stat.read_text(encoding="utf-8").strip()
-        except OSError:
-            stat_text = ""
-        if stat_text:
-            parts = stat_text.split()
-            if len(parts) >= 3:
-                state = parts[2]
-                if state in {"Z", "X"}:
-                    return False
     try:
         os.kill(pid, 0)
         return True
@@ -135,8 +125,27 @@ def _pid_alive(pid: int | None) -> bool:
 def _tail_lines(path: Path, limit: int = 200) -> list[str]:
     if not path.exists():
         return []
-    with path.open("r", encoding="utf-8", errors="replace") as handle:
-        return list(deque((line.rstrip("\n") for line in handle), maxlen=limit))
+    try:
+        with path.open("rb") as handle:
+            handle.seek(0, 2)
+            file_size = handle.tell()
+            if file_size == 0:
+                return []
+            chunk_size = 8192
+            buffers: list[bytes] = []
+            remaining = limit + 1
+            pos = file_size
+            while pos > 0 and len(buffers) < remaining:
+                read_size = min(chunk_size, pos)
+                pos -= read_size
+                handle.seek(pos)
+                chunk = handle.read(read_size)
+                buffers.append(chunk)
+            tail_bytes = b"".join(reversed(buffers))
+            lines = tail_bytes.decode("utf-8", errors="replace").splitlines()
+            return lines[-limit:]
+    except OSError:
+        return []
 
 
 def _read_json(path: Path) -> dict[str, Any] | None:
@@ -282,31 +291,74 @@ def _validate_resume_checkpoint(
 
 
 
-def _remove_job_artifacts(entry: dict[str, Any]) -> None:
-    run_dir_value = entry.get('run_dir')
-    if run_dir_value:
-        run_dir = Path(run_dir_value)
-        if run_dir.exists():
-            shutil.rmtree(run_dir)
-            parent = run_dir.parent
-            if parent.name == 'runs' and parent.exists():
-                try:
-                    next(parent.iterdir())
-                except StopIteration:
-                    parent.rmdir()
+def _stage_job_artifacts_for_delete(entry: dict[str, Any]) -> list[tuple[Path, Path]]:
+    staged: list[tuple[Path, Path]] = []
+    run_dir_value = entry.get("run_dir")
+    if not run_dir_value:
+        return staged
 
-    log_path_value = entry.get('log_path')
-    if log_path_value:
-        log_path = Path(log_path_value)
-        if log_path.exists():
-            log_path.unlink()
+    run_dir = Path(run_dir_value)
+    if not run_dir.exists():
+        return staged
 
+    timestamp_ms = int(time.time() * 1000)
+    target = run_dir.with_name(f".deleting-{run_dir.name}-{timestamp_ms}")
+    suffix = 1
+    while target.exists():
+        target = run_dir.with_name(f".deleting-{run_dir.name}-{timestamp_ms}-{suffix}")
+        suffix += 1
+
+    run_dir.rename(target)
+    staged.append((run_dir, target))
     _load_checkpoint_metadata.cache_clear()
+    return staged
+
+
+def _restore_staged_job_artifacts(staged: list[tuple[Path, Path]]) -> None:
+    for original, target in reversed(staged):
+        if target.exists() and not original.exists():
+            try:
+                target.rename(original)
+            except OSError:
+                LOGGER.exception("Failed to restore staged training artifact %s to %s", target, original)
+
+
+def _delete_tree(path: Path) -> None:
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        return
+    except OSError:
+        LOGGER.exception("Failed to delete training artifact directory %s", path)
+    finally:
+        _load_checkpoint_metadata.cache_clear()
+
+
+def _delete_job_artifacts_in_background(paths: list[Path]) -> None:
+    for path in paths:
+        thread = Thread(target=_delete_tree, args=(path,), name=f"delete-{path.name}", daemon=True)
+        thread.start()
+
+
+def _remove_job_log(entry: dict[str, Any]) -> None:
+    log_path_value = entry.get("log_path")
+    if not log_path_value:
+        return
+
+    log_path = Path(log_path_value)
+    try:
+        log_path.unlink(missing_ok=True)
+    except OSError:
+        LOGGER.exception("Failed to delete training log %s", log_path)
 
 def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     entry["name"] = _normalize_job_name(entry.get("name"), fallback=entry["job_id"])
-    run_dir = Path(entry["run_dir"])
-    log_path = Path(entry["log_path"])
+    run_dir_str = entry.get("run_dir")
+    log_path_str = entry.get("log_path")
+    if not run_dir_str or not log_path_str:
+        return entry
+    run_dir = Path(run_dir_str)
+    log_path = Path(log_path_str)
     pid = entry.get("pid")
     alive = _pid_alive(pid)
     latest_point = _latest_training_point(run_dir)
@@ -387,9 +439,16 @@ def delete_job(job_id: str) -> dict[str, Any]:
     if entry.get("status") in {"starting", "running", "evaluating"} or _pid_alive(entry.get("pid")):
         raise ValueError(f"training job is still active: {job_id}")
 
-    _remove_job_artifacts(entry)
     remaining = [item for item in entries if item["job_id"] != job_id]
-    _save_registry(remaining)
+    staged = _stage_job_artifacts_for_delete(entry)
+    try:
+        _save_registry(remaining)
+    except Exception:
+        _restore_staged_job_artifacts(staged)
+        raise
+
+    _remove_job_log(entry)
+    _delete_job_artifacts_in_background([target for _, target in staged])
     return entry
 
 
@@ -458,7 +517,7 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
         if locked_by_job_id:
             available = False
             reason = f"locked by {locked_by_job_id}"
-        elif memory_used >= GPU_AVAILABLE_MEMORY_THRESHOLD_MIB:
+        elif (memory_total - memory_used) < GPU_FREE_MEMORY_THRESHOLD_MIB:
             available = False
             reason = "memory busy"
         elif utilization >= GPU_AVAILABLE_UTIL_THRESHOLD:
@@ -766,8 +825,7 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
         "job_id": job_id,
         "training_points": _downsample(training_points, max_points=max_points),
         "training_epoch_points": _downsample(training_epoch_points, max_points=max_points),
-        "test_points": test_points,
+        "test_points": _downsample(test_points, max_points=max_points),
         "checkpoints": _checkpoint_entries(run_dir),
     }
-
 

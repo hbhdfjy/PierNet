@@ -21,7 +21,7 @@ router = APIRouter()
 ROUTER_DIR = PROJECT_ROOT / "data" / "router"
 SCENARIO_DIR = ROUTER_DIR / "by_scenario"
 TEXT2COMP_DIR = PROJECT_ROOT / "data" / "text2comp"
-DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/fjy/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
 
 
@@ -153,12 +153,19 @@ def _legacy_get_router_status() -> dict:
     scenarios: list[dict] = []
     if SCENARIO_DIR.exists():
         for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
-            count = _count_lines(path)
             stat = path.stat()
             simulator = "unknown"
+            count = 0
             try:
                 with path.open("r", encoding="utf-8") as handle:
-                    first = handle.readline().strip()
+                    first = None
+                    for raw in handle:
+                        line = raw.strip()
+                        if not line:
+                            continue
+                        count += 1
+                        if first is None:
+                            first = line
                     if first:
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
@@ -179,16 +186,23 @@ def _legacy_get_router_status() -> dict:
         for path in sorted(TEXT2COMP_DIR.glob("*.jsonl")):
             if path.name == "all_training_data.jsonl":
                 continue
-            count = _count_lines(path)
-            source_by_scenario[path.stem] = count
             simulator = "unknown"
+            count = 0
             try:
                 with path.open("r", encoding="utf-8") as handle:
-                    first = handle.readline().strip()
+                    first = None
+                    for raw in handle:
+                        line = raw.strip()
+                        if not line:
+                            continue
+                        count += 1
+                        if first is None:
+                            first = line
                     if first:
                         simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
             except Exception:
                 pass
+            source_by_scenario[path.stem] = count
             source_scenarios.append(
                 {
                     "scenario": path.stem,
@@ -544,4 +558,3 @@ def get_router_samples(
         return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": str(exc)}
 
     return {"total": total, "page": page, "page_size": page_size, "items": items}
-

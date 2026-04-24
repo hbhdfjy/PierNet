@@ -8,7 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter
 
 # 确保项目根目录在 sys.path，使 scripts/ 可导入（无论 uvicorn 从哪里启动）
-_PROJECT_ROOT = Path(__file__).parent.parent.parent.parent
+_PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 

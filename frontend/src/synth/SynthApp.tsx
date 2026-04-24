@@ -120,7 +120,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
             <div className="min-w-0">
               <div className="app-brand__title">PiERN Synth</div>
-              <div className="app-brand__subtitle">Physics-informed data synthesis workbench</div>
+              <div className="app-brand__subtitle">数据合成工作台</div>
             </div>
           </div>
 
@@ -185,7 +185,6 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
                   <Shuffle size={11} />
                   <span>随机种子</span>
                 </div>
-                <span className="app-footnote">shared</span>
               </div>
               <input
                 type="number"
@@ -207,7 +206,6 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
 
             <div className="app-sidebar__footer-row">
-              <span className="app-footnote mono">synth v1</span>
               <button type="button" onClick={toggleTheme} className="theme-toggle">
                 {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
                 <span>{theme === 'dark' ? '日间' : '夜间'}</span>

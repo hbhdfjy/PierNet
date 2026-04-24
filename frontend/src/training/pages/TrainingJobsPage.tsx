@@ -28,9 +28,18 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
   )
 }
 
+function actionErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) {
+    return error.message
+  }
+  return String(error || '未知错误')
+}
+
 function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?: boolean }) {
   const { mutate } = useSWRConfig()
   const [isStopping, setIsStopping] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
   const deletable = !stoppable
 
@@ -39,21 +48,33 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   }
 
   const stopJob = async () => {
-    if (isStopping) return
+    if (isStopping || isDeleting) return
+    setActionError(null)
     setIsStopping(true)
     try {
       await api.stopTrainingJob(job.job_id)
       await refreshAll()
+    } catch (error) {
+      setActionError(`终止失败：${actionErrorMessage(error)}`)
     } finally {
       setIsStopping(false)
     }
   }
 
   const deleteJob = async () => {
+    if (isDeleting) return
     const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、run 目录、checkpoint、曲线和日志。共享 prepared cache 会保留。`)
     if (!ok) return
-    await api.deleteTrainingJob(job.job_id)
-    await refreshAll()
+    setActionError(null)
+    setIsDeleting(true)
+    try {
+      await api.deleteTrainingJob(job.job_id)
+      await refreshAll()
+    } catch (error) {
+      setActionError(`删除失败：${actionErrorMessage(error)}`)
+    } finally {
+      setIsDeleting(false)
+    }
   }
 
   return (
@@ -78,12 +99,12 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
               </button>
             )}
             {deletable && (
-              <button type="button" className="btn-ghost" onClick={deleteJob}>
+              <button type="button" className="btn-ghost" onClick={deleteJob} disabled={isDeleting}>
                 <Trash2 size={14} />
-                删除
+                {isDeleting ? '删除中...' : '删除'}
               </button>
             )}
-            <Link to={`/training/jobs/${job.job_id}`} className="btn-primary">
+            <Link to={`/training/jobs/${job.job_id}`} className={isDeleting ? 'btn-primary pointer-events-none opacity-60' : 'btn-primary'}>
               <PlayCircle size={14} />
               查看详情
             </Link>
@@ -113,6 +134,13 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
           </div>
         </div>
 
+        {actionError && (
+          <div className="flex items-start gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/8 px-4 py-3 text-sm text-amber-200">
+            <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+            <span>{actionError}</span>
+          </div>
+        )}
+
         {job.error_message && (
           <div className="flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
@@ -139,15 +167,12 @@ export default function TrainingJobsPage() {
       <div className="training-page__body">
         <div className="space-y-5 p-5">
           <section className="training-hero">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <div className="training-eyebrow">Training Jobs</div>
-                <h1 className="mt-4 text-[2.05rem] font-semibold tracking-tight text-white xl:text-[2.35rem]">任务管理</h1>
-                <p className="mt-3 max-w-2xl training-copy">
-                  查看全部训练任务，终止运行中的任务，并清理已经不再需要的历史记录。
-                </p>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="training-eyebrow">任务管理</div>
+                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">训练任务</h1>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <button type="button" className="btn-ghost" onClick={() => mutate()}>
                   <RefreshCcw size={14} />
                   刷新
@@ -159,11 +184,11 @@ export default function TrainingJobsPage() {
               </div>
             </div>
 
-            <div className="mt-6 training-kpi-grid">
-              <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="当前注册表中的全部任务" icon={<Gauge size={16} />} />
+            <div className="mt-5 training-kpi-grid">
+              <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="注册表中的全部任务" icon={<Gauge size={16} />} />
               <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating" icon={<PlayCircle size={16} />} />
               <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 和测试结果" icon={<RefreshCcw size={16} />} />
-              <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误输出" icon={<AlertTriangle size={16} />} />
+              <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误" icon={<AlertTriangle size={16} />} />
             </div>
           </section>
 
@@ -178,7 +203,7 @@ export default function TrainingJobsPage() {
               <Gauge size={16} className="text-sky-300" />
               <div>
                 <div className="training-panel-title">任务列表</div>
-                <div className="training-panel-copy">优先处理运行中的任务，历史任务可直接删除</div>
+                <div className="training-panel-copy">运行中任务可终止，历史任务可删除</div>
               </div>
             </div>
             <div className="training-card__body training-scroll list-scroll-xl">

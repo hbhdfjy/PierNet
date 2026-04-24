@@ -69,19 +69,12 @@ export default function TrainingOverviewPage() {
       <div className="training-page__body">
         <div className="space-y-5 p-5">
           <section className="training-hero">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <div className="training-eyebrow">
-                  <span>Training</span>
-                  <span className="text-slate-500">/</span>
-                  <span>Token Router</span>
-                </div>
-                <h1 className="mt-4 text-[2.15rem] font-semibold tracking-tight text-white xl:text-[2.5rem]">训练总览</h1>
-                <p className="mt-3 max-w-2xl training-copy">
-                  直接查看训练数据、GPU 状态和最近任务。当前只开放单 GPU Token Router 训练。
-                </p>
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="training-eyebrow">Token Router 训练</div>
+                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">训练总览</h1>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
                 <Link to="/training/new" className="btn-primary">
                   <PlayCircle size={15} />
                   新建训练
@@ -93,7 +86,7 @@ export default function TrainingOverviewPage() {
               </div>
             </div>
 
-            <div className="mt-6 training-kpi-grid">
+            <div className="mt-5 training-kpi-grid">
               <KpiCard label="样本" value={formatCount(totalDatasets)} note={`${data?.datasets.length ?? 0} 个大场景`} icon={<Database size={16} />} />
               <KpiCard label="GPU" value={`${availableGpus}/${data?.gpus.length ?? 0}`} note="当前可用卡数" icon={<Gauge size={16} />} />
               <KpiCard label="运行中" value={formatCount(data?.running_job_count ?? 0)} note="starting / running / evaluating" icon={<Activity size={16} />} />
@@ -111,7 +104,7 @@ export default function TrainingOverviewPage() {
             <section className="training-card min-h-0">
               <div className="card-header">
                 <Database size={16} className="text-sky-300" />
-                <SectionTitle title="训练数据" copy="按大场景聚合后的 router 训练集" />
+                <SectionTitle title="训练数据" copy="按大场景聚合的 Router 训练集" />
               </div>
               <div className="training-card__body training-scroll list-scroll-xl">
                 {isLoading && !data ? (
@@ -161,7 +154,7 @@ export default function TrainingOverviewPage() {
               <section className="training-card min-h-0">
                 <div className="card-header">
                   <Gauge size={16} className="text-emerald-300" />
-                  <SectionTitle title="GPU 状态" copy="训练平台可见的单卡状态" />
+                  <SectionTitle title="GPU 状态" copy="当前可用的 GPU 卡" />
                 </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   {data?.gpus?.length ? (
@@ -204,7 +197,7 @@ export default function TrainingOverviewPage() {
               <section className="training-card min-h-0 flex-1">
                 <div className="card-header">
                   <Layers3 size={16} className="text-violet-300" />
-                  <SectionTitle title="最近任务" copy="最近 5 个受管训练任务" />
+                  <SectionTitle title="最近任务" copy="最近 5 个训练任务" />
                 </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   {data?.jobs.length ? (

@@ -51,7 +51,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
           </div>
           <div className="min-w-0">
             <div className="app-brand__title">PiERN Training</div>
-            <div className="app-brand__subtitle">Single-GPU router training</div>
+            <div className="app-brand__subtitle">模型训练工作台</div>
           </div>
         </div>
 
@@ -77,10 +77,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
             <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3 text-xs text-slate-400">
               <div className="flex items-center gap-2 text-slate-200">
                 <Cpu size={13} />
-                单 GPU
-              </div>
-              <div className="mt-2 leading-6">
-                当前只开放 Token Router 单 GPU 训练，多卡和 DDP 暂不提供。
+                单 GPU · Token Router
               </div>
             </div>
           </div>
@@ -88,7 +85,6 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
 
         <div className="app-sidebar__footer">
           <div className="app-sidebar__footer-row">
-            <span className="app-footnote mono">training v1</span>
             <button type="button" onClick={toggleTheme} className="theme-toggle">
               {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
               <span>{theme === 'dark' ? '日间' : '夜间'}</span>

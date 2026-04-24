@@ -1,4 +1,4 @@
-import { BarChart2, Database, FileText, GitBranch, PlayCircle, Sparkles } from 'lucide-react'
+import { Database, FileText, GitBranch, PlayCircle, Sparkles } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
@@ -78,13 +78,7 @@ export default function SynthOverviewPage() {
     <div className="training-page">
       <div className="page-header">
         <div>
-          <div className="training-label uppercase tracking-[0.22em]">Synthesis Platform</div>
-          <h1 className="mt-2 training-title">数据合成总览</h1>
-          <p className="mt-2 max-w-3xl training-copy">
-            集中展示 Stage 1 到 Stage 4 的关键统计、数据规模和快捷入口。数据合成平台现在以
-            <span className="mono px-1 text-slate-200">/synth</span>
-            作为独立入口。
-          </p>
+          <h1 className="training-title">数据合成总览</h1>
         </div>
         <div className="flex items-center gap-3">
           <Link to="/synth/simulate" className="btn-primary">
@@ -93,7 +87,7 @@ export default function SynthOverviewPage() {
           </Link>
           <Link to="/training" className="btn-ghost">
             <GitBranch size={15} />
-            前往训练平台
+            训练平台
           </Link>
         </div>
       </div>
@@ -139,7 +133,7 @@ export default function SynthOverviewPage() {
                 <Database size={16} className="text-sky-300" />
                 <div>
                   <div className="text-[17px] font-semibold text-slate-100">Stage 3 样本场景</div>
-                  <div className="text-[15px] text-slate-400">按样本规模排序的前 6 个场景</div>
+                  <div className="text-[15px] text-slate-400">按样本规模排序</div>
                 </div>
               </div>
               <div className="training-card__body training-scroll">
@@ -191,7 +185,7 @@ export default function SynthOverviewPage() {
                 <GitBranch size={16} className="text-emerald-300" />
                 <div>
                   <div className="text-[17px] font-semibold text-slate-100">Stage 4 Router 数据</div>
-                  <div className="text-[15px] text-slate-400">按 router 样本规模排序的前 6 个场景</div>
+                  <div className="text-[15px] text-slate-400">按 Router 样本规模排序</div>
                 </div>
               </div>
               <div className="training-card__body training-scroll">
@@ -230,39 +224,6 @@ export default function SynthOverviewPage() {
               </div>
             </section>
 
-            <section className="training-card min-h-0 flex-1">
-              <div className="card-header">
-                <BarChart2 size={16} className="text-violet-300" />
-                <div>
-                  <div className="text-[17px] font-semibold text-slate-100">快捷入口</div>
-                  <div className="text-[15px] text-slate-400">常用工作流页面</div>
-                </div>
-              </div>
-              <div className="training-card__body training-scroll">
-                <div className="grid gap-3">
-                  <Link to="/synth/simulate" className="card-hover block p-3.5">
-                    <div className="text-[16px] font-semibold text-slate-100">物理仿真</div>
-                    <div className="mt-1 text-[15px] text-slate-400">Stage 1 仿真运行和历史记录</div>
-                  </Link>
-                  <Link to="/synth/templates" className="card-hover block p-3.5">
-                    <div className="text-[16px] font-semibold text-slate-100">模板生成</div>
-                    <div className="mt-1 text-[15px] text-slate-400">Stage 2 模板配置和批量生成</div>
-                  </Link>
-                  <Link to="/synth/fill" className="card-hover block p-3.5">
-                    <div className="text-[16px] font-semibold text-slate-100">样本填充</div>
-                    <div className="mt-1 text-[15px] text-slate-400">Stage 3 数值填充和样本写出</div>
-                  </Link>
-                  <Link to="/synth/router" className="card-hover block p-3.5">
-                    <div className="text-[16px] font-semibold text-slate-100">构建路由</div>
-                    <div className="mt-1 text-[15px] text-slate-400">Stage 4 router 数据生成和管理</div>
-                  </Link>
-                  <Link to="/synth/stats" className="card-hover block p-3.5">
-                    <div className="text-[16px] font-semibold text-slate-100">详细统计</div>
-                    <div className="mt-1 text-[15px] text-slate-400">保留原来的数据统计页面</div>
-                  </Link>
-                </div>
-              </div>
-            </section>
           </div>
         </div>
       </div>

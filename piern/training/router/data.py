@@ -22,7 +22,7 @@ PRETRAINED_EMBEDDINGS = "pretrained_embeddings"
 SUPPORTED_INPUT_REPRESENTATIONS = {"embedding"}
 PREPARED_FORMAT = "router_dynamic_tokens_v3"
 DEFAULT_CHAT_TEMPLATE = "qwen"
-DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/fjy/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
 
 
@@ -706,5 +706,4 @@ def collate_batch(batch: list[dict[str, object]], pad_id: int) -> dict[str, torc
         "labels": labels,
         "scenario_ids": scenario_ids,
     }
-
 

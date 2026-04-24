@@ -18,7 +18,7 @@ import json
 import random
 from pathlib import Path
 
-DEFAULT_QWEN_EMBEDDING_MODEL = "/data/models/Qwen/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/data/fjy/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
 
 QWEN_TEMPLATE = {
@@ -373,4 +373,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

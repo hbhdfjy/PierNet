@@ -43,6 +43,8 @@ def create_training_job(req: TrainingJobCreateRequest):
         return TrainingJobSummary(**training_manager.create_job(req.model_dump()))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
 
 
 @router.get("/jobs/{job_id}", response_model=TrainingJobDetail)

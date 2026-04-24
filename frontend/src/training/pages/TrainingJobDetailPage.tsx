@@ -7,7 +7,6 @@ import {
   RadioTower,
   RefreshCcw,
   Save,
-  Sparkles,
   Trash2,
 } from 'lucide-react'
 import { useMemo, useState } from 'react'
@@ -595,34 +594,6 @@ function buildEpochSeries(points: TrainingPoint[]): TrainingPoint[] {
   return Array.from(lastPointByEpoch.values()).sort((a, b) => a.epoch - b.epoch)
 }
 
-function isStartupLogLine(line: string) {
-  return line.startsWith('[launch]') || line.startsWith('[startup]') || line.startsWith('[prepare')
-}
-
-function describeStartupPhase(line?: string) {
-  if (!line) return '等待启动日志'
-  if (line.startsWith('[launch]')) return '提交启动任务'
-  if (line.startsWith('[prepare:scan]')) return '扫描 Router 数据'
-  if (line.startsWith('[prepare:embed]')) return '构建动态索引'
-  const phaseMatch = line.match(/\[startup\] phase=([a-z_]+)/)
-  const phase = phaseMatch?.[1]
-  if (phase === 'bootstrap') return '初始化运行环境'
-  if (phase === 'prepare') return '准备训练数据'
-  if (phase === 'encoder') return '加载 Qwen tokenizer / embedding'
-  if (phase === 'dataset') return '构建训练数据集'
-  if (phase === 'dataloader') return '构建 DataLoader'
-  if (phase === 'model') return '初始化路由模型'
-  if (phase === 'optimizer') return '初始化优化器'
-  if (phase === 'resume') return '恢复 checkpoint'
-  if (phase === 'run_dir') return '写入运行目录'
-  if (phase === 'loop') return '进入训练循环'
-  if (line.startsWith('[train]')) return '训练中'
-  if (line.startsWith('[test]')) return '评测中'
-  if (line.startsWith('[done]')) return '训练完成'
-  if (line.startsWith('[error]')) return '启动失败'
-  return '处理中'
-}
-
 export default function TrainingJobDetailPage() {
   const { jobId = '' } = useParams()
   const navigate = useNavigate()
@@ -630,7 +601,6 @@ export default function TrainingJobDetailPage() {
   const [trainingAxisMode, setTrainingAxisMode] = useState<TrainingAxisMode>('step')
   const [isStopping, setIsStopping] = useState(false)
   const [lossHover, setLossHover] = useState<ChartHoverSnapshot | null>(null)
-  const [speedHover, setSpeedHover] = useState<ChartHoverSnapshot | null>(null)
   const [metricHover, setMetricHover] = useState<ChartHoverSnapshot | null>(null)
   const [scenarioHover, setScenarioHover] = useState<ChartHoverSnapshot | null>(null)
 
@@ -670,14 +640,6 @@ export default function TrainingJobDetailPage() {
       revalidateOnFocus: false,
     },
   )
-  const allLogLines = logs?.lines ?? []
-
-  const startupLogLines = useMemo(
-    () => allLogLines.filter(isStartupLogLine).slice(-12),
-    [allLogLines],
-  )
-  const latestStartupLine = startupLogLines[startupLogLines.length - 1] ?? allLogLines[allLogLines.length - 1]
-  const startupPhaseLabel = useMemo(() => describeStartupPhase(latestStartupLine), [latestStartupLine])
 
   const trainingChart = useMemo(() => {
     const raw = curves?.training_points ?? []
@@ -694,17 +656,6 @@ export default function TrainingJobDetailPage() {
       buildNumericDomain(trainingChart.data.map(point => point.avg_loss), {
         minClamp: 0,
         minPad: 0.00005,
-        padRatio: 0.06,
-        lowerQuantile: 0.08,
-        upperQuantile: 0.92,
-      }),
-    [trainingChart.data],
-  )
-
-  const speedDomain = useMemo(
-    () =>
-      buildNumericDomain(trainingChart.data.map(point => point.steps_per_sec), {
-        minPad: 0.02,
         padRatio: 0.06,
         lowerQuantile: 0.08,
         upperQuantile: 0.92,
@@ -822,20 +773,13 @@ export default function TrainingJobDetailPage() {
       <div className="training-page__body">
         <div className="space-y-5 p-5">
           <section className="training-hero">
-            <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-              <div className="max-w-3xl">
-                <div className="training-eyebrow">
-                  <span>Training</span>
-                  <span className="text-slate-500">/</span>
-                  <span>Job Detail</span>
-                </div>
-                <h1 className="mt-4 text-[2.1rem] font-semibold tracking-tight text-white xl:text-[2.45rem]">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+              <div>
+                <div className="training-eyebrow">任务详情</div>
+                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">
                   {job?.name ?? jobId}
                 </h1>
                 <div className="mono mt-2 text-[13px] text-slate-500">{jobId}</div>
-                <p className="mt-3 max-w-2xl training-copy">
-                  统一查看训练进度、测试结果、checkpoint 和原始日志。训练曲线支持按 step 和 epoch 切换。
-                </p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" className="btn-ghost" onClick={() => navigate('/training/jobs')}>
@@ -912,47 +856,11 @@ export default function TrainingJobDetailPage() {
 
           {job && (
             <>
-              <section className="training-card">
-                <div className="card-header">
-                  <Sparkles size={16} className="text-sky-300" />
-                  <SectionTitle title="启动进度" copy="把最近的启动阶段日志提到顶部，便于判断卡在哪一步" />
-                </div>
-                <div className="training-card__body">
-                  <div className="grid gap-3 md:grid-cols-[0.28fr_0.72fr]">
-                    <div className="training-surface--dense">
-                      <div className="training-panel-title">当前阶段</div>
-                      <div className="mt-2 text-[15px] font-medium text-slate-100">{startupPhaseLabel}</div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        <MetaField label="任务状态" value={statusLabel(job.status)} />
-                        <MetaField label="启动日志" value={startupLogLines.length} mono />
-                        <MetaField label="最近 epoch" value={job.latest_epoch ?? '—'} mono />
-                        <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
-                      </div>
-                      <p className="mt-3 text-[12px] leading-5 text-slate-500">
-                        启动期会更高频刷新；如果长时间停在同一阶段，就能直接看出是数据准备、embedding 加载还是模型初始化。
-                      </p>
-                    </div>
-                    <div className="rounded-2xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <div className="training-panel-title">最近启动日志</div>
-                          <div className="training-panel-copy">优先显示 launch / startup / prepare 阶段输出</div>
-                        </div>
-                        <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
-                      </div>
-                      <pre className="max-h-[220px] overflow-y-auto whitespace-pre-wrap break-words rounded-2xl border border-slate-800/70 bg-slate-950/65 px-3.5 py-3 text-[12px] leading-5 text-slate-300">
-                        {startupLogLines.join('\n') || '任务已提交，等待第一条启动日志...'}
-                      </pre>
-                    </div>
-                  </div>
-                </div>
-              </section>
-
               <div className="grid gap-4 xl:grid-cols-[1.08fr_0.92fr]">
                 <section className="training-card">
                   <div className="card-header">
                     <RadioTower size={16} className="text-violet-300" />
-                    <SectionTitle title="任务摘要" copy="配置、路径和最近状态" />
+                    <SectionTitle title="任务摘要" copy="配置与路径" />
                   </div>
                   <div className="training-card__body">
                     <div className="grid gap-3 md:grid-cols-2">
@@ -1002,7 +910,7 @@ export default function TrainingJobDetailPage() {
                 <section className="training-card min-h-0">
                   <div className="card-header">
                     <Save size={16} className="text-emerald-300" />
-                    <SectionTitle title="Checkpoint" copy="当前 run 已保存的模型文件" />
+                    <SectionTitle title="Checkpoint" copy="已保存的模型文件" />
                   </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
@@ -1010,7 +918,7 @@ export default function TrainingJobDetailPage() {
               </section>
             </div>
 
-              <div className="grid gap-4 xl:grid-cols-2">
+              <div className="grid gap-4">
                 <ChartCard
                   title="训练损失"
                   subtitle={`avg_loss vs ${trainingChart.subtitleSuffix}`}
@@ -1065,48 +973,6 @@ export default function TrainingJobDetailPage() {
                       />
                     </LineChart>
                   </ResponsiveContainer>
-                ) : (
-                  <ChartEmpty message="当前还没有训练曲线点。" />
-                )}
-                </ChartCard>
-
-                <ChartCard title="训练速度" subtitle={`steps_per_sec vs ${trainingChart.subtitleSuffix}`}>
-                {trainingChart.data.length ? (
-                  <>
-                    <div className="pointer-events-none absolute right-8 top-8 z-20">
-                      <ChartHoverPanel snapshot={speedHover} />
-                    </div>
-                    <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={trainingChart.data}
-                      margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setSpeedHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? 'Step' : 'Epoch', state))}
-                      onMouseLeave={() => setSpeedHover(null)}
-                    >
-                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
-                      <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
-                      <ChartYAxis
-                        domain={speedDomain}
-                        tickCount={5}
-                        width={52}
-                        tickFormatter={(value: number) => value.toFixed(2)}
-                        allowDataOverflow
-                      />
-                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
-                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line
-                        type="monotone"
-                        dataKey="steps_per_sec"
-                        name="steps_per_sec"
-                        stroke="#34d399"
-                        dot={false}
-                        activeDot={buildActiveDot('#34d399')}
-                        strokeWidth={2.25}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </>
                 ) : (
                   <ChartEmpty message="当前还没有训练曲线点。" />
                 )}
@@ -1201,7 +1067,7 @@ export default function TrainingJobDetailPage() {
               <section className="training-card min-h-0">
                 <div className="card-header">
                   <FileText size={16} className="text-amber-300" />
-                  <SectionTitle title="训练日志" copy="最近 400 行原始输出" />
+                  <SectionTitle title="训练日志" copy="最近 400 行输出" />
                 </div>
                 <div className="training-card__body min-h-0">
                   <div className="grid gap-3 md:grid-cols-[0.22fr_0.78fr]">
@@ -1213,15 +1079,12 @@ export default function TrainingJobDetailPage() {
                         <MetaField label="最近 epoch" value={job.latest_epoch ?? '—'} mono />
                         <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
                       </div>
-                      <p className="mt-3 text-[12px] leading-5 text-slate-500">
-                        日志按最新 400 行截断，用于快速定位训练阶段、测试阶段和错误输出。
-                      </p>
                     </div>
                     <div className="rounded-2xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <div className="training-panel-title">终端输出</div>
-                          <div className="training-panel-copy">自动刷新，优先显示最新内容</div>
+                          <div className="training-panel-copy">自动刷新最新内容</div>
                         </div>
                         <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
                       </div>
