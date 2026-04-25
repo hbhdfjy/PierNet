@@ -803,6 +803,14 @@
     @apply min-h-0 flex-1 p-4;
   }
 
+  .training-card--compact .card-header {
+    @apply px-3.5 py-2.5;
+  }
+
+  .training-card--compact .training-card__body {
+    @apply p-3;
+  }
+
   .training-stack.min-h-0,
   .training-card.min-h-0 {
     min-height: fit-content;
@@ -843,6 +851,10 @@
     background: linear-gradient(180deg, hsl(var(--surface) / 0.94), hsl(var(--surface2) / 0.92));
     border-color: hsl(var(--border) / 0.7);
     box-shadow: var(--shadow-sm);
+  }
+
+  .training-hero--compact {
+    @apply p-4 xl:p-4;
   }
 
   .training-hero::before {
@@ -935,6 +947,10 @@
     backdrop-filter: blur(14px);
   }
 
+  .training-kpi--compact {
+    @apply p-3;
+  }
+
   .training-kpi__label {
     @apply text-[11px] font-semibold uppercase tracking-[0.15em];
     color: hsl(var(--text-faint));
@@ -945,9 +961,17 @@
     color: hsl(var(--text));
   }
 
+  .training-kpi--compact .training-kpi__value {
+    @apply mt-1 text-[1.35rem] leading-none;
+  }
+
   .training-kpi__note {
     @apply mt-1 text-[13px];
     color: hsl(var(--text-ghost));
+  }
+
+  .training-kpi--compact .training-kpi__note {
+    @apply text-[12px];
   }
 
   .training-panel-title {
@@ -970,6 +994,45 @@
     @apply rounded-2xl border px-3 py-2.5;
     border-color: hsl(var(--border) / 0.46);
     background: hsl(var(--surface2) / 0.46);
+  }
+
+  .training-surface--compact {
+    @apply rounded-2xl border px-3 py-2.5;
+    border-color: hsl(var(--border) / 0.46);
+    background: hsl(var(--surface2) / 0.46);
+  }
+
+  .training-chip-grid {
+    @apply flex flex-wrap gap-1.5;
+  }
+
+  .training-chip {
+    @apply inline-flex min-w-0 items-center gap-1.5 rounded-xl border px-2.5 py-1 text-[12px] leading-none;
+    border-color: hsl(var(--border) / 0.48);
+    background: hsl(var(--surface3) / 0.38);
+    color: hsl(var(--text-faint));
+  }
+
+  .training-select-chip {
+    @apply min-w-0 rounded-2xl border px-3 py-2.5 text-left transition-all;
+  }
+
+  .training-select-chip--active {
+    border-color: hsl(var(--brand) / 0.44);
+    background: hsl(var(--brand) / 0.14);
+    color: hsl(var(--text));
+  }
+
+  .training-select-chip--idle {
+    border-color: hsl(var(--border) / 0.46);
+    background: hsl(var(--surface2) / 0.42);
+    color: hsl(var(--text-muted));
+  }
+
+  .training-select-chip--idle:hover {
+    border-color: hsl(var(--border-hi) / 0.62);
+    background: hsl(var(--surface2) / 0.72);
+    color: hsl(var(--text));
   }
 
   .training-meta-grid {

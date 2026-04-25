@@ -610,7 +610,7 @@ export default function TrainingJobDetailPage() {
     {
       refreshInterval: current => {
         if (!current) return 2000
-        if (current.status === 'starting') return 2000
+        if (current.status === 'starting' || current.status === 'stopping') return 2000
         return ['running', 'evaluating'].includes(current.status) ? 5000 : 0
       },
       revalidateOnFocus: false,
@@ -619,7 +619,7 @@ export default function TrainingJobDetailPage() {
 
   const refreshInterval = useMemo(() => {
     if (!job) return 2000
-    if (job.status === 'starting') return 2000
+    if (job.status === 'starting' || job.status === 'stopping') return 2000
     return ['running', 'evaluating'].includes(job.status) ? 5000 : 0
   }, [job])
 
@@ -725,7 +725,7 @@ export default function TrainingJobDetailPage() {
   }, [curves?.test_points])
 
   const stopJob = async () => {
-    if (isStopping) return
+    if (isStopping || job?.status === 'stopping') return
     setIsStopping(true)
     try {
       await api.stopTrainingJob(jobId)
@@ -798,10 +798,10 @@ export default function TrainingJobDetailPage() {
                   <RefreshCcw size={14} />
                   刷新
                 </button>
-                {job && ['starting', 'running', 'evaluating'].includes(job.status) ? (
-                  <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping}>
+                {job && ['starting', 'running', 'evaluating', 'stopping'].includes(job.status) ? (
+                  <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping || job.status === 'stopping'}>
                     <PauseCircle size={14} />
-                    {isStopping ? '\u7ec8\u6b62\u4e2d...' : '\u7ec8\u6b62\u8bad\u7ec3'}
+                    {isStopping || job.status === 'stopping' ? '\u7ec8\u6b62\u4e2d...' : '\u7ec8\u6b62\u8bad\u7ec3'}
                   </button>
                 ) : job ? (
                   <button type="button" className="btn-ghost" onClick={deleteJob}>

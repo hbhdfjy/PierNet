@@ -5,6 +5,7 @@ import json
 import logging
 import math
 import os
+import secrets
 import shutil
 import signal
 import subprocess
@@ -26,11 +27,15 @@ PYTHON_BIN = Path("/home/fjy/miniconda3/envs/piern-project/bin/python")
 TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
 ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "token_router"
 RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"
+CONTROL_ROOT = RUNLOGS_ROOT / "training-controls"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
 ROUTER_DATA_DIR = PROJECT_ROOT / "data" / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
+TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}
+TRAINING_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
+TRAINING_STOP_GRACE_SECONDS = 45.0
 
 _REGISTRY_LOCK = RLock()
 LOGGER = logging.getLogger(__name__)
@@ -39,6 +44,11 @@ LOGGER = logging.getLogger(__name__)
 def _ensure_dirs() -> None:
     ARTIFACTS_ROOT.mkdir(parents=True, exist_ok=True)
     RUNLOGS_ROOT.mkdir(parents=True, exist_ok=True)
+    CONTROL_ROOT.mkdir(parents=True, exist_ok=True)
+    try:
+        CONTROL_ROOT.chmod(0o700)
+    except OSError:
+        LOGGER.debug("Failed to chmod training control directory %s", CONTROL_ROOT, exc_info=True)
 
 
 def _load_registry() -> list[dict[str, Any]]:
@@ -52,7 +62,15 @@ def _save_registry(entries: list[dict[str, Any]]) -> None:
     _ensure_dirs()
     tmp_path = REGISTRY_PATH.with_suffix(REGISTRY_PATH.suffix + ".tmp")
     tmp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        tmp_path.chmod(0o600)
+    except OSError:
+        LOGGER.debug("Failed to chmod temporary training registry %s", tmp_path, exc_info=True)
     tmp_path.replace(REGISTRY_PATH)
+    try:
+        REGISTRY_PATH.chmod(0o600)
+    except OSError:
+        LOGGER.debug("Failed to chmod training registry %s", REGISTRY_PATH, exc_info=True)
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -78,6 +96,14 @@ def _find_job(entries: list[dict[str, Any]], job_id: str) -> dict[str, Any]:
 
 def _make_job_id() -> str:
     return f"train-{uuid.uuid4().hex[:8]}"
+
+
+def _make_stop_token() -> str:
+    return secrets.token_urlsafe(32)
+
+
+def _stop_file_for_job(job_id: str) -> Path:
+    return CONTROL_ROOT / f"{job_id}.stop.json"
 
 
 def _normalize_job_name(value: Any, *, fallback: str) -> str:
@@ -120,6 +146,45 @@ def _pid_alive(pid: int | None) -> bool:
         return True
     except OSError:
         return False
+
+
+def _safe_kill_process_group(pid: int, sig: signal.Signals) -> None:
+    try:
+        os.killpg(pid, sig)
+    except ProcessLookupError:
+        return
+    except OSError:
+        try:
+            os.kill(pid, sig)
+        except ProcessLookupError:
+            return
+
+
+def _write_stop_request(entry: dict[str, Any]) -> None:
+    stop_token = entry.get("stop_token")
+    stop_file_value = entry.get("stop_file")
+    if not stop_token or not stop_file_value:
+        raise ValueError("training job has no platform stop token; cannot request authorized stop")
+
+    stop_file = Path(stop_file_value)
+    stop_file.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "job_id": entry["job_id"],
+        "token": stop_token,
+        "requested_at": time.time(),
+        "reason": "platform_stop",
+    }
+    tmp_path = stop_file.with_suffix(stop_file.suffix + ".tmp")
+    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        tmp_path.chmod(0o600)
+    except OSError:
+        LOGGER.debug("Failed to chmod temporary stop request %s", tmp_path, exc_info=True)
+    tmp_path.replace(stop_file)
+    try:
+        stop_file.chmod(0o600)
+    except OSError:
+        LOGGER.debug("Failed to chmod stop request %s", stop_file, exc_info=True)
 
 
 def _tail_lines(path: Path, limit: int = 200) -> list[str]:
@@ -351,6 +416,17 @@ def _remove_job_log(entry: dict[str, Any]) -> None:
     except OSError:
         LOGGER.exception("Failed to delete training log %s", log_path)
 
+
+def _remove_job_stop_file(entry: dict[str, Any]) -> None:
+    stop_file_value = entry.get("stop_file")
+    if not stop_file_value:
+        return
+    try:
+        Path(stop_file_value).unlink(missing_ok=True)
+    except OSError:
+        LOGGER.exception("Failed to delete training stop file %s", stop_file_value)
+
+
 def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     entry["name"] = _normalize_job_name(entry.get("name"), fallback=entry["job_id"])
     run_dir_str = entry.get("run_dir")
@@ -383,28 +459,40 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "pr_auc": overall.get("pr_auc"),
         }
 
+    stop_requested = bool(entry.get("stop_requested"))
     if alive:
         last_lines = _tail_lines(log_path, 2)
-        if last_lines and last_lines[-1].startswith("[test]"):
+        if stop_requested:
+            entry["status"] = "stopping"
+        elif last_lines and last_lines[-1].startswith("[test]"):
             entry["status"] = "evaluating"
         elif latest_point:
             entry["status"] = "running"
         else:
             entry["status"] = "starting"
     else:
-        if entry.get("status") not in {"done", "error", "terminated"}:
-            if entry.get("terminated"):
+        if entry.get("status") not in TRAINING_TERMINAL_STATUSES:
+            last_lines = _tail_lines(log_path, 40)
+            if stop_requested or entry.get("terminated") or any(line.startswith("[stop]") for line in last_lines):
                 entry["status"] = "terminated"
+                entry["terminated"] = True
+                entry["exit_reason"] = entry.get("exit_reason") or "platform_stop"
+                entry["error_message"] = entry.get("error_message") or "Stopped by platform request."
             elif (run_dir / "router_final.pt").exists():
                 entry["status"] = "done"
+                entry["exit_reason"] = "completed"
             else:
-                last_lines = _tail_lines(log_path, 20)
                 if any(line.startswith("[done]") for line in last_lines):
                     entry["status"] = "done"
+                    entry["exit_reason"] = "completed"
                 else:
-                    entry["status"] = "error"
+                    entry["status"] = "external_terminated"
+                    entry["exit_reason"] = "external_termination"
                     if last_lines:
-                        entry["error_message"] = last_lines[-1]
+                        entry["error_message"] = (
+                            "Training process exited without a platform stop request or completion marker. "
+                            f"Last log: {last_lines[-1]}"
+                        )
             entry["ended_at"] = entry.get("ended_at") or time.time()
 
     entry["checkpoints"] = _checkpoint_entries(run_dir)
@@ -436,7 +524,7 @@ def delete_job(job_id: str) -> dict[str, Any]:
     entry = _find_job(entries, job_id)
     entry = _refresh_entry(entry)
 
-    if entry.get("status") in {"starting", "running", "evaluating"} or _pid_alive(entry.get("pid")):
+    if entry.get("status") in TRAINING_ACTIVE_STATUSES or _pid_alive(entry.get("pid")):
         raise ValueError(f"training job is still active: {job_id}")
 
     remaining = [item for item in entries if item["job_id"] != job_id]
@@ -448,6 +536,7 @@ def delete_job(job_id: str) -> dict[str, Any]:
         raise
 
     _remove_job_log(entry)
+    _remove_job_stop_file(entry)
     _delete_job_artifacts_in_background([target for _, target in staged])
     return entry
 
@@ -498,7 +587,7 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
     locked = {
         int(job["gpu_id"]): job["job_id"]
         for job in jobs
-        if job["status"] in {"starting", "running", "evaluating"}
+        if job["status"] in TRAINING_ACTIVE_STATUSES
     }
     gpus: list[dict[str, Any]] = []
     for row in rows:
@@ -540,7 +629,7 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
 
 def get_overview() -> dict[str, Any]:
     jobs = list_jobs(refresh=True)
-    running_job_count = sum(1 for job in jobs if job["status"] in {"starting", "running", "evaluating"})
+    running_job_count = sum(1 for job in jobs if job["status"] in TRAINING_ACTIVE_STATUSES)
     completed_job_count = sum(1 for job in jobs if job["status"] == "done")
     return {
         "datasets": list_datasets(),
@@ -585,6 +674,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     artifact_root = ARTIFACTS_ROOT / simulator
     job_id = _make_job_id()
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
+    stop_token = _make_stop_token()
+    stop_file = _stop_file_for_job(job_id)
     test_ratio = float(payload["test_ratio"])
     prepared_name = _hash_prepared_name(
         simulator,
@@ -639,6 +730,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         job_id,
         "--input-representation",
         requested_input_representation,
+        "--stop-file",
+        str(stop_file),
     ]
     if scenarios:
         command.extend(["--scenarios", *scenarios])
@@ -670,12 +763,15 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             ),
             f"[launch] run_dir={run_dir}",
             f"[launch] log_path={log_path}",
+            f"[launch] stop_file={stop_file}",
             "[launch] spawning training subprocess...",
         )
 
         log_handle = log_path.open("a", encoding="utf-8")
         env = os.environ.copy()
         env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+        env["PIERN_TRAIN_STOP_TOKEN"] = stop_token
+        env.setdefault("TOKENIZERS_PARALLELISM", "false")
         try:
             process = subprocess.Popen(
                 command,
@@ -709,6 +805,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             "artifact_root": str(artifact_root),
             "run_dir": str(run_dir),
             "log_path": str(log_path),
+            "stop_file": str(stop_file),
+            "stop_token": stop_token,
             "config": {
                 "epochs": int(payload["epochs"]),
                 "eval_interval": int(payload["eval_interval"]),
@@ -726,6 +824,12 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             "command": command,
             "prepared_name": prepared_name,
             "terminated": False,
+            "stop_requested": False,
+            "stop_requested_at": None,
+            "stop_signal_sent_at": None,
+            "stop_force_kill_after": None,
+            "forced_kill": False,
+            "exit_reason": None,
             "latest_epoch": None,
             "latest_step": None,
             "steps_per_epoch": None,
@@ -743,20 +847,66 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         return _refresh_entry(entry)
 
 
+def _force_kill_after_grace(job_id: str, pid: int, deadline: float) -> None:
+    time.sleep(max(0.0, deadline - time.time()))
+    with _REGISTRY_LOCK:
+        entries = _load_registry()
+        try:
+            entry = _find_job(entries, job_id)
+        except KeyError:
+            return
+        if not entry.get("stop_requested") or not _pid_alive(pid):
+            return
+        _append_launch_log(
+            Path(entry["log_path"]),
+            f"[stop] graceful timeout exceeded; sending SIGKILL to process group pid={pid}",
+        )
+        _safe_kill_process_group(pid, signal.SIGKILL)
+        entry["forced_kill"] = True
+        entry["terminated"] = True
+        entry["status"] = "terminated"
+        entry["exit_reason"] = "platform_force_kill"
+        entry["ended_at"] = time.time()
+        entry["error_message"] = "Stopped by platform force kill after graceful timeout."
+        _save_registry(entries)
+
+
 @_with_registry_lock
 def stop_job(job_id: str) -> dict[str, Any]:
     entries = _load_registry()
     entry = _find_job(entries, job_id)
+    entry = _refresh_entry(entry)
     pid = entry.get("pid")
-    if pid and _pid_alive(pid):
-        try:
-            os.killpg(pid, signal.SIGINT)
-        except ProcessLookupError:
-            pass
-    entry["terminated"] = True
-    entry["status"] = "terminated"
-    entry["ended_at"] = time.time()
+    if not pid or not _pid_alive(pid):
+        entry["terminated"] = True
+        entry["status"] = "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else entry.get("status", "terminated")
+        entry["ended_at"] = entry.get("ended_at") or time.time()
+        _save_registry(entries)
+        return entry
+
+    now = time.time()
+    _write_stop_request(entry)
+    _append_launch_log(
+        Path(entry["log_path"]),
+        f"[stop] platform stop requested at={now:.3f}; sending SIGTERM to process group pid={pid}",
+    )
+    _safe_kill_process_group(pid, signal.SIGTERM)
+    force_after = now + TRAINING_STOP_GRACE_SECONDS
+    entry["stop_requested"] = True
+    entry["stop_requested_at"] = now
+    entry["stop_signal_sent_at"] = now
+    entry["stop_force_kill_after"] = force_after
+    entry["status"] = "stopping"
+    entry["exit_reason"] = "platform_stop_requested"
+    entry["error_message"] = "Platform stop requested; waiting for checkpoint save."
     _save_registry(entries)
+    thread = Thread(
+        target=_force_kill_after_grace,
+        args=(job_id, int(pid), force_after),
+        name=f"force-stop-{job_id}",
+        daemon=True,
+    )
+    thread.start()
     return entry
 
 
@@ -828,4 +978,3 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
         "test_points": _downsample(test_points, max_points=max_points),
         "checkpoints": _checkpoint_entries(run_dir),
     }
-

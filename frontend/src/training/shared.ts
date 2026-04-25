@@ -53,12 +53,16 @@ export function statusLabel(status: TrainingJobStatus): string {
       return '训练中'
     case 'evaluating':
       return '测试中'
+    case 'stopping':
+      return '停止中'
     case 'done':
       return '已完成'
     case 'error':
       return '失败'
     case 'terminated':
       return '已终止'
+    case 'external_terminated':
+      return '外部终止'
     case 'queued':
       return '排队中'
     default:
@@ -74,8 +78,12 @@ export function statusBadgeClass(status: TrainingJobStatus): string {
     case 'evaluating':
     case 'starting':
       return 'badge bg-sky-500/15 text-sky-300 border border-sky-500/20'
+    case 'stopping':
+      return 'badge bg-amber-500/14 text-amber-300 border border-amber-500/25'
     case 'terminated':
       return 'badge bg-amber-500/12 text-amber-300 border border-amber-500/20'
+    case 'external_terminated':
+      return 'badge bg-orange-500/12 text-orange-300 border border-orange-500/25'
     case 'error':
       return 'badge bg-rose-500/8 text-rose-300 border border-rose-500/20'
     default:

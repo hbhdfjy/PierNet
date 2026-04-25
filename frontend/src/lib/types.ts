@@ -467,7 +467,16 @@ export interface TrainingGPUInfo {
   reason: string | null
 }
 
-export type TrainingJobStatus = 'queued' | 'starting' | 'running' | 'evaluating' | 'done' | 'error' | 'terminated'
+export type TrainingJobStatus =
+  | 'queued'
+  | 'starting'
+  | 'running'
+  | 'evaluating'
+  | 'stopping'
+  | 'done'
+  | 'error'
+  | 'terminated'
+  | 'external_terminated'
 
 export interface TrainingJobConfig {
   epochs: number
@@ -517,6 +526,9 @@ export interface TrainingJobSummary {
   latest_test_epoch?: number | null
   latest_metrics?: TrainingMetricsSummary | null
   error_message?: string | null
+  stop_requested?: boolean
+  stop_requested_at?: number | null
+  exit_reason?: string | null
 }
 
 export interface TrainingCheckpointInfo {

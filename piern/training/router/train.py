@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import signal
 import time
 from contextlib import nullcontext
 from dataclasses import asdict, dataclass
@@ -53,6 +55,70 @@ class RouterTrainingConfig:
     max_train_samples: int | None = None
     max_test_samples: int | None = None
     input_representation: str = "embedding"
+    stop_file: str | None = None
+
+
+class PlatformStopController:
+    def __init__(self, stop_file: str | None) -> None:
+        self.stop_file = Path(stop_file) if stop_file else None
+        self.stop_token = os.environ.get("PIERN_TRAIN_STOP_TOKEN", "")
+        self._requested = False
+
+    @property
+    def enabled(self) -> bool:
+        return self.stop_file is not None and bool(self.stop_token)
+
+    def install(self) -> None:
+        if not self.enabled:
+            return
+        signal.signal(signal.SIGTERM, self._handle_signal)
+        signal.signal(signal.SIGINT, self._handle_signal)
+        print(f"[control] platform stop enabled stop_file={self.stop_file}")
+
+    def _authorized_request_exists(self) -> bool:
+        if not self.enabled or self.stop_file is None or not self.stop_file.exists():
+            return False
+        try:
+            payload = json.loads(self.stop_file.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+        return payload.get("token") == self.stop_token
+
+    def _handle_signal(self, signum: int, _frame) -> None:
+        signal_name = signal.Signals(signum).name
+        if self._authorized_request_exists():
+            self._requested = True
+            print(f"[stop] authorized platform signal received signal={signal_name}")
+            return
+        print(f"[signal] ignored unauthorized signal={signal_name}; platform stop token missing or invalid")
+
+    def requested(self) -> bool:
+        if self._requested:
+            return True
+        if self._authorized_request_exists():
+            self._requested = True
+        return self._requested
+
+
+def _write_stop_state(
+    run_dir: Path,
+    *,
+    reason: str,
+    epoch: int | None,
+    step: int | None,
+    global_step: int,
+) -> None:
+    payload = {
+        "reason": reason,
+        "epoch": epoch,
+        "step": step,
+        "global_step": global_step,
+        "stopped_at": time.time(),
+    }
+    (run_dir / "stop_state.json").write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
 
 
 def _log_startup(phase: str, message: str) -> None:
@@ -191,6 +257,8 @@ def _run_test(
 def run_training(config: RouterTrainingConfig) -> Path:
     startup_started_at = time.perf_counter()
     _log_startup("bootstrap", f"seed={config.seed} device={config.device}")
+    stop_controller = PlatformStopController(config.stop_file)
+    stop_controller.install()
     _set_seed(config.seed)
     device = torch.device(config.device)
     if device.type == "cuda":
@@ -200,6 +268,13 @@ def run_training(config: RouterTrainingConfig) -> Path:
         torch.backends.cudnn.allow_tf32 = True
 
     artifact_root = Path(config.artifact_root)
+    run_dir = artifact_root / "runs" / (config.run_name or datetime.now().strftime("%Y%m%d-%H%M%S"))
+    run_dir.mkdir(parents=True, exist_ok=True)
+    if stop_controller.requested():
+        print("[stop] platform stop accepted before dataset preparation")
+        _write_stop_state(run_dir, reason="platform_stop_before_prepare", epoch=None, step=None, global_step=0)
+        return run_dir
+
     prepared_dir = artifact_root / "prepared"
     if config.prepared_name:
         prepared_dir = prepared_dir / config.prepared_name
@@ -224,6 +299,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
         f"train_samples={summary.train_samples} test_samples={summary.test_samples} "
         f"max_sequence_length={summary.max_sequence_length}",
     )
+    if stop_controller.requested():
+        print("[stop] platform stop accepted after dataset preparation")
+        _write_stop_state(run_dir, reason="platform_stop_after_prepare", epoch=None, step=None, global_step=0)
+        return run_dir
+
     pad_id = 0
     _log_startup(
         "encoder",
@@ -250,6 +330,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
         f"elapsed={time.perf_counter() - embedding_started_at:.1f}s "
         f"vocab_size={encoder.model_vocab_size} hidden_size={encoder.hidden_size}",
     )
+    if stop_controller.requested():
+        print("[stop] platform stop accepted after embedding weights load")
+        _write_stop_state(run_dir, reason="platform_stop_after_encoder", epoch=None, step=None, global_step=0)
+        return run_dir
+
     if summary.vocab_size != encoder.model_vocab_size:
         raise ValueError(
             f"Prepared vocab_size mismatch: expected {summary.vocab_size}, got {encoder.model_vocab_size}"
@@ -318,6 +403,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
         "dataloader",
         f"dataloaders ready train_steps={len(train_loader)} test_steps={len(test_loader)}",
     )
+    if stop_controller.requested():
+        print("[stop] platform stop accepted after dataloader setup")
+        _write_stop_state(run_dir, reason="platform_stop_after_dataloader", epoch=None, step=None, global_step=0)
+        return run_dir
+
     _log_startup(
         "model",
         f"initializing router model model_dim={config.model_dim} scene_dim={config.scene_dim}",
@@ -363,8 +453,6 @@ def run_training(config: RouterTrainingConfig) -> Path:
             f"checkpoint ready start_epoch={start_epoch} global_step={global_step}",
         )
 
-    run_dir = artifact_root / "runs" / (config.run_name or datetime.now().strftime("%Y%m%d-%H%M%S"))
-    run_dir.mkdir(parents=True, exist_ok=True)
     print(f"[run] run_dir={run_dir.resolve()}")
     _log_startup("run_dir", f"writing run config to {run_dir / 'config.json'}")
     (run_dir / "config.json").write_text(
@@ -404,12 +492,44 @@ def run_training(config: RouterTrainingConfig) -> Path:
     current_epoch = start_epoch
     try:
         while epochs_to_run <= 0 or current_epoch - start_epoch < epochs_to_run:
+            if stop_controller.requested():
+                print(f"[stop] platform stop accepted before epoch={current_epoch + 1}")
+                _write_stop_state(
+                    run_dir,
+                    reason="platform_stop_before_epoch",
+                    epoch=current_epoch,
+                    step=None,
+                    global_step=global_step,
+                )
+                return run_dir
+
             train_sampler.set_epoch(current_epoch)
             model.train()
             running_loss = 0.0
             start_time = time.time()
             current_epoch += 1
             for step, batch in enumerate(train_loader, start=1):
+                if stop_controller.requested():
+                    print(f"[stop] platform stop accepted at epoch={current_epoch} step={step}; saving checkpoint")
+                    _save_checkpoint(
+                        run_dir / "router_interrupted.pt",
+                        model=model,
+                        optimizer=optimizer,
+                        config=config,
+                        summary=summary,
+                        epoch=current_epoch,
+                        global_step=global_step,
+                    )
+                    _write_stop_state(
+                        run_dir,
+                        reason="platform_stop_during_epoch",
+                        epoch=current_epoch,
+                        step=step,
+                        global_step=global_step,
+                    )
+                    print(f"[stop] interrupted_checkpoint={run_dir / 'router_interrupted.pt'}")
+                    return run_dir
+
                 batch = _to_device(batch, device)
                 optimizer.zero_grad(set_to_none=True)
                 with _autocast_context(device):
@@ -440,6 +560,27 @@ def run_training(config: RouterTrainingConfig) -> Path:
                     )
                     with log_path.open("a", encoding="utf-8") as handle:
                         handle.write(json.dumps(message, ensure_ascii=False) + "\n")
+
+                if stop_controller.requested():
+                    print(f"[stop] platform stop accepted at epoch={current_epoch} step={step}; saving checkpoint")
+                    _save_checkpoint(
+                        run_dir / "router_interrupted.pt",
+                        model=model,
+                        optimizer=optimizer,
+                        config=config,
+                        summary=summary,
+                        epoch=current_epoch,
+                        global_step=global_step,
+                    )
+                    _write_stop_state(
+                        run_dir,
+                        reason="platform_stop_after_step",
+                        epoch=current_epoch,
+                        step=step,
+                        global_step=global_step,
+                    )
+                    print(f"[stop] interrupted_checkpoint={run_dir / 'router_interrupted.pt'}")
+                    return run_dir
 
             _save_checkpoint(
                 run_dir / "router_latest.pt",
@@ -473,6 +614,26 @@ def run_training(config: RouterTrainingConfig) -> Path:
                     test_sample_count=len(test_dataset),
                     device=device,
                 )
+            if stop_controller.requested():
+                print(f"[stop] platform stop accepted after epoch={current_epoch}; saving checkpoint")
+                _save_checkpoint(
+                    run_dir / "router_interrupted.pt",
+                    model=model,
+                    optimizer=optimizer,
+                    config=config,
+                    summary=summary,
+                    epoch=current_epoch,
+                    global_step=global_step,
+                )
+                _write_stop_state(
+                    run_dir,
+                    reason="platform_stop_after_epoch",
+                    epoch=current_epoch,
+                    step=total_steps,
+                    global_step=global_step,
+                )
+                print(f"[stop] interrupted_checkpoint={run_dir / 'router_interrupted.pt'}")
+                return run_dir
     except KeyboardInterrupt:
         print(f"[train] interrupted at epoch={current_epoch}, saving checkpoint")
         _save_checkpoint(
@@ -482,6 +643,13 @@ def run_training(config: RouterTrainingConfig) -> Path:
             config=config,
             summary=summary,
             epoch=current_epoch,
+            global_step=global_step,
+        )
+        _write_stop_state(
+            run_dir,
+            reason="keyboard_interrupt",
+            epoch=current_epoch,
+            step=None,
             global_step=global_step,
         )
         return run_dir
@@ -497,5 +665,3 @@ def run_training(config: RouterTrainingConfig) -> Path:
     )
     print(f"[done] training finished final_checkpoint={run_dir / 'router_final.pt'}")
     return run_dir
-
-

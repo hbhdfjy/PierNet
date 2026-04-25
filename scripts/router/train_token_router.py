@@ -39,6 +39,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-train-samples", type=int)
     parser.add_argument("--max-test-samples", type=int)
     parser.add_argument("--input-representation", choices=("embedding",), default="embedding")
+    parser.add_argument("--stop-file")
     return parser
 
 
@@ -71,6 +72,7 @@ def main() -> None:
         max_train_samples=args.max_train_samples,
         max_test_samples=args.max_test_samples,
         input_representation=args.input_representation,
+        stop_file=args.stop_file,
     )
     run_dir = run_training(config)
     print(f"[done] run_dir={Path(run_dir).resolve()}")
@@ -78,4 +80,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

@@ -61,6 +61,8 @@ def stop_training_job(job_id: str):
         return TrainingJobSummary(**training_manager.stop_job(job_id))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 @router.delete("/jobs/{job_id}", status_code=204)

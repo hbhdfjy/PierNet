@@ -5,7 +5,17 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 
-TrainingJobStatus = Literal["queued", "starting", "running", "evaluating", "done", "error", "terminated"]
+TrainingJobStatus = Literal[
+    "queued",
+    "starting",
+    "running",
+    "evaluating",
+    "stopping",
+    "done",
+    "error",
+    "terminated",
+    "external_terminated",
+]
 TrainingJobInputRepresentation = Literal["pretrained_embeddings"]
 TrainingJobRequestedInputRepresentation = Literal["embedding"]
 
@@ -101,6 +111,9 @@ class TrainingJobSummary(BaseModel):
     latest_test_epoch: int | None = None
     latest_metrics: TrainingMetricsSummary | None = None
     error_message: str | None = None
+    stop_requested: bool = False
+    stop_requested_at: float | None = None
+    exit_reason: str | None = None
 
 
 class TrainingCheckpointInfo(BaseModel):

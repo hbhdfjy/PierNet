@@ -41,7 +41,8 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
-  const deletable = !stoppable
+  const stopping = job.status === 'stopping'
+  const deletable = !stoppable && !stopping
 
   const refreshAll = async () => {
     await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
@@ -92,10 +93,10 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
-            {stoppable && (
-              <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping}>
+            {(stoppable || stopping) && (
+              <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping || stopping}>
                 <PauseCircle size={14} />
-                {isStopping ? '终止中...' : '终止'}
+                {isStopping || stopping ? '终止中...' : '终止'}
               </button>
             )}
             {deletable && (
@@ -158,9 +159,9 @@ export default function TrainingJobsPage() {
     revalidateOnFocus: false,
   })
 
-  const runningCount = data?.filter(job => ['starting', 'running', 'evaluating'].includes(job.status)).length ?? 0
+  const runningCount = data?.filter(job => ['starting', 'running', 'evaluating', 'stopping'].includes(job.status)).length ?? 0
   const doneCount = data?.filter(job => job.status === 'done').length ?? 0
-  const errorCount = data?.filter(job => job.status === 'error').length ?? 0
+  const errorCount = data?.filter(job => job.status === 'error' || job.status === 'external_terminated').length ?? 0
 
   return (
     <div className="training-page">
@@ -186,7 +187,7 @@ export default function TrainingJobsPage() {
 
             <div className="mt-5 training-kpi-grid">
               <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="注册表中的全部任务" icon={<Gauge size={16} />} />
-              <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating" icon={<PlayCircle size={16} />} />
+              <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating / stopping" icon={<PlayCircle size={16} />} />
               <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 和测试结果" icon={<RefreshCcw size={16} />} />
               <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误" icon={<AlertTriangle size={16} />} />
             </div>
