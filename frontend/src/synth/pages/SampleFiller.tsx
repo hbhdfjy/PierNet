@@ -90,7 +90,7 @@ export default function SampleFiller() {
         seed,
         precision,
       })
-      monitor.start(result.job_id)
+      monitor.start(result.job_id, result.scenario_totals)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {

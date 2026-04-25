@@ -102,13 +102,13 @@ export default function TrainingOverviewPage() {
             </div>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-            <section className="training-card training-card--compact min-h-0">
+          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.68fr)]">
+            <section className="training-card training-card--compact min-h-0 self-start">
               <div className="card-header">
                 <Database size={16} className="text-sky-300" />
                 <SectionTitle title="训练数据" copy="按大场景聚合的 Router 训练集" />
               </div>
-              <div className="training-card__body training-scroll list-scroll-xl">
+              <div className="training-card__body training-scroll list-scroll-md">
                 {isLoading && !data ? (
                   <div className="space-y-2">
                     {[0, 1, 2].map(item => (
@@ -149,13 +149,13 @@ export default function TrainingOverviewPage() {
               </div>
             </section>
 
-            <div className="training-stack min-h-0">
+            <div className="training-stack min-h-0 self-start">
               <section className="training-card training-card--compact min-h-0">
                 <div className="card-header">
                   <Gauge size={16} className="text-emerald-300" />
                   <SectionTitle title="GPU 状态" copy="当前可用的 GPU 卡" />
                 </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
+                <div className="training-card__body training-scroll list-scroll-2xl">
                   {data?.gpus?.length ? (
                     <div className="space-y-2">
                       {data.gpus.map(gpu => {
@@ -193,12 +193,12 @@ export default function TrainingOverviewPage() {
                 </div>
               </section>
 
-              <section className="training-card training-card--compact min-h-0 flex-1">
+              <section className="training-card training-card--compact min-h-0">
                 <div className="card-header">
                   <Layers3 size={16} className="text-violet-300" />
                   <SectionTitle title="最近任务" copy="最近 5 个训练任务" />
                 </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
+                <div className="training-card__body training-scroll list-scroll-md">
                   {data?.jobs.length ? (
                     <div className="space-y-2">
                       {data.jobs.slice(0, 5).map(job => (

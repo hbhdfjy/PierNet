@@ -18,21 +18,18 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
     'meta-llama/Meta-Llama-3.1-8B-Instruct',
   ],
   openai: [
-    'gpt-4o',
     'gpt-4o-mini',
-    'gpt-4-turbo',
-    'gpt-3.5-turbo',
+    'Qwen/Qwen2.5-72B-Instruct',
+  ],
+  deepseek: [
+    'deepseek-v4-flash',
+    'deepseek-v4-pro',
   ],
   anthropic: [
     'claude-opus-4-5',
     'claude-sonnet-4-5',
     'claude-haiku-4-5',
     'claude-3-5-sonnet-20241022',
-  ],
-  local: [
-    'llama3',
-    'mistral',
-    'qwen2.5',
   ],
 }
 
@@ -43,19 +40,19 @@ const PROVIDER_LABELS: Record<string, { label: string; defaultUrl: string; keyPl
     keyPlaceholder: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
   },
   openai: {
-    label: 'OpenAI',
+    label: '自定义 OpenAI 兼容',
     defaultUrl: 'https://api.openai.com/v1',
+    keyPlaceholder: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
+  },
+  deepseek: {
+    label: 'DeepSeek 官方',
+    defaultUrl: 'https://api.deepseek.com',
     keyPlaceholder: 'sk-xxxxxxxxxxxxxxxxxxxxxxxx',
   },
   anthropic: {
     label: 'Anthropic',
     defaultUrl: 'https://api.anthropic.com/v1',
     keyPlaceholder: 'sk-ant-xxxxxxxxxxxxxxxxxxxxxxxx',
-  },
-  local: {
-    label: 'Local (OpenAI-compatible)',
-    defaultUrl: 'http://localhost:11434/v1',
-    keyPlaceholder: '（本地部署可留空）',
   },
 }
 
@@ -71,6 +68,7 @@ export default function LLMConfig() {
   const [baseUrl, setBaseUrl] = useState('')
   const [temperature, setTemperature] = useState(1.0)
   const [maxTokens, setMaxTokens] = useState(1024)
+  const [thinking, setThinking] = useState<'enabled' | 'disabled'>('disabled')
   const [showKey, setShowKey] = useState(false)
 
   const [saving, setSaving] = useState(false)
@@ -88,6 +86,7 @@ export default function LLMConfig() {
       setBaseUrl(llmCfg.base_url || '')
       setTemperature(llmCfg.temperature ?? 1.0)
       setMaxTokens(llmCfg.max_tokens ?? 1024)
+      setThinking(llmCfg.thinking === 'enabled' ? 'enabled' : 'disabled')
       // api_key 不回填（脱敏后无意义）
     }
   }, [llmCfg])
@@ -99,6 +98,7 @@ export default function LLMConfig() {
     base_url: baseUrl,
     temperature,
     max_tokens: maxTokens,
+    thinking,
   })
 
   const handleSaveAndTest = async () => {
@@ -296,6 +296,34 @@ export default function LLMConfig() {
                 <input type="number" className="input w-full text-sm py-1.5"
                   min={64} max={8192} step={64}
                   value={maxTokens} onChange={e => setMaxTokens(parseInt(e.target.value) || 1024)} />
+              </div>
+            </div>
+
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="label text-xs">Think 模式</label>
+                <span className="text-xs text-slate-600">仅 DeepSeek 官方生效</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { value: 'disabled', label: '关闭 Think', desc: '更快，适合批量模板' },
+                  { value: 'enabled', label: '开启 Think', desc: '更慢，保留推理模式' },
+                ] as const).map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setThinking(opt.value)}
+                    className={cn(
+                      'rounded-xl border px-3 py-2 text-left transition-all',
+                      thinking === opt.value
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                        : 'bg-slate-800/40 border-slate-700/40 text-slate-500 hover:border-slate-600 hover:text-slate-300',
+                    )}
+                  >
+                    <div className="text-sm font-medium">{opt.label}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{opt.desc}</div>
+                  </button>
+                ))}
               </div>
             </div>
           </div>

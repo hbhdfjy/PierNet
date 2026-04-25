@@ -10,3 +10,4 @@ class LLMConfigRequest(BaseModel):
     base_url: str = ""
     temperature: float = 1.0
     max_tokens: int = 1024
+    thinking: str = "disabled"

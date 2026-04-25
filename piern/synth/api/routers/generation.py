@@ -149,6 +149,8 @@ async def start_generate_templates(req: GenerateTemplatesRequest):
     """阶段一：生成语言模板库。"""
     scenario_totals = {sc: req.n_templates for sc in req.scenarios} if req.scenarios else {}
     record = job_manager.create_job("generate_templates", scenario_totals)
+    if scenario_totals:
+        publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_generate_templates, record, req)
     return JobStartResponse(job_id=record.job_id, scenario_totals=scenario_totals)
 
@@ -158,6 +160,8 @@ async def start_fill_samples(req: FillSamplesRequest):
     """阶段二：数值填充（不调 LLM）。"""
     scenario_totals = {sc: req.n_samples for sc in req.scenarios} if req.scenarios else {}
     record = job_manager.create_job("fill_samples", scenario_totals)
+    if scenario_totals:
+        publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_fill_samples, record, req)
     return JobStartResponse(job_id=record.job_id, scenario_totals=scenario_totals)
 

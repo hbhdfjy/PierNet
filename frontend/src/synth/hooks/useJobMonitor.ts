@@ -11,7 +11,7 @@ export interface JobMonitorState {
   stats: LiveStats
   autoScroll: boolean
   setAutoScroll: (v: boolean) => void
-  start: (jobId: string) => void
+  start: (jobId: string, scenarioTotals?: Record<string, number>) => void
   stop: () => Promise<void>
   reset: () => void
   scenarioDoneCount: number  // 每完成一个场景递增，用于触发外部刷新
@@ -44,6 +44,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   const [scenarioDoneCount, setScenarioDoneCount] = useState(0)
 
   const esMap = useRef<Map<string, EventSource>>(new Map())
+  const lastLoggedProgressRef = useRef<Record<string, Record<string, number>>>({})
 
   const status: JobStatus = (() => {
     const statuses = Object.values(jobStatuses)
@@ -94,17 +95,35 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             return next
           })
         } else if (event.type === 'log') {
+          let shouldAppendLog = true
           if (event.progress) {
             const p: ScenarioProgress = event.progress
             setProgress(prev => ({ ...prev, [p.scenario]: p }))
+            const byJob = lastLoggedProgressRef.current[id] ?? {}
+            if (byJob[p.scenario] === p.done) {
+              shouldAppendLog = false
+            } else {
+              lastLoggedProgressRef.current[id] = { ...byJob, [p.scenario]: p.done }
+            }
           }
           if (event.stats) setStats(event.stats)
-          setLogs(prev => {
-            const next = [...prev, { line: event.line, ts: event.ts } as LogLine]
-            return next.length > 5000 ? next.slice(-5000) : next
-          })
+          if (shouldAppendLog) {
+            setLogs(prev => {
+              const next = [...prev, { line: event.line, ts: event.ts } as LogLine]
+              return next.length > 5000 ? next.slice(-5000) : next
+            })
+          }
         } else if (event.type === 'done') {
           terminatedRef.current.add(id)   // 先标记，再 setState，防止 onerror 竞态
+          setProgress(prev => {
+            const next = { ...prev }
+            for (const [scenario, p] of Object.entries(next)) {
+              if (p.total > 0 && p.done < p.total) {
+                next[scenario] = { ...p, done: p.total }
+              }
+            }
+            return next
+          })
           setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
           es.close()
           esMap.current.delete(id)
@@ -203,7 +222,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const start = useCallback((id: string) => {
+  const start = useCallback((id: string, scenarioTotals?: Record<string, number>) => {
     // 清理旧的已完成/出错任务，只保留 running 的
     const toClose: string[] = []
     esMap.current.forEach((_, oldId) => {
@@ -216,8 +235,11 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     setJobIds([id])
     setJobStatuses({ [id]: 'running' })
     setLogs([])
-    setProgress({})
+    setProgress(Object.fromEntries(
+      Object.entries(scenarioTotals ?? {}).map(([scenario, total]) => [scenario, { scenario, done: 0, total }]),
+    ))
     setStats({ elapsed_sec: 0, samples_per_sec: 0 })
+    lastLoggedProgressRef.current = { [id]: {} }
     saveStoredJobs(stageKey, [id])
     connectOne(id)
   }, [connectOne, stageKey, jobStatuses])
@@ -242,6 +264,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     esMap.current.forEach(es => es.close())
     esMap.current.clear()
     terminatedRef.current.clear()
+    lastLoggedProgressRef.current = {}
     setJobIds([])
     setJobStatuses({})
     setLogs([])

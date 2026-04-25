@@ -513,6 +513,7 @@ class LLMTextGenerator:
                 base_url=t.base_url,
                 max_retries=t.max_retries,
                 timeout=t.timeout,
+                thinking=getattr(t, "thinking", None),
             )
         return self._thread_local.llm
 
@@ -1510,7 +1511,7 @@ class LLMTextGenerator:
             list[TemplateRecord]，按生成顺序排列
         """
         def _task(i: int) -> tuple[int, Optional[TemplateRecord]]:
-            max_retries = getattr(self._llm_template, "max_retries", 3)
+            max_retries = max(1, int(getattr(self._llm_template, "max_retries", 3) or 1))
             for attempt in range(max_retries):
                 sample_rng = np.random.default_rng(seed + i + attempt * 100_000)
                 try:
@@ -1523,42 +1524,86 @@ class LLMTextGenerator:
                         domain=domain,
                         sample_idx=i,
                     )
-                    if output_file is not None and file_lock is not None:
-                        line = tmpl.to_json_line() + "\n"
-                        with file_lock:
-                            output_file.write(line)
-                            output_file.flush()
                     return i, tmpl
+                except InterruptedError:
+                    raise
                 except ValueError as e:
-                    logger.warning(f"模板 {i} 生成失败（第 {attempt+1}/{max_retries} 次）: {e}")
+                    logger.warning(f"Template {i} failed validation (attempt {attempt+1}/{max_retries}): {e}")
                 except Exception as e:
-                    logger.warning(f"模板 {i} 生成异常（跳过）: {e}")
+                    logger.warning(f"Template {i} failed with exception and will be replaced: {e}")
                     return i, None
-            logger.error(f"模板 {i} 重试 {max_retries} 次后仍失败，跳过")
+            logger.error(f"Template {i} still failed after {max_retries} retries; replacing it")
             return i, None
+
+        def _store_template(i: int, tmpl: TemplateRecord) -> None:
+            results_map[i] = tmpl
+            if output_file is not None and file_lock is not None:
+                line = tmpl.to_json_line() + "\n"
+                with file_lock:
+                    output_file.write(line)
+                    output_file.flush()
 
         results_map: dict[int, TemplateRecord] = {}
         written_count = 0
+        max_retries = max(1, int(getattr(self._llm_template, "max_retries", 3) or 1))
+        max_candidates = max(n_templates, n_templates * max(3, max_retries))
 
         if self.max_workers <= 1:
-            for i in tqdm(range(n_templates), desc=f"生成 {simulator}/{scenario_name}"):
-                _, tmpl = _task(i)
-                if tmpl is not None:
-                    results_map[i] = tmpl
-                    written_count += 1
-                if progress_callback is not None:
-                    progress_callback(written_count)
-        else:
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                futures = {executor.submit(_task, i): i for i in range(n_templates)}
-                with tqdm(total=n_templates, desc=f"生成 {simulator}/{scenario_name}") as pbar:
-                    for future in as_completed(futures):
-                        i, tmpl = future.result()
-                        if tmpl is not None:
-                            results_map[i] = tmpl
-                            written_count += 1
+            with tqdm(total=n_templates, desc=f"Generate {simulator}/{scenario_name}") as pbar:
+                for candidate_idx in range(max_candidates):
+                    if written_count >= n_templates:
+                        break
+                    _, tmpl = _task(candidate_idx)
+                    if tmpl is not None:
+                        _store_template(candidate_idx, tmpl)
+                        written_count += 1
                         pbar.update(1)
-                        if progress_callback is not None:
-                            progress_callback(written_count)
+                    if progress_callback is not None:
+                        progress_callback(written_count)
+        else:
+            worker_count = max(1, int(self.max_workers))
+            submitted_count = 0
+            futures = {}
 
-        return [results_map[i] for i in range(n_templates) if i in results_map]
+            def _submit_next(executor) -> bool:
+                nonlocal submitted_count
+                if submitted_count >= max_candidates:
+                    return False
+                futures[executor.submit(_task, submitted_count)] = submitted_count
+                submitted_count += 1
+                return True
+
+            with ThreadPoolExecutor(max_workers=worker_count) as executor:
+                for _ in range(min(worker_count, max_candidates)):
+                    _submit_next(executor)
+
+                with tqdm(total=n_templates, desc=f"Generate {simulator}/{scenario_name}") as pbar:
+                    while futures and written_count < n_templates:
+                        for future in as_completed(list(futures)):
+                            futures.pop(future, None)
+                            try:
+                                i, tmpl = future.result()
+                            except InterruptedError:
+                                for pending in futures:
+                                    pending.cancel()
+                                raise
+                            if tmpl is not None and written_count < n_templates:
+                                _store_template(i, tmpl)
+                                written_count += 1
+                                pbar.update(1)
+                            if progress_callback is not None:
+                                progress_callback(written_count)
+                            if written_count < n_templates:
+                                _submit_next(executor)
+                            break
+
+                for pending in futures:
+                    pending.cancel()
+
+        if written_count < n_templates:
+            raise RuntimeError(
+                f"{simulator}/{scenario_name} only generated {written_count}/{n_templates} valid templates; "
+                f"tried {max_candidates} candidates. Lower concurrency or inspect LLM API errors/rate limits."
+            )
+
+        return [results_map[i] for i in sorted(results_map)[:n_templates]]

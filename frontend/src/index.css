@@ -762,6 +762,12 @@
     scrollbar-gutter: stable;
   }
 
+  .list-scroll-2xl {
+    @apply min-h-0 max-h-[34rem] overflow-y-auto overflow-x-hidden pr-1;
+    overscroll-behavior: auto;
+    scrollbar-gutter: stable;
+  }
+
   .list-table-scroll-compact {
     @apply min-h-0 max-h-44 overflow-y-auto overflow-x-hidden;
     overscroll-behavior: auto;

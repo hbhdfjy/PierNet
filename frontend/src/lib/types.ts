@@ -278,6 +278,7 @@ export interface LLMConfig {
   has_api_key: boolean
   temperature: number
   max_tokens: number
+  thinking: 'enabled' | 'disabled'
 }
 
 export interface LLMConfigRequest {
@@ -287,6 +288,7 @@ export interface LLMConfigRequest {
   base_url: string
   temperature: number
   max_tokens: number
+  thinking: 'enabled' | 'disabled'
 }
 
 // ── 解析后的时序数据 ─────────────────────────────────────────────

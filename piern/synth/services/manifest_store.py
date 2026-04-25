@@ -125,8 +125,8 @@ def _template_manifest_payload(snapshot: list[dict]) -> dict:
 
         for record in _iter_jsonl(path):
             template_count += 1
-            language = str(record.get("language") or "?")
-            style = str(record.get("style") or "?")
+            language = str(record.get("language") or "unknown")
+            style = str(record.get("style") or "unknown")
             item_language[language] += 1
             item_style[style] += 1
 
@@ -183,10 +183,10 @@ def _sample_manifest_payload(snapshot: list[dict]) -> dict:
             sample_count += 1
             metadata = record.get("metadata", {})
             simulator = metadata.get("simulator", simulator) or simulator
-            item_language[str(metadata.get("language") or "?")] += 1
-            item_style[str(metadata.get("style") or "?")] += 1
+            item_language[str(metadata.get("language") or "unknown")] += 1
+            item_style[str(metadata.get("style") or "unknown")] += 1
             observation = metadata.get("observation", {})
-            item_time_mode[str(observation.get("time_mode") or "?")] += 1
+            item_time_mode[str(observation.get("time_mode") or "unknown")] += 1
             if timeseries_shape_obs is None:
                 shape_obs = metadata.get("timeseries_shape_obs")
                 if isinstance(shape_obs, list):

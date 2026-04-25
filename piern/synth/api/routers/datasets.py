@@ -267,10 +267,10 @@ def _compute_stats(jsonl_path: Path) -> dict:
                 by_simulator[simulator] += 1
                 scenario = metadata.get("scenario", "unknown")
                 by_scenario[scenario] += 1
-                by_language[metadata.get("language", "?")] += 1
-                by_style[metadata.get("style", "?")] += 1
+                by_language[metadata.get("language", "unknown")] += 1
+                by_style[metadata.get("style", "unknown")] += 1
                 observation = metadata.get("observation", {})
-                by_time_mode[observation.get("time_mode", "?")] += 1
+                by_time_mode[observation.get("time_mode", "unknown")] += 1
                 shape_obs = metadata.get("timeseries_shape_obs")
                 if shape_obs and simulator not in timeseries_shapes:
                     timeseries_shapes[simulator] = shape_obs

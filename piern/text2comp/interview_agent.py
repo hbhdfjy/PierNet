@@ -199,7 +199,7 @@ class InterviewerAgent:
             if n_params > 0:
                 # 已有参数名，展示预推断结果让用户纠错
                 param_table = "\n".join(
-                    f"  [{i+1}] {name}: {info[0] if isinstance(info, list) else info} ({info[1] if isinstance(info, list) else '?'})"
+                    f"  [{i+1}] {name}: {info[0] if isinstance(info, list) else info} ({info[1] if isinstance(info, list) else '-'})"
                     for i, (name, info) in enumerate(session.param_info.items())
                 ) if session.param_info else "\n".join(f"  [{i+1}] {name}" for i, name in enumerate(session.param_names))
 
@@ -222,7 +222,7 @@ class InterviewerAgent:
             return self._call(prompt)
 
         elif step == 3:
-            ch = session.timeseries_shape[1] if session.timeseries_shape else "?"
+            ch = session.timeseries_shape[1] if session.timeseries_shape else "unknown"
             prompt = f"""现在需要确定输出张量的通道结构。输出有 {ch} 个通道。
 
 请向用户询问：这 {ch} 个通道是：
@@ -236,7 +236,7 @@ class InterviewerAgent:
             return self._call(prompt)
 
         elif step == 4:
-            ch = session.timeseries_shape[1] if session.timeseries_shape else "?"
+            ch = session.timeseries_shape[1] if session.timeseries_shape else "unknown"
             n_oi = len(session.output_info)
             names = [o.get("name", f"output_{i}") for i, o in enumerate(session.output_info)]
             names_hint = f"（通道组：{', '.join(names)}）" if n_oi > 1 else ""
@@ -254,7 +254,7 @@ class InterviewerAgent:
             return self._call(prompt)
 
         elif step == 5:
-            ts = session.timeseries_shape[2] if session.timeseries_shape else "?"
+            ts = session.timeseries_shape[2] if session.timeseries_shape else "unknown"
             prompt = f"""输出有 {ts} 个时间步。
 
 请向用户询问：适合哪些时间降采样模式？
@@ -405,7 +405,7 @@ class ExtractorAgent:
         except Exception as e:
             logger.warning(f"参数预推断失败: {e}")
             # 返回空推断（含参数名，含义待用户填写）
-            return {"param_info": {name: ["?", "?"] for name in session.param_names}}
+            return {"param_info": {name: ["pending", "-"] for name in session.param_names}}
 
     def extract(self, step: int, session: InterviewSession, user_message: str) -> dict:
         """
@@ -507,7 +507,7 @@ Return JSON:
 Return JSON only."""
 
         elif step == 4:
-            n_ch = session.timeseries_shape[1] if session.timeseries_shape else "?"
+            n_ch = session.timeseries_shape[1] if session.timeseries_shape else "unknown"
             return f"""Extract the channel sampling configuration from the user's answer.
 
 Context: {context}
@@ -1023,6 +1023,7 @@ def _make_llm(llm_cfg: Optional[dict]) -> LLMClient:
         env_map = {
             "siliconflow": ["SILICONFLOW_API_KEY"],
             "openai":      ["OPENAI_API_KEY"],
+            "deepseek":    ["DEEPSEEK_API_KEY"],
             "anthropic":   ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"],
         }
         for env_var in env_map.get(provider, []):
@@ -1036,6 +1037,7 @@ def _make_llm(llm_cfg: Optional[dict]) -> LLMClient:
         model=model,
         api_key=api_key,
         base_url=cfg.get("base_url"),
+        thinking=cfg.get("thinking"),
         max_retries=cfg.get("max_retries", 3),
         timeout=cfg.get("timeout", 60),
     )
@@ -1297,7 +1299,7 @@ def _build_prefill_confirm_message(
             lines.append(f"\n**param_info（{len(pi)} 个输入参数）**:")
             for k, v in list(pi.items())[:10]:
                 meaning = v[0] if isinstance(v, list) else str(v)
-                unit = v[1] if isinstance(v, list) and len(v) > 1 else "?"
+                unit = v[1] if isinstance(v, list) and len(v) > 1 else "-"
                 lines.append(f"  - {k}: {meaning}（{unit}）")
             if len(pi) > 10:
                 lines.append(f"  … 共 {len(pi)} 个参数")
@@ -1317,8 +1319,8 @@ def _build_prefill_confirm_message(
                 else:
                     s_str = f"[{s[0]}:{s_end}]"
                 lines.append(
-                    f"  {s_str} **{o.get('name', '?')}**（{o.get('name_zh', '')}）"
-                    f" — {o.get('description', '?')}，单位：{o.get('unit', '?')}"
+                    f"  {s_str} **{o.get('name', 'output')}**（{o.get('name_zh', '')}）"
+                    f" — {o.get('description', 'unknown')}，单位：{o.get('unit', '-')}"
                 )
             lines.append("")
             lines.append("请确认：通道数量、每组的物理含义和单位是否正确？")
@@ -1346,7 +1348,7 @@ def _build_prefill_confirm_message(
         # ⚠️ 时间采样策略
         obs = prefilled_fields.get("observation_config", {})
         if isinstance(obs, dict):
-            fixed = obs.get("fixed_time_mode", "?")
+            fixed = obs.get("fixed_time_mode", "unknown")
             modes = obs.get("time_modes", [])
             mode_desc = next((m.get("desc_en", "") for m in modes if m.get("name") == fixed), "")
 
@@ -1785,7 +1787,7 @@ def _make_partial_default(step: int, session: InterviewSession) -> dict:
             "output_description": "{ch} channels × {ts} timesteps of simulation output",
         }
     elif step == 2:
-        return {"param_info": {n: ["?", "?"] for n in session.param_names}}
+        return {"param_info": {n: ["pending", "-"] for n in session.param_names}}
     elif step == 3:
         return {"output_info": [{"name": "output", "name_zh": "输出", "description": "simulation output", "unit": "-", "slice": [0, None]}]}
     elif step == 4:

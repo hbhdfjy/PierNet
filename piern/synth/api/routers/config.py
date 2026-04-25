@@ -52,6 +52,7 @@ def get_llm_config():
             "has_api_key": bool(raw_key),
             "temperature": llm.get("temperature", 1),
             "max_tokens": llm.get("max_tokens", 1024),
+            "thinking": llm.get("thinking", "disabled"),
         }
     except Exception as e:
         raise HTTPException(500, f"读取 LLM 配置失败: {e}")
@@ -78,6 +79,7 @@ def save_llm_config(req: LLMConfigRequest):
             llm["base_url"] = req.base_url
         llm["temperature"] = req.temperature
         llm["max_tokens"] = req.max_tokens
+        llm["thinking"] = req.thinking if req.thinking in ("enabled", "disabled") else "disabled"
         cfg["llm"] = llm
 
         default_yaml.parent.mkdir(parents=True, exist_ok=True)
@@ -121,6 +123,7 @@ def test_llm_config(req: LLMConfigRequest):
             base_url=req.base_url or None,
             max_retries=1,
             timeout=15,
+            thinking=req.thinking,
         )
         reply = client.generate("Say 'ok' in one word.", max_tokens=16, temperature=0)
         preview = reply.strip()[:120]

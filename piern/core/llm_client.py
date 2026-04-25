@@ -4,6 +4,7 @@ LLM 客户端，支持多种 API 提供商。
 支持的提供商：
 - OpenAI (GPT-4, GPT-3.5)
 - Anthropic (Claude)
+- DeepSeek (OpenAI compatible)
 - SiliconFlow (开源模型)
 - 本地 LLM (通过 OpenAI 兼容接口)
 """
@@ -28,12 +29,13 @@ class LLMClient:
         base_url: Optional[str] = None,
         max_retries: int = 3,
         timeout: int = 30,
+        thinking: Optional[str] = None,
     ):
         """
         初始化 LLM 客户端。
 
         Args:
-            provider: API 提供商 ("openai", "anthropic", "siliconflow", "local")
+            provider: API 提供商 ("openai", "anthropic", "deepseek", "siliconflow", "local")
             model: 模型名称
             api_key: API 密钥（如果为 None，从环境变量读取）
             base_url: API 基础 URL（用于本地部署或代理）
@@ -44,6 +46,8 @@ class LLMClient:
         self.model = model
         self.max_retries = max_retries
         self.timeout = timeout
+        thinking_norm = (thinking or "").strip().lower()
+        self.thinking = thinking_norm if thinking_norm in {"enabled", "disabled"} else None
 
         # 获取 API 密钥
         if api_key is None:
@@ -64,6 +68,7 @@ class LLMClient:
             "openai": ["OPENAI_API_KEY"],
             "anthropic": ["ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN"],  # 支持AUTH_TOKEN
             "siliconflow": ["SILICONFLOW_API_KEY"],
+            "deepseek": ["DEEPSEEK_API_KEY"],
             "local": None,  # 本地部署可能不需要密钥
         }
 
@@ -93,6 +98,7 @@ class LLMClient:
             "openai": "OPENAI_BASE_URL",
             "anthropic": "ANTHROPIC_BASE_URL",
             "siliconflow": "SILICONFLOW_BASE_URL",
+            "deepseek": "DEEPSEEK_BASE_URL",
         }.get(self.provider)
 
         if env_base_url:
@@ -105,6 +111,7 @@ class LLMClient:
             "openai": "https://api.openai.com/v1",
             "anthropic": "https://api.anthropic.com/v1",
             "siliconflow": "https://api.siliconflow.cn/v1",
+            "deepseek": "https://api.deepseek.com",
             "local": "http://localhost:8000/v1",
         }
         return default_urls.get(self.provider, "https://api.openai.com/v1")
@@ -144,7 +151,7 @@ class LLMClient:
         """
         for attempt in range(self.max_retries):
             try:
-                if self.provider in ["openai", "siliconflow", "local"]:
+                if self.provider in ["openai", "siliconflow", "deepseek", "local"]:
                     return self._generate_openai_compatible(
                         prompt, system_prompt, temperature, max_tokens
                     )
@@ -188,6 +195,9 @@ class LLMClient:
             "temperature": temperature,
             "max_tokens": max_tokens,
         }
+
+        if self.provider == "deepseek" and self.thinking in {"enabled", "disabled"}:
+            payload["thinking"] = {"type": self.thinking}
 
         response = requests.post(
             f"{self.base_url}/chat/completions",

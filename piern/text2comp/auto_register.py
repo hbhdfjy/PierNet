@@ -369,12 +369,15 @@ def run_auto_register(
     api_key = llm_cfg.get("api_key") or os.getenv(
         {"siliconflow": "SILICONFLOW_API_KEY",
          "openai": "OPENAI_API_KEY",
+         "deepseek": "DEEPSEEK_API_KEY",
          "anthropic": "ANTHROPIC_API_KEY"}.get(provider, "SILICONFLOW_API_KEY")
     )
     llm = LLMClient(
         provider=provider,
         model=llm_cfg.get("model", "Qwen/Qwen2.5-72B-Instruct"),
         api_key=api_key,
+        base_url=llm_cfg.get("base_url") or None,
+        thinking=llm_cfg.get("thinking"),
         max_retries=llm_cfg.get("max_retries", 3),
         timeout=llm_cfg.get("timeout", 60),
     )
