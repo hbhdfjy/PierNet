@@ -164,6 +164,10 @@ _t2c_cache: dict = {"result": None, "ts": 0.0}
 _T2C_TTL = 10.0  # seconds
 
 
+def invalidate_text2comp_scenarios_cache() -> None:
+    _t2c_cache.update({"result": None, "ts": 0.0})
+
+
 @router.get("/config/text2comp-scenarios")
 def get_text2comp_scenarios():
     """

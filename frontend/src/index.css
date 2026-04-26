@@ -880,59 +880,382 @@
   }
 
   .platform-home-shell {
-    min-height: 100vh;
+    position: relative;
+    min-height: 100dvh;
+    overflow-x: hidden;
+    color: hsl(var(--text));
     background:
-      radial-gradient(circle at top left, rgba(56, 189, 248, 0.16), transparent 26%),
-      radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.14), transparent 24%),
-      linear-gradient(180deg, #060b17, #0b1120);
+      radial-gradient(circle at 10% 0%, hsl(var(--brand) / 0.16), transparent 30%),
+      radial-gradient(circle at 92% 4%, hsl(var(--success) / 0.13), transparent 28%),
+      radial-gradient(circle at 50% 100%, hsl(var(--brand-soft) / 0.09), transparent 32%),
+      linear-gradient(180deg, hsl(var(--bg)), hsl(var(--bg-sub)) 46%, hsl(var(--bg)) 100%);
   }
 
-  .platform-home-wrap {
-    @apply mx-auto flex min-h-screen max-w-7xl flex-col px-6 py-8 lg:px-10 lg:py-10;
-  }
-
-  .platform-home-grid {
-    @apply grid flex-1 gap-6 py-8 lg:grid-cols-2;
-  }
-
-  .platform-entry-card {
-    @apply training-card relative overflow-hidden p-7 transition duration-200;
-  }
-
-  .platform-entry-card:hover {
-    transform: translateY(-2px);
-    border-color: hsl(var(--border) / 0.86);
-    background: hsl(var(--surface2) / 0.72);
-  }
-
-  .platform-entry-card__tone {
+  .platform-home-shell::before {
+    content: '';
     position: absolute;
     inset: 0;
     pointer-events: none;
+    background-image:
+      linear-gradient(hsl(var(--border) / 0.1) 1px, transparent 1px),
+      linear-gradient(90deg, hsl(var(--border) / 0.08) 1px, transparent 1px);
+    background-size: 44px 44px;
+    mask-image: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 72%);
   }
 
-  .platform-entry-card__header {
-    @apply relative flex items-start justify-between gap-4;
+  .platform-home-orb {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 9999px;
+    filter: blur(18px);
+    opacity: 0.72;
+  }
+
+  .platform-home-orb--one {
+    top: 8rem;
+    left: max(2rem, calc(50% - 42rem));
+    width: 14rem;
+    height: 14rem;
+    background: radial-gradient(circle, hsl(var(--brand) / 0.2), transparent 68%);
+  }
+
+  .platform-home-orb--two {
+    right: max(2rem, calc(50% - 42rem));
+    bottom: 6rem;
+    width: 18rem;
+    height: 18rem;
+    background: radial-gradient(circle, hsl(var(--success) / 0.18), transparent 70%);
+  }
+
+  .platform-home-wrap {
+    @apply mx-auto flex min-h-screen w-full max-w-7xl flex-col px-4 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8;
+    position: relative;
+    z-index: 1;
+  }
+
+  .platform-topbar {
+    @apply flex flex-col gap-4 rounded-[1.35rem] border px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5;
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.78), hsl(var(--surface2) / 0.6));
+    border-color: hsl(var(--border) / 0.56);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(20px);
+  }
+
+  .platform-brand-lockup {
+    @apply flex min-w-0 items-center gap-3;
+  }
+
+  .platform-brand-lockup__mark {
+    @apply flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl text-lg font-black text-white;
+    background:
+      linear-gradient(135deg, hsl(var(--brand)), hsl(var(--brand-strong))),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent);
+    box-shadow: 0 18px 38px hsl(var(--brand) / 0.28);
+  }
+
+  .platform-brand-lockup__title {
+    @apply truncate text-[1.05rem] font-semibold tracking-tight;
+    color: hsl(var(--text));
+  }
+
+  .platform-brand-lockup__subtitle {
+    @apply mt-0.5 truncate text-[13px];
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-topbar__actions {
+    @apply flex flex-wrap items-center gap-2;
+  }
+
+  .platform-theme-toggle {
+    @apply px-3 py-1.5;
+  }
+
+  .platform-home-main {
+    @apply flex flex-1 flex-col gap-5 pt-5 lg:gap-6 lg:pt-6;
+  }
+
+  .platform-hero-panel {
+    @apply grid gap-5 overflow-hidden rounded-[1.65rem] border p-5 md:p-6 xl:grid-cols-[minmax(0,1.08fr)_minmax(22rem,0.72fr)] xl:p-7;
+    position: relative;
+    background:
+      linear-gradient(135deg, hsl(var(--surface) / 0.96), hsl(var(--surface2) / 0.88)),
+      radial-gradient(circle at 0% 0%, hsl(var(--brand) / 0.16), transparent 34%);
+    border-color: hsl(var(--border) / 0.68);
+    box-shadow: var(--shadow-lg);
+    backdrop-filter: blur(22px);
+  }
+
+  .platform-hero-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(circle at 18% 0%, hsl(var(--brand) / 0.18), transparent 30%),
+      radial-gradient(circle at 78% 18%, hsl(var(--success) / 0.14), transparent 28%),
+      linear-gradient(90deg, transparent, hsl(var(--border) / 0.1), transparent);
+  }
+
+  .platform-hero-panel__content,
+  .platform-hero-board {
+    position: relative;
+    z-index: 1;
+  }
+
+  .platform-hero-panel__content {
+    @apply flex min-w-0 flex-col justify-center py-1;
+  }
+
+  .platform-hero-title {
+    @apply mt-5 max-w-4xl text-[2.4rem] font-semibold leading-[1.05] tracking-[-0.045em] sm:text-[3.1rem] xl:text-[4rem];
+    color: hsl(var(--text));
+  }
+
+  .platform-hero-copy {
+    @apply mt-5 max-w-3xl text-[16px] leading-8 sm:text-[17px];
+    color: hsl(var(--text-muted));
+  }
+
+  .platform-hero-actions {
+    @apply mt-7 flex flex-wrap gap-3;
+  }
+
+  .platform-hero-board {
+    @apply flex min-h-[20rem] flex-col justify-between rounded-[1.35rem] border p-4 sm:p-5;
+    background:
+      linear-gradient(180deg, hsl(var(--bg-sub) / 0.66), hsl(var(--surface) / 0.7)),
+      radial-gradient(circle at 100% 0%, hsl(var(--brand) / 0.12), transparent 38%);
+    border-color: hsl(var(--border) / 0.64);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow-sm);
+  }
+
+  .platform-hero-board__header {
+    @apply flex items-center justify-between gap-3 text-[13px];
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-hero-board__header strong {
+    @apply rounded-full border px-2.5 py-1 text-[12px] font-semibold;
+    color: hsl(var(--brand-strong));
+    border-color: hsl(var(--brand) / 0.26);
+    background: hsl(var(--brand) / 0.1);
+  }
+
+  .platform-hero-metrics {
+    @apply grid grid-cols-2 gap-2.5;
+  }
+
+  .platform-hero-metrics div {
+    @apply rounded-2xl border px-3.5 py-3;
+    border-color: hsl(var(--border) / 0.46);
+    background: hsl(var(--surface2) / 0.48);
+  }
+
+  .platform-hero-metrics span {
+    @apply block text-[11px] font-semibold uppercase tracking-[0.14em];
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-hero-metrics strong {
+    @apply mt-1.5 block text-[1.55rem] font-semibold leading-none tracking-tight;
+    color: hsl(var(--text));
+  }
+
+  .platform-flow-line {
+    @apply mt-4 grid gap-2;
+  }
+
+  .platform-flow-step {
+    @apply flex items-center gap-3 rounded-2xl border px-3 py-2.5;
+    border-color: hsl(var(--border) / 0.42);
+    background: hsl(var(--surface3) / 0.32);
+  }
+
+  .platform-flow-step__index {
+    @apply flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl text-[11px] font-bold;
+    color: hsl(var(--brand-strong));
+    background: hsl(var(--brand) / 0.12);
+  }
+
+  .platform-flow-step__title {
+    @apply text-[14px] font-semibold;
+    color: hsl(var(--text));
+  }
+
+  .platform-flow-step__copy {
+    @apply mt-0.5 text-[12px];
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-home-grid {
+    @apply grid gap-5 lg:grid-cols-2;
+  }
+
+  .platform-entry-card {
+    @apply relative flex min-h-[25rem] flex-col overflow-hidden rounded-[1.4rem] border p-5 transition duration-200 sm:p-6;
+    background: linear-gradient(180deg, hsl(var(--surface) / 0.94), hsl(var(--surface2) / 0.86));
+    border-color: hsl(var(--border) / 0.64);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(20px);
+  }
+
+  .platform-entry-card:hover {
+    transform: translateY(-3px);
+    border-color: hsl(var(--border-hi) / 0.78);
+    box-shadow: var(--shadow-md);
+  }
+
+  .platform-entry-card__glow {
+    position: absolute;
+    inset: -35% -20% auto auto;
+    width: 20rem;
+    height: 20rem;
+    border-radius: 9999px;
+    filter: blur(10px);
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .platform-entry-card--synth .platform-entry-card__glow {
+    background: radial-gradient(circle, hsl(var(--brand) / 0.2), transparent 68%);
+  }
+
+  .platform-entry-card--training .platform-entry-card__glow {
+    background: radial-gradient(circle, hsl(var(--success) / 0.18), transparent 68%);
+  }
+
+  .platform-entry-card__topline {
+    @apply relative flex items-center justify-between gap-3;
   }
 
   .platform-entry-card__icon {
-    @apply flex h-12 w-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-white;
+    @apply flex h-12 w-12 items-center justify-center rounded-2xl border;
+    color: hsl(var(--text));
+    border-color: hsl(var(--border) / 0.5);
+    background: hsl(var(--surface3) / 0.42);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .platform-entry-card--synth .platform-entry-card__icon {
+    color: hsl(var(--brand-strong));
+  }
+
+  .platform-entry-card--training .platform-entry-card__icon {
+    color: hsl(var(--success));
+  }
+
+  .platform-entry-card__route {
+    @apply rounded-full border px-2.5 py-1 text-[12px] font-semibold;
+    color: hsl(var(--text-faint));
+    border-color: hsl(var(--border) / 0.46);
+    background: hsl(var(--surface2) / 0.48);
+  }
+
+  .platform-entry-card__main {
+    @apply relative mt-7 flex items-start justify-between gap-4;
   }
 
   .platform-entry-card__title {
-    @apply mt-7 text-[1.9rem] font-semibold tracking-tight text-white;
+    @apply text-[2rem] font-semibold tracking-[-0.035em];
+    color: hsl(var(--text));
   }
 
   .platform-entry-card__copy {
-    @apply mt-3 max-w-xl text-[15px] leading-7 text-slate-300;
+    @apply mt-3 max-w-xl text-[15px] leading-7;
+    color: hsl(var(--text-muted));
+  }
+
+  .platform-entry-card__arrow {
+    @apply mt-2 flex-shrink-0 transition-transform duration-200;
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-entry-card:hover .platform-entry-card__arrow {
+    transform: translateX(4px);
+    color: hsl(var(--text));
+  }
+
+  .platform-entry-card__stats {
+    @apply relative mt-6 grid grid-cols-2 gap-2.5;
+  }
+
+  .platform-entry-card__stat {
+    @apply rounded-2xl border px-3 py-2.5;
+    border-color: hsl(var(--border) / 0.44);
+    background: hsl(var(--surface3) / 0.34);
+  }
+
+  .platform-entry-card__stat span {
+    @apply block text-[11px] font-semibold uppercase tracking-[0.14em];
+    color: hsl(var(--text-faint));
+  }
+
+  .platform-entry-card__stat strong {
+    @apply mt-1 block text-[15px];
+    color: hsl(var(--text));
   }
 
   .platform-entry-card__points {
-    @apply mt-7 space-y-2.5;
+    @apply relative mt-auto space-y-2.5 pt-7;
   }
 
   .platform-entry-card__point {
-    @apply rounded-2xl border border-slate-700/35 bg-slate-950/30 px-4 py-3 text-[15px] text-slate-200;
+    @apply flex items-center gap-2.5 rounded-2xl border px-3.5 py-3 text-[14px];
+    border-color: hsl(var(--border) / 0.4);
+    background: hsl(var(--surface2) / 0.42);
+    color: hsl(var(--text-muted));
+  }
+
+  .platform-entry-card__point svg {
+    @apply flex-shrink-0;
+    color: hsl(var(--brand-strong));
+  }
+
+  .platform-info-grid {
+    @apply grid gap-3 pb-2 md:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .platform-info-pill {
+    @apply flex min-w-0 items-start gap-3 rounded-2xl border p-3.5;
+    background: hsl(var(--surface) / 0.72);
+    border-color: hsl(var(--border) / 0.46);
+    backdrop-filter: blur(16px);
+  }
+
+  .platform-info-pill__icon {
+    @apply flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl;
+    color: hsl(var(--brand-strong));
+    background: hsl(var(--brand) / 0.1);
+  }
+
+  .platform-info-pill__label {
+    @apply text-[13px] font-semibold;
+    color: hsl(var(--text));
+  }
+
+  .platform-info-pill__value {
+    @apply mt-0.5 text-[12px] leading-5;
+    color: hsl(var(--text-faint));
+  }
+
+  @media (max-width: 640px) {
+    .platform-topbar__actions {
+      width: 100%;
+    }
+
+    .platform-topbar__actions > * {
+      flex: 1 1 auto;
+      justify-content: center;
+    }
+
+    .platform-hero-title {
+      font-size: 2.05rem;
+    }
+
+    .platform-entry-card {
+      min-height: auto;
+    }
   }
 
   .training-eyebrow {

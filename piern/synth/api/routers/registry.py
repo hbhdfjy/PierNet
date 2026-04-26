@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException
 from piern.shared.runtime.paths import REGISTRY_PATH, PROJECT_ROOT
 from piern.synth.api.schemas.registry import RegisterRequest
 from piern.synth.services import job_manager
+from piern.synth.services.hdf5_data import collect_registration_hdf5_validations
 from piern.synth.services.job_manager import publish
 
 router = APIRouter()
@@ -192,6 +193,24 @@ def delete_registry_entry(key: str):
 @router.post("/register")
 async def start_register(req: RegisterRequest):
     """启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。"""
+    try:
+        validations = collect_registration_hdf5_validations(
+            req.config,
+            req.scenarios if req.scenarios else None,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    invalid = [item for item in validations if not item.get("valid")]
+    if invalid:
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "message": "注册前校验失败：部分 HDF5 文件不符合 PiERN Stage 1 规范",
+                "items": invalid,
+            },
+        )
+
     record = job_manager.create_job("register", {})
     job_id = record.job_id
 

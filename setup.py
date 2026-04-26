@@ -4,6 +4,7 @@ setup(
     name="piern-data-synthesis",
     version="0.1.0",
     description="PiERN multi-simulator data synthesis pipeline",
+    license="MIT",
     packages=find_packages(),
     python_requires=">=3.11",
     install_requires=[

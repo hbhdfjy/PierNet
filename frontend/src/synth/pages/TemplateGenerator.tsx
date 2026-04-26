@@ -2,9 +2,9 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, LLMConfig, TemplateFileInfo } from '../../lib/types'
+import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, LLMConfig } from '../../lib/types'
 import { Cpu, Settings, Layers, RefreshCw, AlertCircle, Sparkles, ChevronDown, ChevronUp, KeyRound, Trash2, FolderOpen, ChevronRight } from 'lucide-react'
-import { cn, formatBytes } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
@@ -29,20 +29,12 @@ export default function TemplateGenerator() {
     useSWR<TemplateInfo[]>('templates', () => api.getTemplatesStatus(), { refreshInterval: 5000 })
   const { data: llmCfg } =
     useSWR<LLMConfig>('llm-config', () => api.getLLMConfig())
-  const { data: templateFiles, mutate: refreshTemplateFiles } =
-    useSWR<TemplateFileInfo[]>('template-files', () => api.listTemplateFiles(), { refreshInterval: 10000 })
-
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nTemplates, setNTemplates] = useState(100)
   const [nTemplatesInput, setNTemplatesInput] = useState('100')
   const [genMode, setGenMode] = useState<'overwrite' | 'skip' | 'append'>('append')
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filesOpen, setFilesOpen] = useState(false)
-  const [deletingFile, setDeletingFile] = useState<string | null>(null)
-  const [clearingAll, setClearingAll] = useState(false)
-  const [trimmingFile, setTrimmingFile] = useState<string | null>(null)
-  const [trimTarget, setTrimTarget] = useState<Record<string, string>>({})
 
   const [languageMix, setLanguageMix] = useState<number | null>(null)
   const [transformProb, setTransformProb] = useState<number | null>(null)
@@ -61,9 +53,8 @@ export default function TemplateGenerator() {
   useEffect(() => {
     if (monitor.status === 'done' || monitor.status === 'error') {
       refreshTemplates()
-      refreshTemplateFiles()
     }
-  }, [monitor.status, refreshTemplates, refreshTemplateFiles])
+  }, [monitor.status, refreshTemplates])
 
   const allScenarios: Text2CompScenario[] = scenariosCfg ? Object.values(scenariosCfg).flat() : []
   const scenariosWithData = allScenarios.filter(s => s.has_h5)
@@ -97,47 +88,6 @@ export default function TemplateGenerator() {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {
       setLaunching(false)
-    }
-  }
-
-  const handleDeleteTemplate = async (scenario: string) => {
-    setDeletingFile(scenario)
-    try {
-      await api.deleteTemplateFile(scenario)
-      refreshTemplateFiles()
-      refreshTemplates()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '删除失败')
-    } finally {
-      setDeletingFile(null)
-    }
-  }
-
-  const handleTrimTemplate = async (scenario: string) => {
-    const n = parseInt(trimTarget[scenario] ?? '', 10)
-    if (isNaN(n) || n < 1) { setError('请输入有效的数量'); return }
-    setTrimmingFile(scenario)
-    try {
-      const res = await api.trimTemplateFile(scenario, n)
-      if (res.after !== res.before) refreshTemplateFiles()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '截断失败')
-    } finally {
-      setTrimmingFile(null)
-    }
-  }
-
-  const handleClearAllTemplates = async () => {
-    if (!confirm('确认清空所有模板文件？此操作不可撤销。')) return
-    setClearingAll(true)
-    try {
-      await api.clearAllTemplates()
-      refreshTemplateFiles()
-      refreshTemplates()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '清空失败')
-    } finally {
-      setClearingAll(false)
     }
   }
 
@@ -446,91 +396,28 @@ export default function TemplateGenerator() {
           </div>
         )}
 
-        {/* 文件管理 */}
+        {/* File management moved to /files */}
         <div className="card overflow-hidden">
-          <button
-            onClick={() => setFilesOpen(o => !o)}
-            className="w-full card-header accordion-card-header justify-between transition-colors py-3"
-          >
+          <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">模板文件管理</span>
-              {templateFiles && templateFiles.length > 0 && (
-                <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
-                  {templateFiles.length} 个场景
-                </span>
-              )}
+              <span className="font-medium text-slate-200 text-base">Template files</span>
             </div>
-            {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
-          </button>
-
-          {filesOpen && (
-            <div className="p-3 space-y-2">
-              {(!templateFiles || templateFiles.length === 0) ? (
-                <p className="text-slate-500 text-xs text-center py-3">暂无模板文件</p>
-              ) : (
-                <>
-                  <div className="list-table-scroll">
-                    <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-700/40">
-                        <th className="px-3 py-1.5 text-left label">场景</th>
-                        <th className="px-3 py-1.5 text-right label">模板数</th>
-                        <th className="px-3 py-1.5 text-right label">大小</th>
-                        <th className="px-3 py-1.5 text-right label">截断至</th>
-                        <th className="px-3 py-1.5 text-right label">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {templateFiles.map(f => (
-                        <tr key={f.scenario} className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors">
-                          <td className="px-3 py-1.5 font-mono text-slate-300">{f.scenario}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-violet-400">{f.template_count.toLocaleString()}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{formatBytes(f.file_size_bytes)}</td>
-                          <td className="px-3 py-1.5 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <input
-                                type="number" min={1}
-                                placeholder={String(f.template_count)}
-                                value={trimTarget[f.scenario] ?? ''}
-                                onChange={e => setTrimTarget(prev => ({ ...prev, [f.scenario]: e.target.value }))}
-                                className="w-24 bg-slate-800 border border-slate-600/60 rounded-lg px-2 py-0.5 text-xs text-slate-200 text-right focus:outline-none focus:border-sky-500/50"
-                              />
-                              <button
-                                className="btn-ghost py-0.5 px-1.5 text-amber-400 hover:text-amber-300 text-xs"
-                                onClick={() => handleTrimTemplate(f.scenario)}
-                                disabled={trimmingFile === f.scenario || !trimTarget[f.scenario]}
-                                title="截断到指定数量">
-                                {trimmingFile === f.scenario ? <RefreshCw size={10} className="animate-spin" /> : '截断'}
-                              </button>
-                            </div>
-                          </td>
-                          <td className="px-3 py-1.5 text-right">
-                            <button className="btn-ghost py-0.5 px-1.5 text-red-400 hover:text-red-300"
-                              onClick={() => handleDeleteTemplate(f.scenario)}
-                              disabled={deletingFile === f.scenario}>
-                              {deletingFile === f.scenario
-                                ? <RefreshCw size={10} className="animate-spin" />
-                                : <Trash2 size={10} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    </table>
-                  </div>
-                  <div className="flex justify-end pt-0.5">
-                    <button className="btn-ghost py-1 px-2.5 text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-                      onClick={handleClearAllTemplates} disabled={clearingAll}>
-                      {clearingAll ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                      清空全部
-                    </button>
-                  </div>
-                </>
-              )}
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+              Open /files
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
+              <div className="font-semibold text-slate-100">Centralized file manager</div>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Template trim, delete, and clear operations now live in the unified file manager.</p>
+              <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/files')}>
+                Open unified file manager
+              </button>
             </div>
-          )}
+          </div>
         </div>
+
       </div>
     </div>
   )

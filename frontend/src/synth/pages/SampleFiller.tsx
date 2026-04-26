@@ -3,9 +3,9 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, SampleFileInfo } from '../../lib/types'
+import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo } from '../../lib/types'
 import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, Trash2, FolderOpen, ChevronDown, ChevronUp } from 'lucide-react'
-import { cn, formatBytes } from '../../lib/utils'
+import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
@@ -28,9 +28,6 @@ export default function SampleFiller() {
     useSWR<GenerationConfig>('config', () => api.getConfig())
   const { data: templatesStatus, mutate: refreshTemplates } =
     useSWR<TemplateInfo[]>('templates', () => api.getTemplatesStatus(), { refreshInterval: 5000 })
-  const { data: sampleFiles, isLoading: sfLoading, mutate: refreshSampleFiles } =
-    useSWR<SampleFileInfo[]>('sample-files', () => api.listSampleFiles(), { refreshInterval: 10000 })
-
   const { seed } = useSeed()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nSamples, setNSamples] = useState(100)
@@ -38,9 +35,6 @@ export default function SampleFiller() {
   const [precision, setPrecision] = useState(4)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filesOpen, setFilesOpen] = useState(false)
-  const [deletingFile, setDeletingFile] = useState<string | null>(null)
-  const [clearingAll, setClearingAll] = useState(false)
 
   useEffect(() => {
     if (genCfg?.generation?.n_samples_per_scenario) setNSamples(genCfg.generation.n_samples_per_scenario)
@@ -51,9 +45,8 @@ export default function SampleFiller() {
       refreshTemplates()
       // 刷新场景列表以更新 existing_jsonl_count
       refreshScenarios(undefined, { revalidate: true })
-      refreshSampleFiles()
     }
-  }, [monitor.status, refreshTemplates, refreshScenarios, refreshSampleFiles])
+  }, [monitor.status, refreshTemplates, refreshScenarios])
 
   const allScenarios: Text2CompScenario[] = scenariosCfg ? Object.values(scenariosCfg).flat() : []
   const templateMap: Record<string, TemplateInfo> = {}
@@ -95,31 +88,6 @@ export default function SampleFiller() {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {
       setLaunching(false)
-    }
-  }
-
-  const handleDeleteSample = async (scenario: string) => {
-    setDeletingFile(scenario)
-    try {
-      await api.deleteSampleFile(scenario)
-      refreshSampleFiles()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '删除失败')
-    } finally {
-      setDeletingFile(null)
-    }
-  }
-
-  const handleClearAllSamples = async () => {
-    if (!confirm('确认清空所有样本文件？此操作不可撤销。')) return
-    setClearingAll(true)
-    try {
-      await api.clearAllSamples()
-      refreshSampleFiles()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '清空失败')
-    } finally {
-      setClearingAll(false)
     }
   }
 
@@ -354,86 +322,28 @@ export default function SampleFiller() {
           </div>
         )}
 
-        {/* 文件管理 */}
+        {/* File management moved to /files */}
         <div className="card overflow-hidden">
-          <button
-            onClick={() => setFilesOpen(o => !o)}
-            className="w-full card-header accordion-card-header justify-between transition-colors py-3"
-          >
+          <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">样本文件管理</span>
-              {sampleFiles && sampleFiles.length > 0 && (
-                <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
-                  {sampleFiles.length} 个场景
-                </span>
-              )}
+              <span className="font-medium text-slate-200 text-base">Sample files</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span
-                className="btn-ghost py-0.5 px-1.5 text-xs"
-                onClick={e => { e.stopPropagation(); refreshSampleFiles() }}
-                title="刷新"
-              >
-                <RefreshCw size={11} className={sfLoading ? 'animate-spin' : ''} />
-              </span>
-              {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+              Open /files
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
+              <div className="font-semibold text-slate-100">Centralized file manager</div>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Sample delete, clear, and merged-file state now live in the unified file manager.</p>
+              <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/files')}>
+                Open unified file manager
+              </button>
             </div>
-          </button>
-
-          {filesOpen && (
-            <div className="p-3 space-y-2">
-              {sfLoading ? (
-                <div className="flex items-center justify-center gap-2 py-3 text-slate-500">
-                  <RefreshCw size={12} className="animate-spin" />
-                  <span className="text-xs">加载中…</span>
-                </div>
-              ) : (!sampleFiles || sampleFiles.length === 0) ? (
-                <p className="text-slate-500 text-xs text-center py-3">暂无样本文件</p>
-              ) : (
-                <>
-                  <div className="list-table-scroll">
-                    <table className="w-full text-xs">
-                    <thead>
-                      <tr className="border-b border-slate-700/40">
-                        <th className="px-3 py-1.5 text-left label">场景</th>
-                        <th className="px-3 py-1.5 text-right label">样本数</th>
-                        <th className="px-3 py-1.5 text-right label">大小</th>
-                        <th className="px-3 py-1.5 text-right label">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sampleFiles.map(f => (
-                        <tr key={f.scenario} className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors">
-                          <td className="px-3 py-1.5 font-mono text-slate-300">{f.scenario}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-emerald-400">{f.sample_count.toLocaleString()}</td>
-                          <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">{formatBytes(f.file_size_bytes)}</td>
-                          <td className="px-3 py-1.5 text-right">
-                            <button className="btn-ghost py-0.5 px-1.5 text-red-400 hover:text-red-300"
-                              onClick={() => handleDeleteSample(f.scenario)}
-                              disabled={deletingFile === f.scenario}>
-                              {deletingFile === f.scenario
-                                ? <RefreshCw size={10} className="animate-spin" />
-                                : <Trash2 size={10} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    </table>
-                  </div>
-                  <div className="flex justify-end pt-0.5">
-                    <button className="btn-ghost py-1 px-2.5 text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-                      onClick={handleClearAllSamples} disabled={clearingAll}>
-                      {clearingAll ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                      清空全部
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
-          )}
+          </div>
         </div>
+
       </div>
     </div>
   )

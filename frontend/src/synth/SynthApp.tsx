@@ -3,7 +3,7 @@ import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import {
   Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
   KeyRound, FileText, Zap, Sun, Moon, GitBranch, Network,
-  Shuffle, ChevronRight,
+  Shuffle, ChevronRight, UploadCloud, FolderOpen,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { SeedContext } from '../lib/seedContext'
@@ -18,6 +18,8 @@ import SampleViewer from './pages/SampleViewer'
 import SimulationRunner from './pages/SimulationRunner'
 import TemplateGenerator from './pages/TemplateGenerator'
 import TemplateViewer from './pages/TemplateViewer'
+import DataUploadPage from './pages/DataUploadPage'
+import { FileManagerContent } from '../files/FileManagerPage'
 import type { Theme } from '../shared/theme'
 
 const STAGE_COLORS = {
@@ -132,7 +134,10 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
 
             <div>
               <SectionLabel>Stage 1 - Simulation</SectionLabel>
-              <NavItem to="/synth/simulate" icon={Zap} label="物理仿真" color="amber" />
+              <div className="space-y-1">
+                <NavItem to="/synth/simulate" icon={Zap} label="物理仿真" color="amber" />
+                <NavItem to="/synth/upload" icon={UploadCloud} label="上传数据" color="amber" />
+              </div>
             </div>
 
             <div>
@@ -159,6 +164,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
                 <NavItem to="/synth/template-viewer" icon={BookTemplate} label="模板浏览" rightIcon={ChevronRight} />
                 <NavItem to="/synth/samples" icon={Database} label="样本浏览" rightIcon={ChevronRight} />
                 <NavItem to="/synth/router-viewer" icon={Network} label="路由浏览" rightIcon={ChevronRight} />
+                <NavItem to="/synth/files" icon={FolderOpen} label={'\u6587\u4ef6\u7ba1\u7406'} rightIcon={ChevronRight} />
               </div>
             </div>
 
@@ -218,6 +224,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
           <Routes>
             <Route index element={<DatasetStats />} />
             <Route path="simulate" element={<SimulationRunner />} />
+            <Route path="upload" element={<DataUploadPage />} />
             <Route path="register" element={<RegisterSimulator />} />
             <Route path="templates" element={<TemplateGenerator />} />
             <Route path="fill" element={<SampleFiller />} />
@@ -225,6 +232,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             <Route path="template-viewer" element={<TemplateViewer />} />
             <Route path="samples" element={<SampleViewer />} />
             <Route path="router-viewer" element={<RouterViewer />} />
+            <Route path="files" element={<FileManagerContent />} />
             <Route path="stats" element={<Navigate to="/synth" replace />} />
             <Route path="registry" element={<RegistryPage />} />
             <Route path="llm-config" element={<LLMConfigPage />} />

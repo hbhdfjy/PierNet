@@ -8,6 +8,8 @@ import type {
   TemplateFileInfo, SampleFileInfo, JobStartResponse,
   TemplatesResponse,
   SimulationScenario, SimulateRequest, BatchSimulateRequest, SimulationHistoryRecord,
+  Hdf5DataFileInfo, Hdf5UploadResponse,
+  FileCatalogResponse, FileCatalogMutationResponse,
   RouterStatus, RouterSamplesResponse,
   TrainingOverview, TrainingDatasetInfo, TrainingGPUInfo, TrainingJobSummary,
   TrainingCreateJobRequest, TrainingJobDetail, TrainingCurvesResponse, TrainingLogResponse,
@@ -251,8 +253,68 @@ export const api = {
   },
 
   // ── Stage 1 物理仿真 ─────────────────────────────────────────────
+  // Unified file catalog
+  getFileCatalog: (): Promise<FileCatalogResponse> =>
+    get('/files/catalog'),
+
+  deleteFileCatalogAsset: async (assetId: string): Promise<FileCatalogMutationResponse> => {
+    const res = await fetch(`${BASE}/files/catalog/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Delete file asset failed (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
+  clearFileCatalogGroup: async (kind: 'templates' | 'samples' | 'router'): Promise<FileCatalogMutationResponse> => {
+    const res = await fetch(`${BASE}/files/catalog/groups/${encodeURIComponent(kind)}`, { method: 'DELETE' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Clear file group failed (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
+  rebuildFileCatalogIndexes: async (scope: 'all' | 'templates' | 'samples' | 'router' = 'all'): Promise<FileCatalogMutationResponse> => {
+    const res = await fetch(`${BASE}/files/catalog/rebuild?scope=${encodeURIComponent(scope)}`, { method: 'POST' })
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`Rebuild file indexes failed (${res.status}): ${text}`)
+    }
+    return res.json()
+  },
+
   getSimulationScenarios: (refresh = false): Promise<SimulationScenario[]> =>
     get('/simulation/scenarios', refresh ? { refresh: 1 } : undefined),
+
+  listHdf5DataFiles: (): Promise<Hdf5DataFileInfo[]> =>
+    get('/simulation/data-files'),
+
+  uploadHdf5Data: async (args: {
+    simulator: string
+    scenario: string
+    file: File
+    overwrite: boolean
+  }): Promise<Hdf5UploadResponse> => {
+    const url = new URL(`${BASE}/simulation/upload`, window.location.origin)
+    url.searchParams.set('simulator', args.simulator)
+    url.searchParams.set('scenario', args.scenario)
+    url.searchParams.set('overwrite', String(args.overwrite))
+    const res = await fetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: args.file,
+    })
+    if (!res.ok) {
+      const payload = await res.json().catch(() => null)
+      const detail = payload?.detail
+      const message = typeof detail === 'string'
+        ? detail
+        : detail?.message || JSON.stringify(detail ?? payload ?? {})
+      throw new Error(`上传失败 (${res.status}): ${message}`)
+    }
+    return res.json()
+  },
 
   startSimulation: async (req: SimulateRequest): Promise<JobStartResponse> => {
     const res = await fetch(`${BASE}/simulate`, {

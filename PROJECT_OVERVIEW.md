@@ -62,6 +62,8 @@ schemas, and services live in the platform namespaces:
 - Input: simulator-specific YAML under `configs/{simulator}/variants/`
 - Execution: `python -m piern.simulators.{simulator}.pipeline`
 - Output: `data/{simulator}/{simulator}_{scenario}.h5`
+- External simulator / big-scene data can be added from `/synth/upload` and is saved as `data/{big_scene}/{big_scene}_{scenario}.h5`.
+- Upload returns a non-blocking preflight result; Stage 2 registration is the hard gate and rejects HDF5 files that violate the Stage 1 contract: `timeseries [N,C,T]`, `params [N,P]`, `param_names [P]`, matching shape attrs, and finite numeric values.
 
 ### Stage 2: Registration And Template Generation
 
@@ -92,7 +94,7 @@ Current training assumptions:
 - model: `FullSeqDilatedConvRouter`
 - split: `train / test` only
 - chat template: Qwen chat format in Stage 4 router data
-- embedding backbone: default local Qwen snapshot at `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- embedding backbone: default local Qwen snapshot at `/data/fjy/Qwen2.5-0.5B-Instruct`
 - training input: router JSONL context is dynamically tokenized during training and passed through the frozen pretrained embedding table; embeddings are not stored offline
 
 Primary implementation files:
@@ -140,6 +142,7 @@ Primary implementation files:
 
 - HDF5 naming: `{simulator}_{scenario}.h5`
 - Data root: generated data remains under `data/`
+- Uploaded HDF5 data: `data/{big_scene}/{big_scene}_{scenario}.h5`; upload shows preflight status, Stage 2 registration enforces validation
 - Stage 2 templates: `data/templates/`
 - Stage 3 samples: `data/text2comp/`
 - Stage 4 router data: `data/router/`

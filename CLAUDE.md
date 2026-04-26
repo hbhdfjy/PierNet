@@ -181,6 +181,8 @@ artifacts/
   数据总览，当前使用 `DatasetStats.tsx`
 - `/synth/simulate`
   `SimulationRunner.tsx`
+- `/synth/upload`
+  `DataUploadPage.tsx`，上传外部 Stage 1 HDF5 并校验后写入标准数据目录
 - `/synth/register`
   `RegisterSimulator.tsx`
 - `/synth/templates`
@@ -228,6 +230,8 @@ artifacts/
   大 JSONL 的稀疏分页索引
 - `jsonl_filter_index.py`
   常用筛选索引
+- `hdf5_data.py`
+  Stage 1 HDF5 文件发现、上传校验、注册前校验
 
 ### Stage 1 模拟器
 
@@ -240,6 +244,22 @@ artifacts/
 - `gcam`
 
 注意：`power_flow` 和 `transient` 已经拆成两个独立 simulator，结构上与 `modflow`、`simpeg`、`gcam` 一致。
+
+### Stage 1 HDF5 上传与校验
+
+新增仿真器/大场景数据可以从 `/synth/upload` 上传，后端接口在 `piern/synth/api/routers/simulation.py`：
+
+- `GET /api/simulation/data-files`
+- `POST /api/simulation/upload?simulator=...&scenario=...&overwrite=false`
+
+`simulator` 在这里表示仿真器/大场景命名空间，不限制为内置 5 个 simulator，但必须是安全 slug。落盘路径固定为 `data/{big_scene}/{big_scene}_{scenario}.h5`。
+上传页只返回即时预检结果；Stage 2 注册前会使用 `piern/synth/services/hdf5_data.py` 强制校验，不合规则拒绝注册：
+
+- `timeseries`: 数值型 3 维 `[N, C, T]`
+- `params`: 数值型 2 维 `[N, P]`
+- `param_names`: 字符串 1 维 `[P]`
+- 根属性 `n_samples`、`n_channels`、`n_timesteps`、`n_params` 必须与 shape 完全一致
+- 不允许 NaN 或 Inf
 
 ### Stage 2/3 核心
 
@@ -332,6 +352,7 @@ API 路径前缀是：
 - `POST /api/training/jobs`
 - `GET /api/training/jobs/{job_id}`
 - `GET /api/training/jobs/{job_id}/curves`
+- `DELETE /api/training/jobs/{job_id}`
 - `GET /api/training/jobs/{job_id}/logs`
 - `POST /api/training/jobs/{job_id}/stop`
 
@@ -420,7 +441,7 @@ API 路径前缀是：
 - split 由 `build_group_key(context, scenario)` 推导
 - 默认 `test_ratio = 0.10`
 - Stage 4 router 数据默认使用 Qwen chat template
-- 默认 embedding backbone 是 `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- 默认 embedding backbone 是 `/data/fjy/Qwen2.5-0.5B-Instruct`
 - 训练输入不是离线 embedding 文件，而是训练时动态 tokenize + 冻结 embedding lookup
 - 模型是 dilated conv 序列分类器，不是 Transformer
 
@@ -468,6 +489,7 @@ CLI 入口：
 - `--max-train-samples`
 - `--max-test-samples`
 - `--input-representation embedding`
+- `--stop-file`
 
 ---
 
@@ -569,14 +591,20 @@ HDF5 命名统一为：
 
 当前自动测试覆盖很薄。
 
-仓库里目前明确看到的测试文件：
+当前已有的 Python 测试文件：
 
+- `tests/test_build_router_data_script.py`
+- `tests/test_check_garbled_text.py`
+- `tests/test_registry_observation_config.py`
+- `tests/test_router_prepared_inputs.py`
 - `tests/test_training_manager_fallbacks.py`
 
-它只覆盖：
+主要覆盖：
 
-- router manifest 缺失时训练数据列表回退为空
-- `nvidia-smi` 不可用时 GPU 列表回退为空
+- Stage 4 router 数据构建与 prepared input metadata
+- 注册信息中的观测维度/通道配置约束
+- 乱码检查工具
+- training manager 在 router manifest 缺失、`nvidia-smi` 不可用时的回退行为
 
 这意味着：
 
@@ -697,7 +725,7 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 如果开始改这个仓库，优先把它当成：
 
 - 一个双平台产品
-- 一个仍带兼容层的过渡态代码库
+- 一个已完成 synth/training 命名空间拆分、仅保留 `api_server.py` 入口兼容的代码库
 - 一个以 JSONL/HDF5 为源产物、以 manifest/index 为交互读取层的系统
 - 一个当前只对 Token Router 单 GPU 训练负责的训练平台
 

@@ -6,9 +6,9 @@ import { api } from '../../lib/api'
 import type { RouterStatus, RouterScenarioInfo } from '../../lib/types'
 import {
   GitBranch, RefreshCw, Settings, Layers,
-  AlertCircle, Check, Database, FolderOpen, Trash2, ChevronDown, ChevronUp,
+  AlertCircle, Check, Database, FolderOpen,
 } from 'lucide-react'
-import { cn, formatBytes, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
+import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { useJobMonitor } from '../hooks/useJobMonitor'
@@ -98,9 +98,6 @@ export default function RouterDataBuilder() {
   const [error, setError] = useState<string | null>(null)
 
   // 文件管理
-  const [filesOpen, setFilesOpen] = useState(false)
-  const [deletingScenario, setDeletingScenario] = useState<string | null>(null)
-  const [clearingAll, setClearingAll] = useState(false)
 
   // 场景多选
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -142,31 +139,6 @@ export default function RouterDataBuilder() {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setLaunching(false)
-    }
-  }
-
-  async function handleDeleteScenario(scenario: string) {
-    setDeletingScenario(scenario)
-    try {
-      await api.deleteRouterScenario(scenario)
-      refreshStatus()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '删除失败')
-    } finally {
-      setDeletingScenario(null)
-    }
-  }
-
-  async function handleClearAll() {
-    if (!confirm('确认清空所有路由数据文件？此操作不可撤销。')) return
-    setClearingAll(true)
-    try {
-      await api.deleteAllRouterData()
-      refreshStatus()
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : '清空失败')
-    } finally {
-      setClearingAll(false)
     }
   }
 
@@ -360,90 +332,26 @@ export default function RouterDataBuilder() {
           </div>
         )}
 
-        {/* 文件管理 */}
+        {/* File management moved to /files */}
         <div className="card overflow-hidden">
-          <button
-            onClick={() => setFilesOpen(o => !o)}
-            className="w-full card-header accordion-card-header justify-between transition-colors py-3"
-          >
+          <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">路由数据文件管理</span>
-              {(status?.scenarios?.filter(s => (s.router_count ?? 0) > 0).length ?? 0) > 0 && (
-                <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
-                  {status!.scenarios.filter(s => (s.router_count ?? 0) > 0).length} 个场景
-                </span>
-              )}
+              <span className="font-medium text-slate-200 text-base">Router files</span>
             </div>
-            <div className="flex items-center gap-2">
-              <button className="btn-ghost py-0.5 px-1.5 text-xs"
-                onClick={e => { e.stopPropagation(); refreshStatus() }}>
-                <RefreshCw size={11} className={isLoading ? 'animate-spin' : ''} />
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+              Open /files
+            </button>
+          </div>
+          <div className="p-4">
+            <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
+              <div className="font-semibold text-slate-100">Centralized file manager</div>
+              <p className="mt-1 text-sm leading-6 text-slate-400">Router scenario files, train.jsonl, and clear operations now live in the unified file manager.</p>
+              <button className="btn-ghost mt-3 text-xs text-rose-300" onClick={() => navigate('/files')}>
+                Open unified file manager
               </button>
-              {filesOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
             </div>
-          </button>
-
-          {filesOpen && (
-            <div className="p-3 space-y-2">
-              {(() => {
-                const scenariosWithData = status?.scenarios?.filter(s => (s.router_count ?? 0) > 0) ?? []
-                if (scenariosWithData.length === 0) {
-                  return <p className="text-slate-500 text-xs text-center py-3">暂无路由数据文件</p>
-                }
-                return (
-                  <>
-                    <div className="list-table-scroll">
-                    <table className="w-full text-xs">
-                      <thead>
-                        <tr className="border-b border-slate-700/40">
-                          <th className="px-3 py-1.5 text-left label">场景</th>
-                          <th className="px-3 py-1.5 text-right label">样本数</th>
-                          <th className="px-3 py-1.5 text-right label">大小</th>
-                          <th className="px-3 py-1.5 text-right label">操作</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {scenariosWithData.map(s => (
-                          <tr key={s.scenario} className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors">
-                            <td className="px-3 py-1.5 font-mono text-slate-300">{s.scenario}</td>
-                            <td className="px-3 py-1.5 text-right tabular-nums text-rose-400">
-                              {(s.router_count ?? 0).toLocaleString()}
-                            </td>
-                            <td className="px-3 py-1.5 text-right tabular-nums text-slate-500">
-                              {formatBytes(s.file_size_bytes ?? 0)}
-                            </td>
-                            <td className="px-3 py-1.5 text-right">
-                              <button
-                                className="btn-ghost py-0.5 px-1.5 text-red-400 hover:text-red-300"
-                                onClick={() => handleDeleteScenario(s.scenario)}
-                                disabled={deletingScenario === s.scenario}
-                              >
-                                {deletingScenario === s.scenario
-                                  ? <RefreshCw size={10} className="animate-spin" />
-                                  : <Trash2 size={10} />}
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="flex justify-end pt-0.5">
-                      <button
-                        className="btn-ghost py-1 px-2.5 text-xs text-red-400 hover:text-red-300 flex items-center gap-1"
-                        onClick={handleClearAll}
-                        disabled={clearingAll}
-                      >
-                        {clearingAll ? <RefreshCw size={11} className="animate-spin" /> : <Trash2 size={11} />}
-                        清空全部
-                      </button>
-                    </div>
-                  </>
-                )
-              })()}
-            </div>
-          )}
+          </div>
         </div>
 
       </div>

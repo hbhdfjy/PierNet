@@ -40,6 +40,60 @@ export interface SampleRecord {
 
 // ── API 响应类型 ─────────────────────────────────────────────────
 
+
+// Unified file catalog
+export interface FileAsset {
+  id: string
+  platform: string
+  platform_label: string
+  stage: string
+  stage_label: string
+  kind: string
+  kind_label: string
+  title: string
+  simulator?: string | null
+  scenario?: string | null
+  job_id?: string | null
+  path: string
+  count?: number | null
+  count_label?: string | null
+  file_size_bytes: number
+  mtime: number
+  valid?: boolean | null
+  status: string
+  protected: boolean
+  deletable: boolean
+  warnings: string[]
+  errors: string[]
+  details: Record<string, unknown>
+}
+
+export interface FileCatalogSummary {
+  total_assets: number
+  total_size_bytes: number
+  invalid_count: number
+  deletable_count: number
+  protected_count: number
+  by_platform: Record<string, number>
+  by_stage: Record<string, number>
+  by_kind: Record<string, number>
+}
+
+export interface FileCatalogResponse {
+  generated_at: number
+  assets: FileAsset[]
+  summary: FileCatalogSummary
+}
+
+export interface FileCatalogMutationResponse {
+  ok: boolean
+  kind: string
+  deleted?: number
+  train_count?: number
+  rebuilt?: string[]
+  errors?: string[]
+}
+
 export interface DatasetInfo {
   name: string
   simulator: string
@@ -362,6 +416,34 @@ export interface SimulationScenario {
   sample_count: number
   output_shape: number[] | null
   file_size_bytes: number
+}
+
+export interface Hdf5ValidationResult {
+  valid: boolean
+  path: string
+  file_size_bytes: number
+  sample_count: number
+  output_shape: number[] | null
+  params_shape: number[] | null
+  n_params: number
+  param_names_preview: string[]
+  attrs: Record<string, unknown>
+  errors: string[]
+  warnings: string[]
+}
+
+export interface Hdf5DataFileInfo extends Hdf5ValidationResult {
+  simulator: string
+  scenario: string
+  mtime: number
+}
+
+export interface Hdf5UploadResponse {
+  ok: boolean
+  simulator: string
+  scenario: string
+  saved_path: string
+  validation: Hdf5ValidationResult
 }
 
 export interface SimulateRequest {

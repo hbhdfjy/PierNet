@@ -1,4 +1,4 @@
-import { Moon, Sun, ArrowLeft, BarChart3, Cpu, PlayCircle, Workflow } from 'lucide-react'
+import { Moon, Sun, ArrowLeft, BarChart3, Cpu, PlayCircle, Workflow, FolderOpen } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 import TrainingOverviewPage from './pages/TrainingOverviewPage'

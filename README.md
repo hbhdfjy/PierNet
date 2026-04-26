@@ -52,6 +52,7 @@ PiERN 是一个面向物理与工程时序数据的双平台系统：
 
 - 数据总览
 - 物理仿真
+- 上传数据
 - 注册场景
 - 生成模板
 - 填充样本
@@ -167,6 +168,20 @@ data/power_flow/power_flow_ieee14_baseload.h5
 data/transient/transient_ieee14_fault.h5
 ```
 
+Stage 1 也支持在 `/synth/upload` 上传外部仿真器/大场景的 HDF5 文件，落盘路径固定为：
+
+```text
+data/{big_scene}/{big_scene}_{scenario}.h5
+```
+
+上传页会返回即时预检结果；注册场景时会强制校验以下契约，不合规则拒绝注册：
+
+- `timeseries`: 数值型 3 维 `[N, C, T]`
+- `params`: 数值型 2 维 `[N, P]`
+- `param_names`: 字符串 1 维 `[P]`
+- 根属性 `n_samples`、`n_channels`、`n_timesteps`、`n_params` 必须存在并与 shape 完全一致
+- `timeseries` 和 `params` 不允许出现 NaN 或 Inf
+
 ### Stage 2
 
 ```text
@@ -264,7 +279,7 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 - 模型：`FullSeqDilatedConvRouter`
 - 数据切分：`train / test`
 - Stage 4 约定：Qwen chat template
-- Embedding backbone：默认 `/data/models/Qwen/Qwen2.5-0.5B-Instruct`
+- Embedding backbone：默认 `/data/fjy/Qwen2.5-0.5B-Instruct`
 - 训练输入：训练时动态 tokenize router JSONL 的 `context`，再通过冻结的 Qwen embedding table 转成输入向量；不离线存储 embedding
 
 核心代码位于：
@@ -337,4 +352,4 @@ piern/
 
 ## 许可证
 
-MIT
+MIT，详见 `LICENSE`。

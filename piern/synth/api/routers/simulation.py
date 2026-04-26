@@ -12,12 +12,19 @@ from pathlib import Path
 from typing import List, Optional
 
 import yaml
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
 from piern.synth.services import job_manager
 from piern.synth.services.job_manager import JobRecord, publish
+from piern.synth.services.hdf5_data import (
+    canonical_hdf5_path,
+    list_hdf5_data_files,
+    validate_hdf5_file,
+    validate_name,
+)
 
 router = APIRouter()
 
@@ -191,6 +198,66 @@ def _get_scenarios_cached() -> List[SimulationScenario]:
 def _invalidate_cache():
     global _scenario_cache
     _scenario_cache = None
+
+
+@router.get("/simulation/data-files")
+def get_simulation_data_files():
+    """列出 data/ 下已存在的 Stage 1 HDF5 文件及校验状态。"""
+    return list_hdf5_data_files()
+
+
+@router.post("/simulation/upload")
+async def upload_simulation_data(
+    request: Request,
+    simulator: str = Query(...),
+    scenario: str = Query(...),
+    overwrite: bool = Query(False),
+):
+    """上传外部 HDF5 数据，保存后返回预检结果；注册时执行强校验。"""
+    try:
+        simulator = validate_name("simulator", simulator)
+        scenario = validate_name("scenario", scenario)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    target = canonical_hdf5_path(simulator, scenario)
+    if target.exists() and not overwrite:
+        rel = target.relative_to(PROJECT_ROOT)
+        raise HTTPException(status_code=409, detail=f"目标文件已存在: {rel}；如需覆盖请开启 overwrite")
+
+    tmp_dir = PROJECT_ROOT / ".runlogs" / "uploads"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_path = tmp_dir / f".{simulator}_{scenario}_{time.time_ns()}.h5"
+
+    bytes_written = 0
+    try:
+        with tmp_path.open("wb") as handle:
+            async for chunk in request.stream():
+                if not chunk:
+                    continue
+                handle.write(chunk)
+                bytes_written += len(chunk)
+    except Exception as exc:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=500, detail=f"上传写入失败: {exc}") from exc
+
+    if bytes_written == 0:
+        tmp_path.unlink(missing_ok=True)
+        raise HTTPException(status_code=400, detail="上传文件为空")
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path.replace(target)
+    _invalidate_cache()
+    invalidate_text2comp_scenarios_cache()
+
+    saved_validation = validate_hdf5_file(target)
+    return {
+        "ok": True,
+        "simulator": simulator,
+        "scenario": scenario,
+        "saved_path": str(target.relative_to(PROJECT_ROOT)),
+        "validation": saved_validation,
+    }
 
 
 # ── 仿真执行逻辑 ─────────────────────────────────────────────────

@@ -1,99 +1,225 @@
-import { ArrowRight, Database, GitBranch } from 'lucide-react'
+import {
+  ArrowRight,
+  BarChart3,
+  Boxes,
+  Cpu,
+  Database,
+  GitBranch,
+  Moon,
+  Network,
+  Server,
+  ShieldCheck,
+  Sparkles,
+  Sun,
+  Workflow,
+} from 'lucide-react'
 import { Link } from 'react-router-dom'
+import type { Theme } from '../shared/theme'
 
-function EntryCard({
-  to,
-  title,
-  copy,
-  tone,
-  icon,
-  points,
-}: {
+type EntryTone = 'synth' | 'training'
+
+type EntryCardProps = {
   to: string
   title: string
+  route: string
   copy: string
-  tone: string
+  tone: EntryTone
   icon: React.ReactNode
   points: string[]
-}) {
+  stats: Array<{ label: string; value: string }>
+}
+
+type InfoItem = {
+  label: string
+  value: string
+  icon: React.ReactNode
+}
+
+function EntryCard({ to, title, route, copy, tone, icon, points, stats }: EntryCardProps) {
   return (
-    <Link to={to} className="platform-entry-card group">
-      <div className={`platform-entry-card__tone ${tone}`} />
-      <div className="relative">
-        <div className="platform-entry-card__header">
-          <div className="platform-entry-card__icon">{icon}</div>
-          <ArrowRight size={18} className="mt-1 text-slate-500 transition group-hover:translate-x-1 group-hover:text-slate-200" />
-        </div>
+    <Link to={to} className={`platform-entry-card platform-entry-card--${tone} group`}>
+      <div className="platform-entry-card__glow" />
+      <div className="platform-entry-card__topline">
+        <div className="platform-entry-card__icon">{icon}</div>
+        <span className="platform-entry-card__route mono">{route}</span>
+      </div>
 
-        <h2 className="platform-entry-card__title">{title}</h2>
-        <p className="platform-entry-card__copy">{copy}</p>
-
-        <div className="platform-entry-card__points">
-          {points.map(point => (
-            <div key={point} className="platform-entry-card__point">
-              {point}
-            </div>
-          ))}
+      <div className="platform-entry-card__main">
+        <div>
+          <h2 className="platform-entry-card__title">{title}</h2>
+          <p className="platform-entry-card__copy">{copy}</p>
         </div>
+        <ArrowRight size={20} className="platform-entry-card__arrow" />
+      </div>
+
+      <div className="platform-entry-card__stats">
+        {stats.map(item => (
+          <div key={item.label} className="platform-entry-card__stat">
+            <span>{item.label}</span>
+            <strong>{item.value}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="platform-entry-card__points">
+        {points.map(point => (
+          <div key={point} className="platform-entry-card__point">
+            <ShieldCheck size={14} />
+            <span>{point}</span>
+          </div>
+        ))}
       </div>
     </Link>
   )
 }
 
-export default function LandingPage() {
+function InfoPill({ label, value, icon }: InfoItem) {
   return (
-    <div className="platform-home-shell text-slate-100">
+    <div className="platform-info-pill">
+      <div className="platform-info-pill__icon">{icon}</div>
+      <div>
+        <div className="platform-info-pill__label">{label}</div>
+        <div className="platform-info-pill__value">{value}</div>
+      </div>
+    </div>
+  )
+}
+
+function FlowStep({ step, title, copy }: { step: string; title: string; copy: string }) {
+  return (
+    <div className="platform-flow-step">
+      <span className="platform-flow-step__index">{step}</span>
+      <div>
+        <div className="platform-flow-step__title">{title}</div>
+        <div className="platform-flow-step__copy">{copy}</div>
+      </div>
+    </div>
+  )
+}
+
+export default function LandingPage({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
+  return (
+    <div className="platform-home-shell">
+      <div className="platform-home-orb platform-home-orb--one" />
+      <div className="platform-home-orb platform-home-orb--two" />
       <div className="platform-home-wrap">
-        <header className="training-hero">
-          <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
-            <div className="max-w-2xl">
-              <div className="training-eyebrow">
-                <span>PiERN Gateway</span>
-              </div>
-              <h1 className="mt-4 text-[2.2rem] font-semibold tracking-tight text-white xl:text-[2.6rem]">选择工作平台</h1>
-              <p className="mt-3 max-w-xl training-copy">
-                数据合成与模型训练已拆为独立入口，请选择要进入的工作面。
-              </p>
+        <header className="platform-topbar">
+          <div className="platform-brand-lockup">
+            <div className="platform-brand-lockup__mark">P</div>
+            <div>
+              <div className="platform-brand-lockup__title">PiERN Gateway</div>
+              <div className="platform-brand-lockup__subtitle">物理工程数据与 Token Router 训练入口</div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <Link to="/synth" className="btn-primary">
-                <Database size={15} />
-                数据合成
-              </Link>
-              <Link to="/training" className="btn-ghost">
-                <GitBranch size={15} />
-                模型训练
-              </Link>
-            </div>
+          </div>
+          <div className="platform-topbar__actions">
+            <Link to="/synth" className="btn-ghost">进入数据合成</Link>
+            <Link to="/training" className="btn-primary">进入训练平台</Link>
+            <button type="button" onClick={toggleTheme} className="theme-toggle platform-theme-toggle">
+              {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+              <span>{theme === 'dark' ? '日间' : '夜间'}</span>
+            </button>
           </div>
         </header>
 
-        <main className="platform-home-grid">
-          <EntryCard
-            to="/synth"
-            title="数据合成"
-            copy="物理仿真、场景注册、模板生成、样本填充与 Router 数据构建。"
-            tone="bg-[radial-gradient(circle_at_top_left,rgba(56,189,248,0.12),transparent_34%)]"
-            icon={<Database size={22} className="text-sky-300" />}
-            points={[
-              'Stage 1–4 完整数据流水线',
-              '样本统计、模板与 Router 数据浏览',
-              '注册表与 LLM 配置管理',
-            ]}
-          />
+        <main className="platform-home-main">
+          <section className="platform-hero-panel">
+            <div className="platform-hero-panel__content">
+              <div className="training-eyebrow">
+                <Sparkles size={13} />
+                <span>统一工作台</span>
+              </div>
+              <h1 className="platform-hero-title">从物理仿真到路由训练的清晰入口</h1>
+              <p className="platform-hero-copy">
+                `/synth` 负责 Stage 1-4 数据合成，`/training` 负责 Token Router 单 GPU 训练。两个平台逻辑隔离，共享同一个 FastAPI + React 部署入口。
+              </p>
+              <div className="platform-hero-actions">
+                <Link to="/synth" className="btn-primary">
+                  <Database size={15} />
+                  打开 Synth
+                </Link>
+                <Link to="/training" className="btn-ghost">
+                  <GitBranch size={15} />
+                  打开 Training
+                </Link>
+              </div>
+            </div>
 
-          <EntryCard
-            to="/training"
-            title="模型训练"
-            copy="Token Router 单 GPU 训练、任务调度、指标曲线与 checkpoint 管理。"
-            tone="bg-[radial-gradient(circle_at_top_left,rgba(52,211,153,0.12),transparent_34%)]"
-            icon={<GitBranch size={22} className="text-emerald-300" />}
-            points={[
-              '单 GPU 训练任务创建与调度',
-              '实时损失曲线、测试指标与分场景 F1',
-              '任务列表、checkpoint 与运行日志',
-            ]}
-          />
+            <div className="platform-hero-board" aria-label="PiERN system summary">
+              <div className="platform-hero-board__header">
+                <span>运行边界</span>
+                <strong>FastAPI :8000</strong>
+              </div>
+              <div className="platform-hero-metrics">
+                <div>
+                  <span>模拟器</span>
+                  <strong>5</strong>
+                </div>
+                <div>
+                  <span>场景</span>
+                  <strong>22</strong>
+                </div>
+                <div>
+                  <span>数据阶段</span>
+                  <strong>4</strong>
+                </div>
+                <div>
+                  <span>训练模式</span>
+                  <strong>1 GPU</strong>
+                </div>
+              </div>
+              <div className="platform-flow-line">
+                <FlowStep step="01" title="Synth" copy="仿真、模板、样本、Router 数据" />
+                <FlowStep step="02" title="Training" copy="训练任务、曲线、日志、checkpoint" />
+              </div>
+            </div>
+          </section>
+
+          <section className="platform-home-grid" aria-label="Platform entry cards">
+            <EntryCard
+              to="/synth"
+              title="数据合成平台"
+              route="/synth"
+              copy="面向物理与工程时序数据，覆盖仿真、注册、模板、样本填充与 Router 数据构建。"
+              tone="synth"
+              icon={<Database size={23} />}
+              stats={[
+                { label: 'Pipeline', value: 'Stage 1-4' },
+                { label: 'Simulators', value: '5 类' },
+              ]}
+              points={[
+                'HDF5 / JSONL 源产物统一管理',
+                '模板、样本、路由数据可视化浏览',
+                'LLM 配置、注册信息与观测配置集中维护',
+              ]}
+            />
+
+            <EntryCard
+              to="/training"
+              title="模型训练平台"
+              route="/training"
+              copy="聚焦 Token Router：选择路由数据、分配空闲 GPU、查看训练曲线与任务产物。"
+              tone="training"
+              icon={<GitBranch size={23} />}
+              stats={[
+                { label: 'Model', value: 'Token Router' },
+                { label: 'Device', value: 'Single GPU' },
+              ]}
+              points={[
+                '按大场景管理训练数据与任务',
+                '实时查看 loss、accuracy、F1 与日志',
+                '支持终止、删除历史任务与 checkpoint 管理',
+              ]}
+            />
+          </section>
+
+          <section className="platform-info-grid" aria-label="Required project information">
+            <InfoPill label="部署入口" value="单 FastAPI 应用托管 API 与前端静态资源" icon={<Server size={16} />} />
+            <InfoPill label="数据读取" value="Stage 2-4 使用 manifest / index 加速浏览" icon={<BarChart3 size={16} />} />
+            <InfoPill label="代码边界" value="synth / training 独立命名空间，shared 只放基础设施" icon={<Boxes size={16} />} />
+            <InfoPill label="训练核心" value="Qwen embedding + full-sequence conv router" icon={<Cpu size={16} />} />
+            <InfoPill label="平台联通" value="两个平台仅通过入口链接与 Stage 4 数据契约衔接" icon={<Network size={16} />} />
+            <InfoPill label="运行约束" value="训练平台当前不是通用多卡训练系统" icon={<Workflow size={16} />} />
+          </section>
         </main>
       </div>
     </div>
