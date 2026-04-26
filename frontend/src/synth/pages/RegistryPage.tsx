@@ -16,7 +16,8 @@ type OutputInfoItem = { name: string; name_zh?: string; description: string; uni
 type TimeModeItem   = { name: string; desc_en: string; desc_zh?: string; indices: string }
 type ObsConfig = {
   fixed_time_mode?: string
-  fixed_channels?: number[] | null   // null=全选，整数列表=指定索引
+  fixed_channels?: Array<number | string> | null   // null=全选，列表=指定索引或 output_info.name
+  channel_level?: string
   channel_name_template?: string
   channel_name_template_zh?: string
   time_modes?: TimeModeItem[]
@@ -30,58 +31,137 @@ type RegistryEntry = {
 
 // ── 通道采样编辑器 ────────────────────────────────────────────────
 
-function ChannelEditor({ obs, onChange }: { obs: ObsConfig; onChange: (u: ObsConfig) => void }) {
+function normalizeChannelLevel(level?: string): 'row' | 'output_info' {
+  return level === 'output' || level === 'output_info' ? 'output_info' : 'row'
+}
+
+function ChannelEditor({ obs, outputInfo, onChange }: {
+  obs: ObsConfig
+  outputInfo: OutputInfoItem[]
+  onChange: (u: ObsConfig) => void
+}) {
   const isAll = obs.fixed_channels === null || obs.fixed_channels === undefined
-  const channels = isAll ? [] : (obs.fixed_channels ?? [])
+  const channelLevel = normalizeChannelLevel(obs.channel_level)
+  const isOutputLevel = channelLevel === 'output_info'
+  const rawChannels = isAll ? [] : (obs.fixed_channels ?? [])
+  const channels = rawChannels
+    .map(v => typeof v === 'number' ? v : parseInt(String(v), 10))
+    .filter(n => Number.isInteger(n) && n >= 0)
+  const outputChannels = Array.from(new Set(rawChannels
+    .map(v => {
+      if (typeof v === 'number') return v
+      const s = String(v).trim()
+      const named = outputInfo.findIndex(info => info.name === s)
+      if (named >= 0) return named
+      return parseInt(s, 10)
+    })
+    .filter(n => Number.isInteger(n) && n >= 0 && n < outputInfo.length)))
+    .sort((a, b) => a - b)
   const [input, setInput] = useState('')
+  const [localErr, setLocalErr] = useState<string | null>(null)
+
+  const visibleErr = localErr ?? (
+    !isAll && isOutputLevel && outputChannels.length === 0
+      ? '至少选择 1 个输出维度'
+      : !isAll && !isOutputLevel && channels.length === 0
+        ? '至少选择 1 个输出通道'
+        : null
+  )
+
+  const setMode = (mode: 'all' | 'row' | 'output_info') => {
+    setLocalErr(null)
+    if (mode === 'all') {
+      onChange({ ...obs, fixed_channels: null })
+      return
+    }
+    if (mode === 'row') {
+      onChange({ ...obs, channel_level: 'row', fixed_channels: channels.length > 0 ? channels : [0] })
+      return
+    }
+    if (outputInfo.length === 0) {
+      setLocalErr('当前条目没有 output_info，无法按输出维度选择')
+      return
+    }
+    onChange({ ...obs, channel_level: 'output_info', fixed_channels: outputChannels.length > 0 ? outputChannels : [0] })
+  }
 
   const addChannel = (val: string) => {
     const n = parseInt(val.trim())
-    if (isNaN(n) || n < 0) return
-    if (channels.includes(n)) return
-    onChange({ ...obs, fixed_channels: [...channels, n].sort((a, b) => a - b) })
+    if (isNaN(n) || n < 0) {
+      setLocalErr('请输入非负整数通道索引')
+      return
+    }
+    if (channels.includes(n)) {
+      setLocalErr(`通道 ${n} 已存在`)
+      return
+    }
+    setLocalErr(null)
+    onChange({ ...obs, channel_level: 'row', fixed_channels: [...channels, n].sort((a, b) => a - b) })
     setInput('')
   }
 
   const removeChannel = (n: number) => {
-    const next = channels.filter(c => c !== n)
-    onChange({ ...obs, fixed_channels: next.length === 0 ? null : next })
+    if (channels.length <= 1) {
+      setLocalErr('至少保留 1 个输出通道；如需全部通道，请选择“全选所有通道”')
+      return
+    }
+    setLocalErr(null)
+    onChange({ ...obs, channel_level: 'row', fixed_channels: channels.filter(c => c !== n) })
   }
 
-  const toggleAll = () => {
-    if (isAll) {
-      // 从全选切换到空列表，让用户自己添加
-      onChange({ ...obs, fixed_channels: [] })
-    } else {
-      onChange({ ...obs, fixed_channels: null })
+  const toggleOutputChannel = (index: number) => {
+    const selected = outputChannels
+    if (selected.includes(index)) {
+      if (selected.length <= 1) {
+        setLocalErr('至少保留 1 个输出维度')
+        return
+      }
+      setLocalErr(null)
+      onChange({ ...obs, channel_level: 'output_info', fixed_channels: selected.filter(n => n !== index) })
+      return
     }
+    setLocalErr(null)
+    onChange({ ...obs, channel_level: 'output_info', fixed_channels: [...selected, index].sort((a, b) => a - b) })
   }
+
+  const modeButton = (
+    mode: 'all' | 'row' | 'output_info',
+    title: string,
+    subtitle: string,
+    active: boolean,
+    disabled = false,
+  ) => (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => setMode(mode)}
+      className={cn(
+        'rounded-xl border px-3 py-2 text-left transition-all disabled:cursor-not-allowed disabled:opacity-45',
+        active
+          ? 'bg-sky-500/10 border-sky-500/40 text-sky-200'
+          : 'bg-slate-800/40 border-slate-700/30 text-slate-400 hover:border-slate-600/50 hover:text-slate-300',
+      )}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-semibold">{title}</span>
+        {active && <Check size={12} className="text-sky-400 flex-shrink-0" />}
+      </div>
+      <div className="text-[11px] opacity-60 mt-1 font-mono">{subtitle}</div>
+    </button>
+  )
 
   return (
     <div className="space-y-2">
       <div className="label text-xs flex items-center gap-1.5"><Layers size={12} />通道采样</div>
 
-      {/* 全选开关 */}
-      <button
-        onClick={toggleAll}
-        className={cn(
-          'w-full rounded-xl border px-3 py-2 text-left flex items-center justify-between transition-all',
-          isAll
-            ? 'bg-sky-500/10 border-sky-500/40 text-sky-200'
-            : 'bg-slate-800/40 border-slate-700/30 text-slate-400 hover:border-slate-600/50',
-        )}
-      >
-        <div>
-          <span className="text-xs font-semibold">全选所有通道</span>
-          <span className="text-xs opacity-60 ml-2">fixed_channels = null</span>
-        </div>
-        {isAll && <Check size={13} className="text-sky-400 flex-shrink-0" />}
-      </button>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        {modeButton('all', '全选所有通道', 'fixed_channels = null', isAll)}
+        {modeButton('row', '指定通道索引', 'channel_level = row', !isAll && !isOutputLevel)}
+        {modeButton('output_info', '指定输出维度', 'channel_level = output_info', !isAll && isOutputLevel, outputInfo.length === 0)}
+      </div>
 
-      {/* 指定索引 */}
-      {!isAll && (
+      {!isAll && !isOutputLevel && (
         <div className="rounded-xl border border-slate-700/30 bg-slate-800/30 p-3 space-y-2">
-          {/* 已选标签 */}
           <div className="flex flex-wrap gap-1.5 min-h-[28px]">
             {channels.length === 0 && (
               <span className="text-xs text-slate-600 italic">尚未添加通道索引</span>
@@ -89,14 +169,13 @@ function ChannelEditor({ obs, onChange }: { obs: ObsConfig; onChange: (u: ObsCon
             {channels.map(n => (
               <span key={n} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-mono">
                 {n}
-                <button onClick={() => removeChannel(n)} className="hover:text-red-400 transition-colors">
+                <button type="button" onClick={() => removeChannel(n)} className="hover:text-red-400 transition-colors">
                   <X size={10} />
                 </button>
               </span>
             ))}
           </div>
-          {/* 输入框 */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <input
               type="number" min={0}
               className="input w-24 text-xs py-1 px-2 font-mono"
@@ -106,6 +185,7 @@ function ChannelEditor({ obs, onChange }: { obs: ObsConfig; onChange: (u: ObsCon
               onKeyDown={e => { if (e.key === 'Enter') { addChannel(input); e.preventDefault() } }}
             />
             <button
+              type="button"
               className="btn-ghost py-1 px-2.5 text-xs text-sky-400 hover:text-sky-300"
               onClick={() => addChannel(input)}
             >
@@ -115,11 +195,52 @@ function ChannelEditor({ obs, onChange }: { obs: ObsConfig; onChange: (u: ObsCon
           </div>
         </div>
       )}
+
+      {!isAll && isOutputLevel && (
+        <div className="rounded-xl border border-slate-700/30 bg-slate-800/30 p-3 space-y-2">
+          <div className="text-xs text-slate-500">从 output_info 中选择需要采样的输出维度，必须至少选 1 个。</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {outputInfo.map((info, index) => {
+              const selected = outputChannels.includes(index)
+              return (
+                <button
+                  type="button"
+                  key={`${info.name}-${index}`}
+                  onClick={() => toggleOutputChannel(index)}
+                  className={cn(
+                    'rounded-xl border px-3 py-2 text-left transition-all',
+                    selected
+                      ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-200'
+                      : 'bg-slate-900/40 border-slate-700/30 text-slate-400 hover:border-slate-600/60 hover:text-slate-300',
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-semibold font-mono text-sky-200">#{index} {info.name}</span>
+                    {selected && <Check size={12} className="text-emerald-400 flex-shrink-0" />}
+                  </div>
+                  <div className="mt-1 text-[11px] text-slate-500 truncate">{info.name_zh || info.description || '-'}</div>
+                  <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-600 font-mono">
+                    <span>{info.unit || '-'}</span>
+                    <span>{Array.isArray(info.slice) ? `[${info.slice[0]}, ${info.slice[1] ?? ''}]` : ''}</span>
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {visibleErr && (
+        <div className="text-xs text-amber-300 flex items-center gap-1">
+          <XCircle size={11} />
+          {visibleErr}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── 观测配置编辑器（点击选择时间模式）────────────────────────────
+// ── 观测配置编辑器（点击选择时间模式）────────────
 
 type TimeModeName = 'monthly' | 'weekly' | 'full' | 'every_n'
 
@@ -148,8 +269,9 @@ function buildTimeModeEntry(type: TimeModeName, step: number): { indices: string
   return { indices: `every_${step}`, desc_en: `every ${step} steps`, desc_zh: `每 ${step} 步取1个点` }
 }
 
-function ObsConfigEditor({ obs, onChange }: {
+function ObsConfigEditor({ obs, outputInfo, onChange }: {
   obs: ObsConfig
+  outputInfo: OutputInfoItem[]
   onChange: (updated: ObsConfig) => void
 }) {
   const fixed = obs.fixed_time_mode ?? 'monthly'
@@ -212,7 +334,7 @@ function ObsConfigEditor({ obs, onChange }: {
       </div>
 
       {/* 通道采样（可编辑）*/}
-      <ChannelEditor obs={obs} onChange={onChange} />
+      <ChannelEditor obs={obs} outputInfo={outputInfo} onChange={onChange} />
     </div>
   )
 }
@@ -595,7 +717,7 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
                   {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
                 </div>
                 {hasObs && obs ? (
-                  <ObsConfigEditor obs={obs}
+                  <ObsConfigEditor obs={obs} outputInfo={outputInfo}
                     onChange={async (updated) => {
                       setSaving(true); setSaveErr(null)
                       try { await onSave(entryKey, { ...entry, observation_config: updated }) }

@@ -34,6 +34,86 @@ def _save_registry_raw(data: dict) -> None:
         yaml.dump(data, f, allow_unicode=True, sort_keys=False, indent=2)
 
 
+def _validate_registry_entry(key: str, body: dict) -> None:
+    if not isinstance(body, dict):
+        raise HTTPException(400, "registry 条目必须是 JSON 对象")
+
+    output_info = body.get("output_info")
+    if output_info is not None:
+        if not isinstance(output_info, list) or len(output_info) == 0:
+            raise HTTPException(400, "至少需要保留 1 个 output_info 输出定义")
+
+    obs = body.get("observation_config")
+    if obs is None:
+        return
+    if not isinstance(obs, dict):
+        raise HTTPException(400, "observation_config 必须是 JSON 对象")
+
+    channel_level = str(obs.get("channel_level", "row") or "row").lower()
+    if channel_level not in {"row", "output", "output_info"}:
+        raise HTTPException(400, "channel_level 必须是 row、output 或 output_info")
+    is_output_level = channel_level in {"output", "output_info"}
+    obs["channel_level"] = "output_info" if is_output_level else "row"
+
+    fixed_channels = obs.get("fixed_channels", None)
+    if fixed_channels is None:
+        return
+    if not isinstance(fixed_channels, list):
+        raise HTTPException(400, "fixed_channels 必须是 null 或通道索引列表")
+    if len(fixed_channels) == 0:
+        raise HTTPException(
+            400,
+            "至少选择 1 个输出通道；如需全选，请将 fixed_channels 设为 null",
+        )
+    if is_output_level and not isinstance(output_info, list):
+        raise HTTPException(400, "按输出维度采样需要先定义 output_info")
+
+    output_names = set()
+    if isinstance(output_info, list):
+        output_names = {
+            str(item.get("name", "")).strip()
+            for item in output_info
+            if isinstance(item, dict) and str(item.get("name", "")).strip()
+        }
+
+    invalid = []
+    invalid_output = []
+    for value in fixed_channels:
+        if isinstance(value, bool):
+            invalid.append(value)
+        elif isinstance(value, int):
+            if value < 0:
+                invalid.append(value)
+            elif is_output_level and isinstance(output_info, list) and value >= len(output_info):
+                invalid_output.append(value)
+        elif isinstance(value, str):
+            cleaned = value.strip()
+            if not cleaned:
+                invalid.append(value)
+            elif is_output_level:
+                if cleaned in output_names:
+                    continue
+                try:
+                    idx = int(cleaned)
+                except ValueError:
+                    invalid_output.append(value)
+                else:
+                    if idx < 0 or idx >= len(output_info):
+                        invalid_output.append(value)
+        else:
+            invalid.append(value)
+    if invalid:
+        raise HTTPException(
+            400,
+            f"fixed_channels 包含无效通道值: {invalid}",
+        )
+    if invalid_output:
+        raise HTTPException(
+            400,
+            f"output_info 通道选择超出范围或不存在: {invalid_output}",
+        )
+
+
 @router.get("/registry")
 def get_registry():
     """读取 registry.yaml，返回完整内容。"""
@@ -63,6 +143,7 @@ def update_registry_entry(key: str, body: dict):
             desc = body.get("scenario_description", "") if isinstance(body, dict) else str(body)
             scenarios[scenario] = desc
         else:
+            _validate_registry_entry(key, body)
             # simulator 级：合并 scenarios 子字段（不丢失已有场景描述）
             existing_scenarios = data.get(key, {}).get("scenarios", {}) if isinstance(data.get(key), dict) else {}
             data[key] = body
@@ -72,6 +153,8 @@ def update_registry_entry(key: str, body: dict):
                 data[key]["scenarios"] = merged
         _save_registry_raw(data)
         return {"ok": True, "key": key}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(500, f"保存 registry 失败: {e}")
 

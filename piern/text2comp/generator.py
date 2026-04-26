@@ -319,7 +319,10 @@ SYSTEM_PROMPT = (
     "You are a scientific computing expert creating training data for physics simulation models. "
     "Write natural language descriptions of physics simulation scenarios. "
     "Be scientifically accurate, specific about parameter values, and vary your writing style. "
-    "Do NOT include the actual numerical predictions in your response."
+    "Do NOT include the actual numerical predictions in your response. "
+    "Placeholders such as {value_0} and {output_0} are protected tokens: copy every required "
+    "placeholder exactly with single braces, never translate, renumber, omit, or wrap them in code. "
+    "Return only the requested template text, with no markdown fences or explanatory notes."
 )
 
 # ─────────────────────────────────────────────
@@ -725,7 +728,12 @@ class LLMTextGenerator:
             )
         fixed_channels = obs_cfg["fixed_channels"]
 
-        # 统一用整数索引：null=全选，list[int|str]=指定子集（str 按 output_info.name 查找）
+        # 统一用整数索引。历史 registry 曾把 [] 写成“全选”，这里兼容为 null。
+        raw_channel_level = str(obs_cfg.get("channel_level", "row") or "row").lower()
+        channel_level = "output_info" if raw_channel_level in {"output", "output_info"} else "row"
+        if fixed_channels == []:
+            fixed_channels = None
+
         if fixed_channels is None:
             channel_indices = np.arange(ch)
         else:
@@ -748,8 +756,21 @@ class LLMTextGenerator:
         names_zh = "、".join(tmpl_zh.format(i=int(idx) + 1) for idx in channel_indices)
         channel_desc_en = f"{names_en} ({n_sel} of {ch})"
         channel_desc_zh = f"{names_zh}（共{ch}个中的{n_sel}个）"
-        # selected_output_info 按整数索引从 output_info 取（越界则截断）
-        selected_output_info = [output_info[i] for i in channel_indices if i < len(output_info)]
+
+        if n_sel == 0:
+            raise ValueError(
+                "observation_config 解析后没有选中任何通道。"
+                "请将 fixed_channels 设为 null（全选）或有效的 0-based 通道索引。"
+            )
+
+        # row 级场景（如 MODFLOW 的多个观测井）选的是同一个物理输出的多行，
+        # output schema 应保留物理量列表，而不是按观测井索引裁剪 output_info。
+        if channel_level == "row":
+            selected_output_info = list(output_info)
+        else:
+            selected_output_info = [output_info[i] for i in channel_indices if i < len(output_info)]
+            if not selected_output_info:
+                selected_output_info = list(output_info)
 
         return ObservationSpec(
             time_indices=time_indices,
@@ -993,7 +1014,7 @@ class LLMTextGenerator:
                 continue
             meaning, unit = param_info.get(name, (name, "-"))
             ph_key = "{value_" + str(slot) + "}"
-            ph_display = "{{value_" + str(slot) + "}}"
+            ph_display = ph_key
             note = note_en if language == "en" else note_zh
             placeholder_index.append((ph_key, trans, note))
             slot += 1
@@ -1064,10 +1085,11 @@ class LLMTextGenerator:
 {obs_section}
 
 [Requirements]
+- Output only the final instruction text. Do not use markdown, bullets, code blocks, or explanations.
 - Language: English
 - Style: {style_desc}
 - Length: {length_desc}
-- PLACEHOLDER RULES (critical): Exactly {n_params} placeholders — {all_ph_en}. Include ALL verbatim; do not replace, skip, or invent any.
+- PLACEHOLDER RULES (critical): The final text must contain these exact {n_params} protected tokens once each: {all_ph_en}. Use single braces exactly as shown. Do not replace, skip, rename, duplicate, or invent placeholders.
 - For converted parameters (marked ← converted): describe the conversion naturally as a domain expert would — e.g. "scaled by a factor of 3", "at roughly 3× the baseline", "adjusted upward by ~58 units". Avoid mechanical phrasing like "multiplied by 3". Do not mention the original raw value.
 - Observation setup: mention time sampling and observed channels naturally if it fits the style; omit if it would feel forced (especially for concise style).
 - Ending: close with a prediction request in your own words — vary the phrasing across samples. ({ending_examples})
@@ -1110,10 +1132,11 @@ class LLMTextGenerator:
 {obs_section}
 
 【写作要求】
+- 只输出最终指令文本。不要使用 Markdown、列表、代码块或解释说明。
 - 语言：中文
 - 风格：{style_desc}
 - 长度：{length_desc}
-- 占位符规则（关键）：共 {n_params} 个占位符——{all_ph_zh}，必须全部原样保留，不得替换为数字、不得遗漏、不得凭空增加。
+- 占位符规则（关键）：最终文本必须且只需包含这些 {n_params} 个受保护 token 各一次：{all_ph_zh}。必须使用这里展示的单层花括号原样复制，不得替换为数字、不得遗漏、不得改名、不得重复、不得凭空增加。
 - 对已换算的参数（标注了"已换算"的）：用领域专家的自然表达融入文中，如"约为参考值的3倍"、"较基准偏高约58"、"换算后约为标准值的3倍"，避免机械说"乘以3"或"减去58"，不要提及原始值。
 - 观测设置：根据风格自然提及时间采样和观测通道；简洁风格可省略，不必强制出现。
 - 结尾：以预测请求收尾，措辞自由发挥，不同样本应有所变化。（{ending_examples}）
@@ -1188,6 +1211,11 @@ class LLMTextGenerator:
         触发后专家模型一次性输出所有占位符对应的数值矩阵。
         """
         n_outputs = len(output_info)
+        if n_outputs <= 0:
+            raise ValueError(
+                "target_template 无法生成：output_info 为空。"
+                "请检查 registry 的 observation_config.channel_level/fixed_channels。"
+            )
         ph_seq = "".join(f"{{output_{i}}}" for i in range(n_outputs))  # 占位符序列（紧挨）
 
         if language == "zh":
@@ -1233,6 +1261,8 @@ class LLMTextGenerator:
             return (
                 f"请为物理仿真任务的输出结果写一段【引导语】，将以下占位符自然地融入其中。"
                 f"{scenario_line}\n"
+                f"【最终字符硬约束】你的完整回答必须以这个精确后缀结尾：{ph_seq}\n"
+                f"不得在这个后缀中插入空格、标点或任何文字。\n\n"
                 f"【必须使用的占位符（共 {n_outputs} 个）】\n"
                 f"{ph_seq}\n\n"
                 f"【各占位符含义】\n{output_lines}\n\n"
@@ -1242,7 +1272,7 @@ class LLMTextGenerator:
                 f"3. 最后一个占位符之后【不得有任何文字】，整段输出必须以占位符结尾。\n"
                 f"4. 占位符原样保留，不得替换为数字或文字描述。\n"
                 f"5. 不得凭空创造规定范围之外的占位符。\n"
-                f"6. 只输出引导语本身，不要加引号、不要加解释。\n"
+                f"6. 只输出引导语本身，不要加引号、不要加解释、不要使用 Markdown。\n"
                 f"{rule_multi}\n"
                 f"【风格：{style_desc}】\n\n"
                 f"【示例（不要照抄，仅供格式参考）】\n"
@@ -1290,6 +1320,8 @@ class LLMTextGenerator:
                 f"Write a natural language lead-in phrase for the outputs of a physics simulation, "
                 f"incorporating all placeholders below."
                 f"{scenario_line}\n"
+                f"[Required final suffix] Your complete answer must end with this exact suffix: {ph_seq}\n"
+                f"Do not insert spaces, punctuation, or text inside this suffix.\n\n"
                 f"[Placeholders — ALL {n_outputs}, placed together at the end]\n"
                 f"{ph_seq}\n\n"
                 f"[What each placeholder represents]\n{output_lines}\n\n"
@@ -1300,7 +1332,7 @@ class LLMTextGenerator:
                 f"3. There must be NO text after the last placeholder — the output ends with a placeholder.\n"
                 f"4. Keep placeholders verbatim — do not replace with numbers or descriptions.\n"
                 f"5. Do NOT invent placeholders beyond the listed ones.\n"
-                f"6. Output only the lead-in phrase itself, no quotes, no explanation.\n"
+                f"6. Output only the lead-in phrase itself, no quotes, no explanation, no markdown.\n"
                 f"{rule_multi}\n"
                 f"[Style: {style_desc}]\n\n"
                 f"[Examples — for format reference only, do not copy]\n"
@@ -1409,7 +1441,7 @@ class LLMTextGenerator:
         target_template = self.llm.generate(
             prompt=target_prompt,
             system_prompt=SYSTEM_PROMPT,
-            temperature=self.temperature,
+            temperature=min(float(self.temperature), 0.3),
             max_tokens=200,
         ).strip()
 

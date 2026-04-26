@@ -112,7 +112,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
-    if (!res.ok) throw new Error(`保存失败 (${res.status})`)
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      throw new Error(`保存失败 (${res.status}): ${text}`)
+    }
   },
 
   deleteRegistryEntry: async (key: string): Promise<void> => {

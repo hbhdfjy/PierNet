@@ -240,37 +240,54 @@ def run_generate_templates(
                     on_progress(sc_name, offset + done)
             return _cb
 
-        write_mode = "a" if (append_existing and out_path.exists()) else "w"
-        generator = _build_generator(per_scenario_workers)
-        with open(out_path, write_mode, encoding="utf-8") as fout:
-            templates = generator.make_template_batch(
-                simulator=simulator,
-                scenario_name=scenario_name,
-                param_names=list(param_names),
-                timeseries_shape=timeseries_shape,
-                n_templates=need,
-                domain=domain,
-                seed=effective_seed,
-                output_file=fout,
-                file_lock=file_lock,
-                progress_callback=_make_progress_cb(scenario_name, already_have),
+        use_append = append_existing and out_path.exists()
+        write_mode = "a" if use_append else "w"
+        write_path = out_path
+        if not use_append:
+            write_path = out_path.with_name(
+                f".{out_path.name}.tmp-{os.getpid()}-{threading.get_ident()}"
             )
+        generator = _build_generator(per_scenario_workers)
+        try:
+            with open(write_path, write_mode, encoding="utf-8") as fout:
+                templates = generator.make_template_batch(
+                    simulator=simulator,
+                    scenario_name=scenario_name,
+                    param_names=list(param_names),
+                    timeseries_shape=timeseries_shape,
+                    n_templates=need,
+                    domain=domain,
+                    seed=effective_seed,
+                    output_file=fout,
+                    file_lock=file_lock,
+                    progress_callback=_make_progress_cb(scenario_name, already_have),
+                )
 
-        with open(out_path, "r", encoding="utf-8") as f:
-            lines = [line for line in f if line.strip()]
-        actual = len(lines)
-        if actual > n_per_scenario:
-            def _sort_key(line):
+            with open(write_path, "r", encoding="utf-8") as f:
+                lines = [line for line in f if line.strip()]
+            actual = len(lines)
+            if actual > n_per_scenario:
+                def _sort_key(line):
+                    try:
+                        obj = json.loads(line)
+                        return (obj.get("simulator", ""), obj.get("scenario", ""), obj.get("style", ""), obj.get("language", ""))
+                    except Exception:
+                        return ("", "", "", "")
+                lines.sort(key=_sort_key)
+                with open(write_path, "w", encoding="utf-8") as f:
+                    f.writelines(lines[:n_per_scenario])
+                _log(f"  截断 {actual} → {n_per_scenario} 条")
+                actual = n_per_scenario
+
+            if write_path != out_path:
+                os.replace(write_path, out_path)
+        except Exception:
+            if write_path != out_path:
                 try:
-                    obj = json.loads(line)
-                    return (obj.get("simulator", ""), obj.get("scenario", ""), obj.get("style", ""), obj.get("language", ""))
-                except Exception:
-                    return ("", "", "", "")
-            lines.sort(key=_sort_key)
-            with open(out_path, "w", encoding="utf-8") as f:
-                f.writelines(lines[:n_per_scenario])
-            _log(f"  截断 {actual} → {n_per_scenario} 条")
-            actual = n_per_scenario
+                    write_path.unlink()
+                except FileNotFoundError:
+                    pass
+            raise
 
         total_now = actual
         _log(f"  已保存 {len(templates)} 条模板 → {out_path.name}（共 {total_now} 条）")
