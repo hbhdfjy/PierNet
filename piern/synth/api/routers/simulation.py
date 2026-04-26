@@ -133,7 +133,7 @@ def _scan_scenarios() -> List[SimulationScenario]:
                     cfg = yaml.safe_load(f) or {}
                 output_file = cfg.get("output_file")
                 if output_file:
-                    # 优先使用 YAML 中的 output_dir（power_flow/transient 指向 data/power_system/）
+                    # 优先使用 YAML 中的 output_dir（各 simulator 写入自己的数据目录）
                     output_dir_str = cfg.get("output_dir")
                     if output_dir_str:
                         h5_candidate = PROJECT_ROOT / output_dir_str / output_file

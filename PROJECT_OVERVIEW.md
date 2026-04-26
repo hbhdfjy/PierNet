@@ -47,16 +47,13 @@ PiERN is a dual-surface application that combines a Stage 1-4 data synthesis pla
 - training router from `piern.training.api.routers.training`
 - frontend static hosting through `piern.shared.api.static.SPAStaticFiles`
 
-### Compatibility Layer
+### API Namespace Boundary
 
-The repository still keeps compatibility wrappers under:
+`piern/api/` is now only the unified app assembly namespace. Business routers,
+schemas, and services live in the platform namespaces:
 
-- `piern/api/routers/*`
-- `piern/api/services/*`
-- `piern/api/schemas/*`
-
-These files mainly re-export real implementations from `piern/synth/*` and `piern/training/*`.
-This compatibility layer still exists and must be treated as transitional infrastructure, not as the primary implementation home.
+- `piern/synth/api/*` and `piern/synth/services/*`
+- `piern/training/api/*` and `piern/training/services/*`
 
 ## Core Workflow
 
@@ -136,7 +133,7 @@ Primary implementation files:
   Shared backend infrastructure such as paths and static hosting
 - `piern/simulators/`
   Stage 1 simulator implementations
-- `piern/text2comp/`
+- `piern/synth/text2comp/`
   Stage 2/3 registration, template generation, and sample filling
 
 ## Key Project Contracts
@@ -171,4 +168,5 @@ The maintained documentation set is:
 3. `CLAUDE.md`
    Developer and coding-agent implementation context.
 
-Plan documents remain useful, but are not source-of-truth documents.
+Historical plan documents have been removed; durable facts should be kept in
+this file, `README.md`, or `CLAUDE.md`.

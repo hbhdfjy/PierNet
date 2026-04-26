@@ -18,8 +18,8 @@ import numpy as np
 import yaml
 
 from piern.simulators.transient.generator import generate_batch, _generate_single_worker
-from piern.simulators.power_system.generator_with_params import generate_batch_from_params
-from piern.simulators.power_system.unified_params import PowerSystemParamConverter
+from piern.simulators.transient.generator_with_params import generate_batch_from_params
+from piern.simulators.transient.unified_params import TransientParamConverter
 from piern.core.validation import filter_dataset
 from piern.core.storage import save_dataset
 
@@ -288,7 +288,7 @@ def run_pipeline(
     logger.info(f'  → 增强后 {aug_ts.shape[0]} 个样本')
 
     logger.info('Step 4/5: 转换为18维统一参数...')
-    converter = PowerSystemParamConverter()
+    converter = TransientParamConverter()
     unified_list = []
     for i in range(len(aug_params)):
         params_dict = {name: float(aug_params[i, j]) for j, name in enumerate(param_names)}

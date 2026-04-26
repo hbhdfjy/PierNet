@@ -40,6 +40,35 @@ export function parseTimeseries(
   const obs = meta.observation
   const outputInfo = meta.output_info as Array<{ name: string; name_zh?: string; unit?: string; slice?: [number, number | null] }>
 
+  const parseByOutputInfoSlices = (matrix: number[][]): ParsedTimeseries | null => {
+    if (outputInfo.length === 0 || !outputInfo.some((info) => info.slice != null)) return null
+    const totalRows = outputInfo.reduce((sum, info) => {
+      const [s, e] = info.slice ?? [0, null]
+      return sum + Math.max(0, (e ?? matrix.length) - s)
+    }, 0)
+    if (matrix.length !== totalRows) return null
+
+    const channels: number[][] = []
+    const labels: string[] = []
+    const units: string[] = []
+    for (const info of outputInfo) {
+      const [s, e] = info.slice ?? [0, null]
+      const rows = matrix.slice(s, e ?? matrix.length)
+      const nameZh = info.name_zh ?? info.name ?? 'output'
+      const unit = info.unit ?? ''
+      for (let r = 0; r < rows.length; r++) {
+        channels.push(rows[r])
+        labels.push(rows.length === 1
+          ? (unit ? `${nameZh} (${unit})` : nameZh)
+          : (unit ? `${nameZh}[${r + 1}] (${unit})` : `${nameZh}[${r + 1}]`)
+        )
+        units.push(unit)
+      }
+    }
+    if (channels.length === 0) return null
+    return { channels, labels, unit: units[0] ?? '' }
+  }
+
   // 单矩阵路径：target 里只有 1 个 [[...]] 块（modflow, transient, power_flow 等）
   // 直接用 output_info 的 slice 信息为每段通道生成标签
   if (blocks.length === 1 || obs.channel_indices !== null) {
@@ -47,6 +76,9 @@ export function parseTimeseries(
     if (!matrix || matrix.length === 0) return null
 
     // 有明确通道索引：按索引生成标签（modflow/transient）
+    const slicedByOutput = parseByOutputInfoSlices(matrix)
+    if (slicedByOutput) return slicedByOutput
+
     if (obs.channel_indices !== null) {
       const chanIndices = obs.channel_indices
       const unit = outputInfo[0]?.unit ?? ''

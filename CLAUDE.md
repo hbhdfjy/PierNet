@@ -13,7 +13,7 @@
 3. `CLAUDE.md`
    面向实现层的结构说明、工程约束、关键契约和改动提示。
 
-`UPGRADE_PLAN.md`、`PERFORMANCE_IMPLEMENTATION_PLAN.md`、`TOKEN_ROUTER_TRAINING_PLAN.md` 都是计划文档，不是事实源。改代码时，事实以当前仓库实现为准。
+历史计划文档已经清理。改代码时，事实以 `PROJECT_OVERVIEW.md`、`README.md`、本文件和当前实现为准。
 
 ---
 
@@ -81,24 +81,14 @@ PiERN 当前是一个**单仓库、单 FastAPI 应用、单前端包**承载的�
 - training 路由：来自 `piern.training.api.routers.training`
 - 静态前端：`SPAStaticFiles`
 
-### 兼容层状态
+### API 命名空间边界
 
-`piern/api/routers/*`、`piern/api/services/*`、`piern/api/schemas/*` 目前仍保留了一层**兼容 re-export**。
+`piern/api/` 只保留统一 app 装配入口，不再承载业务 routers、schemas 或 services。
 
-例如：
+真实实现归属：
 
-- `piern/api/routers/simulation.py`
-  只是 `from piern.synth.api.routers.simulation import *`
-- `piern/api/routers/training.py`
-  只是 `from piern.training.api.routers.training import *`
-- `piern/api/services/training_manager.py`
-  只是 `from piern.training.services.training_manager import *`
-
-这意味着：
-
-- 当前真实实现已经迁到 `piern/synth/` 和 `piern/training/`
-- 但 `piern/api/*` 还没有完全删除
-- 如果要做大规模整理，要把兼容层删除当成单独阶段处理
+- 数据合成：`piern/synth/api/*`、`piern/synth/services/*`、`piern/synth/text2comp/*`
+- 训练平台：`piern/training/api/*`、`piern/training/services/*`、`piern/training/router/*`
 
 ---
 
@@ -108,7 +98,7 @@ PiERN 当前是一个**单仓库、单 FastAPI 应用、单前端包**承载的�
 
 ```text
 piern/
-  api/                     # 兼容壳层 + 统一 app 装配
+  api/                     # 统一 app 装配
   core/                    # 通用底层：llm_client / storage / validation
   shared/                  # 真正共享的基础设施
     api/static.py          # SPA history fallback
@@ -118,7 +108,7 @@ piern/
     api/routers/           # Stage 1-4 API
     api/schemas/
     services/              # manifest / index / file / jobs
-  text2comp/               # Stage 2/3 核心逻辑
+    text2comp/             # Stage 2/3 核心逻辑
   training/                # 训练平台后端和训练核心
     api/routers/
     api/schemas/
@@ -249,14 +239,11 @@ artifacts/
 - `transient`
 - `gcam`
 
-注意：
-
-- `piern/simulators/power_system/` 是共享工具目录，不是可直接运行的 simulator
-- `power_flow` 和 `transient` 是两个独立 simulator
+注意：`power_flow` 和 `transient` 已经拆成两个独立 simulator，结构上与 `modflow`、`simpeg`、`gcam` 一致。
 
 ### Stage 2/3 核心
 
-主要在 `piern/text2comp/`：
+主要在 `piern/synth/text2comp/`：
 
 - `pipeline.py`
 - `generator.py`
@@ -683,22 +670,20 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 
 更新：
 
-- `TOKEN_ROUTER_TRAINING_PLAN.md`
-- 必要时同步 `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
+- `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
 
 ### 改“性能读路径、manifest/index 行为”
 
 更新：
 
-- `PERFORMANCE_IMPLEMENTATION_PLAN.md`
-- 必要时同步 `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
+- `README.md` / `PROJECT_OVERVIEW.md` / `CLAUDE.md`
 
 ---
 
 ## 当前开发约束
 
 1. synth 和 training 在产品层已经分开，但仓库层仍共享同一应用和同一前端包。
-2. `piern/api/*` 仍然存在兼容层，不要误删。
+2. `piern/api/main.py` 是统一装配入口；业务代码应放入 `piern/synth/` 或 `piern/training/`。
 3. training 当前是**单 GPU**系统，前端和后端都按这个边界设计。
 4. 训练核心当前是基于 Qwen embedding 输入的 full-sequence conv router，不要按通用 Transformer 平台来改。
 5. Stage 2-4 的在线读取优化依赖 `data/.manifests/` 与 `data/.indexes/`，不要绕开它们直接退回全量扫描。

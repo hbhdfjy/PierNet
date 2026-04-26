@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from piern.shared.runtime.paths import CONFIG_DIR, PROJECT_ROOT, REGISTRY_PATH
-from piern.text2comp.interview_agent import (
+from piern.synth.text2comp.interview_agent import (
     create_session as _iv_create,
     process_user_message as _iv_message,
     process_confirm as _iv_confirm,

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import yaml
 
-from piern.text2comp.generator import DOMAIN_REGISTRY
+from piern.synth.text2comp.generator import DOMAIN_REGISTRY
 
 logger = logging.getLogger(__name__)
 

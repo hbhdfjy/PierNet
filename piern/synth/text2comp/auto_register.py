@@ -10,27 +10,27 @@
 
 用法：
   # 注册所有字段（默认，场景级别）
-  python -m piern.text2comp.auto_register
+  python -m piern.synth.text2comp.auto_register
 
   # 只注册指定场景
-  python -m piern.text2comp.auto_register --scenarios unified_aquifer ieee14_baseload
+  python -m piern.synth.text2comp.auto_register --scenarios unified_aquifer ieee14_baseload
 
   # 只注册某字段组
-  python -m piern.text2comp.auto_register --fields domain
-  python -m piern.text2comp.auto_register --fields output_info
-  python -m piern.text2comp.auto_register --fields observation
+  python -m piern.synth.text2comp.auto_register --fields domain
+  python -m piern.synth.text2comp.auto_register --fields output_info
+  python -m piern.synth.text2comp.auto_register --fields observation
 
   # simulator 级别注册通用字段（output_info/observation_config 各场景相同时推荐）
-  python -m piern.text2comp.auto_register --fields output_info observation --simulator-level
+  python -m piern.synth.text2comp.auto_register --fields output_info observation --simulator-level
 
   # 再按场景注册特有字段（domain_context/param_info 各场景不同）
-  python -m piern.text2comp.auto_register --fields domain
+  python -m piern.synth.text2comp.auto_register --fields domain
 
   # 组合：指定场景 + 指定字段组
-  python -m piern.text2comp.auto_register --scenarios unified_aquifer --fields observation
+  python -m piern.synth.text2comp.auto_register --scenarios unified_aquifer --fields observation
 
   # 强制覆盖已有字段
-  python -m piern.text2comp.auto_register --overwrite
+  python -m piern.synth.text2comp.auto_register --overwrite
 """
 
 import argparse
@@ -45,7 +45,7 @@ import yaml
 
 from piern.core.llm_client import LLMClient
 from piern.core.storage import load_dataset
-from piern.text2comp.pipeline import load_config, _scenario_name_from_path, _scan_h5_files
+from piern.synth.text2comp.pipeline import load_config, _scenario_name_from_path, _scan_h5_files
 
 logger = logging.getLogger(__name__)
 
@@ -513,19 +513,19 @@ def main():
 
 示例：
   # 注册所有字段（默认）
-  python -m piern.text2comp.auto_register
+  python -m piern.synth.text2comp.auto_register
 
   # 只注册指定场景
-  python -m piern.text2comp.auto_register --scenarios unified_aquifer ieee14_baseload
+  python -m piern.synth.text2comp.auto_register --scenarios unified_aquifer ieee14_baseload
 
   # 只注册某字段组
-  python -m piern.text2comp.auto_register --fields observation
+  python -m piern.synth.text2comp.auto_register --fields observation
 
   # 组合：指定场景 + 指定字段组
-  python -m piern.text2comp.auto_register --scenarios unified_aquifer --fields observation
+  python -m piern.synth.text2comp.auto_register --scenarios unified_aquifer --fields observation
 
   # 强制覆盖已有字段
-  python -m piern.text2comp.auto_register --overwrite
+  python -m piern.synth.text2comp.auto_register --overwrite
 """
     )
     parser.add_argument("--config", default="configs/text2comp/default.yaml")

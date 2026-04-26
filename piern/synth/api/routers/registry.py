@@ -196,7 +196,7 @@ async def start_register(req: RegisterRequest):
     job_id = record.job_id
 
     cmd = [
-        sys.executable, "-m", "piern.text2comp.auto_register",
+        sys.executable, "-m", "piern.synth.text2comp.auto_register",
         "--config", req.config,
         "--output", req.output,
     ]

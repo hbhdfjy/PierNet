@@ -39,8 +39,8 @@ import yaml
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from piern.core.storage import load_dataset
-from piern.text2comp.template_store import fill_sample, load_templates
-from piern.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path
+from piern.synth.text2comp.template_store import fill_sample, load_templates
+from piern.synth.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path
 
 logging.basicConfig(
     level=logging.INFO,

@@ -18,13 +18,7 @@ PiERN 是一个面向物理与工程时序数据的双平台系统：
 - `CLAUDE.md`
   面向开发者和代码代理的真实实现说明
 
-计划类文档：
-
-- `TOKEN_ROUTER_TRAINING_PLAN.md`
-- `PERFORMANCE_IMPLEMENTATION_PLAN.md`
-- `UPGRADE_PLAN.md`
-
-它们是路线和计划，不是事实源。
+计划类文档已清理；长期事实以以上三份文档为准。
 
 ## 当前平台入口
 
@@ -229,7 +223,7 @@ python -m piern.simulators.gcam.pipeline \
 ### Stage 2：注册与模板生成
 
 ```bash
-python -m piern.text2comp.auto_register \
+python -m piern.synth.text2comp.auto_register \
   --config configs/text2comp/default.yaml \
   --output configs/text2comp/registry.yaml
 
@@ -311,12 +305,11 @@ python scripts/utils/rebuild_filter_indexes.py
 ```text
 piern/
   piern/
-    api/                    # 兼容壳层 + 统一 app 装配
+    api/                    # 统一 FastAPI app 装配
     core/                   # 通用底层
     shared/                 # 共享基础设施
     simulators/             # Stage 1
-    text2comp/              # Stage 2/3
-    synth/                  # synth 平台后端
+    synth/                  # synth 平台后端 + Stage 2/3 text2comp
     training/               # training 平台后端与训练核心
 
   frontend/src/
@@ -337,7 +330,7 @@ piern/
 
 ## 当前注意点
 
-- `piern/api/*` 仍然保留兼容 re-export，不要误删
+- `piern/api/main.py` 是统一 FastAPI 装配入口；业务实现不再放在 `piern/api/`
 - synth 和 training 虽然产品层分开，但仍然共享同一套部署入口
 - 当前训练平台是单 GPU 平台，不要按多卡训练基础设施来理解
 - 前端滚动行为依赖 `frontend/src/lib/scrollAssist.ts`，不要只改 CSS 不看滚轮链路

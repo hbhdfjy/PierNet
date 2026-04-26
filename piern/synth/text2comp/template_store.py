@@ -162,6 +162,69 @@ class TemplateRecord:
         return cls.from_dict(json.loads(line))
 
 
+def _compact_output_info_for_metadata(template: TemplateRecord, output_info: list = None) -> list:
+    if output_info is None:
+        return [s.name for s in template.output_schema]
+    if not isinstance(output_info, list) or not template.selected_output_names:
+        return output_info
+
+    by_name = {
+        str(item.get("name")): item
+        for item in output_info
+        if isinstance(item, dict) and item.get("name") is not None
+    }
+    if not by_name:
+        return output_info
+
+    try:
+        original_channels = int(template.timeseries_shape_orig[0])
+    except (TypeError, ValueError, IndexError):
+        original_channels = max([int(i) for i in template.channel_indices], default=-1) + 1
+
+    def _as_int(value, default: int) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _rows_for_info(info: dict, fallback_index: int) -> list[int]:
+        raw_slice = info.get("slice") if isinstance(info, dict) else None
+        if isinstance(raw_slice, (list, tuple)) and len(raw_slice) >= 2:
+            start = _as_int(raw_slice[0], 0)
+            end = original_channels if raw_slice[1] is None else _as_int(raw_slice[1], original_channels)
+        else:
+            start = fallback_index
+            end = fallback_index + 1
+        start = max(0, min(start, original_channels))
+        end = max(start, min(end, original_channels))
+        return list(range(start, end))
+
+    selected = []
+    expanded_rows = []
+    for name in template.selected_output_names:
+        info = by_name.get(str(name))
+        if info is None:
+            continue
+        rows = _rows_for_info(info, len(selected))
+        if not rows:
+            continue
+        selected.append((info, rows))
+        expanded_rows.extend(rows)
+
+    channel_indices = [int(i) for i in template.channel_indices]
+    if not selected or channel_indices != expanded_rows:
+        return output_info
+
+    compact = []
+    offset = 0
+    for info, rows in selected:
+        item = dict(info)
+        item["slice"] = [offset, offset + len(rows)]
+        compact.append(item)
+        offset += len(rows)
+    return compact
+
+
 # ─────────────────────────────────────────────────────────────────
 # 阶段二：数值填充（纯本地，不调 LLM）
 # ─────────────────────────────────────────────────────────────────
@@ -256,7 +319,7 @@ def fill_sample(
             "style": template.style,
             "input_template": template.input_template,
             "target_template": template.target_template,
-            "output_info": output_info if output_info is not None else [s.name for s in template.output_schema],
+            "output_info": _compact_output_info_for_metadata(template, output_info),
         },
     }
 

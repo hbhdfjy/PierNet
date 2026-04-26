@@ -37,8 +37,8 @@ import h5py
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from piern.core.llm_client import LLMClient
-from piern.text2comp.generator import LLMTextGenerator
-from piern.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
+from piern.synth.text2comp.generator import LLMTextGenerator
+from piern.synth.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
 
 logging.basicConfig(
     level=logging.INFO,

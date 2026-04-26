@@ -382,7 +382,7 @@ class ExtractorAgent:
         if not session.param_names or session.timeseries_shape is None:
             return {}
 
-        from piern.text2comp.auto_register import _build_domain_prompt
+        from piern.synth.text2comp.auto_register import _build_domain_prompt
 
         # 构造 dummy params_sample（若有则用真实数据）
         if session.params_sample is not None:

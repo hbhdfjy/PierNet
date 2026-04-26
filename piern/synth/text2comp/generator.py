@@ -31,7 +31,7 @@ import numpy as np
 from tqdm import tqdm
 
 from piern.core.llm_client import LLMClient
-from piern.text2comp.template_store import (
+from piern.synth.text2comp.template_store import (
     TemplateRecord, PlaceholderSlot, OutputSlot, TransformDesc,
     fill_sample,
 )
@@ -727,50 +727,108 @@ class LLMTextGenerator:
                 "请设置为 null（全选所有通道）或整数列表（0-based 索引）。"
             )
         fixed_channels = obs_cfg["fixed_channels"]
-
-        # 统一用整数索引。历史 registry 曾把 [] 写成“全选”，这里兼容为 null。
+        # Normalize channel selection. In row mode, fixed_channels are raw row
+        # indices. In output_info mode, fixed_channels select output_info entries,
+        # and each entry expands to its declared slice in the raw time-series rows.
         raw_channel_level = str(obs_cfg.get("channel_level", "row") or "row").lower()
         channel_level = "output_info" if raw_channel_level in {"output", "output_info"} else "row"
         if fixed_channels == []:
             fixed_channels = None
 
-        if fixed_channels is None:
-            channel_indices = np.arange(ch)
+        def _coerce_int(value, default=None):
+            try:
+                return int(value)
+            except (TypeError, ValueError):
+                return default
+
+        def _output_info_index(value) -> int:
+            if isinstance(value, bool):
+                return -1
+            if isinstance(value, int):
+                return value
+            text_value = str(value).strip()
+            for j, info in enumerate(output_info):
+                if str(info.get("name", "")).strip() == text_value:
+                    return j
+            return _coerce_int(text_value, -1)
+
+        def _rows_for_output_info(info: dict, fallback_index: int) -> list[int]:
+            raw_slice = info.get("slice") if isinstance(info, dict) else None
+            if isinstance(raw_slice, (list, tuple)) and len(raw_slice) >= 2:
+                start = _coerce_int(raw_slice[0], 0)
+                end = ch if raw_slice[1] is None else _coerce_int(raw_slice[1], ch)
+            else:
+                start = fallback_index
+                end = fallback_index + 1
+            start = max(0, min(int(start), ch))
+            end = max(start, min(int(end), ch))
+            return list(range(start, end))
+
+        if channel_level == "output_info":
+            if fixed_channels is None:
+                selected_indices = list(range(len(output_info)))
+            else:
+                selected_indices = []
+                for value in fixed_channels:
+                    idx = _output_info_index(value)
+                    if 0 <= idx < len(output_info) and idx not in selected_indices:
+                        selected_indices.append(idx)
+
+            channel_rows: list[int] = []
+            selected_output_info = []
+            compact_offset = 0
+            for output_idx in selected_indices:
+                info = output_info[output_idx]
+                rows = _rows_for_output_info(info, output_idx)
+                if not rows:
+                    continue
+                compact_info = dict(info)
+                compact_info["slice"] = [compact_offset, compact_offset + len(rows)]
+                selected_output_info.append(compact_info)
+                channel_rows.extend(rows)
+                compact_offset += len(rows)
+
+            channel_indices = np.array(channel_rows, dtype=int)
+            n_sel = len(channel_indices)
+            names_en = ", ".join(
+                str(info.get("name") or f"output_{i}")
+                for i, info in enumerate(selected_output_info)
+            )
+            names_zh = "、".join(
+                str(info.get("name_zh") or info.get("name") or f"输出{i}")
+                for i, info in enumerate(selected_output_info)
+            )
+            channel_desc_en = f"{names_en} ({n_sel} rows of {ch})"
+            channel_desc_zh = f"{names_zh}（共{ch}行中的{n_sel}行）"
         else:
-            name_to_idx = {info.get("name", ""): j for j, info in enumerate(output_info)}
-            def _to_idx(v):
-                if isinstance(v, int):
-                    return v
-                try:
-                    return int(v)
-                except (ValueError, TypeError):
-                    return name_to_idx.get(str(v), -1)
-            indices = [_to_idx(v) for v in fixed_channels]
-            indices = [i for i in indices if 0 <= i < ch]
-            channel_indices = np.array(sorted(set(indices)), dtype=int)
+            if fixed_channels is None:
+                channel_indices = np.arange(ch)
+            else:
+                def _row_idx(value) -> int:
+                    if isinstance(value, bool):
+                        return -1
+                    if isinstance(value, int):
+                        return value
+                    return _coerce_int(str(value).strip(), -1)
+                indices = [_row_idx(v) for v in fixed_channels]
+                indices = [i for i in indices if 0 <= i < ch]
+                channel_indices = np.array(sorted(set(indices)), dtype=int)
+
+            selected_output_info = list(output_info)
+            n_sel = len(channel_indices)
+            tmpl_en = obs_cfg.get("channel_name_template", "channel {i}")
+            tmpl_zh = obs_cfg.get("channel_name_template_zh", "通道 {i}")
+            names_en = ", ".join(tmpl_en.format(i=int(idx) + 1) for idx in channel_indices)
+            names_zh = "、".join(tmpl_zh.format(i=int(idx) + 1) for idx in channel_indices)
+            channel_desc_en = f"{names_en} ({n_sel} of {ch})"
+            channel_desc_zh = f"{names_zh}（共{ch}行中的{n_sel}行）"
 
         n_sel = len(channel_indices)
-        tmpl_en = obs_cfg.get("channel_name_template", "channel {i}")
-        tmpl_zh = obs_cfg.get("channel_name_template_zh", "第{i}个通道")
-        names_en = ", ".join(tmpl_en.format(i=int(idx) + 1) for idx in channel_indices)
-        names_zh = "、".join(tmpl_zh.format(i=int(idx) + 1) for idx in channel_indices)
-        channel_desc_en = f"{names_en} ({n_sel} of {ch})"
-        channel_desc_zh = f"{names_zh}（共{ch}个中的{n_sel}个）"
-
-        if n_sel == 0:
+        if n_sel == 0 or not selected_output_info:
             raise ValueError(
-                "observation_config 解析后没有选中任何通道。"
-                "请将 fixed_channels 设为 null（全选）或有效的 0-based 通道索引。"
+                "observation_config resolved to an empty channel selection. "
+                "Use fixed_channels=null for all channels or choose valid row/output_info indices."
             )
-
-        # row 级场景（如 MODFLOW 的多个观测井）选的是同一个物理输出的多行，
-        # output schema 应保留物理量列表，而不是按观测井索引裁剪 output_info。
-        if channel_level == "row":
-            selected_output_info = list(output_info)
-        else:
-            selected_output_info = [output_info[i] for i in channel_indices if i < len(output_info)]
-            if not selected_output_info:
-                selected_output_info = list(output_info)
 
         return ObservationSpec(
             time_indices=time_indices,
