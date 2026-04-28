@@ -62,6 +62,7 @@ function NavItem({
   color,
   step,
   rightIcon: RightIcon,
+  end = false,
 }: {
   to: string
   icon: React.ElementType
@@ -69,6 +70,7 @@ function NavItem({
   color?: StageColor
   step?: string
   rightIcon?: React.ElementType
+  end?: boolean
 }) {
   const tone = color ? STAGE_COLORS[color] : null
   const toneStyle = tone
@@ -82,6 +84,7 @@ function NavItem({
   return (
     <NavLink
       to={to}
+      end={end}
       style={toneStyle}
       className={({ isActive }) => cn('nav-item', isActive && 'nav-item--active')}
     >
@@ -129,7 +132,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
           <nav className="app-nav">
             <div>
               <SectionLabel>{'\u6570\u636e\u603b\u89c8'}</SectionLabel>
-              <NavItem to="/synth" icon={BarChart2} label={'\u6570\u636e\u603b\u89c8'} />
+              <NavItem to="/synth" end icon={BarChart2} label={'\u6570\u636e\u603b\u89c8'} />
             </div>
 
             <div>

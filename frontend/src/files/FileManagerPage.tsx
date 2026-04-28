@@ -23,36 +23,36 @@ import type { Theme } from '../shared/theme'
 const ALL = 'all'
 
 const PLATFORM_LABELS: Record<string, string> = {
-  synth: 'Data Synth',
-  training: 'Training',
-  system: 'System',
+  synth: '数据合成',
+  training: '训练平台',
+  system: '系统',
 }
 
 const STAGE_LABELS: Record<string, string> = {
-  stage1: 'Stage 1 HDF5',
-  stage2: 'Stage 2 Templates',
-  stage3: 'Stage 3 Samples',
-  stage4: 'Stage 4 Router',
-  training: 'Training Artifacts',
-  system: 'Manifests / Indexes',
+  stage1: '阶段 1 HDF5 数据',
+  stage2: '阶段 2 模板',
+  stage3: '阶段 3 样本',
+  stage4: '阶段 4 路由',
+  training: '训练产物',
+  system: '清单 / 索引',
 }
 
 const KIND_LABELS: Record<string, string> = {
-  hdf5: 'HDF5',
-  template: 'Template JSONL',
-  sample: 'Sample JSONL',
-  sample_merged: 'Merged Samples',
-  router_scenario: 'Router Scenario',
-  router_train: 'Router Train',
-  training_job: 'Training Job',
-  manifest: 'Manifest',
-  index: 'Index',
+  hdf5: 'HDF5 文件',
+  template: '模板 JSONL',
+  sample: '样本 JSONL',
+  sample_merged: '合并样本',
+  router_scenario: '路由场景数据',
+  router_train: '路由训练数据',
+  training_job: '训练任务',
+  manifest: '清单',
+  index: '索引',
 }
 
 const KIND_CLEAR_OPTIONS = [
-  { key: 'templates', label: 'Clear templates' },
-  { key: 'samples', label: 'Clear samples' },
-  { key: 'router', label: 'Clear router' },
+  { key: 'templates', label: '清空模板' },
+  { key: 'samples', label: '清空样本' },
+  { key: 'router', label: '清空路由数据' },
 ] as const
 
 function platformLabel(asset: FileAsset) {
@@ -73,10 +73,10 @@ function timeText(ts: number) {
 }
 
 function statusLabel(asset: FileAsset) {
-  if (asset.valid === false || asset.status === 'invalid') return 'Invalid'
-  if (asset.protected) return 'Protected'
-  if (asset.deletable) return 'Manageable'
-  return asset.status || 'OK'
+  if (asset.valid === false || asset.status === 'invalid') return '无效'
+  if (asset.protected) return '受保护'
+  if (asset.deletable) return '可管理'
+  return asset.status || '正常'
 }
 
 function statusClass(asset: FileAsset) {
@@ -147,7 +147,7 @@ function DetailPanel({
   onTrim: (asset: FileAsset) => void
 }) {
   if (!asset) {
-    return <div className="training-card min-h-[360px] p-6 text-sm text-slate-500">Select a file asset to inspect details.</div>
+    return <div className="training-card min-h-[360px] p-6 text-sm text-slate-500">选择一个文件资产查看详情。</div>
   }
 
   const detailEntries = Object.entries(asset.details ?? {})
@@ -158,19 +158,19 @@ function DetailPanel({
         <ShieldCheck size={17} className="mt-0.5 text-sky-400" />
         <div className="min-w-0 flex-1">
           <div className="training-panel-title truncate">{asset.title}</div>
-          <div className="training-panel-copy break-all font-mono">{asset.path || 'No file path'}</div>
+          <div className="training-panel-copy break-all font-mono">{asset.path || '无文件路径'}</div>
         </div>
         <span className={cn('badge border text-xs', statusClass(asset))}>{statusLabel(asset)}</span>
       </div>
 
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <Metric label="Platform" value={platformLabel(asset)} />
-          <Metric label="Stage" value={stageLabel(asset)} />
-          <Metric label="Kind" value={kindLabel(asset)} />
-          <Metric label="Size" value={formatBytes(asset.file_size_bytes)} />
-          <Metric label="Count" value={asset.count != null ? `${asset.count.toLocaleString()} ${asset.count_label ?? ''}` : '-'} />
-          <Metric label="Modified" value={timeText(asset.mtime)} />
+          <Metric label="平台" value={platformLabel(asset)} />
+          <Metric label="阶段" value={stageLabel(asset)} />
+          <Metric label="类型" value={kindLabel(asset)} />
+          <Metric label="大小" value={formatBytes(asset.file_size_bytes)} />
+          <Metric label="数量" value={asset.count != null ? `${asset.count.toLocaleString()} ${asset.count_label ?? ''}` : '-'} />
+          <Metric label="修改时间" value={timeText(asset.mtime)} />
         </div>
 
         {(asset.errors.length > 0 || asset.warnings.length > 0) && (
@@ -187,19 +187,19 @@ function DetailPanel({
         {asset.kind === 'template' && (
           <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
-              <Scissors size={14} className="text-amber-300" />Trim template file
+              <Scissors size={14} className="text-amber-300" />裁剪模板文件
             </div>
             <div className="flex gap-2">
               <input
                 className="input font-mono"
                 type="number"
                 min={1}
-                placeholder={asset.count != null ? String(asset.count) : 'Rows to keep'}
+                placeholder={asset.count != null ? String(asset.count) : '保留行数'}
                 value={trimValue}
                 onChange={e => onTrimValueChange(e.target.value)}
               />
               <button className="btn-ghost flex-shrink-0 text-amber-300" disabled={busy || !trimValue} onClick={() => onTrim(asset)}>
-                Trim
+                裁剪
               </button>
             </div>
           </div>
@@ -208,18 +208,18 @@ function DetailPanel({
         <div className="flex flex-wrap gap-2">
           <button className="btn-danger" disabled={!asset.deletable || busy} onClick={() => onDelete(asset)}>
             {busy ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
-            Delete asset
+            删除文件
           </button>
           {asset.protected && (
             <div className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-sm text-amber-200">
-              <Lock size={13} />Protected assets cannot be deleted directly.
+              <Lock size={13} />受保护资产不能直接删除。
             </div>
           )}
         </div>
 
         {detailEntries.length > 0 && (
           <div>
-            <div className="mb-2 text-sm font-semibold text-slate-200">Metadata</div>
+            <div className="mb-2 text-sm font-semibold text-slate-200">元数据</div>
             <div className="space-y-2">
               {detailEntries.map(([key, value]) => (
                 <div key={key} className="rounded-2xl border border-slate-700/35 bg-slate-900/25 p-3">
@@ -290,7 +290,7 @@ export function FileManagerContent() {
 
   async function deleteAsset(asset: FileAsset) {
     if (!asset.deletable) return
-    const ok = window.confirm(`Delete ${asset.title}?\n${asset.path}\nThis cannot be undone.`)
+    const ok = window.confirm(`删除 ${asset.title}?\n${asset.path}\n此操作不可撤销。`)
     if (!ok) return
     setBusyAssetId(asset.id)
     setError(null)
@@ -299,7 +299,7 @@ export function FileManagerContent() {
       setSelectedId(null)
       await mutate()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Delete failed')
+      setError(e instanceof Error ? e.message : '删除失败')
     } finally {
       setBusyAssetId(null)
     }
@@ -308,7 +308,7 @@ export function FileManagerContent() {
   async function trimTemplate(asset: FileAsset) {
     const n = parseInt(trimValue, 10)
     if (!asset.scenario || Number.isNaN(n) || n < 1) {
-      setError('Enter a valid trim count')
+      setError('请输入有效的裁剪数量')
       return
     }
     setBusyAssetId(asset.id)
@@ -318,7 +318,7 @@ export function FileManagerContent() {
       setTrimValue('')
       await mutate()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Trim failed')
+      setError(e instanceof Error ? e.message : '裁剪失败')
     } finally {
       setBusyAssetId(null)
     }
@@ -326,7 +326,7 @@ export function FileManagerContent() {
 
   async function clearGroup(group: 'templates' | 'samples' | 'router') {
     const label = KIND_CLEAR_OPTIONS.find(item => item.key === group)?.label ?? group
-    const ok = window.confirm(`${label}? This cannot be undone.`)
+    const ok = window.confirm(`${label}? 此操作不可撤销。`)
     if (!ok) return
     setBusyAction(group)
     setError(null)
@@ -335,7 +335,7 @@ export function FileManagerContent() {
       setSelectedId(null)
       await mutate()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Clear failed')
+      setError(e instanceof Error ? e.message : '清空失败')
     } finally {
       setBusyAction(null)
     }
@@ -349,7 +349,7 @@ export function FileManagerContent() {
       if (res.errors && res.errors.length > 0) setError(res.errors.slice(0, 3).join('\n'))
       await mutate()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Rebuild failed')
+      setError(e instanceof Error ? e.message : '重建失败')
     } finally {
       setBusyAction(null)
     }
@@ -362,19 +362,19 @@ export function FileManagerContent() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
-                    Unified File Catalog
+                    统一文件目录
                   </div>
-                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-50">Unified file manager</h1>
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-50">统一文件管理</h1>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-                    Centralized HDF5, template, sample, router, training artifact, manifest, and index management.
+                    集中管理 HDF5、模板、样本、路由数据、训练产物、清单与索引。
                   </p>
                 </div>
                 <div className="grid min-w-[520px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
-                  <Metric label="Assets" value={(data?.summary.total_assets ?? 0).toLocaleString()} />
-                  <Metric label="Storage" value={formatBytes(data?.summary.total_size_bytes ?? 0)} />
-                  <Metric label="Deletable" value={(data?.summary.deletable_count ?? 0).toLocaleString()} />
-                  <Metric label="Protected" value={(data?.summary.protected_count ?? 0).toLocaleString()} />
-                  <Metric label="Invalid" value={(data?.summary.invalid_count ?? 0).toLocaleString()} />
+                  <Metric label="文件" value={(data?.summary.total_assets ?? 0).toLocaleString()} />
+                  <Metric label="存储" value={formatBytes(data?.summary.total_size_bytes ?? 0)} />
+                  <Metric label="可删除" value={(data?.summary.deletable_count ?? 0).toLocaleString()} />
+                  <Metric label="受保护" value={(data?.summary.protected_count ?? 0).toLocaleString()} />
+                  <Metric label="无效" value={(data?.summary.invalid_count ?? 0).toLocaleString()} />
                 </div>
               </div>
             </section>
@@ -383,16 +383,16 @@ export function FileManagerContent() {
               <div className="card-header flex-wrap gap-3">
                 <FolderOpen size={17} className="text-sky-400" />
                 <div className="min-w-[180px]">
-                  <div className="training-panel-title">Asset filters</div>
-                  <div className="training-panel-copy">The table body scrolls independently; details and actions are on the right.</div>
+                  <div className="training-panel-title">文件筛选</div>
+                  <div className="training-panel-copy">左侧列表支持独立滚动，右侧查看详情和操作。</div>
                 </div>
                 <div className="flex-1" />
                 <button className="btn-ghost text-xs" onClick={refresh} disabled={isLoading}>
-                  <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />Refresh
+                  <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />刷新
                 </button>
                 <button className="btn-ghost text-xs text-sky-300" onClick={rebuildIndexes} disabled={busyAction === 'rebuild'}>
                   {busyAction === 'rebuild' ? <RefreshCw size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                  Rebuild indexes
+                  重建索引
                 </button>
                 {KIND_CLEAR_OPTIONS.map(option => (
                   <button
@@ -409,23 +409,23 @@ export function FileManagerContent() {
 
               <div className="grid grid-cols-1 gap-3 border-b border-slate-700/35 p-4 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_0.9fr]">
                 <label className="space-y-1.5">
-                  <span className="label text-xs">Search</span>
+                  <span className="label text-xs">搜索</span>
                   <div className="relative">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input className="input pl-9" value={query} onChange={e => setQuery(e.target.value)} placeholder="Scenario, path, job name" />
+                    <input className="input pl-9" value={query} onChange={e => setQuery(e.target.value)} placeholder="场景、路径或任务名" />
                   </div>
                 </label>
-                <SelectFilter label="Platform" value={platform} options={platformOptions} onChange={setPlatform} />
-                <SelectFilter label="Stage" value={stage} options={stageOptions} onChange={setStage} />
-                <SelectFilter label="Kind" value={kind} options={kindOptions} onChange={setKind} />
+                <SelectFilter label="平台" value={platform} options={platformOptions} onChange={setPlatform} />
+                <SelectFilter label="阶段" value={stage} options={stageOptions} onChange={setStage} />
+                <SelectFilter label="类型" value={kind} options={kindOptions} onChange={setKind} />
                 <SelectFilter
-                  label="Status"
+                  label="状态"
                   value={status}
                   options={[
-                    { value: ALL, label: 'All' },
-                    { value: 'deletable', label: 'Manageable' },
-                    { value: 'protected', label: 'Protected' },
-                    { value: 'invalid', label: 'Invalid' },
+                    { value: ALL, label: '全部' },
+                    { value: 'deletable', label: '可管理' },
+                    { value: 'protected', label: '受保护' },
+                    { value: 'invalid', label: '无效' },
                   ]}
                   onChange={setStatus}
                 />
@@ -442,13 +442,13 @@ export function FileManagerContent() {
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-700/40 bg-slate-800/40">
-                        <th className="px-4 py-3 text-left label">Asset</th>
-                        <th className="px-4 py-3 text-left label">Stage</th>
-                        <th className="px-4 py-3 text-left label">Kind</th>
-                        <th className="px-4 py-3 text-right label">Count</th>
-                        <th className="px-4 py-3 text-right label">Size</th>
-                        <th className="px-4 py-3 text-right label">Status</th>
-                        <th className="px-4 py-3 text-right label">Action</th>
+                        <th className="px-4 py-3 text-left label">文件</th>
+                        <th className="px-4 py-3 text-left label">阶段</th>
+                        <th className="px-4 py-3 text-left label">类型</th>
+                        <th className="px-4 py-3 text-right label">数量</th>
+                        <th className="px-4 py-3 text-right label">大小</th>
+                        <th className="px-4 py-3 text-right label">状态</th>
+                        <th className="px-4 py-3 text-right label">操作</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -479,7 +479,7 @@ export function FileManagerContent() {
                               className="btn-ghost py-1 px-2 text-red-300"
                               disabled={!asset.deletable || busyAssetId === asset.id}
                               onClick={e => { e.stopPropagation(); deleteAsset(asset) }}
-                              title={asset.deletable ? 'Delete' : 'Cannot delete'}
+                              title={asset.deletable ? '删除' : '不可删除'}
                             >
                               {busyAssetId === asset.id ? <RefreshCw size={12} className="animate-spin" /> : asset.protected ? <Lock size={12} /> : <Trash2 size={12} />}
                             </button>
@@ -488,7 +488,7 @@ export function FileManagerContent() {
                       ))}
                       {!isLoading && filtered.length === 0 && (
                         <tr>
-                          <td colSpan={7} className="px-5 py-14 text-center text-slate-500">No matching file assets</td>
+                          <td colSpan={7} className="px-5 py-14 text-center text-slate-500">没有匹配的文件</td>
                         </tr>
                       )}
                     </tbody>
@@ -520,23 +520,23 @@ export default function FileManagerPage({ theme, toggleTheme }: { theme: Theme; 
             <span className="app-brand__status" />
           </div>
           <div className="min-w-0">
-            <div className="app-brand__title">PiERN Files</div>
-            <div className="app-brand__subtitle">Unified file manager</div>
+            <div className="app-brand__title">PiERN 文件</div>
+            <div className="app-brand__subtitle">统一文件管理</div>
           </div>
         </div>
 
         <nav className="app-nav">
           <div>
-            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">Files</span><div className="app-section-label__line" /></div>
+            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">文件</span><div className="app-section-label__line" /></div>
             <div className="space-y-1">
-              <SimpleNav to="/files" end icon={FolderOpen} label="Unified Files" />
+              <SimpleNav to="/files" end icon={FolderOpen} label="统一文件" />
             </div>
           </div>
           <div>
-            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">Platforms</span><div className="app-section-label__line" /></div>
+            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">平台</span><div className="app-section-label__line" /></div>
             <div className="space-y-1">
-              <SimpleNav to="/synth" icon={Database} label="Data Synth" />
-              <SimpleNav to="/training" icon={ArrowLeft} label="Training" />
+              <SimpleNav to="/synth" icon={Database} label="数据合成" />
+              <SimpleNav to="/training" icon={ArrowLeft} label="训练平台" />
             </div>
           </div>
         </nav>
@@ -544,7 +544,7 @@ export default function FileManagerPage({ theme, toggleTheme }: { theme: Theme; 
         <div className="app-sidebar__footer">
           <button type="button" onClick={toggleTheme} className="theme-toggle">
             {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-            <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+            <span>{theme === 'dark' ? '日间' : '夜间'}</span>
           </button>
         </div>
       </aside>
@@ -565,7 +565,7 @@ function toOptions(assets: FileAsset[], valueKey: 'platform' | 'stage' | 'kind',
     counts.set(key, { label, count: (current?.count ?? 0) + 1 })
   }
   return [
-    { value: ALL, label: 'All', count: assets.length },
+    { value: ALL, label: '全部', count: assets.length },
     ...Array.from(counts.entries()).map(([value, item]) => ({ value, label: item.label, count: item.count })),
   ]
 }
