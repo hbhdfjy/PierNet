@@ -1,113 +1,178 @@
 # PiERN Project Overview
 
-## Role Of This Document
+## Purpose
 
-This file is the maintained high-level overview for PiERN.
-
-- Read this first to understand the system boundary.
-- Update this file when platform structure, runtime surfaces, stage ownership, or core contracts change.
-- Do not turn this file into a changelog or implementation notebook.
+This is the maintained high-level overview for PiERN. Read it first when you need the system boundary, platform split, stage ownership, data contracts, and runtime surfaces. Keep implementation notebook details in `CLAUDE.md` and usage commands in `README.md`.
 
 ## One-Sentence Summary
 
-PiERN is a dual-surface application that combines a Stage 1-4 data synthesis platform with a single-GPU Token Router training platform inside one repository and one deployable FastAPI + React app.
+PiERN is one FastAPI + React application with two product surfaces: a Stage 1-4 data synthesis workbench and a single-GPU Token Router training workbench.
 
 ## Product Surfaces
 
-### Landing
+| Surface | Route | Frontend Namespace | Backend Namespace | Scope |
+| --- | --- | --- | --- | --- |
+| Landing | `/` | `frontend/src/platform/` | `piern/api/main.py` | entry into synth, training, and files |
+| Synthesis | `/synth/*` | `frontend/src/synth/` | `piern/synth/` | Stage 1-4 data pipeline |
+| Training | `/training/*` | `frontend/src/training/` | `piern/training/` | Token Router training jobs |
+| Files | `/files` and `/synth/files` | `frontend/src/files/` | `piern/synth/services/file_catalog.py` | unified data/artifact management |
 
-- Frontend route: `/`
-- Purpose: top-level entry page that routes operators into synth vs training
-- Implementation: `frontend/src/platform/LandingPage.tsx`
-
-### Data Synthesis Platform
-
-- Frontend route prefix: `/synth/*`
-- Frontend namespace: `frontend/src/synth/`
-- Backend namespace: `piern/synth/`
-- Scope: Stage 1 simulation, Stage 2 registration/template generation, Stage 3 sample filling, Stage 4 router dataset construction
-
-### Training Platform
-
-- Frontend route prefix: `/training/*`
-- Frontend namespace: `frontend/src/training/`
-- Backend namespace: `piern/training/`
-- Scope: Token Router training data selection, single-GPU training jobs, logs, curves, checkpoints
+The surfaces are separated at product and namespace level, but still share one repository, one frontend package, one FastAPI app, one static hosting path, and one startup script.
 
 ## Backend Assembly
 
-### Unified Entry Point
+Runtime entrypoints:
 
-- Runtime entry: `piern/api/main.py`
-- Compatibility entry: `api_server.py`
+- `piern/api/main.py`: real FastAPI app assembly
+- `api_server.py`: compatibility entry that re-exports `piern.api.main.app`
 
 `piern/api/main.py` mounts:
 
-- synth routers from `piern.synth.api.routers`
+- synthesis routers from `piern.synth.api.routers.*`
 - training router from `piern.training.api.routers.training`
-- frontend static hosting through `piern.shared.api.static.SPAStaticFiles`
+- built frontend assets through `piern.shared.api.static.SPAStaticFiles`
 
-### API Namespace Boundary
+`piern/api/` is app assembly only. Business routers, schemas, services, and models belong under `piern/synth/` or `piern/training/`.
 
-`piern/api/` is now only the unified app assembly namespace. Business routers,
-schemas, and services live in the platform namespaces:
+## Frontend Assembly
 
-- `piern/synth/api/*` and `piern/synth/services/*`
-- `piern/training/api/*` and `piern/training/services/*`
+Top-level routing lives in `frontend/src/platform/PlatformRouter.tsx`:
+
+- `/` -> `LandingPage`
+- `/synth/*` -> `SynthApp`
+- `/training/*` -> `TrainingApp`
+- `/files` -> standalone `FileManagerPage`
+- legacy synthesis routes redirect to `/synth/...`
+
+Synthesis routes are owned by `frontend/src/synth/SynthApp.tsx`; training routes are owned by `frontend/src/training/TrainingApp.tsx`.
 
 ## Core Workflow
 
-### Stage 1: Physical Simulation
+### Stage 1: Physical Data
 
-- Input: simulator-specific YAML under `configs/{simulator}/variants/`
-- Execution: `python -m piern.simulators.{simulator}.pipeline`
-- Output: `data/{simulator}/{simulator}_{scenario}.h5`
-- External simulator / big-scene data can be added from `/synth/upload` and is saved as `data/{big_scene}/{big_scene}_{scenario}.h5`.
-- Upload returns a non-blocking preflight result; Stage 2 registration is the hard gate and rejects HDF5 files that violate the Stage 1 contract: `timeseries [N,C,T]`, `params [N,P]`, `param_names [P]`, matching shape attrs, and finite numeric values.
+Inputs:
 
-### Stage 2: Registration And Template Generation
+- simulator config: `configs/{simulator}/variants/*.yaml`
+- optional uploaded HDF5 through `/synth/upload`
 
-- Registry contract: `configs/text2comp/registry.yaml`
-- Default config: `configs/text2comp/default.yaml`
-- Output: `data/templates/{scenario}_templates.jsonl`
-- Read path acceleration: `data/.manifests/templates.json` + `data/.indexes/`
+Outputs:
+
+```text
+data/{simulator}/{simulator}_{scenario}.h5
+data/{big_scene}/{big_scene}_{scenario}.h5
+```
+
+The HDF5 contract is the hard gate for registration:
+
+- `timeseries [N,C,T]`, numeric and finite
+- `params [N,P]`, numeric and finite
+- `param_names [P]`, string-like
+- root attrs match the dataset shapes
+
+Implementation:
+
+- API: `piern/synth/api/routers/simulation.py`
+- validation: `piern/synth/services/hdf5_data.py`
+- built-in simulators: `piern/simulators/*`
+
+### Stage 2: Registry And Templates
+
+Inputs:
+
+- Stage 1 HDF5
+- registry metadata in `configs/text2comp/registry.yaml`
+- LLM config in `configs/text2comp/default.yaml`
+
+Outputs:
+
+```text
+data/templates/{scenario}_templates.jsonl
+```
+
+Implementation:
+
+- auto registration: `piern/synth/text2comp/auto_register.py`
+- interactive registration: `piern/synth/text2comp/interview_agent.py`
+- template generation: `piern/synth/text2comp/generator.py`
+- template schema/filling helpers: `piern/synth/text2comp/template_store.py`
+- CLI: `scripts/text2comp/generate_templates.py`
 
 ### Stage 3: Sample Filling
 
-- Output: `data/text2comp/{scenario}.jsonl`
-- Optional merged artifact: `data/text2comp/all_training_data.jsonl`
-- Read path acceleration: `data/.manifests/samples.json` + `data/.indexes/`
+Inputs:
 
-### Stage 4: Router Data Construction
+- Stage 1 HDF5
+- Stage 2 template JSONL
 
-- Output: `data/router/train.jsonl` and `data/router/by_scenario/*.jsonl`
-- Read path acceleration: `data/.manifests/router.json` + `data/.indexes/`
+Outputs:
+
+```text
+data/text2comp/{scenario}.jsonl
+data/text2comp/all_training_data.jsonl
+```
+
+Stage 3 is local filling. It should not call an LLM.
+
+Implementation:
+
+- CLI: `scripts/text2comp/fill_samples.py`
+- file management: `piern/synth/services/file_manager.py`
+
+### Stage 4: Router Data
+
+Inputs:
+
+- Stage 3 sample JSONL
+
+Outputs:
+
+```text
+data/router/by_scenario/{scenario}.jsonl
+data/router/train.jsonl
+```
+
+Each Stage 3 sample becomes one positive expert-prefix sample plus negative LLM-prefix samples. Stage 4 currently assumes Qwen chat template formatting and records embedding metadata for the Qwen backbone.
+
+Implementation:
+
+- API: `piern/synth/api/routers/router_data.py`
+- CLI: `scripts/router/build_router_data.py`
 
 ## Training Workflow
 
-The current training platform consumes Stage 4 outputs and builds prepared caches under `artifacts/token_router/`.
+Training consumes Stage 4 router data and writes artifacts under `artifacts/token_router/`.
 
-Current training assumptions:
+Current assumptions:
 
 - model family: Token Router only
-- device mode: single GPU only
+- training device: single GPU only
 - model: `FullSeqDilatedConvRouter`
-- split: `train / test` only
-- chat template: Qwen chat format in Stage 4 router data
-- embedding backbone: default local Qwen snapshot at `/data/fjy/Qwen2.5-0.5B-Instruct`
-- training input: router JSONL context is dynamically tokenized during training and passed through the frozen pretrained embedding table; embeddings are not stored offline
+- split: train/test only
+- default `test_ratio`: `0.10`
+- input representation: dynamic Qwen tokenization + frozen pretrained embedding lookup
+- default embedding backbone: `/data/fjy/Qwen2.5-0.5B-Instruct`
+- no offline embedding arrays are written
 
-Primary implementation files:
+Primary implementation:
 
+- `piern/training/services/training_manager.py`
 - `piern/training/router/pretrained_embeddings.py`
-- `piern/training/router/model.py`
 - `piern/training/router/data.py`
+- `piern/training/router/model.py`
 - `piern/training/router/train.py`
 - `scripts/router/train_token_router.py`
 
+Training jobs are persisted in:
+
+```text
+artifacts/token_router/training_jobs.json
+.runlogs/
+artifacts/token_router/{simulator}/runs/{run_name}/
+```
+
 ## Supported Simulators
 
-| Simulator | Domain | Math Type | Output Shape | Scenario Count |
+| Simulator | Domain | Math Type | Output Shape | Scenarios |
 | --- | --- | --- | --- | --- |
 | `modflow` | Groundwater | Parabolic PDE | `(5, 365)` | 7 |
 | `simpeg` | Geophysics | Elliptic PDE | `(1, 100)` | 4 |
@@ -115,61 +180,58 @@ Primary implementation files:
 | `transient` | Transient stability | DAE | `(5, 1000)` | 3 |
 | `gcam` | Energy-climate planning | Dynamic algebraic / LP | `(5, 16)` | 3 |
 
-## Runtime Surfaces
+## Read Path And File Management
 
-- `frontend/src/platform/`
-  Landing page and top-level platform routing
-- `frontend/src/synth/`
-  Data synthesis frontend surface
-- `frontend/src/training/`
-  Training frontend surface
-- `frontend/src/shared/`
-  Shared frontend theme layer
-- `frontend/src/lib/`
-  Shared frontend runtime utilities such as API client, types, utils, scroll behavior
-- `piern/synth/`
-  Synthesis backend routers, schemas, and services
-- `piern/training/`
-  Training backend routers, schemas, services, and router training core
-- `piern/shared/`
-  Shared backend infrastructure such as paths and static hosting
-- `piern/simulators/`
-  Stage 1 simulator implementations
-- `piern/synth/text2comp/`
-  Stage 2/3 registration, template generation, and sample filling
+Stage 2-4 source artifacts are JSONL. Interactive reads use sidecar acceleration:
 
-## Key Project Contracts
+- manifests: `data/.manifests/`
+- sparse indexes: `data/.indexes/`
+- filter indexes: `data/.indexes/`
 
-- HDF5 naming: `{simulator}_{scenario}.h5`
-- Data root: generated data remains under `data/`
-- Uploaded HDF5 data: `data/{big_scene}/{big_scene}_{scenario}.h5`; upload shows preflight status, Stage 2 registration enforces validation
-- Stage 2 templates: `data/templates/`
-- Stage 3 samples: `data/text2comp/`
-- Stage 4 router data: `data/router/`
-- Read acceleration layer:
-  - manifests under `data/.manifests/`
-  - sparse indexes under `data/.indexes/`
-- Dashboard summary endpoint: `/api/dashboard/summary`
-- Training artifacts: `artifacts/token_router/`
-- Training API prefix: `/api/training/*`
+Related implementation:
 
-## Operational Notes
+- `piern/synth/services/manifest_store.py`
+- `piern/synth/services/jsonl_index.py`
+- `piern/synth/services/jsonl_filter_index.py`
+- `piern/synth/services/file_catalog.py`
+- `scripts/utils/rebuild_manifests.py`
+- `scripts/utils/rebuild_indexes.py`
+- `scripts/utils/rebuild_filter_indexes.py`
 
-- `start_ui.sh` is the main local startup path for backend + Vite dev server.
-- The unified app can serve built frontend assets from `8000`; Vite dev remains on `5173`.
-- Frontend nested scroll behavior is currently mediated by `frontend/src/lib/scrollAssist.ts`; scroll changes should be treated as application behavior, not just styling.
-- Training and synthesis are separated at the product surface and namespace level, but still share one deployed app and one repository.
+The unified file catalog can manage HDF5, template, sample, router, training-job, manifest, and index assets. Protected merged files and indexes are not blindly deleted.
 
-## Documentation Set To Maintain
+## API Boundaries
 
-The maintained documentation set is:
+Synthesis API prefixes include:
 
-1. `PROJECT_OVERVIEW.md`
-   High-level system boundary and product overview.
-2. `README.md`
-   User-facing install, startup, and quick-start guide.
-3. `CLAUDE.md`
-   Developer and coding-agent implementation context.
+- `/api/dashboard/*`
+- `/api/config/*`
+- `/api/simulation/*`
+- `/api/register/*`
+- `/api/generate/*`
+- `/api/files/*`
+- `/api/router/*`
+- `/api/interview/*`
 
-Historical plan documents have been removed; durable facts should be kept in
-this file, `README.md`, or `CLAUDE.md`.
+Training API prefix:
+
+- `/api/training/*`
+
+Static frontend serving uses browser-history fallback through `SPAStaticFiles`, while preserving `/api/*` and asset 404 behavior.
+
+## Operational Contracts
+
+- `start_ui.sh` is the main combined backend/frontend development startup path.
+- If the active conda environment is not the script default, set `PIERN_CONDA_ENV` before startup.
+- Frontend nested scroll behavior depends on `frontend/src/lib/scrollAssist.ts`; scroll changes are application behavior, not only CSS.
+- Root docs expected by consistency checks are `README.md`, `PROJECT_OVERVIEW.md`, and `CLAUDE.md`.
+
+## Change Checklist
+
+When changing startup or user workflows, update `README.md`.
+
+When changing platform boundaries, routes, stage ownership, or data contracts, update `PROJECT_OVERVIEW.md` and `CLAUDE.md`.
+
+When changing implementation assumptions, known pitfalls, test commands, or agent instructions, update `CLAUDE.md`.
+
+When changing Stage 2-4 artifacts or cleanup logic, check manifests, indexes, file catalog, and router/training consumers together.
