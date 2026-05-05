@@ -771,8 +771,8 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
   }, [addMessage, onRegistryUpdate])
 
   const handleStart = async () => {
-    if (!simulator.trim()) { setError('请填写 Simulator 名称'); return }
-    if (mode === 'scenario' && !scenario.trim()) { setError('场景模式需要填写 Scenario 名称'); return }
+    if (!simulator.trim()) { setError('请填写仿真器名称'); return }
+    if (mode === 'scenario' && !scenario.trim()) { setError('场景模式需要填写场景名称'); return }
     setError(null)
     setLoading(true)
     setMessages([])
@@ -1008,14 +1008,14 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
             <div>
               <div className="flex items-center gap-2 mb-2.5">
                 <span className="w-5 h-5 rounded-md bg-sky-500/20 text-sky-400 flex items-center justify-center text-xs font-bold flex-shrink-0">3</span>
-                <span className="text-xs font-semibold text-slate-200">各 Simulator 输出形状参考</span>
+                <span className="text-xs font-semibold text-slate-200">各仿真器输出形状参考</span>
               </div>
               <div className="bg-slate-900/60 rounded-xl border border-slate-700/30 overflow-hidden">
                 <div className="list-table-scroll">
                   <table className="w-full text-xs">
                   <thead>
                     <tr className="border-b border-slate-700/40 bg-slate-900/40">
-                      <th className="px-4 py-2 text-left text-slate-500 font-normal">Simulator</th>
+                      <th className="px-4 py-2 text-left text-slate-500 font-normal">仿真器</th>
                       <th className="px-4 py-2 text-left text-slate-500 font-normal font-mono">timeseries[i] 形状</th>
                       <th className="px-4 py-2 text-left text-slate-500 font-normal">通道含义</th>
                       <th className="px-4 py-2 text-left text-slate-500 font-normal">时间含义</th>
@@ -1069,7 +1069,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
             {([
               {
                 value: 'simulator' as const,
-                label: '注册 Simulator',
+                label: '注册仿真器',
                 sub: '第一步',
                 desc: '物理域背景、参数含义、输出结构等完整元数据',
                 steps: '6 步',
@@ -1137,7 +1137,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                Simulator 名称 <span className="text-red-400 normal-case tracking-normal">*</span>
+                仿真器名称 <span className="text-red-400 normal-case tracking-normal">*</span>
               </label>
               {mode === 'scenario' && registeredSimulators.length > 0 ? (
                 <select
@@ -1145,7 +1145,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
                   value={simulator}
                   onChange={e => { setSimulator(e.target.value); setScenario('') }}
                 >
-                  <option value="">— 选择已注册的 Simulator —</option>
+                  <option value="">— 选择已注册的仿真器 —</option>
                   {registeredSimulators.map(s => (
                     <option key={s} value={s}>{s}</option>
                   ))}
@@ -1161,7 +1161,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
               )}
               {mode === 'scenario' && registeredSimulators.length === 0 && (
                 <p className="text-xs text-amber-400/80 mt-1.5 flex items-center gap-1">
-                  <span>⚠</span> 暂无已注册的 Simulator，请先完成第一步注册
+                  <span>⚠</span> 暂无已注册的仿真器，请先完成第一步注册
                 </p>
               )}
             </div>
@@ -1169,7 +1169,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
             {mode === 'scenario' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
-                  Scenario 名称 <span className="text-red-400 normal-case tracking-normal">*</span>
+                  场景名称 <span className="text-red-400 normal-case tracking-normal">*</span>
                 </label>
                 <input
                   className="input w-full"
@@ -1238,7 +1238,7 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
             {loading
               ? <><RefreshCw size={16} className="animate-spin" /> 启动中…</>
               : mode === 'simulator'
-              ? <><Play size={16} /> 开始注册 Simulator</>
+              ? <><Play size={16} /> 开始注册仿真器</>
               : <><Play size={16} /> 开始注册场景描述</>
             }
           </button>

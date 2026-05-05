@@ -49,6 +49,7 @@ class GPUInfo(BaseModel):
 class TrainingJobConfig(BaseModel):
     epochs: int = 0
     eval_interval: int = 1
+    keep_last_epochs: int = 5
     batch_size: int = 256
     test_batch_size: int = 256
     learning_rate: float = 2e-4
@@ -68,6 +69,7 @@ class TrainingJobCreateRequest(BaseModel):
     gpu_id: int
     epochs: int = 0
     eval_interval: int = 1
+    keep_last_epochs: int = Field(default=5, ge=0, le=200)
     batch_size: int = 256
     test_batch_size: int = 256
     learning_rate: float = 2e-4

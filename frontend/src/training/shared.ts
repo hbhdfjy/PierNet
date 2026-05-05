@@ -35,9 +35,9 @@ export function formatDuration(seconds: number | null | undefined): string {
   const h = Math.floor(total / 3600)
   const m = Math.floor((total % 3600) / 60)
   const s = total % 60
-  if (h > 0) return `${h}h ${m}m`
-  if (m > 0) return `${m}m ${s}s`
-  return `${s}s`
+  if (h > 0) return `${h}小时 ${m}分钟`
+  if (m > 0) return `${m}分钟 ${s}秒`
+  return `${s}秒`
 }
 
 export function formatMetric(value: number | null | undefined, digits = 4): string {

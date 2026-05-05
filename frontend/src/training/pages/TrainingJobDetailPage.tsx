@@ -387,7 +387,7 @@ function ChartHoverPanel({
       }`}
     >
       <div className={`font-semibold uppercase tracking-[0.16em] ${isEmphasis ? 'text-[10px] text-sky-300/80' : 'text-[11px] text-slate-500'}`}>
-        {snapshot ? snapshot.label : isEmphasis ? 'Current point' : 'Hover values'}
+        {snapshot ? snapshot.label : isEmphasis ? '当前点' : '悬停数值'}
       </div>
       {snapshot ? (
         <div className={`mt-2 ${isEmphasis ? 'grid gap-2.5' : 'grid gap-2'}`}>
@@ -418,7 +418,7 @@ function ChartHoverPanel({
           ))}
         </div>
       ) : (
-        <div className={`mt-2 ${isEmphasis ? 'text-[12.5px] text-slate-300' : 'text-[12px] text-slate-400'}`}>Move the pointer over the chart.</div>
+        <div className={`mt-2 ${isEmphasis ? 'text-[12.5px] text-slate-300' : 'text-[12px] text-slate-400'}`}>将指针移到图表上查看数值。</div>
       )}
     </div>
   )
@@ -555,7 +555,7 @@ function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[]
   if (checkpoints.length === 0) {
     return (
       <div className="training-surface text-[14px] text-slate-400">
-        当前还没有 checkpoint。
+        当前还没有权重文件。
       </div>
     )
   }
@@ -576,7 +576,7 @@ function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[]
             </span>
           </div>
           <div className="mt-3 grid grid-cols-3 gap-2 text-[12px] text-slate-400">
-            <MetaField label="Epoch" value={item.epoch ?? '—'} />
+            <MetaField label="轮次" value={item.epoch ?? '—'} />
             <MetaField label="大小" value={formatBytes(item.size_bytes)} />
             <MetaField label="时间" value={formatDateTime(item.mtime)} />
           </div>
@@ -647,7 +647,7 @@ export default function TrainingJobDetailPage() {
     return {
       xKey: trainingAxisMode === 'step' ? 'global_step' : 'epoch',
       data: trainingAxisMode === 'step' ? raw : epochSeries,
-      subtitleSuffix: trainingAxisMode === 'step' ? 'step' : 'epoch',
+      subtitleSuffix: trainingAxisMode === 'step' ? '步骤' : '轮次',
     }
   }, [curves?.training_epoch_points, curves?.training_points, trainingAxisMode])
 
@@ -744,7 +744,7 @@ export default function TrainingJobDetailPage() {
 
   const deleteJob = async () => {
     if (!job) return
-    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、run 目录、checkpoint、曲线和日志。共享 prepared cache 会保留。`)
+    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。`)
     if (!ok) return
     await api.deleteTrainingJob(job.job_id)
     await Promise.all([
@@ -821,15 +821,15 @@ export default function TrainingJobDetailPage() {
                   icon={<RadioTower size={16} />}
                 />
                 <KpiCard
-                  label="Epoch / Step"
+                  label="轮次 / 步数"
                   value={`${job.latest_epoch ?? '—'} / ${job.latest_step ?? '—'}`}
-                  note={`global step ${job.global_step ?? '—'}`}
+                  note={`全局步数 ${job.global_step ?? '—'}`}
                   icon={<BarChart3 size={16} />}
                 />
                 <KpiCard
                   label="损失"
                   value={formatMetric(job.avg_loss, 6)}
-                  note={`${formatMetric(job.steps_per_sec, 2)} step/s`}
+                  note={`${formatMetric(job.steps_per_sec, 2)} 步/秒`}
                   icon={<ActivityIcon />}
                 />
                 <KpiCard
@@ -870,21 +870,22 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="状态" value={<span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>} />
                           <MetaField label="训练数据" value={`${job.simulator.toUpperCase()} / ${job.scenarios.join(', ')}`} />
                           <MetaField label="测试比例" value={formatMetric(job.config.test_ratio, 2)} />
-                          <MetaField label="评测间隔" value={`${job.config.eval_interval} epoch`} />
-                          <MetaField label="总 epoch" value={job.config.epochs === 0 ? '∞' : job.config.epochs} />
+                          <MetaField label="评测间隔" value={`${job.config.eval_interval} 轮`} />
+                          <MetaField label="总轮数" value={job.config.epochs === 0 ? '∞' : job.config.epochs} />
+                          <MetaField label="保留权重" value={`${job.config.keep_last_epochs ?? 5} 个轮次`} />
                         </div>
                       </div>
                       <div className="training-surface">
                         <div className="training-meta-grid">
-                          <MetaField label="batch size" value={job.config.batch_size} mono />
-                          <MetaField label="test batch" value={job.config.test_batch_size} mono />
-                          <MetaField label="workers" value={job.config.num_workers} mono />
-                          <MetaField label="learning rate" value={job.config.learning_rate} mono />
-                          <MetaField label="weight decay" value={job.config.weight_decay} mono />
-                          <MetaField label="resume" value={job.config.resume_from ? '是' : '否'} />
+                          <MetaField label="训练批大小" value={job.config.batch_size} mono />
+                          <MetaField label="测试批大小" value={job.config.test_batch_size} mono />
+                          <MetaField label="加载线程" value={job.config.num_workers} mono />
+                          <MetaField label="学习率" value={job.config.learning_rate} mono />
+                          <MetaField label="权重衰减" value={job.config.weight_decay} mono />
+                          <MetaField label="恢复训练" value={job.config.resume_from ? '是' : '否'} />
                           <MetaField label="输入表示" value={job.config.input_representation ?? 'pretrained_embeddings'} mono />
                           <MetaField
-                            label="Embedding"
+                            label="嵌入模型"
                             value={shortPath(job.config.embedding_model || job.config.embedding_tokenizer || '—', 64)}
                             mono
                             title={job.config.embedding_model || job.config.embedding_tokenizer || undefined}
@@ -910,7 +911,7 @@ export default function TrainingJobDetailPage() {
                 <section className="training-card min-h-0">
                   <div className="card-header">
                     <Save size={16} className="text-emerald-300" />
-                    <SectionTitle title="Checkpoint" copy="已保存的模型文件" />
+                    <SectionTitle title="权重文件" copy="已保存的模型权重" />
                   </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
@@ -921,7 +922,7 @@ export default function TrainingJobDetailPage() {
               <div className="grid gap-4">
                 <ChartCard
                   title="训练损失"
-                  subtitle={`avg_loss vs ${trainingChart.subtitleSuffix}`}
+                  subtitle={`平均损失 / ${trainingChart.subtitleSuffix}`}
                   overlay={<ChartHoverPanel snapshot={lossHover} />}
                   actions={
                     <div className="training-segmented">
@@ -930,14 +931,14 @@ export default function TrainingJobDetailPage() {
                         className={`training-segmented__button ${trainingAxisMode === 'step' ? 'training-segmented__button--active' : ''}`}
                         onClick={() => setTrainingAxisMode('step')}
                       >
-                        Step
+                        步骤
                       </button>
                       <button
                         type="button"
                         className={`training-segmented__button ${trainingAxisMode === 'epoch' ? 'training-segmented__button--active' : ''}`}
                         onClick={() => setTrainingAxisMode('epoch')}
                       >
-                        Epoch
+                        轮次
                       </button>
                     </div>
                   }
@@ -947,7 +948,7 @@ export default function TrainingJobDetailPage() {
                     <LineChart
                       data={trainingChart.data}
                       margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setLossHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? 'Step' : 'Epoch', state))}
+                      onMouseMove={(state: ChartMouseState) => setLossHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? '步骤' : '轮次', state))}
                       onMouseLeave={() => setLossHover(null)}
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
@@ -959,12 +960,12 @@ export default function TrainingJobDetailPage() {
                         tickFormatter={(value: number) => value.toFixed(value >= 1 ? 3 : 4)}
                         allowDataOverflow
                       />
-                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? 'Step' : 'Epoch'} />
+                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? '步骤' : '轮次'} />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       <Line
                         type="monotone"
                         dataKey="avg_loss"
-                        name="avg_loss"
+                        name="平均损失"
                         stroke="#38bdf8"
                         dot={false}
                         activeDot={buildActiveDot('#38bdf8')}
@@ -980,7 +981,7 @@ export default function TrainingJobDetailPage() {
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
-                <ChartCard title="测试指标" subtitle="precision / recall / f1 / pr_auc">
+                <ChartCard title="测试指标" subtitle="精确率 / 召回率 / F1 / PR-AUC">
                 {curves?.test_points?.length ? (
                   <>
                     <div className="pointer-events-none absolute right-8 top-8 z-20">
@@ -990,7 +991,7 @@ export default function TrainingJobDetailPage() {
                     <LineChart
                       data={testMetricPlotData}
                       margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setMetricHover(buildChartHoverSnapshot('Epoch', state))}
+                      onMouseMove={(state: ChartMouseState) => setMetricHover(buildChartHoverSnapshot('轮次', state))}
                       onMouseLeave={() => setMetricHover(null)}
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
@@ -1002,17 +1003,17 @@ export default function TrainingJobDetailPage() {
                         tickFormatter={(value: number) => formatUnitDomainTick(value, testMetricDomain ?? [0, 1])}
                         allowDataOverflow
                       />
-                      <ChartTooltip axisLabel="Epoch" />
+                      <ChartTooltip axisLabel="轮次" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="precision_plot" name="precision" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="recall_plot" name="recall" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="f1_plot" name="f1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="pr_auc_plot" name="pr_auc" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="precision_plot" name="精确率" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="recall_plot" name="召回率" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="f1_plot" name="F1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
+                      <Line type="monotone" dataKey="pr_auc_plot" name="PR-AUC" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
                     </LineChart>
                   </ResponsiveContainer>
                   </>
                 ) : (
-                  <ChartEmpty message="当前还没有测试点，需要等到 eval_interval 触发测试。" />
+                  <ChartEmpty message="当前还没有测试点，需要等到测试间隔触发。" />
                 )}
                 </ChartCard>
 
@@ -1026,7 +1027,7 @@ export default function TrainingJobDetailPage() {
                     <LineChart
                       data={scenarioMetricData.data}
                       margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setScenarioHover(buildChartHoverSnapshot('Epoch', state))}
+                      onMouseMove={(state: ChartMouseState) => setScenarioHover(buildChartHoverSnapshot('轮次', state))}
                       onMouseLeave={() => setScenarioHover(null)}
                     >
                       <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
@@ -1038,7 +1039,7 @@ export default function TrainingJobDetailPage() {
                         tickFormatter={(value: number) => formatUnitDomainTick(value, scenarioMetricData.domain)}
                         allowDataOverflow
                       />
-                      <ChartTooltip axisLabel="Epoch" />
+                      <ChartTooltip axisLabel="轮次" />
                       <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
                       {scenarioMetricData.scenarioNames.map((scenario, index) => {
                         const colors = ['#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#fb7185']

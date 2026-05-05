@@ -565,6 +565,7 @@ export type TrainingJobStatus =
 export interface TrainingJobConfig {
   epochs: number
   eval_interval: number
+  keep_last_epochs: number
   batch_size: number
   test_batch_size: number
   learning_rate: number
@@ -644,6 +645,7 @@ export interface TrainingCreateJobRequest {
   gpu_id: number
   epochs: number
   eval_interval: number
+  keep_last_epochs: number
   batch_size: number
   test_batch_size: number
   learning_rate: number

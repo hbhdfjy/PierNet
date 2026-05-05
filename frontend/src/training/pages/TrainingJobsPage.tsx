@@ -64,7 +64,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
 
   const deleteJob = async () => {
     if (isDeleting) return
-    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、run 目录、checkpoint、曲线和日志。共享 prepared cache 会保留。`)
+    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。`)
     if (!ok) return
     setActionError(null)
     setIsDeleting(true)
@@ -118,7 +118,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
             <div className="mt-1 text-[15px] text-slate-100">{formatDateTime(job.created_at)}</div>
           </div>
           <div className="training-surface--dense">
-            <div className="training-label">Epoch / Step</div>
+            <div className="training-label">轮次 / 步数</div>
             <div className="mt-1 text-[15px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
           </div>
           <div className="training-surface--dense">
@@ -187,8 +187,8 @@ export default function TrainingJobsPage() {
 
             <div className="mt-5 training-kpi-grid">
               <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="注册表中的全部任务" icon={<Gauge size={16} />} />
-              <KpiCard label="运行中" value={formatCount(runningCount)} note="starting / running / evaluating / stopping" icon={<PlayCircle size={16} />} />
-              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 checkpoint 和测试结果" icon={<RefreshCcw size={16} />} />
+              <KpiCard label="运行中" value={formatCount(runningCount)} note="启动中 / 训练中 / 评测中 / 停止中" icon={<PlayCircle size={16} />} />
+              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 权重 和测试结果" icon={<RefreshCcw size={16} />} />
               <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误" icon={<AlertTriangle size={16} />} />
             </div>
           </section>

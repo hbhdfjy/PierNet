@@ -85,7 +85,7 @@ export default function RouterViewer() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-white leading-none">路由样本浏览</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Stage 4 Token 路由训练数据</p>
+            <p className="text-sm text-slate-500 mt-0.5">阶段 4 Token 路由训练数据</p>
           </div>
         </div>
         <button className="btn-ghost" onClick={() => refresh()}>

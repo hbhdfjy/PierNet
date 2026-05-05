@@ -24,33 +24,34 @@ MANIFEST_DIR = PROJECT_ROOT / "data" / ".manifests"
 INDEX_DIR = PROJECT_ROOT / "data" / ".indexes"
 
 _PLATFORM_LABELS = {
-    "synth": "Synth",
-    "training": "Training Artifacts",
-    "system": "System",
+    "synth": "数据合成",
+    "training": "训练产物",
+    "system": "系统",
 }
 
 _STAGE_LABELS = {
-    "stage1": "Stage 1 HDF5",
-    "stage2": "Stage 2 Templates",
-    "stage3": "Stage 3 Samples",
-    "stage4": "Stage 4 Router",
-    "training": "Training Artifacts",
-    "system": "Manifests / Indexes",
+    "stage1": "阶段 1 HDF5",
+    "stage2": "阶段 2 模板",
+    "stage3": "阶段 3 样本",
+    "stage4": "阶段 4 路由",
+    "training": "训练产物",
+    "system": "清单 / 索引",
 }
 
 _KIND_LABELS = {
     "hdf5": "HDF5",
-    "template": "Template JSONL",
-    "sample": "Sample JSONL",
-    "sample_merged": "Merged Samples",
-    "router_scenario": "Router Scenario",
-    "router_train": "Router Train",
-    "training_job": "Training Job",
-    "manifest": "Manifest",
-    "index": "Index",
+    "template": "模板 JSONL",
+    "sample": "样本 JSONL",
+    "sample_merged": "合并样本",
+    "router_scenario": "路由场景数据",
+    "router_train": "路由训练数据",
+    "training_job": "训练任务",
+    "training_checkpoint": "训练权重",
+    "manifest": "清单",
+    "index": "索引",
 }
 
-_DELETABLE_KINDS = {"hdf5", "template", "sample", "router_scenario", "training_job"}
+_DELETABLE_KINDS = {"hdf5", "template", "sample", "router_scenario", "training_job", "training_checkpoint"}
 _PROTECTED_KINDS = {"sample_merged", "router_train", "manifest", "index"}
 
 
@@ -201,7 +202,7 @@ def _hdf5_assets() -> list[dict[str, Any]]:
                 path=path,
                 id_parts=("hdf5", simulator, scenario),
                 count=info["sample_count"],
-                count_label="samples",
+                count_label="样本",
                 file_size_bytes=stat.st_size,
                 mtime=stat.st_mtime,
                 valid=info["valid"],
@@ -230,7 +231,7 @@ def _inspect_hdf5_header(path: Path) -> dict[str, Any]:
         "param_names_preview": [],
         "attrs": {},
         "errors": [],
-        "warnings": ["Header-only scan; upload and registration still run deep HDF5 validation."],
+        "warnings": ["当前只扫描文件头；上传和注册仍会执行完整 HDF5 校验。"],
     }
     try:
         with h5py.File(path, "r") as hf:
@@ -302,7 +303,7 @@ def _template_assets() -> list[dict[str, Any]]:
             path=item.get("path"),
             id_parts=("template", scenario),
             count=int(item.get("template_count") or 0),
-            count_label="rows",
+            count_label="行",
             file_size_bytes=int(item.get("file_size_bytes") or 0),
             mtime=float(item.get("mtime") or 0),
             valid=True,
@@ -330,7 +331,7 @@ def _sample_assets() -> list[dict[str, Any]]:
             path=item.get("path"),
             id_parts=("sample", scenario),
             count=int(item.get("sample_count") or 0),
-            count_label="rows",
+            count_label="行",
             file_size_bytes=int(item.get("file_size_bytes") or 0),
             mtime=float(item.get("mtime") or 0),
             valid=True,
@@ -352,11 +353,11 @@ def _sample_assets() -> list[dict[str, Any]]:
             path=merged_path,
             id_parts=("sample_merged", "all_training_data"),
             count=int(manifest.get("summary", {}).get("total_samples", 0)),
-            count_label="rows",
+            count_label="行",
             valid=True,
             protected=True,
             deletable=False,
-            details={"note": "Merged from per-scenario sample files and rebuilt after sample deletion."},
+            details={"note": "由各场景样本文件合并生成，删除样本后会重建。"},
         ))
     return assets
 
@@ -377,7 +378,7 @@ def _router_assets() -> list[dict[str, Any]]:
             path=item.get("path"),
             id_parts=("router_scenario", scenario),
             count=int(item.get("router_count") or 0),
-            count_label="router samples",
+            count_label="路由样本",
             file_size_bytes=int(item.get("file_size_bytes") or 0),
             mtime=float(item.get("mtime") or 0),
             valid=True,
@@ -394,7 +395,7 @@ def _router_assets() -> list[dict[str, Any]]:
             path=train_path,
             id_parts=("router_train", "train"),
             count=int(split.get("count") or _count_jsonl(train_path)),
-            count_label="router samples",
+            count_label="路由样本",
             file_size_bytes=int(split.get("file_size_bytes") or 0),
             mtime=float(split.get("mtime") or 0),
             valid=True,
@@ -445,7 +446,7 @@ def _training_assets() -> list[dict[str, Any]]:
             platform="training",
             stage="training",
             kind="training_job",
-            title="Failed to read training jobs",
+            title="读取训练任务失败",
             path=None,
             id_parts=("training_error", "jobs"),
             valid=False,
@@ -482,14 +483,14 @@ def _training_assets() -> list[dict[str, Any]]:
             path=run_dir,
             id_parts=("training_job", job_id),
             count=len(checkpoints),
-            count_label="checkpoint",
+            count_label="权重",
             file_size_bytes=size,
             mtime=mtime,
             valid=status not in {"error", "external_terminated"},
             status=status,
             protected=is_active,
             deletable=not is_active,
-            warnings=["Training job is active and cannot be deleted."] if is_active else [],
+            warnings=["训练任务运行中，不能删除。"] if is_active else [],
             errors=[str(job.get("error_message"))] if job.get("error_message") else [],
             details={
                 "gpu_id": job.get("gpu_id"),
@@ -501,6 +502,38 @@ def _training_assets() -> list[dict[str, Any]]:
                 "artifact_root": job.get("artifact_root"),
             },
         ))
+
+        for checkpoint in checkpoints:
+            checkpoint_path = Path(str(checkpoint.get("path") or ""))
+            checkpoint_name = str(checkpoint.get("name") or checkpoint_path.name)
+            is_epoch_checkpoint = checkpoint_name.startswith("router_epoch_") and checkpoint_name.endswith(".pt")
+            is_protected_checkpoint = is_active or not is_epoch_checkpoint
+            assets.append(_asset(
+                platform="training",
+                stage="training",
+                kind="training_checkpoint",
+                title=f"{job.get('name') or job_id}/{checkpoint_name}",
+                simulator=str(job.get("simulator") or ""),
+                scenario=", ".join(job.get("scenarios") or []),
+                job_id=job_id,
+                path=checkpoint_path,
+                id_parts=("training_checkpoint", job_id, checkpoint_name),
+                count=checkpoint.get("epoch"),
+                count_label="轮次",
+                file_size_bytes=int(checkpoint.get("size_bytes") or 0),
+                mtime=float(checkpoint.get("mtime") or 0),
+                valid=True,
+                status=status,
+                protected=is_protected_checkpoint,
+                deletable=not is_protected_checkpoint,
+                warnings=["运行中任务的权重不能删除。"] if is_active else (["latest/final/interrupted 权重受保护。"] if not is_epoch_checkpoint else []),
+                details={
+                    "job_id": job_id,
+                    "job_name": job.get("name"),
+                    "epoch": checkpoint.get("epoch"),
+                    "checkpoint_name": checkpoint_name,
+                },
+            ))
     return assets
 
 
@@ -578,6 +611,10 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
 
     if kind == "training_job" and len(parts) == 2:
         training_manager.delete_job(parts[1])
+        return {"ok": True, "kind": kind, "deleted": 1}
+
+    if kind == "training_checkpoint" and len(parts) == 3:
+        training_manager.delete_checkpoint(parts[1], parts[2])
         return {"ok": True, "kind": kind, "deleted": 1}
 
     raise ValueError(f"unsupported asset deletion kind: {kind}")

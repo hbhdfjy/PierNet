@@ -124,7 +124,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
               <span className="app-brand__status" />
             </div>
             <div className="min-w-0">
-              <div className="app-brand__title">PiERN Synth</div>
+              <div className="app-brand__title">PiERN 数据</div>
               <div className="app-brand__subtitle">数据合成工作台</div>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
 
             <div>
-              <SectionLabel>Stage 1 - Simulation</SectionLabel>
+              <SectionLabel>阶段 1 · 物理仿真</SectionLabel>
               <div className="space-y-1">
                 <NavItem to="/synth/simulate" icon={Zap} label="物理仿真" color="amber" />
                 <NavItem to="/synth/upload" icon={UploadCloud} label="上传数据" color="amber" />
@@ -144,7 +144,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
 
             <div>
-              <SectionLabel>Stage 2 - Templates</SectionLabel>
+              <SectionLabel>阶段 2 · 语言模板</SectionLabel>
               <div className="space-y-1">
                 <NavItem to="/synth/register" icon={BookOpen} label="注册场景" color="sky" step="01" />
                 <NavItem to="/synth/templates" icon={Cpu} label="生成模板" color="violet" step="02" />
@@ -152,12 +152,12 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
 
             <div>
-              <SectionLabel>Stage 3 - Samples</SectionLabel>
+              <SectionLabel>阶段 3 · 样本填充</SectionLabel>
               <NavItem to="/synth/fill" icon={FlaskConical} label="填充样本" color="emerald" />
             </div>
 
             <div>
-              <SectionLabel>Stage 4 - Router</SectionLabel>
+              <SectionLabel>阶段 4 · 路由数据</SectionLabel>
               <NavItem to="/synth/router" icon={GitBranch} label="构建路由" color="rose" />
             </div>
 

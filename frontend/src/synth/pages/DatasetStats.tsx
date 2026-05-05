@@ -127,9 +127,9 @@ function OverviewHero({
       <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div className="max-w-3xl">
           <div className="training-eyebrow">
-            <span>Synth</span>
+            <span>数据平台</span>
             <span className="text-slate-500">/</span>
-            <span>Dataset</span>
+            <span>数据集</span>
           </div>
           <h1 className="mt-4 text-[2.15rem] font-semibold tracking-tight text-white xl:text-[2.5rem]">数据总览</h1>
           <p className="mt-3 max-w-2xl training-copy">
@@ -144,7 +144,7 @@ function OverviewHero({
 
       <div className="mt-6 training-kpi-grid">
         <KpiCard label="样本" value={totalSamples.toLocaleString()} note={`${datasetCount} 个 JSONL`} icon={<Database size={16} />} />
-        <KpiCard label="场景" value={scenarioCount.toString()} note={`${simulatorCount} 个 Simulator`} icon={<Layers size={16} />} />
+        <KpiCard label="场景" value={scenarioCount.toString()} note={`${simulatorCount} 个仿真器`} icon={<Layers size={16} />} />
         <KpiCard label="Router" value={formatCompact(routerTotal)} note="训练输入规模" icon={<GitBranch size={16} />} />
         <KpiCard label="结构" value={shapeCount.toString()} note="时序形状" icon={<BarChart2 size={16} />} />
       </div>
@@ -281,13 +281,13 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
     <div className="training-card overflow-hidden">
       <div className="card-header">
         <TrendingUp size={16} className="text-slate-400" />
-        <SectionTitle title="时序形状" copy="按 simulator 聚合" />
+        <SectionTitle title="时序形状" copy="按仿真器聚合" />
       </div>
       <div className="list-table-scroll">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-slate-700/40 bg-slate-800/30">
-              <th className="px-5 py-3 text-left label">Simulator</th>
+              <th className="px-5 py-3 text-left label">仿真器</th>
               <th className="px-5 py-3 text-right label">通道数</th>
               <th className="px-5 py-3 text-right label">时间点</th>
               <th className="px-5 py-3 text-right label">形状</th>
@@ -407,7 +407,7 @@ export default function DatasetStats() {
                       <thead>
                         <tr className="border-b border-slate-700/40 bg-slate-800/30">
                           <th className="px-5 py-3 text-left label">场景</th>
-                          <th className="px-5 py-3 text-left label">Simulator</th>
+                          <th className="px-5 py-3 text-left label">仿真器</th>
                           <th className="px-5 py-3 text-right label">样本数</th>
                           <th className="px-5 py-3 text-right label">文件大小</th>
                           <th className="px-5 py-3 text-right label">修改时间</th>
@@ -452,7 +452,7 @@ export default function DatasetStats() {
                   <thead>
                     <tr className="border-b border-slate-700/40 bg-slate-800/30">
                       <th className="px-5 py-3 text-left label">场景</th>
-                      <th className="px-5 py-3 text-left label">Simulator</th>
+                      <th className="px-5 py-3 text-left label">仿真器</th>
                       <th className="px-5 py-3 text-right label">Router 样本数</th>
                       <th className="px-5 py-3 text-right label">源数据</th>
                       <th className="px-5 py-3 text-right label">文件大小</th>

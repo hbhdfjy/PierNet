@@ -48,7 +48,7 @@ export default function SampleViewer() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-white leading-none">样本浏览</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Stage 3 生成的训练样本</p>
+            <p className="text-sm text-slate-500 mt-0.5">阶段 3 生成的训练样本</p>
           </div>
         </div>
         <button className="btn-ghost" onClick={() => mutate()}>

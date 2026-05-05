@@ -100,14 +100,12 @@ function FlowStep({ step, title, copy }: { step: string; title: string; copy: st
 export default function LandingPage({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
   return (
     <div className="platform-home-shell">
-      <div className="platform-home-orb platform-home-orb--one" />
-      <div className="platform-home-orb platform-home-orb--two" />
       <div className="platform-home-wrap">
         <header className="platform-topbar">
           <div className="platform-brand-lockup">
             <div className="platform-brand-lockup__mark">P</div>
             <div>
-              <div className="platform-brand-lockup__title">PiERN Gateway</div>
+              <div className="platform-brand-lockup__title">PiERN 工作台</div>
               <div className="platform-brand-lockup__subtitle">物理工程数据与 Token Router 训练入口</div>
             </div>
           </div>
@@ -130,16 +128,16 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               </div>
               <h1 className="platform-hero-title">从物理仿真到路由训练的清晰入口</h1>
               <p className="platform-hero-copy">
-                `/synth` 负责 Stage 1-4 数据合成，`/training` 负责 Token Router 单 GPU 训练。两个平台逻辑隔离，共享同一个 FastAPI + React 部署入口。
+                `/synth` 负责阶段 1-4 数据合成，`/training` 负责 Token Router 单卡训练。两个平台逻辑隔离，共享同一个前后端部署入口。
               </p>
               <div className="platform-hero-actions">
                 <Link to="/synth" className="btn-primary">
                   <Database size={15} />
-                  打开 Synth
+                  打开数据平台
                 </Link>
                 <Link to="/training" className="btn-ghost">
                   <GitBranch size={15} />
-                  打开 Training
+                  打开训练平台
                 </Link>
               </div>
             </div>
@@ -147,7 +145,7 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
             <div className="platform-hero-board" aria-label="PiERN system summary">
               <div className="platform-hero-board__header">
                 <span>运行边界</span>
-                <strong>FastAPI :8000</strong>
+                <strong>后端 :8000</strong>
               </div>
               <div className="platform-hero-metrics">
                 <div>
@@ -168,8 +166,8 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
                 </div>
               </div>
               <div className="platform-flow-line">
-                <FlowStep step="01" title="Synth" copy="仿真、模板、样本、Router 数据" />
-                <FlowStep step="02" title="Training" copy="训练任务、曲线、日志、checkpoint" />
+                <FlowStep step="01" title="数据平台" copy="仿真、模板、样本、Router 数据" />
+                <FlowStep step="02" title="训练平台" copy="训练任务、曲线、日志、权重" />
               </div>
             </div>
           </section>
@@ -183,8 +181,8 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               tone="synth"
               icon={<Database size={23} />}
               stats={[
-                { label: 'Pipeline', value: 'Stage 1-4' },
-                { label: 'Simulators', value: '5 类' },
+                { label: '流程', value: '阶段 1-4' },
+                { label: '仿真器', value: '5 类' },
               ]}
               points={[
                 'HDF5 / JSONL 源产物统一管理',
@@ -201,23 +199,23 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               tone="training"
               icon={<GitBranch size={23} />}
               stats={[
-                { label: 'Model', value: 'Token Router' },
-                { label: 'Device', value: 'Single GPU' },
+                { label: '模型', value: 'Token Router' },
+                { label: '设备', value: '单卡 GPU' },
               ]}
               points={[
                 '按大场景管理训练数据与任务',
                 '实时查看 loss、accuracy、F1 与日志',
-                '支持终止、删除历史任务与 checkpoint 管理',
+                '支持终止、删除历史任务与 权重 管理',
               ]}
             />
           </section>
 
           <section className="platform-info-grid" aria-label="Required project information">
             <InfoPill label="部署入口" value="单 FastAPI 应用托管 API 与前端静态资源" icon={<Server size={16} />} />
-            <InfoPill label="数据读取" value="Stage 2-4 使用 manifest / index 加速浏览" icon={<BarChart3 size={16} />} />
+            <InfoPill label="数据读取" value="阶段 2-4 使用清单和索引加速浏览" icon={<BarChart3 size={16} />} />
             <InfoPill label="代码边界" value="synth / training 独立命名空间，shared 只放基础设施" icon={<Boxes size={16} />} />
             <InfoPill label="训练核心" value="Qwen embedding + full-sequence conv router" icon={<Cpu size={16} />} />
-            <InfoPill label="平台联通" value="两个平台仅通过入口链接与 Stage 4 数据契约衔接" icon={<Network size={16} />} />
+            <InfoPill label="平台联通" value="两个平台仅通过入口链接与阶段 4 数据契约衔接" icon={<Network size={16} />} />
             <InfoPill label="运行约束" value="训练平台当前不是通用多卡训练系统" icon={<Workflow size={16} />} />
           </section>
         </main>

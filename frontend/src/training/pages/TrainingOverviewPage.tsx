@@ -91,8 +91,8 @@ export default function TrainingOverviewPage() {
             <div className="mt-4 training-kpi-grid">
               <KpiCard label="样本" value={formatCount(totalDatasets)} note={`${data?.datasets.length ?? 0} 个大场景`} icon={<Database size={16} />} />
               <KpiCard label="GPU" value={`${availableGpus}/${data?.gpus.length ?? 0}`} note="当前可用卡数" icon={<Gauge size={16} />} />
-              <KpiCard label="运行中" value={formatCount(data?.running_job_count ?? 0)} note="starting / running / evaluating / stopping" icon={<Activity size={16} />} />
-              <KpiCard label="已完成" value={formatCount(data?.completed_job_count ?? 0)} note="已有 checkpoint 和测试结果" icon={<TimerReset size={16} />} />
+              <KpiCard label="运行中" value={formatCount(data?.running_job_count ?? 0)} note="启动中 / 训练中 / 评测中 / 停止中" icon={<Activity size={16} />} />
+              <KpiCard label="已完成" value={formatCount(data?.completed_job_count ?? 0)} note="已有权重和测试结果" icon={<TimerReset size={16} />} />
             </div>
           </section>
 

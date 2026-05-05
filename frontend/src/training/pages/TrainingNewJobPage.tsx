@@ -75,6 +75,7 @@ export default function TrainingNewJobPage() {
   const [epochs, setEpochs] = useState('0')
   const [infiniteEpochs, setInfiniteEpochs] = useState(true)
   const [evalInterval, setEvalInterval] = useState('1')
+  const [keepLastEpochs, setKeepLastEpochs] = useState('5')
   const [batchSize, setBatchSize] = useState('256')
   const [testBatchSize, setTestBatchSize] = useState('256')
   const [learningRate, setLearningRate] = useState('0.0002')
@@ -101,7 +102,7 @@ export default function TrainingNewJobPage() {
           return selected.length > 0 && selected.length === candidate.length && selected.every((item, idx) => item === candidate[idx])
         })
         .map(job => ({
-          label: `${job.name} · latest`,
+          label: `${job.name} · 最新权重`,
           value: `${job.run_dir}/router_latest.pt`,
         })),
     [dataset?.simulator, jobs, selectedScenarios, simulator],
@@ -161,6 +162,7 @@ export default function TrainingNewJobPage() {
       gpu_id: gpuId,
       epochs: infiniteEpochs ? 0 : Math.max(1, Math.floor(toNumber(epochs, 1))),
       eval_interval: Math.max(1, Math.floor(toNumber(evalInterval, 1))),
+      keep_last_epochs: Math.max(0, Math.floor(toNumber(keepLastEpochs, 5))),
       batch_size: Math.max(1, Math.floor(toNumber(batchSize, 256))),
       test_batch_size: Math.max(1, Math.floor(toNumber(testBatchSize, 256))),
       learning_rate: Math.max(1e-8, toNumber(learningRate, 2e-4)),
@@ -226,7 +228,7 @@ export default function TrainingNewJobPage() {
                 </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <div className="grid gap-3 md:grid-cols-2">
-                    <Field label="任务名称" note="为空时自动使用 job_id">
+                    <Field label="任务名称" note="为空时自动使用任务 ID">
                       <input className="input" value={jobName} onChange={e => setJobName(e.target.value)} placeholder="例如：modflow-router-v1" />
                     </Field>
                     <Field label="大场景">
@@ -345,10 +347,10 @@ export default function TrainingNewJobPage() {
               <div className="training-card training-card--compact">
                 <div className="card-header">
                   <Sparkles size={16} className="text-violet-300" />
-                  <SectionTitle title="训练参数" copy="全量 sequence 训练配置" />
+                  <SectionTitle title="训练参数" copy="全序列训练配置" />
                 </div>
                 <div className="grid gap-3 p-3 md:grid-cols-2 2xl:grid-cols-4">
-                  <Field label="Epochs">
+                  <Field label="训练轮数">
                     <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
                       <label className="flex items-center gap-2 text-[14px] text-slate-300">
                         <input type="checkbox" checked={infiniteEpochs} onChange={e => setInfiniteEpochs(e.target.checked)} />
@@ -366,26 +368,29 @@ export default function TrainingNewJobPage() {
                   <Field label="测试间隔">
                     <input className="input mono" value={evalInterval} onChange={e => setEvalInterval(e.target.value)} />
                   </Field>
-                  <Field label="训练 Batch Size">
+                  <Field label="保留最近权重" note="每个 epoch 保存一份权重，仅保留最近 N 份；0 表示只保留 latest/final 权重。">
+                    <input className="input mono" value={keepLastEpochs} onChange={e => setKeepLastEpochs(e.target.value)} />
+                  </Field>
+                  <Field label="训练批大小">
                     <input className="input mono" value={batchSize} onChange={e => setBatchSize(e.target.value)} />
                   </Field>
-                  <Field label="测试 Batch Size">
+                  <Field label="测试批大小">
                     <input className="input mono" value={testBatchSize} onChange={e => setTestBatchSize(e.target.value)} />
                   </Field>
-                  <Field label="Learning Rate">
+                  <Field label="学习率">
                     <input className="input mono" value={learningRate} onChange={e => setLearningRate(e.target.value)} />
                   </Field>
-                  <Field label="Weight Decay">
+                  <Field label="权重衰减">
                     <input className="input mono" value={weightDecay} onChange={e => setWeightDecay(e.target.value)} />
                   </Field>
-                  <Field label="Num Workers">
+                  <Field label="数据加载线程">
                     <input className="input mono" value={numWorkers} onChange={e => setNumWorkers(e.target.value)} />
                   </Field>
                   <Field label="测试集比例">
                     <input className="input mono" value={testRatio} onChange={e => setTestRatio(e.target.value)} />
                   </Field>
                   <div className="md:col-span-2 2xl:col-span-4">
-                    <Field label="Resume Checkpoint" note="只列出与当前大场景和子场景集合匹配的已完成任务。">
+                    <Field label="恢复权重" note="只列出与当前大场景和子场景集合匹配的已完成任务。">
                       <select className="select" value={resumeFrom} onChange={e => setResumeFrom(e.target.value)}>
                         <option value="">不恢复，重新训练</option>
                         {checkpointCandidates.map(option => (
@@ -408,7 +413,7 @@ export default function TrainingNewJobPage() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="training-surface--compact">
                       <div className="training-label">任务</div>
-                      <div className="mt-1 truncate text-[15px] font-semibold text-slate-100">{jobName.trim() || '默认使用 job_id'}</div>
+                      <div className="mt-1 truncate text-[15px] font-semibold text-slate-100">{jobName.trim() || '默认使用任务 ID'}</div>
                       <div className="mt-1 text-[12px] text-slate-500">{dataset?.simulator.toUpperCase() ?? '—'} · {selectedScenarios.length} 个场景</div>
                     </div>
                     <div className="training-surface--compact">
@@ -434,14 +439,15 @@ export default function TrainingNewJobPage() {
                   <div className="training-surface--compact">
                     <div className="training-label">训练配置</div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] text-slate-400">
-                      <div>Epochs: <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span></div>
-                      <div>Eval: <span className="mono text-slate-200">{evalInterval}</span></div>
-                      <div>Batch: <span className="mono text-slate-200">{batchSize}</span></div>
-                      <div>Test Batch: <span className="mono text-slate-200">{testBatchSize}</span></div>
-                      <div>LR: <span className="mono text-slate-200">{learningRate}</span></div>
-                      <div>WD: <span className="mono text-slate-200">{weightDecay}</span></div>
-                      <div>Workers: <span className="mono text-slate-200">{numWorkers}</span></div>
-                      <div>Test Ratio: <span className="mono text-slate-200">{testRatio}</span></div>
+                      <div>训练轮数： <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span></div>
+                      <div>测试间隔： <span className="mono text-slate-200">{evalInterval}</span></div>
+                      <div>保留权重： <span className="mono text-slate-200">{keepLastEpochs}</span></div>
+                      <div>训练批量： <span className="mono text-slate-200">{batchSize}</span></div>
+                      <div>测试批量： <span className="mono text-slate-200">{testBatchSize}</span></div>
+                      <div>学习率： <span className="mono text-slate-200">{learningRate}</span></div>
+                      <div>权重衰减： <span className="mono text-slate-200">{weightDecay}</span></div>
+                      <div>线程： <span className="mono text-slate-200">{numWorkers}</span></div>
+                      <div>测试比例： <span className="mono text-slate-200">{testRatio}</span></div>
                     </div>
                   </div>
                 </div>

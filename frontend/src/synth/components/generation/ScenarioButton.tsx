@@ -51,7 +51,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
     <button
       onClick={onClick}
       disabled={disabled}
-      title={noData ? '尚无 HDF5 数据，需先运行 Stage 1 物理仿真' : undefined}
+      title={noData ? '尚无 HDF5 数据，需先运行 阶段 1 物理仿真' : undefined}
       className={cn(
         'relative text-left px-3 py-2.5 rounded-xl border transition-all duration-150 overflow-hidden w-full',
         'focus:outline-none focus-visible:ring-2',
@@ -147,7 +147,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
 
         {/* 提示文字 */}
         {noData && (
-          <p className="text-xs text-slate-600 mt-1 leading-tight">需先运行 Stage 1 生成 HDF5</p>
+          <p className="text-xs text-slate-600 mt-1 leading-tight">需先运行阶段 1 生成 HDF5</p>
         )}
         {!noData && unregistered && (
           <p className="text-xs text-amber-600/60 mt-1 leading-tight">未注册元数据，生成可能失败</p>

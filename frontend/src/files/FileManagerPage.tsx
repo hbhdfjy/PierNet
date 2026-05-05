@@ -1,24 +1,18 @@
 
 import { useMemo, useState } from 'react'
-import { NavLink } from 'react-router-dom'
 import useSWR from 'swr'
 import {
-  ArrowLeft,
-  Database,
   FolderOpen,
   Lock,
-  Moon,
   RefreshCw,
   Scissors,
   Search,
   ShieldCheck,
-  Sun,
   Trash2,
 } from 'lucide-react'
 import { api } from '../lib/api'
 import type { FileAsset, FileCatalogResponse } from '../lib/types'
 import { cn, formatBytes } from '../lib/utils'
-import type { Theme } from '../shared/theme'
 
 const ALL = 'all'
 
@@ -55,6 +49,13 @@ const KIND_CLEAR_OPTIONS = [
   { key: 'router', label: '清空路由数据' },
 ] as const
 
+type FileManagerContentProps = {
+  initialPlatform?: string
+  lockPlatform?: boolean
+  title?: string
+  copy?: string
+}
+
 function platformLabel(asset: FileAsset) {
   return PLATFORM_LABELS[asset.platform] ?? asset.platform_label ?? asset.platform
 }
@@ -83,20 +84,6 @@ function statusClass(asset: FileAsset) {
   if (asset.valid === false || asset.status === 'invalid') return 'border-red-500/30 bg-red-500/10 text-red-300'
   if (asset.protected) return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
   return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-}
-
-function SimpleNav({ to, label, icon: Icon, end = false }: { to: string; label: string; icon: React.ElementType; end?: boolean }) {
-  return (
-    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
-      {({ isActive }) => (
-        <>
-          {isActive && <span className="nav-item__rail" />}
-          <div className="nav-item__icon"><Icon size={14} /></div>
-          <span className="nav-item__label">{label}</span>
-        </>
-      )}
-    </NavLink>
-  )
 }
 
 function SelectFilter({ label, value, options, onChange }: {
@@ -244,11 +231,20 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function FileManagerContent() {
+export function FileManagerContent({
+  initialPlatform = ALL,
+  lockPlatform = false,
+  title = '统一文件管理',
+  copy = '集中管理 HDF5、模板、样本、路由数据、训练产物、清单与索引。',
+}: FileManagerContentProps = {}) {
   const { data, isLoading, mutate } = useSWR<FileCatalogResponse>('file-catalog', () => api.getFileCatalog(), { refreshInterval: 12000 })
   const assets = data?.assets ?? []
+  const scopedAssets = useMemo(
+    () => (lockPlatform ? assets.filter(asset => asset.platform === initialPlatform) : assets),
+    [assets, initialPlatform, lockPlatform],
+  )
 
-  const [platform, setPlatform] = useState(ALL)
+  const [platform, setPlatform] = useState(initialPlatform)
   const [stage, setStage] = useState(ALL)
   const [kind, setKind] = useState(ALL)
   const [status, setStatus] = useState(ALL)
@@ -259,14 +255,14 @@ export function FileManagerContent() {
   const [trimValue, setTrimValue] = useState('')
   const [error, setError] = useState<string | null>(null)
 
-  const platformOptions = useMemo(() => toOptions(assets, 'platform', platformLabel), [assets])
-  const stageOptions = useMemo(() => toOptions(assets, 'stage', stageLabel), [assets])
-  const kindOptions = useMemo(() => toOptions(assets, 'kind', kindLabel), [assets])
+  const platformOptions = useMemo(() => toOptions(scopedAssets, 'platform', platformLabel), [scopedAssets])
+  const stageOptions = useMemo(() => toOptions(scopedAssets, 'stage', stageLabel), [scopedAssets])
+  const kindOptions = useMemo(() => toOptions(scopedAssets, 'kind', kindLabel), [scopedAssets])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
-    return assets.filter(asset => {
-      if (platform !== ALL && asset.platform !== platform) return false
+    return scopedAssets.filter(asset => {
+      if (!lockPlatform && platform !== ALL && asset.platform !== platform) return false
       if (stage !== ALL && asset.stage !== stage) return false
       if (kind !== ALL && asset.kind !== kind) return false
       if (status === 'invalid' && !(asset.valid === false || asset.status === 'invalid')) return false
@@ -279,9 +275,17 @@ export function FileManagerContent() {
       }
       return true
     })
-  }, [assets, platform, stage, kind, status, query])
+  }, [scopedAssets, lockPlatform, platform, stage, kind, status, query])
 
-  const selectedAsset = assets.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
+  const selectedAsset = scopedAssets.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
+  const scopedSummary = useMemo(() => ({
+    total_assets: scopedAssets.length,
+    total_size_bytes: scopedAssets.reduce((sum, asset) => sum + asset.file_size_bytes, 0),
+    deletable_count: scopedAssets.filter(asset => asset.deletable).length,
+    protected_count: scopedAssets.filter(asset => asset.protected).length,
+    invalid_count: scopedAssets.filter(asset => asset.valid === false || asset.status === 'invalid').length,
+  }), [scopedAssets])
+
 
   async function refresh() {
     setError(null)
@@ -364,17 +368,17 @@ export function FileManagerContent() {
                   <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
                     统一文件目录
                   </div>
-                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-50">统一文件管理</h1>
+                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-50">{title}</h1>
                   <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
-                    集中管理 HDF5、模板、样本、路由数据、训练产物、清单与索引。
+                    {copy}
                   </p>
                 </div>
                 <div className="grid min-w-[520px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
-                  <Metric label="文件" value={(data?.summary.total_assets ?? 0).toLocaleString()} />
-                  <Metric label="存储" value={formatBytes(data?.summary.total_size_bytes ?? 0)} />
-                  <Metric label="可删除" value={(data?.summary.deletable_count ?? 0).toLocaleString()} />
-                  <Metric label="受保护" value={(data?.summary.protected_count ?? 0).toLocaleString()} />
-                  <Metric label="无效" value={(data?.summary.invalid_count ?? 0).toLocaleString()} />
+                  <Metric label="文件" value={scopedSummary.total_assets.toLocaleString()} />
+                  <Metric label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
+                  <Metric label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
+                  <Metric label="受保护" value={scopedSummary.protected_count.toLocaleString()} />
+                  <Metric label="无效" value={scopedSummary.invalid_count.toLocaleString()} />
                 </div>
               </div>
             </section>
@@ -390,11 +394,13 @@ export function FileManagerContent() {
                 <button className="btn-ghost text-xs" onClick={refresh} disabled={isLoading}>
                   <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />刷新
                 </button>
-                <button className="btn-ghost text-xs text-sky-300" onClick={rebuildIndexes} disabled={busyAction === 'rebuild'}>
-                  {busyAction === 'rebuild' ? <RefreshCw size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                  重建索引
-                </button>
-                {KIND_CLEAR_OPTIONS.map(option => (
+                {!lockPlatform && (
+                  <button className="btn-ghost text-xs text-sky-300" onClick={rebuildIndexes} disabled={busyAction === 'rebuild'}>
+                    {busyAction === 'rebuild' ? <RefreshCw size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
+                    重建索引
+                  </button>
+                )}
+                {!lockPlatform && KIND_CLEAR_OPTIONS.map(option => (
                   <button
                     key={option.key}
                     className="btn-ghost text-xs text-red-300"
@@ -407,7 +413,7 @@ export function FileManagerContent() {
                 ))}
               </div>
 
-              <div className="grid grid-cols-1 gap-3 border-b border-slate-700/35 p-4 lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_0.9fr]">
+              <div className={`grid grid-cols-1 gap-3 border-b border-slate-700/35 p-4 ${lockPlatform ? 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr]' : 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_0.9fr]'}`}>
                 <label className="space-y-1.5">
                   <span className="label text-xs">搜索</span>
                   <div className="relative">
@@ -415,7 +421,7 @@ export function FileManagerContent() {
                     <input className="input pl-9" value={query} onChange={e => setQuery(e.target.value)} placeholder="场景、路径或任务名" />
                   </div>
                 </label>
-                <SelectFilter label="平台" value={platform} options={platformOptions} onChange={setPlatform} />
+                {!lockPlatform && <SelectFilter label="平台" value={platform} options={platformOptions} onChange={setPlatform} />}
                 <SelectFilter label="阶段" value={stage} options={stageOptions} onChange={setStage} />
                 <SelectFilter label="类型" value={kind} options={kindOptions} onChange={setKind} />
                 <SelectFilter
@@ -506,52 +512,6 @@ export function FileManagerContent() {
               </div>
             </section>
           </div>
-    </div>
-  )
-}
-
-export default function FileManagerPage({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
-  return (
-    <div className="app-shell">
-      <aside className="app-sidebar w-56 flex-shrink-0">
-        <div className="app-brand">
-          <div className="app-brand__mark-wrap">
-            <div className="app-brand__mark">F</div>
-            <span className="app-brand__status" />
-          </div>
-          <div className="min-w-0">
-            <div className="app-brand__title">PiERN 文件</div>
-            <div className="app-brand__subtitle">统一文件管理</div>
-          </div>
-        </div>
-
-        <nav className="app-nav">
-          <div>
-            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">文件</span><div className="app-section-label__line" /></div>
-            <div className="space-y-1">
-              <SimpleNav to="/files" end icon={FolderOpen} label="统一文件" />
-            </div>
-          </div>
-          <div>
-            <div className="app-section-label"><span className="label text-[11px] whitespace-nowrap">平台</span><div className="app-section-label__line" /></div>
-            <div className="space-y-1">
-              <SimpleNav to="/synth" icon={Database} label="数据合成" />
-              <SimpleNav to="/training" icon={ArrowLeft} label="训练平台" />
-            </div>
-          </div>
-        </nav>
-
-        <div className="app-sidebar__footer">
-          <button type="button" onClick={toggleTheme} className="theme-toggle">
-            {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-            <span>{theme === 'dark' ? '日间' : '夜间'}</span>
-          </button>
-        </div>
-      </aside>
-
-      <main className="app-main">
-        <FileManagerContent />
-      </main>
     </div>
   )
 }

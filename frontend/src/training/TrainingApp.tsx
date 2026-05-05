@@ -5,6 +5,7 @@ import TrainingOverviewPage from './pages/TrainingOverviewPage'
 import TrainingNewJobPage from './pages/TrainingNewJobPage'
 import TrainingJobsPage from './pages/TrainingJobsPage'
 import TrainingJobDetailPage from './pages/TrainingJobDetailPage'
+import { FileManagerContent } from '../files/FileManagerPage'
 
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
@@ -50,7 +51,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
             <span className="app-brand__status" />
           </div>
           <div className="min-w-0">
-            <div className="app-brand__title">PiERN Training</div>
+            <div className="app-brand__title">PiERN 训练</div>
             <div className="app-brand__subtitle">模型训练工作台</div>
           </div>
         </div>
@@ -62,6 +63,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
               <NavItem to="/training" end icon={BarChart3} label="总览" />
               <NavItem to="/training/new" icon={PlayCircle} label="新建训练" />
               <NavItem to="/training/jobs" icon={Workflow} label="任务管理" />
+              <NavItem to="/training/files" icon={FolderOpen} label="文件管理" />
             </div>
           </div>
 
@@ -77,7 +79,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
             <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3 text-xs text-slate-400">
               <div className="flex items-center gap-2 text-slate-200">
                 <Cpu size={13} />
-                单 GPU · Token Router
+                单卡 · Token Router
               </div>
             </div>
           </div>
@@ -99,6 +101,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
           <Route path="new" element={<TrainingNewJobPage />} />
           <Route path="jobs" element={<TrainingJobsPage />} />
           <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
+          <Route path="files" element={<FileManagerContent initialPlatform="training" lockPlatform title="训练文件管理" copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。" />} />
           <Route path="*" element={<Navigate to="/training" replace />} />
         </Routes>
       </main>

@@ -111,7 +111,7 @@ export default function TemplateGenerator() {
                 <Cpu size={14} className="text-violet-400" />
               </div>
               <h1 className="text-lg font-bold text-white">模板生成</h1>
-              <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs">Stage 2</span>
+              <span className="badge bg-violet-500/15 text-violet-300 border border-violet-500/20 text-xs">阶段 2</span>
             </div>
             {totalTemplates > 0 && (
               <div className="flex items-center gap-1 text-xs text-slate-500">
@@ -120,7 +120,7 @@ export default function TemplateGenerator() {
               </div>
             )}
           </div>
-          <p className="text-slate-500 text-sm mt-1 ml-9">调用 LLM 生成语言模板，可被 Stage 3 反复复用</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">调用 LLM 生成语言模板，可被阶段 3 反复复用</p>
         </div>
 
         {/* 中部：场景选择（flex-1，独立滚动）*/}
@@ -200,7 +200,7 @@ export default function TemplateGenerator() {
                 <Layers size={20} className="text-slate-700" />
                 <div>
                   <p className="text-slate-500 text-xs font-medium">未找到任何场景</p>
-                  <p className="text-slate-600 text-sm mt-1">请先配置数据目录或运行 Stage 1 物理仿真</p>
+                  <p className="text-slate-600 text-sm mt-1">请先配置数据目录或运行阶段 1 物理仿真</p>
                 </div>
                 <button className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 transition-colors"
                   onClick={() => navigate('/data-dirs')}>
@@ -404,7 +404,7 @@ export default function TemplateGenerator() {
               <span className="font-medium text-slate-200 text-base">Template files</span>
             </div>
             <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
-              Open /files
+              打开文件管理
             </button>
           </div>
           <div className="p-4">
@@ -412,7 +412,7 @@ export default function TemplateGenerator() {
               <div className="font-semibold text-slate-100">Centralized file manager</div>
               <p className="mt-1 text-sm leading-6 text-slate-400">Template trim, delete, and clear operations now live in the unified file manager.</p>
               <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/files')}>
-                Open unified file manager
+                打开统一文件管理
               </button>
             </div>
           </div>

@@ -161,7 +161,7 @@ export default function RouterDataBuilder() {
                 <GitBranch size={14} className="text-rose-400" />
               </div>
               <h1 className="text-lg font-bold text-white">路由数据生成</h1>
-              <span className="badge bg-rose-500/15 text-rose-300 border border-rose-500/20 text-xs">Stage 4</span>
+              <span className="badge bg-rose-500/15 text-rose-300 border border-rose-500/20 text-xs">阶段 4</span>
             </div>
             {hasRouterData && (
               <div className="text-xs text-slate-500">
@@ -169,7 +169,7 @@ export default function RouterDataBuilder() {
               </div>
             )}
           </div>
-          <p className="text-slate-500 text-sm mt-1 ml-9">从 Stage 3 样本构建 Token 路由二分类训练数据</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">从阶段 3 样本构建 Token 路由二分类训练数据</p>
         </div>
 
         {/* 场景选择（flex-1，独立滚动）*/}
@@ -212,8 +212,8 @@ export default function RouterDataBuilder() {
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Layers size={20} className="text-slate-700" />
                 <div>
-                  <p className="text-slate-500 text-xs font-medium">未找到 Stage 3 数据</p>
-                  <p className="text-slate-600 text-sm mt-1">请先完成 Stage 3 样本填充</p>
+                  <p className="text-slate-500 text-xs font-medium">未找到阶段 3 数据</p>
+                  <p className="text-slate-600 text-sm mt-1">请先完成阶段 3 样本填充</p>
                 </div>
               </div>
             )}
@@ -340,7 +340,7 @@ export default function RouterDataBuilder() {
               <span className="font-medium text-slate-200 text-base">Router files</span>
             </div>
             <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
-              Open /files
+              打开文件管理
             </button>
           </div>
           <div className="p-4">
@@ -348,7 +348,7 @@ export default function RouterDataBuilder() {
               <div className="font-semibold text-slate-100">Centralized file manager</div>
               <p className="mt-1 text-sm leading-6 text-slate-400">Router scenario files, train.jsonl, and clear operations now live in the unified file manager.</p>
               <button className="btn-ghost mt-3 text-xs text-rose-300" onClick={() => navigate('/files')}>
-                Open unified file manager
+                打开统一文件管理
               </button>
             </div>
           </div>

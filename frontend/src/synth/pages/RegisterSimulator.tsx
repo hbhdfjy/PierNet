@@ -459,7 +459,7 @@ function AutoRegisterPanel() {
                 </div>
               </div>
               <div className="space-y-1">
-                {[{ key: 'overwrite', val: overwrite, set: setOverwrite, label: '覆盖已有字段' }, { key: 'simLevel', val: simulatorLevel, set: setSimulatorLevel, label: 'Simulator 级别' }].map(({ key, val, set, label }) => (
+                {[{ key: 'overwrite', val: overwrite, set: setOverwrite, label: '覆盖已有字段' }, { key: 'simLevel', val: simulatorLevel, set: setSimulatorLevel, label: '仿真器级别' }].map(({ key, val, set, label }) => (
                   <label key={key} className="flex items-center gap-2 cursor-pointer">
                     <input type="checkbox" className="accent-sky-500 flex-shrink-0" checked={val} onChange={e => set(e.target.checked)} />
                     <span className="text-xs text-slate-400">{label}</span>

@@ -1107,7 +1107,7 @@ export default function RegistryPage() {
         </div>
         <span className="text-lg font-bold text-white">注册信息</span>
         <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30">
-          {totalSimulators} 个 simulator · {totalScenarios} 个场景
+          {totalSimulators} 个仿真器 · {totalScenarios} 个场景
         </span>
         <div className="flex-1" />
         <input type="text" className="input py-1.5 w-48 text-sm" placeholder="搜索…"

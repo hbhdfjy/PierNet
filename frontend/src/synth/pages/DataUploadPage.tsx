@@ -164,7 +164,7 @@ export default function DataUploadPage() {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-amber-300">
-                Stage 1 Upload
+                阶段 1 上传
               </div>
               <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-50">上传物理数据</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">

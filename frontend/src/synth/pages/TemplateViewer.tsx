@@ -147,7 +147,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
         </div>
       </Section>
 
-      <Section icon={<Clock size={13} />} title="Observation" defaultOpen={false}>
+      <Section icon={<Clock size={13} />} title="观测配置" defaultOpen={false}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
           {[
             ['Time mode', record.time_mode],
@@ -167,7 +167,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
         </div>
       </Section>
 
-      <Section icon={<Layers size={13} />} title={`Output Slots (${record.output_schema.length})`} defaultOpen={false}>
+      <Section icon={<Layers size={13} />} title={`输出槽位 (${record.output_schema.length})`} defaultOpen={false}>
         <div className="list-scroll-md space-y-1.5">
           {record.output_schema.map(slot => (
             <div key={slot.index} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-700/30 text-xs">
@@ -178,7 +178,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
         </div>
       </Section>
 
-      <Section icon={<Hash size={13} />} title={`Parameters (${record.param_names.length})`} defaultOpen={false}>
+      <Section icon={<Hash size={13} />} title={`参数 (${record.param_names.length})`} defaultOpen={false}>
         <div className="flex flex-wrap gap-1.5">
           {record.param_names.map((name, i) => (
             <span key={i} className="badge bg-slate-800/60 text-slate-400 border border-slate-700/40 font-mono text-xs">
@@ -188,13 +188,13 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
         </div>
       </Section>
 
-      <Section icon={<Info size={13} />} title="Metadata" defaultOpen={false}>
+      <Section icon={<Info size={13} />} title="元数据" defaultOpen={false}>
         <div className="grid grid-cols-2 gap-2 text-xs">
           {[
-            ['Simulator', record.simulator],
-            ['Scenario', record.scenario],
-            ['Language', record.language],
-            ['Style', record.style],
+            ['仿真器', record.simulator],
+            ['场景', record.scenario],
+            ['语言', record.language],
+            ['风格', record.style],
           ].map(([k, v]) => (
             <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
               <div className="label mb-1">{k}</div>
@@ -258,7 +258,7 @@ export default function TemplateViewer() {
           </div>
           <div>
             <h1 className="text-lg font-bold text-white leading-none">Template Viewer</h1>
-            <p className="text-sm text-slate-500 mt-0.5">Stage 2 language templates</p>
+            <p className="text-sm text-slate-500 mt-0.5">阶段 2 语言模板</p>
           </div>
         </div>
       </div>

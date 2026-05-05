@@ -39,6 +39,7 @@ class RouterTrainingConfig:
     test_batch_size: int = 256
     epochs: int = 1
     eval_interval: int = 1
+    keep_last_epochs: int = 5
     learning_rate: float = 2e-4
     weight_decay: float = 0.01
     embedding_dim: int = 192
@@ -204,6 +205,32 @@ def _save_checkpoint(
         },
         path,
     )
+
+
+def _epoch_from_checkpoint_name(path: Path) -> int | None:
+    stem = path.stem
+    if not stem.startswith("router_epoch_"):
+        return None
+    try:
+        return int(stem.split("_")[-1])
+    except ValueError:
+        return None
+
+
+def _prune_epoch_checkpoints(run_dir: Path, keep_last_epochs: int) -> None:
+    keep_count = max(0, int(keep_last_epochs))
+    checkpoints = [
+        (epoch, path)
+        for path in run_dir.glob("router_epoch_*.pt")
+        if (epoch := _epoch_from_checkpoint_name(path)) is not None
+    ]
+    checkpoints.sort(key=lambda item: item[0], reverse=True)
+    for _, path in checkpoints[keep_count:]:
+        try:
+            path.unlink()
+            print(f"[checkpoint] pruned_epoch_checkpoint={path}")
+        except OSError as exc:
+            print(f"[checkpoint] prune_failed path={path} error={exc}")
 
 
 def _run_test(
@@ -489,6 +516,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         )
 
     epochs_to_run = config.epochs
+    keep_last_epochs = max(0, int(config.keep_last_epochs))
     current_epoch = start_epoch
     try:
         while epochs_to_run <= 0 or current_epoch - start_epoch < epochs_to_run:
@@ -592,9 +620,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
                 global_step=global_step,
             )
 
-            should_eval = current_epoch % max(config.eval_interval, 1) == 0
-            is_last_finite_epoch = epochs_to_run > 0 and (current_epoch - start_epoch) >= epochs_to_run
-            if should_eval or is_last_finite_epoch:
+            if keep_last_epochs > 0:
                 _save_checkpoint(
                     run_dir / f"router_epoch_{current_epoch:04d}.pt",
                     model=model,
@@ -604,6 +630,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
                     epoch=current_epoch,
                     global_step=global_step,
                 )
+                _prune_epoch_checkpoints(run_dir, keep_last_epochs)
+
+            should_eval = current_epoch % max(config.eval_interval, 1) == 0
+            is_last_finite_epoch = epochs_to_run > 0 and (current_epoch - start_epoch) >= epochs_to_run
+            if should_eval or is_last_finite_epoch:
                 _run_test(
                     model=model,
                     test_loader=test_loader,

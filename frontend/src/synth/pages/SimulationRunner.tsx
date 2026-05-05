@@ -287,7 +287,7 @@ export default function SimulationRunner() {
                 <Zap size={14} className="text-amber-400" />
               </div>
               <h1 className="text-lg font-bold text-white">仿真运行</h1>
-              <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs">Stage 1</span>
+              <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/20 text-xs">阶段 1</span>
             </div>
             <button
               className="btn-ghost py-1 px-2 text-xs"

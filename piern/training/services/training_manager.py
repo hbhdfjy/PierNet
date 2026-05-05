@@ -677,6 +677,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
     stop_token = _make_stop_token()
     stop_file = _stop_file_for_job(job_id)
+    keep_last_epochs = max(0, int(payload.get("keep_last_epochs", 5)))
     test_ratio = float(payload["test_ratio"])
     prepared_name = _hash_prepared_name(
         simulator,
@@ -711,6 +712,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         str(int(payload["epochs"])),
         "--eval-interval",
         str(int(payload["eval_interval"])),
+        "--keep-last-epochs",
+        str(keep_last_epochs),
         "--batch-size",
         str(int(payload["batch_size"])),
         "--test-batch-size",
@@ -765,6 +768,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             f"[launch] run_dir={run_dir}",
             f"[launch] log_path={log_path}",
             f"[launch] stop_file={stop_file}",
+            f"[launch] keep_last_epochs={keep_last_epochs}",
             "[launch] spawning training subprocess...",
         )
 
@@ -811,6 +815,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             "config": {
                 "epochs": int(payload["epochs"]),
                 "eval_interval": int(payload["eval_interval"]),
+                "keep_last_epochs": keep_last_epochs,
                 "batch_size": int(payload["batch_size"]),
                 "test_batch_size": int(payload["test_batch_size"]),
                 "learning_rate": float(payload["learning_rate"]),
@@ -846,6 +851,33 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         entries.append(entry)
         _save_registry(entries)
         return _refresh_entry(entry)
+
+
+@_with_registry_lock
+def delete_checkpoint(job_id: str, checkpoint_name: str) -> dict[str, Any]:
+    if not checkpoint_name.startswith("router_epoch_") or not checkpoint_name.endswith(".pt"):
+        raise ValueError(f"only epoch checkpoints can be deleted individually: {checkpoint_name}")
+
+    entries = _load_registry()
+    entry = _find_job(entries, job_id)
+    entry = _refresh_entry(entry)
+    if entry.get("status") in TRAINING_ACTIVE_STATUSES or _pid_alive(entry.get("pid")):
+        raise ValueError(f"training job is still active: {job_id}")
+
+    run_dir = Path(entry["run_dir"])
+    checkpoint_path = run_dir / checkpoint_name
+    try:
+        checkpoint_path.relative_to(run_dir)
+    except ValueError as exc:
+        raise ValueError("checkpoint path escapes run directory") from exc
+    if not checkpoint_path.exists() or not checkpoint_path.is_file():
+        raise FileNotFoundError(f"checkpoint does not exist: {checkpoint_name}")
+
+    checkpoint_path.unlink()
+    _load_checkpoint_metadata.cache_clear()
+    entry["checkpoints"] = _checkpoint_entries(run_dir)
+    _save_registry(entries)
+    return entry
 
 
 def _force_kill_after_grace(job_id: str, pid: int, deadline: float) -> None:

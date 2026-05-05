@@ -108,7 +108,7 @@ export default function SampleFiller() {
               <FlaskConical size={14} className="text-emerald-400" />
             </div>
             <h1 className="text-lg font-bold text-white">样本填充</h1>
-            <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">Stage 3</span>
+            <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">阶段 3</span>
           </div>
           <p className="text-slate-500 text-sm mt-1 ml-9">
             将模板库与 HDF5 数值结合，生成最终训练样本。
@@ -136,7 +136,7 @@ export default function SampleFiller() {
           <div className="flex-shrink-0 border-b border-slate-700/20 px-4 py-2.5 flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <Sparkles size={11} className="text-slate-600" />
-              <span className="text-xs text-slate-600">暂无模板，请先完成 Stage 2 模板生成</span>
+              <span className="text-xs text-slate-600">暂无模板，请先完成阶段 2 模板生成</span>
             </div>
             <button className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
               onClick={() => navigate('/templates')}>
@@ -330,7 +330,7 @@ export default function SampleFiller() {
               <span className="font-medium text-slate-200 text-base">Sample files</span>
             </div>
             <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
-              Open /files
+              打开文件管理
             </button>
           </div>
           <div className="p-4">
@@ -338,7 +338,7 @@ export default function SampleFiller() {
               <div className="font-semibold text-slate-100">Centralized file manager</div>
               <p className="mt-1 text-sm leading-6 text-slate-400">Sample delete, clear, and merged-file state now live in the unified file manager.</p>
               <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/files')}>
-                Open unified file manager
+                打开统一文件管理
               </button>
             </div>
           </div>

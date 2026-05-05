@@ -24,6 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--test-batch-size", type=int, default=256)
     parser.add_argument("--epochs", type=int, default=1)
     parser.add_argument("--eval-interval", type=int, default=1)
+    parser.add_argument("--keep-last-epochs", type=int, default=5)
     parser.add_argument("--learning-rate", type=float, default=2e-4)
     parser.add_argument("--weight-decay", type=float, default=1e-2)
     parser.add_argument("--embedding-dim", type=int, default=192)
@@ -57,6 +58,7 @@ def main() -> None:
         test_batch_size=args.test_batch_size,
         epochs=args.epochs,
         eval_interval=args.eval_interval,
+        keep_last_epochs=args.keep_last_epochs,
         learning_rate=args.learning_rate,
         weight_decay=args.weight_decay,
         embedding_dim=args.embedding_dim,

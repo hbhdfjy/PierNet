@@ -169,11 +169,11 @@ export default function SampleCard({ sample, index }: Props) {
       </Section>
 
       {/* ── Metadata ── */}
-      <Section icon={<Info size={13} />} title="Metadata" defaultOpen={false}>
+      <Section icon={<Info size={13} />} title="元数据" defaultOpen={false}>
         <div className="space-y-3 text-sm">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {[
-              ['Simulator', SIMULATOR_LABELS[meta.simulator] ?? meta.simulator],
+              ['仿真器', SIMULATOR_LABELS[meta.simulator] ?? meta.simulator],
               ['场景', meta.scenario],
               ['样本索引', meta.sample_idx],
               ['原始形状', `${meta.timeseries_shape[0]} × ${meta.timeseries_shape[1]}`],
