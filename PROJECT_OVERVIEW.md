@@ -150,7 +150,7 @@ Current assumptions:
 - split: train/test only
 - default `test_ratio`: `0.10`
 - input representation: dynamic Qwen tokenization + frozen pretrained embedding lookup
-- default embedding backbone: `/data/fjy/Qwen2.5-0.5B-Instruct`
+- default embedding backbone: `/home/tpx/Qwen/Qwen2.5-0.5B-Instruct`
 - no offline embedding arrays are written
 
 Primary implementation:

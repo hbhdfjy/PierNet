@@ -12,8 +12,8 @@ if [[ "$1" == "--dev" ]]; then
     DEV_MODE=true
 fi
 
-CONDA_BASE="${PIERN_CONDA_BASE:-/home/fjy/miniconda3}"
-CONDA_ENV_PATH="${PIERN_CONDA_ENV:-/home/fjy/miniconda3/envs/piern-project}"
+CONDA_BASE="${PIERN_CONDA_BASE:-/usr/local/miniconda3}"
+CONDA_ENV_PATH="${PIERN_CONDA_ENV:-/home/tpx/.conda/envs/piern}"
 if [[ -f "$CONDA_BASE/bin/activate" && -d "$CONDA_ENV_PATH" ]]; then
     # shellcheck disable=SC1090
     source "$CONDA_BASE/bin/activate" "$CONDA_ENV_PATH"

@@ -35,7 +35,7 @@ LEGACY_QWEN_REPO_IDS = {
     "Qwen/Qwen2.5-7B-Instruct",
     "Qwen/Qwen2.5-0.5B-Instruct",
 }
-DEFAULT_LOCAL_QWEN_DIR = "/data/fjy/Qwen2.5-0.5B-Instruct"
+DEFAULT_LOCAL_QWEN_DIR = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
 QWEN_MODEL_ENV = "PIERN_QWEN_EMBEDDING_MODEL"
 QWEN_TOKENIZER_ENV = "PIERN_QWEN_EMBEDDING_TOKENIZER"
 

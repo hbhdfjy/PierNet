@@ -50,11 +50,11 @@ npm install
 
 ### Conda Environment Note
 
-`start_ui.sh` defaults to `/home/fjy/miniconda3/envs/piern-project`. If your conda environment has another name, point the script at it explicitly:
+`start_ui.sh` defaults to `/home/tpx/.conda/envs/piern`. If your conda environment has another name, point the script at it explicitly:
 
 ```bash
-export PIERN_CONDA_BASE=/home/fjy/miniconda3
-export PIERN_CONDA_ENV=/home/fjy/miniconda3/envs/piern
+export PIERN_CONDA_BASE=/usr/local/miniconda3
+export PIERN_CONDA_ENV=/home/tpx/.conda/envs/piern
 ```
 
 Then run the startup command in the same shell.
@@ -274,7 +274,7 @@ Current training core:
 
 - model: `FullSeqDilatedConvRouter`
 - input representation: Qwen tokenizer + frozen pretrained embedding table
-- default embedding backbone: `/data/fjy/Qwen2.5-0.5B-Instruct`
+- default embedding backbone: `/home/tpx/Qwen/Qwen2.5-0.5B-Instruct`
 - split: train/test only
 - embeddings are looked up during training, not stored offline
 

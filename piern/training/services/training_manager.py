@@ -8,6 +8,7 @@ import os
 import secrets
 import shutil
 import signal
+import sys
 import subprocess
 import time
 import uuid
@@ -23,7 +24,7 @@ from piern.training.router.data import (
 )
 from piern.shared.runtime.paths import PROJECT_ROOT
 
-PYTHON_BIN = Path("/home/fjy/miniconda3/envs/piern-project/bin/python")
+PYTHON_BIN = Path(os.getenv("PIERN_TRAINING_PYTHON", sys.executable))
 TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
 ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "token_router"
 RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"

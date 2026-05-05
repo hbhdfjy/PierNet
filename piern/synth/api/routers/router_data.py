@@ -21,7 +21,7 @@ router = APIRouter()
 ROUTER_DIR = PROJECT_ROOT / "data" / "router"
 SCENARIO_DIR = ROUTER_DIR / "by_scenario"
 TEXT2COMP_DIR = PROJECT_ROOT / "data" / "text2comp"
-DEFAULT_QWEN_EMBEDDING_MODEL = "/data/fjy/Qwen2.5-0.5B-Instruct"
+DEFAULT_QWEN_EMBEDDING_MODEL = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
 
 

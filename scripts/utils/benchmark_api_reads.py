@@ -10,7 +10,7 @@ import urllib.request
 from pathlib import Path
 
 BASE_URL = 'http://127.0.0.1:8000'
-OUTPUT_DIR = Path('/data/fjy/piern/.runlogs')
+OUTPUT_DIR = Path('/home/tpx/piern/.runlogs')
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -24,7 +24,7 @@ def request_json(path: str) -> tuple[float, int, object]:
 
 
 def choose_paths() -> dict[str, str]:
-    root = Path('/data/fjy/piern/data')
+    root = Path('/home/tpx/piern/data')
     sample = next((p.stem for p in sorted((root / 'text2comp').glob('*.jsonl')) if p.name != 'all_training_data.jsonl'), '')
     template = next((p.name.replace('_templates.jsonl', '') for p in sorted((root / 'templates').glob('*_templates.jsonl'))), '')
     router = next((p.stem for p in sorted((root / 'router' / 'by_scenario').glob('*.jsonl'))), '')
