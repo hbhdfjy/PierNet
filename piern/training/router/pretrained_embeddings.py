@@ -430,16 +430,7 @@ class PretrainedEmbeddingEncoder:
             self._model_embedding_matrix = None
         return self.embedding_matrix
 
-    def encode_ids(self, text: str) -> np.ndarray:
-        encoded = self.tokenizer(
-            text,
-            add_special_tokens=False,
-            return_attention_mask=False,
-            return_token_type_ids=False,
-        )
-        input_ids = encoded.get("input_ids") or []
-        if input_ids and isinstance(input_ids[0], list):
-            input_ids = input_ids[0]
+    def _normalize_input_ids(self, input_ids: list[int]) -> np.ndarray:
         if not input_ids:
             fallback_id = (
                 self.tokenizer.unk_token_id
@@ -458,6 +449,33 @@ class PretrainedEmbeddingEncoder:
                 f"but embedding matrix from {self.model_name} only has {self.raw_vocab_size} rows"
             )
         return ids_np + 1
+
+    def encode_ids(self, text: str) -> np.ndarray:
+        encoded = self.tokenizer(
+            text,
+            add_special_tokens=False,
+            return_attention_mask=False,
+            return_token_type_ids=False,
+        )
+        input_ids = encoded.get("input_ids") or []
+        if input_ids and isinstance(input_ids[0], list):
+            input_ids = input_ids[0]
+        return self._normalize_input_ids(input_ids)
+
+    def encode_ids_batch(self, texts: list[str]) -> list[np.ndarray]:
+        if not texts:
+            return []
+        encoded = self.tokenizer(
+            texts,
+            add_special_tokens=False,
+            return_attention_mask=False,
+            return_token_type_ids=False,
+            padding=False,
+        )
+        batch_ids = encoded.get("input_ids") or []
+        if batch_ids and batch_ids and not isinstance(batch_ids[0], list):
+            batch_ids = [batch_ids]
+        return [self._normalize_input_ids(list(input_ids)) for input_ids in batch_ids]
 
     def build_model_embedding_matrix(self) -> np.ndarray:
         if self._model_embedding_matrix is None:
@@ -488,4 +506,3 @@ class PretrainedEmbeddingEncoder:
             "vocab_size": self.model_vocab_size,
             "pad_id": self.pad_id,
         }
-

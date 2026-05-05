@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from collections import Counter, defaultdict
+import os
+import shutil
+import tempfile
+from collections import Counter
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import MISSING, asdict, dataclass, fields
 from pathlib import Path
 from typing import BinaryIO, Iterable
@@ -20,7 +24,9 @@ from .pretrained_embeddings import (
 ASSISTANT_MARKER = "<|im_start|>assistant\n"
 PRETRAINED_EMBEDDINGS = "pretrained_embeddings"
 SUPPORTED_INPUT_REPRESENTATIONS = {"embedding"}
-PREPARED_FORMAT = "router_dynamic_tokens_v3"
+PREPARED_FORMAT = "router_cached_token_ids_v4"
+TOKEN_CACHE_BATCH_SIZE = 1024
+TOKEN_CACHE_MIN_CHUNK_BYTES = 64 * 1024 * 1024
 DEFAULT_CHAT_TEMPLATE = "qwen"
 DEFAULT_QWEN_EMBEDDING_MODEL = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
@@ -97,6 +103,29 @@ class PrepareSummary:
 
     def to_dict(self) -> dict[str, object]:
         return asdict(self)
+
+
+@dataclass(slots=True)
+class _TokenCacheSplitShard:
+    token_ids_path: str
+    lengths_path: str
+    labels_path: str
+    scenario_ids_path: str
+    samples: int
+    tokens: int
+    positive: int
+
+
+@dataclass(slots=True)
+class _TokenCacheShardResult:
+    file_id: int
+    chunk_id: int
+    start_offset: int
+    end_offset: int
+    scenario_counts: dict[str, int]
+    max_sequence_length: int
+    train: _TokenCacheSplitShard
+    test: _TokenCacheSplitShard
 
 
 def _stable_hash(text: str) -> int:
@@ -269,13 +298,13 @@ def inspect_router_input_representation(
 def _required_prepared_files(output_dir: Path, representation: str) -> list[Path]:
     paths = [
         output_dir / "source_files.json",
-        output_dir / "train_file_ids.npy",
-        output_dir / "train_offsets.npy",
+        output_dir / "train_token_ids.bin",
+        output_dir / "train_token_offsets.npy",
         output_dir / "train_lengths.npy",
         output_dir / "train_labels.npy",
         output_dir / "train_scenario_ids.npy",
-        output_dir / "test_file_ids.npy",
-        output_dir / "test_offsets.npy",
+        output_dir / "test_token_ids.bin",
+        output_dir / "test_token_offsets.npy",
         output_dir / "test_lengths.npy",
         output_dir / "test_labels.npy",
         output_dir / "test_scenario_ids.npy",
@@ -327,11 +356,15 @@ def _cleanup_prepared_dir(output_dir: Path) -> None:
     for name in (
         "meta.json",
         "source_files.json",
+        "train_token_ids.bin",
+        "train_token_offsets.npy",
         "train_file_ids.npy",
         "train_offsets.npy",
         "train_lengths.npy",
         "train_labels.npy",
         "train_scenario_ids.npy",
+        "test_token_ids.bin",
+        "test_token_offsets.npy",
         "test_file_ids.npy",
         "test_offsets.npy",
         "test_lengths.npy",
@@ -391,6 +424,297 @@ def _iter_jsonl_with_offsets(path: Path) -> Iterable[tuple[int, dict[str, object
                 yield offset, payload
 
 
+def _scenario_names_from_files(files: list[Path]) -> list[str]:
+    names: list[str] = []
+    for path in files:
+        metadata = _first_record(path).get("metadata", {})
+        if not isinstance(metadata, dict):
+            raise ValueError(f"Router record metadata must be an object: {path}")
+        scenario = str(metadata.get("scenario") or path.stem)
+        names.append(scenario)
+    return sorted(set(names))
+
+
+def _resolve_prepare_workers(prepare_workers: int | None, chunk_count: int) -> int:
+    if chunk_count <= 1:
+        return 1
+    if prepare_workers is None:
+        return 1
+    if prepare_workers <= 0:
+        cpu_count = os.cpu_count() or 1
+        return max(1, min(cpu_count, chunk_count))
+    return max(1, min(int(prepare_workers), chunk_count))
+
+
+def _build_token_cache_chunks(files: list[Path], prepare_workers: int | None) -> list[tuple[int, int, int, int, Path]]:
+    total_bytes = sum(path.stat().st_size for path in files)
+    requested_workers = prepare_workers if prepare_workers and prepare_workers > 0 else (os.cpu_count() or 1)
+    target_chunk_count = max(len(files), int(requested_workers) * 4)
+    target_bytes = max(TOKEN_CACHE_MIN_CHUNK_BYTES, total_bytes // max(target_chunk_count, 1))
+    chunks: list[tuple[int, int, int, int, Path]] = []
+    for file_id, path in enumerate(files):
+        size = path.stat().st_size
+        if size <= target_bytes:
+            chunks.append((file_id, 0, 0, size, path))
+            continue
+        start = 0
+        chunk_id = 0
+        while start < size:
+            end = min(size, start + target_bytes)
+            chunks.append((file_id, chunk_id, start, end, path))
+            start = end
+            chunk_id += 1
+    return chunks
+
+
+def _encode_ids_batch(encoder: PretrainedEmbeddingEncoder, texts: list[str]) -> list[np.ndarray]:
+    encode_batch = getattr(encoder, "encode_ids_batch", None)
+    if callable(encode_batch):
+        return encode_batch(texts)
+    return [encoder.encode_ids(text) for text in texts]
+
+
+def _empty_split_shard(
+    *,
+    shard_dir: Path,
+    file_id: int,
+    chunk_id: int,
+    split: str,
+    scenario_id_dtype: np.dtype,
+) -> tuple[_TokenCacheSplitShard, BinaryIO]:
+    prefix = shard_dir / f"file{file_id:04d}_chunk{chunk_id:05d}_{split}"
+    token_path = prefix.with_suffix(".tokens.bin")
+    lengths_path = prefix.with_suffix(".lengths.npy")
+    labels_path = prefix.with_suffix(".labels.npy")
+    scenario_ids_path = prefix.with_suffix(".scenario_ids.npy")
+    token_handle = token_path.open("wb")
+    _save_array(lengths_path, np.empty((0,), dtype=np.uint32))
+    _save_array(labels_path, np.empty((0,), dtype=np.uint8))
+    _save_array(scenario_ids_path, np.empty((0,), dtype=scenario_id_dtype))
+    return (
+        _TokenCacheSplitShard(
+            token_ids_path=str(token_path),
+            lengths_path=str(lengths_path),
+            labels_path=str(labels_path),
+            scenario_ids_path=str(scenario_ids_path),
+            samples=0,
+            tokens=0,
+            positive=0,
+        ),
+        token_handle,
+    )
+
+
+def _prepare_token_cache_chunk(
+    *,
+    file_id: int,
+    chunk_id: int,
+    path: str,
+    start_offset: int,
+    end_offset: int,
+    test_ratio: float,
+    scenario_to_id: dict[str, int],
+    backbone_spec: EmbeddingBackboneSpec,
+    token_dtype_name: str,
+    scenario_id_dtype_name: str,
+    shard_dir: str,
+    batch_size: int,
+) -> _TokenCacheShardResult:
+    os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
+    path_obj = Path(path)
+    shard_dir_obj = Path(shard_dir)
+    token_dtype = np.dtype(token_dtype_name)
+    scenario_id_dtype = np.dtype(scenario_id_dtype_name)
+    encoder = PretrainedEmbeddingEncoder(backbone_spec)
+
+    split_shards: dict[str, _TokenCacheSplitShard] = {}
+    token_handles: dict[str, BinaryIO] = {}
+    split_buffers: dict[str, dict[str, list[int]]] = {
+        "train": {"lengths": [], "labels": [], "scenario_ids": []},
+        "test": {"lengths": [], "labels": [], "scenario_ids": []},
+    }
+    split_tokens = {"train": 0, "test": 0}
+    split_positive = {"train": 0, "test": 0}
+    scenario_counts: Counter[str] = Counter()
+    max_sequence_length = 0
+
+    for split in ("train", "test"):
+        shard, handle = _empty_split_shard(
+            shard_dir=shard_dir_obj,
+            file_id=file_id,
+            chunk_id=chunk_id,
+            split=split,
+            scenario_id_dtype=scenario_id_dtype,
+        )
+        split_shards[split] = shard
+        token_handles[split] = handle
+
+    pending_texts: list[str] = []
+    pending_labels: list[int] = []
+    pending_scenarios: list[str] = []
+    pending_splits: list[str] = []
+
+    def flush_pending() -> None:
+        nonlocal max_sequence_length
+        if not pending_texts:
+            return
+        encoded_batch = _encode_ids_batch(encoder, pending_texts)
+        if len(encoded_batch) != len(pending_texts):
+            raise RuntimeError(
+                f"Tokenizer returned {len(encoded_batch)} sequences for {len(pending_texts)} inputs"
+            )
+        for token_ids, label, scenario, split in zip(
+            encoded_batch,
+            pending_labels,
+            pending_scenarios,
+            pending_splits,
+            strict=True,
+        ):
+            ids = np.asarray(token_ids, dtype=token_dtype)
+            length = int(ids.shape[0])
+            max_sequence_length = max(max_sequence_length, length)
+            token_handles[split].write(ids.tobytes(order="C"))
+            split_buffers[split]["lengths"].append(length)
+            split_buffers[split]["labels"].append(label)
+            split_buffers[split]["scenario_ids"].append(scenario_to_id[scenario])
+            split_tokens[split] += length
+            split_positive[split] += label
+        pending_texts.clear()
+        pending_labels.clear()
+        pending_scenarios.clear()
+        pending_splits.clear()
+
+    processed = 0
+    with path_obj.open("rb") as handle:
+        if start_offset > 0:
+            handle.seek(start_offset - 1)
+            if handle.read(1) != b"\n":
+                handle.readline()
+        else:
+            handle.seek(0)
+        while True:
+            offset = handle.tell()
+            if offset >= end_offset:
+                break
+            raw = handle.readline()
+            if not raw:
+                break
+            line = raw.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line.decode("utf-8"))
+            except Exception:
+                continue
+            if not isinstance(record, dict):
+                continue
+            metadata = record.get("metadata", {})
+            if not isinstance(metadata, dict):
+                raise ValueError(f"Router record metadata must be an object: {path_obj}")
+            text = str(record["context"])
+            label = int(record["label"])
+            scenario = str(metadata["scenario"])
+            if scenario not in scenario_to_id:
+                raise ValueError(f"Unknown scenario={scenario!r} in {path_obj}")
+            split = assign_split(text, scenario, test_ratio)
+            scenario_counts[scenario] += 1
+            pending_texts.append(text)
+            pending_labels.append(label)
+            pending_scenarios.append(scenario)
+            pending_splits.append(split)
+            processed += 1
+            if len(pending_texts) >= batch_size:
+                flush_pending()
+            if processed % 50_000 == 0:
+                print(
+                    f"[prepare:embed] {path_obj.name} chunk={chunk_id} "
+                    f"records={processed} offset={offset}"
+                )
+    flush_pending()
+
+    for split, handle in token_handles.items():
+        handle.close()
+        lengths = np.asarray(split_buffers[split]["lengths"], dtype=np.uint32)
+        labels = np.asarray(split_buffers[split]["labels"], dtype=np.uint8)
+        scenario_ids = np.asarray(split_buffers[split]["scenario_ids"], dtype=scenario_id_dtype)
+        shard = split_shards[split]
+        _save_array(Path(shard.lengths_path), lengths)
+        _save_array(Path(shard.labels_path), labels)
+        _save_array(Path(shard.scenario_ids_path), scenario_ids)
+        split_shards[split] = _TokenCacheSplitShard(
+            token_ids_path=shard.token_ids_path,
+            lengths_path=shard.lengths_path,
+            labels_path=shard.labels_path,
+            scenario_ids_path=shard.scenario_ids_path,
+            samples=int(lengths.shape[0]),
+            tokens=int(split_tokens[split]),
+            positive=int(split_positive[split]),
+        )
+
+    return _TokenCacheShardResult(
+        file_id=file_id,
+        chunk_id=chunk_id,
+        start_offset=start_offset,
+        end_offset=end_offset,
+        scenario_counts=dict(scenario_counts),
+        max_sequence_length=max_sequence_length,
+        train=split_shards["train"],
+        test=split_shards["test"],
+    )
+
+
+def _concat_arrays(arrays: list[np.ndarray], dtype: np.dtype) -> np.ndarray:
+    if not arrays:
+        return np.empty((0,), dtype=dtype)
+    return np.concatenate(arrays).astype(dtype, copy=False)
+
+
+def _merge_token_cache_split(
+    *,
+    output_dir: Path,
+    split: str,
+    shards: list[_TokenCacheShardResult],
+    scenario_id_dtype: np.dtype,
+) -> tuple[int, int, int]:
+    final_token_path = output_dir / f"{split}_token_ids.bin"
+    offset_arrays: list[np.ndarray] = []
+    length_arrays: list[np.ndarray] = []
+    label_arrays: list[np.ndarray] = []
+    scenario_arrays: list[np.ndarray] = []
+    total_tokens = 0
+    total_samples = 0
+    total_positive = 0
+
+    with final_token_path.open("wb") as output_handle:
+        for shard in shards:
+            split_shard = getattr(shard, split)
+            lengths = _load_array(Path(split_shard.lengths_path))
+            labels = _load_array(Path(split_shard.labels_path))
+            scenario_ids = _load_array(Path(split_shard.scenario_ids_path))
+            if lengths.size:
+                starts = np.empty(lengths.shape[0], dtype=np.uint64)
+                starts[0] = total_tokens
+                if lengths.shape[0] > 1:
+                    starts[1:] = total_tokens + np.cumsum(lengths[:-1], dtype=np.uint64)
+            else:
+                starts = np.empty((0,), dtype=np.uint64)
+            offset_arrays.append(starts)
+            length_arrays.append(lengths.astype(np.uint32, copy=False))
+            label_arrays.append(labels.astype(np.uint8, copy=False))
+            scenario_arrays.append(scenario_ids.astype(scenario_id_dtype, copy=False))
+            total_tokens += int(lengths.astype(np.uint64, copy=False).sum())
+            total_samples += int(lengths.shape[0])
+            total_positive += int(labels.astype(np.uint64, copy=False).sum())
+            with Path(split_shard.token_ids_path).open("rb") as input_handle:
+                shutil.copyfileobj(input_handle, output_handle, length=1024 * 1024 * 8)
+
+    _save_array(output_dir / f"{split}_token_offsets.npy", _concat_arrays(offset_arrays, np.dtype(np.uint64)))
+    _save_array(output_dir / f"{split}_lengths.npy", _concat_arrays(length_arrays, np.dtype(np.uint32)))
+    _save_array(output_dir / f"{split}_labels.npy", _concat_arrays(label_arrays, np.dtype(np.uint8)))
+    _save_array(output_dir / f"{split}_scenario_ids.npy", _concat_arrays(scenario_arrays, scenario_id_dtype))
+    return total_samples, total_tokens, total_positive
+
+
 def _prepare_embedding_router_dataset(
     *,
     simulator: str,
@@ -399,21 +723,14 @@ def _prepare_embedding_router_dataset(
     output_dir: Path,
     test_ratio: float,
     metadata: RouterEmbeddingMetadata,
+    prepare_workers: int | None,
 ) -> PrepareSummary:
     _log_prepare(
         "starting dataset preparation "
         f"simulator={simulator} files={len(files)} test_ratio={test_ratio:.2f}"
     )
-    scenario_counts, train_samples, test_samples, train_positive, test_positive = _scan_router_files(
-        files,
-        test_ratio=test_ratio,
-    )
-    _log_prepare(
-        "scan complete "
-        f"train_samples={train_samples} test_samples={test_samples} "
-        f"train_positive={train_positive} test_positive={test_positive}"
-    )
-    scenario_to_id = {name: idx for idx, name in enumerate(sorted(scenario_counts))}
+    scenario_names = _scenario_names_from_files(files)
+    scenario_to_id = {name: idx for idx, name in enumerate(scenario_names)}
     scenario_id_dtype = np.uint8 if len(scenario_to_id) <= (np.iinfo(np.uint8).max + 1) else np.uint16
     _log_prepare(
         "loading tokenizer metadata "
@@ -425,49 +742,84 @@ def _prepare_embedding_router_dataset(
         f"tokenizer ready vocab_size={encoder.model_vocab_size} hidden_size={encoder.hidden_size}"
     )
     token_dtype = np.uint16 if encoder.model_vocab_size <= (np.iinfo(np.uint16).max + 1) else np.uint32
-    file_id_dtype = np.uint16 if len(files) <= (np.iinfo(np.uint16).max + 1) else np.uint32
-    buffers: dict[str, defaultdict[str, list[int]]] = {
-        "train": defaultdict(list),
-        "test": defaultdict(list),
-    }
-    token_totals = {"train": 0, "test": 0}
-    max_sequence_length = 0
-
-    for file_id, path in enumerate(files):
-        _log_prepare(f"indexing router file {file_id + 1}/{len(files)}: {path.name}")
-        for idx, (offset, record) in enumerate(_iter_jsonl_with_offsets(path), start=1):
-            text = str(record["context"])
-            label = int(record["label"])
-            scenario = str(record["metadata"]["scenario"])
-            split = assign_split(text, scenario, test_ratio)
-            token_ids = encoder.encode_ids(text)
-            length = int(token_ids.shape[0])
-            max_sequence_length = max(max_sequence_length, length)
-            buffers[split]["file_ids"].append(file_id)
-            buffers[split]["lengths"].append(length)
-            buffers[split]["labels"].append(label)
-            buffers[split]["scenario_ids"].append(scenario_to_id[scenario])
-            buffers[split]["line_offsets"].append(offset)
-            token_totals[split] += length
-            if idx % 50_000 == 0:
-                print(f"[prepare:embed] {path.name}: {idx} records")
+    chunks = _build_token_cache_chunks(files, prepare_workers)
+    workers = _resolve_prepare_workers(prepare_workers, len(chunks))
+    _log_prepare(
+        "token cache build "
+        f"workers={workers} chunks={len(chunks)} batch_size={TOKEN_CACHE_BATCH_SIZE} "
+        f"token_dtype={np.dtype(token_dtype).name}"
+    )
 
     (output_dir / "source_files.json").write_text(
         json.dumps([str(path) for path in files], ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
 
-    for split in ("train", "test"):
-        _save_array(output_dir / f"{split}_file_ids.npy", np.asarray(buffers[split]["file_ids"], dtype=file_id_dtype))
-        _save_array(output_dir / f"{split}_offsets.npy", np.asarray(buffers[split]["line_offsets"], dtype=np.uint64))
-        _save_array(output_dir / f"{split}_lengths.npy", np.asarray(buffers[split]["lengths"], dtype=np.uint32))
-        _save_array(output_dir / f"{split}_labels.npy", np.asarray(buffers[split]["labels"], dtype=np.uint8))
-        _save_array(output_dir / f"{split}_scenario_ids.npy", np.asarray(buffers[split]["scenario_ids"], dtype=scenario_id_dtype))
+    shard_dir = Path(tempfile.mkdtemp(prefix="token-cache-shards-", dir=str(output_dir)))
+    results: list[_TokenCacheShardResult] = []
+    try:
+        worker_kwargs = [
+            {
+                "file_id": file_id,
+                "chunk_id": chunk_id,
+                "path": str(path),
+                "start_offset": start,
+                "end_offset": end,
+                "test_ratio": test_ratio,
+                "scenario_to_id": scenario_to_id,
+                "backbone_spec": metadata.to_backbone_spec(),
+                "token_dtype_name": np.dtype(token_dtype).name,
+                "scenario_id_dtype_name": np.dtype(scenario_id_dtype).name,
+                "shard_dir": str(shard_dir),
+                "batch_size": TOKEN_CACHE_BATCH_SIZE,
+            }
+            for file_id, chunk_id, start, end, path in chunks
+        ]
+        if workers <= 1:
+            for kwargs in worker_kwargs:
+                result = _prepare_token_cache_chunk(**kwargs)
+                results.append(result)
+                _log_prepare(
+                    f"chunk complete file={result.file_id + 1}/{len(files)} "
+                    f"chunk={result.chunk_id} train={result.train.samples} test={result.test.samples}"
+                )
+        else:
+            with ProcessPoolExecutor(max_workers=workers) as executor:
+                futures = [executor.submit(_prepare_token_cache_chunk, **kwargs) for kwargs in worker_kwargs]
+                for future in as_completed(futures):
+                    result = future.result()
+                    results.append(result)
+                    _log_prepare(
+                        f"chunk complete file={result.file_id + 1}/{len(files)} "
+                        f"chunk={result.chunk_id} train={result.train.samples} test={result.test.samples}"
+                    )
+
+        results.sort(key=lambda item: (item.file_id, item.start_offset, item.chunk_id))
+        scenario_counts: Counter[str] = Counter()
+        max_sequence_length = 0
+        for result in results:
+            scenario_counts.update(result.scenario_counts)
+            max_sequence_length = max(max_sequence_length, result.max_sequence_length)
+
+        train_samples, train_tokens, train_positive = _merge_token_cache_split(
+            output_dir=output_dir,
+            split="train",
+            shards=results,
+            scenario_id_dtype=np.dtype(scenario_id_dtype),
+        )
+        test_samples, test_tokens, test_positive = _merge_token_cache_split(
+            output_dir=output_dir,
+            split="test",
+            shards=results,
+            scenario_id_dtype=np.dtype(scenario_id_dtype),
+        )
+    finally:
+        shutil.rmtree(shard_dir, ignore_errors=True)
 
     _log_prepare(
-        "prepared arrays written "
+        "prepared token cache written "
         f"output_dir={output_dir} max_sequence_length={max_sequence_length} "
-        f"train_tokens={token_totals['train']} test_tokens={token_totals['test']}"
+        f"train_tokens={train_tokens} test_tokens={test_tokens}"
     )
 
     return PrepareSummary(
@@ -482,8 +834,8 @@ def _prepare_embedding_router_dataset(
         test_samples=test_samples,
         train_positive=train_positive,
         test_positive=test_positive,
-        train_tokens=token_totals["train"],
-        test_tokens=token_totals["test"],
+        train_tokens=train_tokens,
+        test_tokens=test_tokens,
         max_sequence_length=max_sequence_length,
         input_representation=PRETRAINED_EMBEDDINGS,
         input_storage_dtype="",
@@ -506,6 +858,7 @@ def prepare_router_dataset(
     scenarios: list[str] | None = None,
     force: bool = False,
     input_representation: str = "embedding",
+    prepare_workers: int | None = None,
 ) -> PrepareSummary:
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "meta.json"
@@ -546,6 +899,7 @@ def prepare_router_dataset(
         output_dir=output_dir,
         test_ratio=test_ratio,
         metadata=metadata,
+        prepare_workers=prepare_workers,
     )
 
     summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
@@ -574,14 +928,37 @@ class PackedSequenceDataset(Dataset):
         self.input_representation = summary.input_representation
         self.token_dtype = np.dtype(summary.token_dtype) if summary.token_dtype else None
         self.source_files = json.loads((prepared_dir / "source_files.json").read_text(encoding="utf-8"))
-        self.file_ids = _load_array(prepared_dir / f"{split}_file_ids.npy")
-        self.offsets = _load_array(prepared_dir / f"{split}_offsets.npy")
-        self.lengths = _load_array(prepared_dir / f"{split}_lengths.npy")
-        self.labels = _load_array(prepared_dir / f"{split}_labels.npy")
-        self.scenario_ids = _load_array(prepared_dir / f"{split}_scenario_ids.npy")
+        self.has_token_cache = (prepared_dir / f"{split}_token_ids.bin").exists() and (
+            prepared_dir / f"{split}_token_offsets.npy"
+        ).exists()
+        self.token_offsets: np.ndarray | None = None
+        self.token_ids: np.memmap | None = None
+        self.file_ids: np.ndarray | None = None
+        self.offsets: np.ndarray | None = None
+        self.lengths = _load_array(prepared_dir / f"{split}_lengths.npy", mmap_mode="r")
+        self.labels = _load_array(prepared_dir / f"{split}_labels.npy", mmap_mode="r")
+        self.scenario_ids = _load_array(prepared_dir / f"{split}_scenario_ids.npy", mmap_mode="r")
+        if self.has_token_cache:
+            if self.token_dtype is None:
+                raise ValueError("Prepared token cache requires summary.token_dtype")
+            self.token_offsets = _load_array(prepared_dir / f"{split}_token_offsets.npy", mmap_mode="r")
+            total_tokens = int(self.token_offsets[-1] + self.lengths[-1]) if self.lengths.shape[0] else 0
+            self.token_ids = np.memmap(
+                prepared_dir / f"{split}_token_ids.bin",
+                dtype=self.token_dtype,
+                mode="r",
+                shape=(total_tokens,),
+            )
+        else:
+            self.file_ids = _load_array(prepared_dir / f"{split}_file_ids.npy", mmap_mode="r")
+            self.offsets = _load_array(prepared_dir / f"{split}_offsets.npy", mmap_mode="r")
         if max_samples is not None:
-            self.file_ids = self.file_ids[:max_samples]
-            self.offsets = self.offsets[:max_samples]
+            if self.file_ids is not None:
+                self.file_ids = self.file_ids[:max_samples]
+            if self.offsets is not None:
+                self.offsets = self.offsets[:max_samples]
+            if self.token_offsets is not None:
+                self.token_offsets = self.token_offsets[:max_samples]
             self.lengths = self.lengths[:max_samples]
             self.labels = self.labels[:max_samples]
             self.scenario_ids = self.scenario_ids[:max_samples]
@@ -623,17 +1000,25 @@ class PackedSequenceDataset(Dataset):
         return int(self.lengths.shape[0])
 
     def __getitem__(self, index: int) -> dict[str, object]:
-        file_id = int(self.file_ids[index])
-        offset = int(self.offsets[index])
         length = int(self.lengths[index])
-        record = self._load_record(file_id, offset)
-        text = str(record["context"])
-        token_ids = self._get_encoder().encode_ids(text)
-        if int(token_ids.shape[0]) != length:
-            raise RuntimeError(
-                f"dynamic token length mismatch at file_id={file_id}, offset={offset}: "
-                f"expected {length}, got {int(token_ids.shape[0])}"
-            )
+        if self.has_token_cache:
+            if self.token_offsets is None or self.token_ids is None:
+                raise RuntimeError(f"missing token cache for split={self.split}")
+            start = int(self.token_offsets[index])
+            token_ids = np.asarray(self.token_ids[start : start + length]).astype(np.int64, copy=True)
+        else:
+            if self.file_ids is None or self.offsets is None:
+                raise RuntimeError(f"missing dynamic record index for split={self.split}")
+            file_id = int(self.file_ids[index])
+            offset = int(self.offsets[index])
+            record = self._load_record(file_id, offset)
+            text = str(record["context"])
+            token_ids = self._get_encoder().encode_ids(text)
+            if int(token_ids.shape[0]) != length:
+                raise RuntimeError(
+                    f"dynamic token length mismatch at file_id={file_id}, offset={offset}: "
+                    f"expected {length}, got {int(token_ids.shape[0])}"
+                )
         return {
             "length": length,
             "label": int(self.labels[index]),
@@ -706,4 +1091,3 @@ def collate_batch(batch: list[dict[str, object]], pad_id: int) -> dict[str, torc
         "labels": labels,
         "scenario_ids": scenario_ids,
     }
-

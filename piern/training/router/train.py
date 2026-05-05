@@ -49,6 +49,7 @@ class RouterTrainingConfig:
     kernel_size: int = 5
     dilations: tuple[int, ...] = (1, 2, 4, 8, 16, 32)
     num_workers: int = 8
+    prepare_workers: int | None = None
     device: str = "cuda:0"
     seed: int = 42
     force_prepare: bool = False
@@ -308,7 +309,8 @@ def run_training(config: RouterTrainingConfig) -> Path:
     prepare_started_at = time.perf_counter()
     _log_startup(
         "prepare",
-        f"router_dir={config.router_dir} output_dir={prepared_dir} force_prepare={config.force_prepare}",
+        f"router_dir={config.router_dir} output_dir={prepared_dir} force_prepare={config.force_prepare} "
+        f"prepare_workers={config.prepare_workers if config.prepare_workers is not None else config.num_workers}",
     )
     summary = prepare_router_dataset(
         simulator=config.simulator,
@@ -318,6 +320,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         test_ratio=config.test_ratio,
         force=config.force_prepare,
         input_representation=config.input_representation,
+        prepare_workers=config.prepare_workers if config.prepare_workers is not None else config.num_workers,
     )
     _log_startup(
         "prepare",
@@ -416,6 +419,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         num_workers=config.num_workers,
         pin_memory=pin_memory,
         persistent_workers=config.num_workers > 0,
+        prefetch_factor=4 if config.num_workers > 0 else None,
     )
     test_num_workers = max(config.num_workers // 2, 0)
     test_loader = DataLoader(
@@ -425,6 +429,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
         num_workers=test_num_workers,
         pin_memory=pin_memory,
         persistent_workers=test_num_workers > 0,
+        prefetch_factor=4 if test_num_workers > 0 else None,
     )
     _log_startup(
         "dataloader",

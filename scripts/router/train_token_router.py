@@ -33,6 +33,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dropout", type=float, default=0.10)
     parser.add_argument("--kernel-size", type=int, default=5)
     parser.add_argument("--num-workers", type=int, default=8)
+    parser.add_argument("--prepare-workers", type=int)
     parser.add_argument("--device", default="cuda:0")
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--force-prepare", action="store_true")
@@ -67,6 +68,7 @@ def main() -> None:
         dropout=args.dropout,
         kernel_size=args.kernel_size,
         num_workers=args.num_workers,
+        prepare_workers=args.prepare_workers,
         device=args.device,
         seed=args.seed,
         force_prepare=args.force_prepare,
