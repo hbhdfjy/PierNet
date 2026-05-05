@@ -55,6 +55,7 @@ class TrainingJobConfig(BaseModel):
     learning_rate: float = 2e-4
     weight_decay: float = 1e-2
     num_workers: int = 8
+    prepare_workers: int | None = None
     test_ratio: float = 0.10
     resume_from: str | None = None
     input_representation: TrainingJobInputRepresentation = "pretrained_embeddings"
@@ -66,16 +67,17 @@ class TrainingJobCreateRequest(BaseModel):
     name: str | None = None
     simulator: str = "modflow"
     scenarios: list[str] = Field(default_factory=list)
-    gpu_id: int
-    epochs: int = 0
-    eval_interval: int = 1
+    gpu_id: int = Field(ge=0)
+    epochs: int = Field(default=0, ge=0, le=100000)
+    eval_interval: int = Field(default=1, ge=1, le=100000)
     keep_last_epochs: int = Field(default=5, ge=0, le=200)
-    batch_size: int = 256
-    test_batch_size: int = 256
-    learning_rate: float = 2e-4
-    weight_decay: float = 1e-2
-    num_workers: int = 8
-    test_ratio: float = 0.10
+    batch_size: int = Field(default=256, ge=1, le=8192)
+    test_batch_size: int = Field(default=256, ge=1, le=8192)
+    learning_rate: float = Field(default=2e-4, gt=0, le=1.0)
+    weight_decay: float = Field(default=1e-2, ge=0, le=10.0)
+    num_workers: int = Field(default=8, ge=0, le=128)
+    prepare_workers: int | None = Field(default=None, ge=0, le=128)
+    test_ratio: float = Field(default=0.10, ge=0.0, le=0.9)
     resume_from: str | None = None
     input_representation: TrainingJobRequestedInputRepresentation = "embedding"
 

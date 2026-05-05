@@ -833,6 +833,26 @@
     flex: 1 0 auto;
   }
 
+  .training-overview-grid {
+    @apply grid items-stretch gap-4 md:grid-cols-2 2xl:grid-cols-3;
+  }
+
+  .training-overview-grid > .training-card {
+    height: clamp(25rem, calc(100dvh - 21rem), 34rem);
+    min-height: 25rem;
+  }
+
+  .training-overview-scroll {
+    @apply overflow-y-auto overflow-x-hidden;
+  }
+
+  @media (max-width: 767px) {
+    .training-overview-grid > .training-card {
+      height: auto;
+      min-height: 0;
+    }
+  }
+
   .training-title {
     @apply text-[1.9rem] font-semibold tracking-tight;
     color: hsl(var(--text));

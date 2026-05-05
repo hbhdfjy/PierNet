@@ -571,6 +571,7 @@ export interface TrainingJobConfig {
   learning_rate: number
   weight_decay: number
   num_workers: number
+  prepare_workers?: number | null
   test_ratio: number
   resume_from: string | null
   input_representation?: 'pretrained_embeddings'
@@ -651,6 +652,7 @@ export interface TrainingCreateJobRequest {
   learning_rate: number
   weight_decay: number
   num_workers: number
+  prepare_workers?: number | null
   test_ratio: number
   resume_from?: string | null
 }

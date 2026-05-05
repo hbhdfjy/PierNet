@@ -29,6 +29,13 @@ def test_get_gpu_inventory_returns_empty_when_nvidia_smi_is_unavailable(monkeypa
     assert training_manager.get_gpu_inventory() == []
 
 
+def test_pid_alive_treats_zombie_process_as_dead(monkeypatch):
+    monkeypatch.setattr(training_manager.os, "kill", lambda pid, sig: None)
+    monkeypatch.setattr(training_manager.Path, "read_text", lambda self, **kwargs: "123 (python) Z 1")
+
+    assert training_manager._pid_alive(123) is False
+
+
 def test_validate_resume_checkpoint_rejects_input_representation_mismatch(tmp_path: Path):
     checkpoint_path = tmp_path / "router_latest.pt"
     torch.save(
@@ -80,6 +87,7 @@ def test_training_job_summary_exposes_embedding_config():
             "learning_rate": 2e-4,
             "weight_decay": 0.01,
             "num_workers": 0,
+            "prepare_workers": 2,
             "test_ratio": 0.1,
             "resume_from": None,
             "input_representation": "pretrained_embeddings",
@@ -92,6 +100,7 @@ def test_training_job_summary_exposes_embedding_config():
     assert summary.config.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
     assert summary.config.embedding_tokenizer == DEFAULT_QWEN_EMBEDDING_MODEL
     assert summary.config.keep_last_epochs == 5
+    assert summary.config.prepare_workers == 2
 
 
 def test_prune_epoch_checkpoints_keeps_latest_epochs(tmp_path: Path):

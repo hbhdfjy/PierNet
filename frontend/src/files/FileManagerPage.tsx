@@ -39,6 +39,7 @@ const KIND_LABELS: Record<string, string> = {
   router_scenario: '路由场景数据',
   router_train: '路由训练数据',
   training_job: '训练任务',
+  training_checkpoint: '训练权重',
   manifest: '清单',
   index: '索引',
 }
@@ -361,15 +362,15 @@ export function FileManagerContent({
 
   return (
     <div className="page-shell">
-          <div className="page-content p-5 space-y-4">
-            <section className="rounded-[28px] border border-slate-700/35 bg-gradient-to-br from-slate-900/88 via-slate-900/62 to-sky-950/32 p-5 shadow-2xl shadow-slate-950/20">
+          <div className="page-content space-y-4 p-4">
+            <section className="training-hero training-hero--compact">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="inline-flex items-center gap-2 rounded-full border border-sky-500/20 bg-sky-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-sky-300">
+                  <div className="training-eyebrow">
                     统一文件目录
                   </div>
-                  <h1 className="mt-3 text-3xl font-black tracking-tight text-slate-50">{title}</h1>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">
+                  <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">{title}</h1>
+                  <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
                     {copy}
                   </p>
                 </div>

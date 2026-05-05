@@ -880,6 +880,7 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="训练批大小" value={job.config.batch_size} mono />
                           <MetaField label="测试批大小" value={job.config.test_batch_size} mono />
                           <MetaField label="加载线程" value={job.config.num_workers} mono />
+                          <MetaField label="预处理线程" value={job.config.prepare_workers ?? job.config.num_workers} mono />
                           <MetaField label="学习率" value={job.config.learning_rate} mono />
                           <MetaField label="权重衰减" value={job.config.weight_decay} mono />
                           <MetaField label="恢复训练" value={job.config.resume_from ? '是' : '否'} />

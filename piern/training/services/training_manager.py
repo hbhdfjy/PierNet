@@ -144,9 +144,14 @@ def _pid_alive(pid: int | None) -> bool:
         return False
     try:
         os.kill(pid, 0)
-        return True
     except OSError:
         return False
+    stat_path = Path("/proc") / str(pid) / "stat"
+    try:
+        fields = stat_path.read_text(encoding="utf-8", errors="replace").split()
+    except OSError:
+        return True
+    return len(fields) < 3 or fields[2] != "Z"
 
 
 def _safe_kill_process_group(pid: int, sig: signal.Signals) -> None:
@@ -678,6 +683,9 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     stop_token = _make_stop_token()
     stop_file = _stop_file_for_job(job_id)
     keep_last_epochs = max(0, int(payload.get("keep_last_epochs", 5)))
+    num_workers = max(0, int(payload["num_workers"]))
+    prepare_workers = payload.get("prepare_workers")
+    prepare_workers = num_workers if prepare_workers is None else max(0, int(prepare_workers))
     test_ratio = float(payload["test_ratio"])
     prepared_name = _hash_prepared_name(
         simulator,
@@ -723,7 +731,9 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         "--weight-decay",
         str(float(payload["weight_decay"])),
         "--num-workers",
-        str(int(payload["num_workers"])),
+        str(num_workers),
+        "--prepare-workers",
+        str(prepare_workers),
         "--test-ratio",
         str(test_ratio),
         "--artifact-root",
@@ -820,7 +830,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "test_batch_size": int(payload["test_batch_size"]),
                 "learning_rate": float(payload["learning_rate"]),
                 "weight_decay": float(payload["weight_decay"]),
-                "num_workers": int(payload["num_workers"]),
+                "num_workers": num_workers,
+                "prepare_workers": prepare_workers,
                 "test_ratio": test_ratio,
                 "resume_from": resume_from,
                 "input_representation": resolved_input_representation,

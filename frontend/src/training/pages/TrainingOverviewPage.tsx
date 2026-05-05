@@ -102,17 +102,17 @@ export default function TrainingOverviewPage() {
             </div>
           )}
 
-          <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(420px,0.68fr)]">
-            <section className="training-card training-card--compact min-h-0 self-start">
+          <div className="training-overview-grid">
+            <section className="training-card training-card--compact">
               <div className="card-header">
                 <Database size={16} className="text-sky-300" />
                 <SectionTitle title="训练数据" copy="按大场景聚合的 Router 训练集" />
               </div>
-              <div className="training-card__body training-scroll list-scroll-md">
+              <div className="training-card__body training-scroll training-overview-scroll">
                 {isLoading && !data ? (
                   <div className="space-y-2">
                     {[0, 1, 2].map(item => (
-                      <div key={item} className="skeleton h-20 rounded-2xl" />
+                      <div key={item} className="skeleton h-20 rounded-xl" />
                     ))}
                   </div>
                 ) : data?.datasets.length ? (
@@ -149,87 +149,85 @@ export default function TrainingOverviewPage() {
               </div>
             </section>
 
-            <div className="training-stack min-h-0 self-start">
-              <section className="training-card training-card--compact min-h-0">
-                <div className="card-header">
-                  <Gauge size={16} className="text-emerald-300" />
-                  <SectionTitle title="GPU 状态" copy="当前可用的 GPU 卡" />
-                </div>
-                <div className="training-card__body training-scroll list-scroll-2xl">
-                  {data?.gpus?.length ? (
-                    <div className="space-y-2">
-                      {data.gpus.map(gpu => {
-                        const memoryRatio = gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
-                        return (
-                          <div key={gpu.index} className="training-surface--compact">
-                            <div className="flex items-center justify-between gap-3">
-                              <div className="min-w-0">
-                                <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
-                                <div className="mt-0.5 truncate text-[13px] text-slate-400">{gpu.name}</div>
-                              </div>
-                              <span className={gpu.available ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'}>
-                                {gpu.available ? '可用' : gpu.reason ?? '占用中'}
-                              </span>
-                            </div>
-                            <div className="mt-2 training-stat-grid">
-                              <div>
-                                <div className="training-label">显存</div>
-                                <div className="mt-0.5 text-[13px] text-slate-200">{gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}</div>
-                                <UsageBar value={memoryRatio} />
-                              </div>
-                              <div>
-                                <div className="training-label">利用率</div>
-                                <div className="mt-0.5 text-[13px] text-slate-200">{gpu.utilization_gpu}%</div>
-                                <UsageBar value={gpu.utilization_gpu} />
-                              </div>
-                            </div>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <div className="training-surface text-sm text-slate-400">没有 GPU 信息。</div>
-                  )}
-                </div>
-              </section>
-
-              <section className="training-card training-card--compact min-h-0">
-                <div className="card-header">
-                  <Layers3 size={16} className="text-violet-300" />
-                  <SectionTitle title="最近任务" copy="最近 5 个训练任务" />
-                </div>
-                <div className="training-card__body training-scroll list-scroll-md">
-                  {data?.jobs.length ? (
-                    <div className="space-y-2">
-                      {data.jobs.slice(0, 5).map(job => (
-                        <Link key={job.job_id} to={`/training/jobs/${job.job_id}`} className="card-hover block p-3">
+            <section className="training-card training-card--compact">
+              <div className="card-header">
+                <Gauge size={16} className="text-emerald-300" />
+                <SectionTitle title="GPU 状态" copy="当前可用的 GPU 卡" />
+              </div>
+              <div className="training-card__body training-scroll training-overview-scroll">
+                {data?.gpus?.length ? (
+                  <div className="space-y-2">
+                    {data.gpus.map(gpu => {
+                      const memoryRatio = gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
+                      return (
+                        <div key={gpu.index} className="training-surface--compact">
                           <div className="flex items-center justify-between gap-3">
                             <div className="min-w-0">
-                              <div className="text-[15px] font-semibold text-slate-100">{job.name}</div>
-                              <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+                              <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
+                              <div className="mt-0.5 truncate text-[13px] text-slate-400">{gpu.name}</div>
                             </div>
-                            <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+                            <span className={gpu.available ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'}>
+                              {gpu.available ? '可用' : gpu.reason ?? '占用中'}
+                            </span>
                           </div>
-                          <div className="mt-1.5 training-note">GPU {job.gpu_id} · {job.simulator} · {job.scenarios.length} 个子场景</div>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] text-slate-400">
+                          <div className="mt-2 training-stat-grid">
                             <div>
-                              <div className="training-label">创建时间</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">{formatDateTime(job.created_at)}</div>
+                              <div className="training-label">显存</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">{gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}</div>
+                              <UsageBar value={memoryRatio} />
                             </div>
                             <div>
-                              <div className="training-label">最近 F1</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+                              <div className="training-label">利用率</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">{gpu.utilization_gpu}%</div>
+                              <UsageBar value={gpu.utilization_gpu} />
                             </div>
                           </div>
-                        </Link>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="training-surface text-sm text-slate-400">当前没有训练任务。</div>
-                  )}
-                </div>
-              </section>
-            </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="training-surface text-sm text-slate-400">没有 GPU 信息。</div>
+                )}
+              </div>
+            </section>
+
+            <section className="training-card training-card--compact">
+              <div className="card-header">
+                <Layers3 size={16} className="text-violet-300" />
+                <SectionTitle title="最近任务" copy="最近 5 个训练任务" />
+              </div>
+              <div className="training-card__body training-scroll training-overview-scroll">
+                {data?.jobs.length ? (
+                  <div className="space-y-2">
+                    {data.jobs.slice(0, 5).map(job => (
+                      <Link key={job.job_id} to={`/training/jobs/${job.job_id}`} className="card-hover block p-3">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="text-[15px] font-semibold text-slate-100">{job.name}</div>
+                            <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+                          </div>
+                          <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+                        </div>
+                        <div className="mt-1.5 training-note">GPU {job.gpu_id} · {job.simulator} · {job.scenarios.length} 个子场景</div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] text-slate-400">
+                          <div>
+                            <div className="training-label">创建时间</div>
+                            <div className="mt-0.5 text-[13px] text-slate-200">{formatDateTime(job.created_at)}</div>
+                          </div>
+                          <div>
+                            <div className="training-label">最近 F1</div>
+                            <div className="mt-0.5 text-[13px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+                          </div>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="training-surface text-sm text-slate-400">当前没有训练任务。</div>
+                )}
+              </div>
+            </section>
           </div>
         </div>
       </div>
