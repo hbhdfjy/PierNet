@@ -87,6 +87,8 @@ type ChartTooltipEntry = {
 
 type ChartHoverSnapshot = {
   label: string
+  x?: number
+  y?: number
   rows: Array<{
     color: string
     key: string
@@ -98,6 +100,8 @@ type ChartHoverSnapshot = {
 type ChartMouseState = {
   activeLabel?: unknown
   activePayload?: ChartTooltipEntry[]
+  chartX?: number
+  chartY?: number
 }
 
 type ChartHoverPanelVariant = 'default' | 'emphasis'
@@ -298,6 +302,8 @@ function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | nu
 
   return {
     label: formatChartTooltipLabel(axisLabel, state?.activeLabel),
+    x: typeof state?.chartX === 'number' ? state.chartX : undefined,
+    y: typeof state?.chartY === 'number' ? state.chartY : undefined,
     rows: entries.map(item => ({
       color: item.color ?? '#38bdf8',
       key: String(item.dataKey ?? item.name ?? 'value'),
@@ -378,13 +384,27 @@ function ChartHoverPanel({
   variant?: ChartHoverPanelVariant
 }) {
   const isEmphasis = variant === 'emphasis'
+  const hasPosition = typeof snapshot?.x === 'number' && typeof snapshot?.y === 'number'
+  const maxWidth = isEmphasis ? '19rem' : '15rem'
+  const maxHeight = isEmphasis ? '17rem' : '12rem'
+  const panelStyle = hasPosition
+    ? {
+        left: `clamp(0.75rem, ${(snapshot?.x ?? 0) + 14}px, calc(100% - ${maxWidth}))`,
+        top: `clamp(0.75rem, ${(snapshot?.y ?? 0) + 14}px, calc(100% - ${maxHeight}))`,
+      }
+    : {
+        right: '1rem',
+        top: '1rem',
+      }
+
   return (
     <div
-      className={`pointer-events-none rounded-2xl border backdrop-blur ${
+      className={`pointer-events-none absolute z-20 rounded-2xl border backdrop-blur transition-[left,top] duration-75 ${
         isEmphasis
           ? 'min-w-[240px] max-w-[300px] border-sky-400/25 bg-slate-950/92 px-4 py-3.5 shadow-[0_24px_44px_rgba(14,165,233,0.16)]'
           : 'min-w-[180px] max-w-[240px] border-slate-700/50 bg-slate-950/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(2,6,23,0.34)]'
       }`}
+      style={panelStyle}
     >
       <div className={`font-semibold uppercase tracking-[0.16em] ${isEmphasis ? 'text-[10px] text-sky-300/80' : 'text-[11px] text-slate-500'}`}>
         {snapshot ? snapshot.label : isEmphasis ? '当前点' : '悬停数值'}
@@ -536,7 +556,7 @@ function ChartCard({
         {actions}
       </div>
       <div className="relative h-[320px] overflow-visible p-4">
-        {overlay ? <div className="absolute right-4 top-4 z-20">{overlay}</div> : null}
+        {overlay}
         {children}
       </div>
     </div>
@@ -989,9 +1009,7 @@ export default function TrainingJobDetailPage() {
                 <ChartCard title="测试指标" subtitle="精确率 / 召回率 / F1 / PR-AUC">
                 {curves?.test_points?.length ? (
                   <>
-                    <div className="pointer-events-none absolute right-8 top-8 z-20">
-                      <ChartHoverPanel snapshot={metricHover} />
-                    </div>
+                    <ChartHoverPanel snapshot={metricHover} />
                     <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={testMetricPlotData}
@@ -1025,9 +1043,7 @@ export default function TrainingJobDetailPage() {
                 <ChartCard title="分场景 F1" subtitle="每个子场景单独观察">
                 {scenarioMetricData.scenarioNames.length ? (
                   <>
-                    <div className="pointer-events-none absolute right-6 top-6 z-20">
-                      <ChartHoverPanel snapshot={scenarioHover} variant="emphasis" />
-                    </div>
+                    <ChartHoverPanel snapshot={scenarioHover} variant="emphasis" />
                     <ResponsiveContainer width="100%" height="100%">
                     <LineChart
                       data={scenarioMetricData.data}
