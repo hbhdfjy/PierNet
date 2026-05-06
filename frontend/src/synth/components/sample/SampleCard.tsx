@@ -185,7 +185,7 @@ export default function SampleCard({ sample, index }: Props) {
             ].map(([k, v]) => (
               <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
                 <div className="label mb-1">{k}</div>
-                <div className="truncate text-slate-300 font-mono text-xs" title={String(v)}>{String(v)}</div>
+                <div className="pretty-tooltip truncate text-slate-300 font-mono text-xs" data-tooltip={String(v)}>{String(v)}</div>
               </div>
             ))}
           </div>

@@ -543,8 +543,8 @@ function MetaField({
     <div>
       <div className="training-label">{label}</div>
       <div
-        className={`mt-1 min-w-0 truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
-        title={valueTitle}
+        className={`pretty-tooltip mt-1 min-w-0 truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
+        data-tooltip={valueTitle}
       >
         {value}
       </div>
@@ -608,7 +608,7 @@ function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[]
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="mono truncate text-[14px] font-semibold text-slate-100">{item.name}</div>
-              <div className="mt-1 text-[11px] text-slate-500" title={item.path}>
+              <div className="pretty-tooltip mt-1 text-[11px] text-slate-500" data-tooltip={item.path}>
                 {shortPath(item.path, 96)}
               </div>
             </div>

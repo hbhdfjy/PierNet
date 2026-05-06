@@ -72,7 +72,7 @@ function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
       <div className="label mb-1 text-[11px]">{label}</div>
-      <div className="truncate font-mono text-sm font-semibold text-slate-100" title={value}>{value}</div>
+      <div className="pretty-tooltip truncate font-mono text-sm font-semibold text-slate-100" data-tooltip={value}>{value}</div>
     </div>
   )
 }
@@ -226,7 +226,7 @@ export default function DataUploadPage() {
                     />
                     {file && (
                       <div className="mt-3 text-sm text-slate-400">
-                        已选择 <span className="inline-block max-w-full truncate align-bottom font-mono text-slate-200" title={file.name}>{file.name}</span>，大小 {formatBytes(file.size)}
+                        已选择 <span className="pretty-tooltip inline-block max-w-full truncate align-bottom font-mono text-slate-200" data-tooltip={file.name}>{file.name}</span>，大小 {formatBytes(file.size)}
                       </div>
                     )}
                   </div>
@@ -238,7 +238,7 @@ export default function DataUploadPage() {
                   <Info size={16} className="mt-0.5 text-sky-300" />
                   <div>
                     <div className="text-sm font-semibold text-slate-100">写入位置</div>
-                    <div className="mt-1 truncate font-mono text-sm text-sky-300" title={targetPath}>{targetPath}</div>
+                    <div className="pretty-tooltip mt-1 truncate font-mono text-sm text-sky-300" data-tooltip={targetPath}>{targetPath}</div>
                   </div>
                 </div>
               </div>
