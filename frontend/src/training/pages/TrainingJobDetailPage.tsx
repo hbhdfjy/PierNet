@@ -517,7 +517,7 @@ function KpiCard({
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
         <span className="training-kpi__label">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
           {icon}
         </span>
       </div>
@@ -546,7 +546,7 @@ function MetaField({
         className="pretty-tooltip mt-1 min-w-0"
         data-tooltip={valueTitle}
       >
-        <span className={`block truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}>
+        <span className={`block truncate text-[13px] leading-5 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}>
           {value}
         </span>
       </div>
@@ -571,14 +571,14 @@ function ChartCard({
     <div className="training-card training-card--chart">
       <div className="card-header justify-between gap-4">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
             <BarChart3 size={16} />
           </span>
           <SectionTitle title={title} copy={subtitle} />
         </div>
         {actions}
       </div>
-      <div className="relative h-[320px] overflow-visible p-4">
+      <div className="relative h-[300px] overflow-visible p-3.5">
         {overlay}
         {children}
       </div>
@@ -588,7 +588,7 @@ function ChartCard({
 
 function ChartEmpty({ message }: { message: string }) {
   return (
-    <div className="flex h-full items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/25 px-6 text-center text-[14px] text-slate-400">
+    <div className="flex h-full items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/25 px-6 text-center text-[13px] text-slate-400">
       {message}
     </div>
   )
@@ -818,15 +818,15 @@ export default function TrainingJobDetailPage() {
   return (
     <div className="training-page">
       <div className="training-page__body">
-        <div className="space-y-5 p-5">
-          <section className="training-hero">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-4 p-4">
+          <section className="training-hero training-hero--compact">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">任务详情</div>
-                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">
+                <h1 className="pretty-tooltip mt-2 max-w-5xl truncate text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]" data-tooltip={job?.name ?? jobId}>
                   {job?.name ?? jobId}
                 </h1>
-                <div className="mono mt-2 text-[13px] text-slate-500">{jobId}</div>
+                <div className="mono mt-1 text-[12px] text-slate-500">{jobId}</div>
               </div>
               <div className="flex flex-wrap items-center gap-3">
                 <button type="button" className="btn-ghost" onClick={() => navigate('/training/jobs')}>
@@ -860,7 +860,7 @@ export default function TrainingJobDetailPage() {
             </div>
 
             {job && (
-              <div className="mt-6 training-kpi-grid">
+              <div className="mt-4 training-kpi-grid">
                 <KpiCard
                   label="状态"
                   value={statusLabel(job.status)}
@@ -950,7 +950,7 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="日志文件" value={shortPath(job.log_path, 112)} mono title={job.log_path} />
                         </div>
                         {job.error_message && (
-                          <div className="mt-4 flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
+                          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-sm text-rose-300">
                             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
                             <span>{job.error_message}</span>
                           </div>
@@ -965,11 +965,11 @@ export default function TrainingJobDetailPage() {
                     <Save size={16} className="text-emerald-300" />
                     <SectionTitle title="权重文件" copy="已保存的模型权重" />
                   </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
-                  <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
-                </div>
-              </section>
-            </div>
+                  <div className="training-card__body training-scroll list-scroll-lg">
+                    <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
+                  </div>
+                </section>
+              </div>
 
               <div className="grid gap-4">
                 <ChartCard
@@ -1129,7 +1129,7 @@ export default function TrainingJobDetailPage() {
                         <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                    <div className="rounded-xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <div className="mb-3 flex items-center justify-between gap-3">
                         <div>
                           <div className="training-panel-title">终端输出</div>
@@ -1137,7 +1137,7 @@ export default function TrainingJobDetailPage() {
                         </div>
                         <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
                       </div>
-                      <pre className="list-scroll-xl whitespace-pre-wrap break-words rounded-2xl border border-slate-800/70 bg-slate-950/65 px-3.5 py-3 text-[12px] leading-5 text-slate-300">
+                      <pre className="list-scroll-xl whitespace-pre-wrap break-words rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
                         {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
                       </pre>
                     </div>

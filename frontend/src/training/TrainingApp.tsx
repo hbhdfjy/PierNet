@@ -76,7 +76,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
 
           <div>
             <SectionLabel>当前范围</SectionLabel>
-            <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-3 text-xs text-slate-400">
+            <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 p-2.5 text-xs text-slate-400">
               <div className="flex items-center gap-2 text-slate-200">
                 <Cpu size={13} />
                 单卡 · Token Router

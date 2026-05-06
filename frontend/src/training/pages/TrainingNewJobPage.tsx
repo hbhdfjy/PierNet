@@ -309,7 +309,7 @@ export default function TrainingNewJobPage() {
                       return (
                         <label
                           key={gpu.index}
-                          className={`block rounded-2xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                          className={`block rounded-xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2.5">
@@ -351,7 +351,7 @@ export default function TrainingNewJobPage() {
                 </div>
                 <div className="grid gap-3 p-3 md:grid-cols-2 2xl:grid-cols-4">
                   <Field label="训练轮数">
-                    <div className="flex items-center justify-between gap-3 rounded-2xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
+                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
                       <label className="flex items-center gap-2 text-[14px] text-slate-300">
                         <input type="checkbox" checked={infiniteEpochs} onChange={e => setInfiniteEpochs(e.target.checked)} />
                         无限训练

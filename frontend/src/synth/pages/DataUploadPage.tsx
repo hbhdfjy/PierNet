@@ -70,10 +70,10 @@ function ValidationPanel({ validation }: { validation: Hdf5ValidationResult }) {
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
+    <div className="rounded-lg border border-slate-700/35 bg-slate-900/30 p-2.5">
       <div className="label mb-1 text-[11px]">{label}</div>
       <div className="pretty-tooltip min-w-0" data-tooltip={value}>
-        <div className="truncate font-mono text-sm font-semibold text-slate-100">{value}</div>
+        <div className="truncate font-mono text-[13px] font-semibold text-slate-100">{value}</div>
       </div>
     </div>
   )
@@ -192,7 +192,7 @@ export default function DataUploadPage() {
               </div>
             </div>
 
-            <div className="space-y-4 p-5">
+            <div className="space-y-3.5 p-4">
               <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_1fr]">
                 <label className="space-y-1.5">
                   <span className="label">仿真器 / 大场景</span>
@@ -215,7 +215,7 @@ export default function DataUploadPage() {
                 </label>
               </div>
 
-              <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
+              <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3.5">
                 <div className="flex items-start gap-3">
                   <FileCode2 size={18} className="mt-1 text-sky-300" />
                   <div className="min-w-0 flex-1">
@@ -235,7 +235,7 @@ export default function DataUploadPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-sky-500/20 bg-sky-500/8 p-4">
+              <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3.5">
                 <div className="flex items-start gap-2">
                   <Info size={16} className="mt-0.5 text-sky-300" />
                   <div>
@@ -279,9 +279,9 @@ export default function DataUploadPage() {
                 <div className="training-panel-copy">上传页只提示预检结果，注册场景时按此规范强制校验。</div>
               </div>
             </div>
-            <div className="grid grid-cols-1 gap-3 p-5 md:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
               {SPEC_ITEMS.map((item, index) => (
-                <div key={item} className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
+                <div key={item} className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-100">
                     <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/12 font-mono text-xs text-emerald-300">{index + 1}</span>
                     必需项

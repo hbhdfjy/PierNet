@@ -18,7 +18,7 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
         <span className="training-kpi__label">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
           {icon}
         </span>
       </div>
@@ -80,23 +80,31 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   }
 
   return (
-    <div className={expanded ? 'training-card p-5' : 'training-card p-4'}>
-      <div className="flex h-full flex-col justify-between gap-5">
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="pretty-tooltip min-w-0 max-w-full" data-tooltip={job.name}>
-                <div className="truncate text-[17px] font-semibold text-slate-100">{job.name}</div>
+    <div className={expanded ? 'training-card p-3.5' : 'training-card p-3'}>
+      <div className="flex h-full flex-col justify-between gap-3">
+        <div className="grid gap-3 xl:grid-cols-[minmax(13rem,0.95fr)_minmax(12rem,0.9fr)_minmax(14rem,1.1fr)_auto] xl:items-center">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <div className="pretty-tooltip min-w-0" data-tooltip={job.name}>
+                <div className="truncate text-[15px] font-semibold text-slate-100">{job.name}</div>
               </div>
               <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
             </div>
             <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={job.job_id}>
-              <div className="mono truncate text-[12px] text-slate-500">{job.job_id}</div>
+              <div className="mono truncate text-[11px] text-slate-500">{job.job_id}</div>
             </div>
-            <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
-            <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={scenarioText}>
-              <div className="training-mono-note">{scenarioText}</div>
+          </div>
+
+          <div className="min-w-0">
+            <div className="training-label">训练数据</div>
+            <div className="mt-1 text-[13px] font-medium text-slate-200">
+              {job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个场景
             </div>
+          </div>
+
+          <div className="pretty-tooltip min-w-0" data-tooltip={scenarioText}>
+            <div className="training-label">子场景</div>
+            <div className="training-mono-note mt-1">{scenarioText || '—'}</div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
@@ -122,35 +130,35 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
         <div className="training-meta-grid">
           <div className="training-surface--dense">
             <div className="training-label">创建时间</div>
-            <div className="mt-1 text-[15px] text-slate-100">{formatDateTime(job.created_at)}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">{formatDateTime(job.created_at)}</div>
           </div>
           <div className="training-surface--dense">
             <div className="training-label">轮次 / 步数</div>
-            <div className="mt-1 text-[15px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
           </div>
           <div className="training-surface--dense">
             <div className="training-label">训练损失</div>
-            <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">{formatMetric(job.avg_loss, 6)}</div>
           </div>
           <div className="training-surface--dense">
             <div className="training-label">最近 F1</div>
-            <div className="mt-1 text-[15px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">{formatMetric(job.latest_metrics?.f1, 4)}</div>
           </div>
           <div className="training-surface--dense">
             <div className="training-label">预计剩余</div>
-            <div className="mt-1 text-[15px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">{formatDuration(job.eta_seconds)}</div>
           </div>
         </div>
 
         {actionError && (
-          <div className="flex items-start gap-2 rounded-2xl border border-amber-400/25 bg-amber-400/8 px-4 py-3 text-sm text-amber-200">
+          <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-sm text-amber-200">
             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
             <span>{actionError}</span>
           </div>
         )}
 
         {job.error_message && (
-          <div className="flex items-start gap-2 rounded-2xl border border-rose-500/20 bg-rose-500/8 px-4 py-3 text-sm text-rose-300">
+          <div className="flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-sm text-rose-300">
             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
             <span>{job.error_message}</span>
           </div>
@@ -173,12 +181,12 @@ export default function TrainingJobsPage() {
   return (
     <div className="training-page">
       <div className="training-page__body">
-        <div className="space-y-5 p-5">
-          <section className="training-hero">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+        <div className="space-y-4 p-4">
+          <section className="training-hero training-hero--compact">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">任务管理</div>
-                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">训练任务</h1>
+                <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">训练任务</h1>
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <button type="button" className="btn-ghost" onClick={() => mutate()}>
@@ -192,7 +200,7 @@ export default function TrainingJobsPage() {
               </div>
             </div>
 
-            <div className="mt-5 training-kpi-grid">
+            <div className="mt-4 training-kpi-grid">
               <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="注册表中的全部任务" icon={<Gauge size={16} />} />
               <KpiCard label="运行中" value={formatCount(runningCount)} note="启动中 / 训练中 / 评测中 / 停止中" icon={<PlayCircle size={16} />} />
               <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 权重 和测试结果" icon={<RefreshCcw size={16} />} />
@@ -216,15 +224,15 @@ export default function TrainingJobsPage() {
             </div>
             <div className="training-card__body training-scroll training-job-list-scroll">
               {isLoading && !data ? (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {[0, 1, 2].map(item => <div key={item} className="skeleton h-40 rounded-xl" />)}
                 </div>
               ) : data?.length ? (
-                <div className="space-y-3">
+                <div className="space-y-2.5">
                   {data.map(job => <JobRow key={job.job_id} job={job} expanded={data.length <= 2} />)}
                 </div>
               ) : (
-                <div className="training-card p-8 text-center text-sm text-slate-400">
+                <div className="training-card p-6 text-center text-sm text-slate-400">
                   当前没有训练任务。可以直接去“新建训练”启动第一个任务。
                 </div>
               )}

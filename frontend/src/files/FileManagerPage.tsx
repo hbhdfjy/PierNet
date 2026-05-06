@@ -179,7 +179,7 @@ function DetailPanel({
         )}
 
         {asset.kind === 'template' && (
-          <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-3">
+          <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
               <Scissors size={14} className="text-amber-300" />裁剪模板文件
             </div>
@@ -216,7 +216,7 @@ function DetailPanel({
             <div className="mb-2 text-sm font-semibold text-slate-200">元数据</div>
             <div className="space-y-2">
               {detailEntries.map(([key, value]) => (
-                <div key={key} className="rounded-2xl border border-slate-700/35 bg-slate-900/25 p-3">
+                <div key={key} className="rounded-xl border border-slate-700/35 bg-slate-900/25 p-3">
                   <div className="label mb-1 text-xs">{key}</div>
                   <JsonDetails value={value} />
                 </div>
@@ -231,9 +231,9 @@ function DetailPanel({
 
 function Metric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl border border-slate-700/35 bg-slate-900/28 p-3">
+    <div className="rounded-lg border border-slate-700/35 bg-slate-900/28 p-2.5">
       <div className="label mb-1 text-[11px]">{label}</div>
-      <div className="truncate font-mono text-sm font-semibold text-slate-100">{value}</div>
+      <div className="truncate font-mono text-[13px] font-semibold text-slate-100">{value}</div>
     </div>
   )
 }
@@ -380,7 +380,7 @@ export function FileManagerContent({
                     {copy}
                   </p>
                 </div>
-                <div className="grid min-w-[520px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
+                <div className="grid min-w-[460px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
                   <Metric label="文件" value={scopedSummary.total_assets.toLocaleString()} />
                   <Metric label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
                   <Metric label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
@@ -445,7 +445,7 @@ export function FileManagerContent({
               </div>
 
               {error && (
-                <div className="mx-4 mt-3 rounded-2xl border border-red-500/25 bg-red-500/10 p-3 text-sm whitespace-pre-wrap text-red-200">
+                <div className="mx-4 mt-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm whitespace-pre-wrap text-red-200">
                   {error}
                 </div>
               )}

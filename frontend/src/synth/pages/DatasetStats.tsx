@@ -69,7 +69,7 @@ function KpiCard({
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
         <span className="training-kpi__label">{label}</span>
-        <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
           {icon}
         </span>
       </div>
@@ -91,9 +91,9 @@ function SectionBlock({
   children: React.ReactNode
 }) {
   return (
-    <section className="space-y-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-10 w-10 items-center justify-center rounded-2xl border border-slate-700/45 bg-slate-900/45 text-slate-300">
+    <section className="space-y-3">
+      <div className="flex items-start gap-2.5">
+        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/45 bg-slate-900/45 text-slate-300">
           {icon}
         </div>
         <SectionTitle title={title} copy={copy} />
@@ -123,16 +123,16 @@ function OverviewHero({
   loading: boolean
 }) {
   return (
-    <section className="training-hero">
-      <div className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+    <section className="training-hero training-hero--compact">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
         <div className="max-w-3xl">
           <div className="training-eyebrow">
             <span>数据平台</span>
             <span className="text-slate-500">/</span>
             <span>数据集</span>
           </div>
-          <h1 className="mt-4 text-[2.15rem] font-semibold tracking-tight text-white xl:text-[2.5rem]">数据总览</h1>
-          <p className="mt-3 max-w-2xl training-copy">
+          <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">数据总览</h1>
+          <p className="mt-1.5 max-w-2xl training-copy">
             直接查看样本规模、内容分布、文件结构和 Router 训练数据。
           </p>
         </div>
@@ -142,7 +142,7 @@ function OverviewHero({
         </button>
       </div>
 
-      <div className="mt-6 training-kpi-grid">
+      <div className="mt-4 training-kpi-grid">
         <KpiCard label="样本" value={totalSamples.toLocaleString()} note={`${datasetCount} 个 JSONL`} icon={<Database size={16} />} />
         <KpiCard label="场景" value={scenarioCount.toString()} note={`${simulatorCount} 个仿真器`} icon={<Layers size={16} />} />
         <KpiCard label="Router" value={formatCompact(routerTotal)} note="训练输入规模" icon={<GitBranch size={16} />} />
@@ -176,11 +176,11 @@ function PieCard({
         <SectionTitle title={title} copy={`${entries.length} 项`} />
       </div>
       <div className="training-card__body">
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-3.5">
           <div className="relative flex-shrink-0">
-            <ResponsiveContainer width={124} height={124}>
+            <ResponsiveContainer width={108} height={108}>
               <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" innerRadius={28} outerRadius={54} dataKey="value" paddingAngle={2} strokeWidth={0}>
+                <Pie data={chartData} cx="50%" cy="50%" innerRadius={24} outerRadius={48} dataKey="value" paddingAngle={2} strokeWidth={0}>
                   {chartData.map((_, index) => (
                     <Cell key={index} fill={PALETTE[index % PALETTE.length]} />
                   ))}
@@ -198,7 +198,7 @@ function PieCard({
               </div>
             </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-3">
+          <div className="min-w-0 flex-1 space-y-2.5">
             {entries.map(([name, value], index) => {
               const pct = ((value / total) * 100).toFixed(0)
               return (
@@ -246,7 +246,7 @@ function ScenarioBar({ data }: { data: Record<string, number> }) {
             return (
               <div
                 key={name}
-                className="group rounded-2xl border border-slate-800/50 bg-slate-900/20 px-3 py-3 transition-colors hover:border-slate-700/60 hover:bg-slate-900/35"
+                className="group rounded-xl border border-slate-800/50 bg-slate-900/20 px-3 py-2.5 transition-colors hover:border-slate-700/60 hover:bg-slate-900/35"
               >
                 <div className="mb-2 flex items-center gap-3">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/60 font-mono text-[11px] text-slate-500">
@@ -330,12 +330,12 @@ function RouterStatCard({
     <div className="training-surface">
       <div className="flex items-start justify-between gap-3">
         <div className="training-kpi__label">{label}</div>
-        <span className={cn('flex h-9 w-9 items-center justify-center rounded-2xl border border-slate-700/40 bg-slate-900/35', color)}>
+        <span className={cn('flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35', color)}>
           {icon}
         </span>
       </div>
-      <div className={cn('mt-4 font-mono text-[1.8rem] font-semibold tracking-tight', color)}>{value}</div>
-      <div className="mt-1 text-sm text-slate-400">{note}</div>
+      <div className={cn('mt-2 font-mono text-[1.45rem] font-semibold tracking-tight', color)}>{value}</div>
+      <div className="mt-0.5 text-[12px] text-slate-400">{note}</div>
     </div>
   )
 }
@@ -362,7 +362,7 @@ export default function DatasetStats() {
 
   return (
     <div className="page-shell">
-      <div className="page-content p-6 space-y-8">
+      <div className="page-content space-y-4 p-4">
         {loading && !stats && (
           <div className="flex h-48 items-center justify-center gap-2.5 text-slate-500">
             <RefreshCw size={16} className="animate-spin" />
