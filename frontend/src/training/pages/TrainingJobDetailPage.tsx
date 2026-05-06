@@ -672,6 +672,10 @@ export default function TrainingJobDetailPage() {
     const domain = testMetricDomain ?? [0, 1]
     return (curves?.test_points ?? []).map(point => ({
       ...point,
+      精确率: point.precision,
+      召回率: point.recall,
+      F1: point.f1,
+      'PR-AUC': point.pr_auc,
       f1_plot: normalizeToDomain(point.f1, domain),
       pr_auc_plot: normalizeToDomain(point.pr_auc, domain),
       precision_plot: normalizeToDomain(point.precision, domain),
