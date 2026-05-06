@@ -110,7 +110,11 @@ function SelectFilter({ label, value, options, onChange }: {
 function JsonDetails({ value }: { value: unknown }) {
   if (value == null || value === '') return <span className="text-slate-600">-</span>
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
-    return <span className="pretty-tooltip block truncate font-mono text-slate-300" data-tooltip={String(value)}>{String(value)}</span>
+    return (
+      <span className="pretty-tooltip block min-w-0" data-tooltip={String(value)}>
+        <span className="block truncate font-mono text-slate-300">{String(value)}</span>
+      </span>
+    )
   }
   return (
     <pre className="max-h-56 overflow-auto rounded-xl border border-slate-700/35 bg-slate-950/35 p-3 text-xs leading-5 text-slate-400">
@@ -146,7 +150,9 @@ function DetailPanel({
         <ShieldCheck size={17} className="mt-0.5 text-sky-400" />
         <div className="min-w-0 flex-1">
           <div className="training-panel-title truncate">{asset.title}</div>
-          <div className="pretty-tooltip training-panel-copy truncate font-mono" data-tooltip={asset.path || undefined}>{asset.path || '无文件路径'}</div>
+          <div className="pretty-tooltip min-w-0" data-tooltip={asset.path || undefined}>
+            <div className="training-panel-copy truncate font-mono">{asset.path || '无文件路径'}</div>
+          </div>
         </div>
         <span className={cn('badge border text-xs', statusClass(asset))}>{statusLabel(asset)}</span>
       </div>

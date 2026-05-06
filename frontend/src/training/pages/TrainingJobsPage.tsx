@@ -85,12 +85,18 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="pretty-tooltip max-w-full truncate text-[17px] font-semibold text-slate-100" data-tooltip={job.name}>{job.name}</div>
+              <div className="pretty-tooltip min-w-0 max-w-full" data-tooltip={job.name}>
+                <div className="truncate text-[17px] font-semibold text-slate-100">{job.name}</div>
+              </div>
               <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
             </div>
-            <div className="pretty-tooltip mono mt-1 truncate text-[12px] text-slate-500" data-tooltip={job.job_id}>{job.job_id}</div>
+            <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={job.job_id}>
+              <div className="mono truncate text-[12px] text-slate-500">{job.job_id}</div>
+            </div>
             <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
-            <div className="pretty-tooltip mt-1 training-mono-note" data-tooltip={scenarioText}>{scenarioText}</div>
+            <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={scenarioText}>
+              <div className="training-mono-note">{scenarioText}</div>
+            </div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">

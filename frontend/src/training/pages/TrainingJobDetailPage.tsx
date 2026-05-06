@@ -543,10 +543,12 @@ function MetaField({
     <div>
       <div className="training-label">{label}</div>
       <div
-        className={`pretty-tooltip mt-1 min-w-0 truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
+        className="pretty-tooltip mt-1 min-w-0"
         data-tooltip={valueTitle}
       >
-        {value}
+        <span className={`block truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}>
+          {value}
+        </span>
       </div>
     </div>
   )

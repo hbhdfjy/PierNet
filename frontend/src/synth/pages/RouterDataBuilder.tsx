@@ -266,10 +266,10 @@ export default function RouterDataBuilder() {
             <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5 text-sm text-slate-400">
               {'Embedding Backbone \u56fa\u5b9a\u4e3a '}
               <span
-                className="pretty-tooltip inline-block max-w-full truncate align-bottom font-mono text-sky-300"
+                className="pretty-tooltip inline-block max-w-full align-bottom"
                 data-tooltip="/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
               >
-                Qwen2.5-0.5B-Instruct
+                <span className="block truncate font-mono text-sky-300">Qwen2.5-0.5B-Instruct</span>
               </span>
             </div>
           </div>

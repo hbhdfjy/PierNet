@@ -891,8 +891,8 @@ function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, on
       </div>
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-start gap-2 min-w-0">
-          <span className="pretty-tooltip font-mono text-sm text-sky-300/80 leading-5 truncate min-w-0 flex-1" data-tooltip={scenario}>
-            {scenario}
+          <span className="pretty-tooltip min-w-0 flex-1" data-tooltip={scenario}>
+            <span className="block truncate font-mono text-sm text-sky-300/80 leading-5">{scenario}</span>
           </span>
           {!editing && (
             <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0 self-start">
