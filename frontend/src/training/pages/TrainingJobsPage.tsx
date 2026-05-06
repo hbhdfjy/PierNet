@@ -79,7 +79,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   }
 
   return (
-    <div className={expanded ? 'training-card p-5 min-h-[260px]' : 'training-card p-4'}>
+    <div className={expanded ? 'training-card p-5' : 'training-card p-4'}>
       <div className="flex h-full flex-col justify-between gap-5">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
@@ -199,7 +199,7 @@ export default function TrainingJobsPage() {
             </div>
           )}
 
-          <section className="training-card min-h-[420px]">
+          <section className="training-card">
             <div className="card-header">
               <Gauge size={16} className="text-sky-300" />
               <div>
@@ -207,10 +207,10 @@ export default function TrainingJobsPage() {
                 <div className="training-panel-copy">运行中任务可终止，历史任务可删除</div>
               </div>
             </div>
-            <div className="training-card__body training-scroll list-scroll-xl">
+            <div className="training-card__body training-scroll training-job-list-scroll">
               {isLoading && !data ? (
                 <div className="space-y-3">
-                  {[0, 1, 2].map(item => <div key={item} className="skeleton h-40 rounded-3xl" />)}
+                  {[0, 1, 2].map(item => <div key={item} className="skeleton h-40 rounded-xl" />)}
                 </div>
               ) : data?.length ? (
                 <div className="space-y-3">

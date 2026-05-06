@@ -159,15 +159,15 @@ export default function DataUploadPage() {
 
   return (
     <div className="page-shell">
-      <div className="page-content p-6 space-y-5">
-        <section className="rounded-[28px] border border-slate-700/35 bg-gradient-to-br from-slate-900/85 via-slate-900/60 to-sky-950/35 p-6 shadow-2xl shadow-slate-950/30">
+      <div className="page-content space-y-4 p-4">
+        <section className="training-hero training-hero--compact">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.18em] text-amber-300">
+              <div className="training-eyebrow">
                 阶段 1 上传
               </div>
-              <h1 className="mt-4 text-3xl font-black tracking-tight text-slate-50">上传物理数据</h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">上传物理数据</h1>
+              <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
                 将外部仿真器/大场景的数据纳入 PiERN 合成链路。上传后即时预检；注册场景时会执行强校验，不合规数据不能进入模板生成。
               </p>
             </div>
@@ -180,7 +180,7 @@ export default function DataUploadPage() {
           </div>
         </section>
 
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[0.95fr_1.05fr]">
           <section className="training-card overflow-hidden">
             <div className="card-header">
               <UploadCloud size={17} className="text-amber-400" />
@@ -302,7 +302,7 @@ export default function DataUploadPage() {
             </button>
           </div>
 
-          <div className="list-table-scroll max-h-[420px]">
+          <div className="steady-table-scroll">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-700/40 bg-slate-800/40">

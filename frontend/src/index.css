@@ -781,7 +781,9 @@
   }
 
   .list-table-scroll thead th,
-  .list-table-scroll-compact thead th {
+  .list-table-scroll-compact thead th,
+  .file-manager-list-panel thead th,
+  .steady-table-scroll thead th {
     position: sticky;
     top: 0;
     z-index: 10;
@@ -846,10 +848,61 @@
     @apply overflow-y-auto overflow-x-hidden;
   }
 
+  .file-manager-workspace {
+    @apply grid grid-cols-1 items-stretch gap-4 p-4;
+  }
+
+  .file-manager-list-panel {
+    @apply min-h-0 overflow-auto rounded-xl border border-slate-700/35;
+    scrollbar-gutter: stable;
+  }
+
+  .file-manager-detail-panel {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .file-manager-detail-body {
+    @apply min-h-0 flex-1 overflow-y-auto space-y-4 p-4;
+    scrollbar-gutter: stable;
+  }
+
+  .file-manager-detail-empty {
+    @apply flex items-center justify-center;
+  }
+
+  .steady-table-scroll {
+    @apply min-h-0 overflow-auto;
+    max-height: clamp(16rem, calc(100dvh - 27rem), 32rem);
+    scrollbar-gutter: stable;
+  }
+
+  .training-job-list-scroll {
+    @apply min-h-0 overflow-y-auto overflow-x-hidden pr-1;
+    max-height: clamp(18rem, calc(100dvh - 24rem), 34rem);
+    scrollbar-gutter: stable;
+  }
+
+  @media (min-width: 1280px) {
+    .file-manager-workspace {
+      grid-template-columns: minmax(0, 1fr) 26rem;
+      height: clamp(28rem, calc(100dvh - 23.5rem), 42rem);
+      min-height: 0;
+    }
+  }
+
   @media (max-width: 767px) {
     .training-overview-grid > .training-card {
       height: auto;
       min-height: 0;
+    }
+
+    .file-manager-detail-panel {
+      height: auto;
+    }
+
+    .file-manager-list-panel {
+      max-height: 28rem;
     }
   }
 

@@ -135,13 +135,13 @@ function DetailPanel({
   onTrim: (asset: FileAsset) => void
 }) {
   if (!asset) {
-    return <div className="training-card min-h-[360px] p-6 text-sm text-slate-500">选择一个文件资产查看详情。</div>
+    return <div className="training-card file-manager-detail-panel file-manager-detail-empty">选择一个文件资产查看详情。</div>
   }
 
   const detailEntries = Object.entries(asset.details ?? {})
 
   return (
-    <div className="training-card overflow-hidden">
+    <div className="training-card file-manager-detail-panel overflow-hidden">
       <div className="card-header items-start">
         <ShieldCheck size={17} className="mt-0.5 text-sky-400" />
         <div className="min-w-0 flex-1">
@@ -151,7 +151,7 @@ function DetailPanel({
         <span className={cn('badge border text-xs', statusClass(asset))}>{statusLabel(asset)}</span>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="file-manager-detail-body">
         <div className="grid grid-cols-2 gap-2 text-sm">
           <Metric label="平台" value={platformLabel(asset)} />
           <Metric label="阶段" value={stageLabel(asset)} />
@@ -444,8 +444,8 @@ export function FileManagerContent({
                 </div>
               )}
 
-              <div className="grid min-h-[560px] grid-cols-1 gap-4 p-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-                <div className="list-table-scroll max-h-[620px] rounded-2xl border border-slate-700/35">
+              <div className="file-manager-workspace">
+                <div className="file-manager-list-panel">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-700/40 bg-slate-800/40">
