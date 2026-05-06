@@ -452,7 +452,7 @@ export function FileManagerContent({
 
               <div className="file-manager-workspace">
                 <div className="file-manager-list-panel">
-                  <table className="w-full text-sm">
+                  <table className="file-manager-table w-full text-sm">
                     <thead>
                       <tr className="border-b border-slate-700/40 bg-slate-800/40">
                         <th className="px-4 py-3 text-left label">文件</th>
@@ -475,7 +475,7 @@ export function FileManagerContent({
                           onClick={() => setSelectedId(asset.id)}
                         >
                           <td className="px-4 py-3">
-                            <div className="font-mono font-semibold text-slate-100">{asset.title}</div>
+                            <div className="pretty-tooltip max-w-[22rem] truncate font-mono font-semibold text-slate-100" data-tooltip={asset.title}>{asset.title}</div>
                             <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{asset.path}</div>
                           </td>
                           <td className="px-4 py-3 text-slate-400">{stageLabel(asset)}</td>

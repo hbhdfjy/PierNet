@@ -557,12 +557,12 @@
   }
 
   .badge {
-    @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[12px] font-semibold leading-none;
+    @apply inline-flex items-center gap-1 whitespace-nowrap px-2 py-0.5 rounded-full text-[12px] font-semibold leading-none;
     backdrop-filter: blur(10px);
   }
 
   .btn {
-    @apply inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-150 select-none disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98];
+    @apply inline-flex items-center gap-1.5 whitespace-nowrap px-2.5 py-1.5 rounded-lg text-[13px] font-medium transition-all duration-150 select-none disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.98];
     border: 1px solid transparent;
     outline: none;
   }
@@ -769,13 +769,13 @@
   }
 
   .list-table-scroll-compact {
-    @apply min-h-0 max-h-44 overflow-y-auto overflow-x-hidden;
+    @apply min-h-0 max-h-44 overflow-auto;
     overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
 
   .list-table-scroll {
-    @apply min-h-0 max-h-56 overflow-y-auto overflow-x-hidden;
+    @apply min-h-0 max-h-56 overflow-auto;
     overscroll-behavior: auto;
     scrollbar-gutter: stable;
   }
@@ -798,6 +798,12 @@
     font-size: 13px;
   }
 
+  .list-table-scroll table,
+  .list-table-scroll-compact table,
+  .steady-table-scroll table {
+    min-width: 52rem;
+  }
+
   .training-card table th,
   .training-card table td,
   .file-manager-list-panel table th,
@@ -806,6 +812,21 @@
   .steady-table-scroll table td {
     padding: 0.55rem 0.75rem;
     vertical-align: middle;
+  }
+
+  .training-card table th {
+    white-space: nowrap;
+  }
+
+  .list-table-scroll th,
+  .list-table-scroll td,
+  .list-table-scroll-compact th,
+  .list-table-scroll-compact td,
+  .steady-table-scroll th,
+  .steady-table-scroll td,
+  .file-manager-list-panel th,
+  .file-manager-list-panel td {
+    white-space: nowrap;
   }
 
   .training-stack {
@@ -871,6 +892,34 @@
   .file-manager-list-panel {
     @apply min-h-0 overflow-auto rounded-xl border border-slate-700/35;
     scrollbar-gutter: stable;
+  }
+
+  .file-manager-table {
+    min-width: 64rem;
+    table-layout: auto;
+  }
+
+  .file-manager-table th:nth-child(1),
+  .file-manager-table td:nth-child(1) {
+    min-width: 20rem;
+  }
+
+  .file-manager-table th:nth-child(2),
+  .file-manager-table td:nth-child(2),
+  .file-manager-table th:nth-child(3),
+  .file-manager-table td:nth-child(3) {
+    min-width: 6rem;
+  }
+
+  .file-manager-table th:nth-child(4),
+  .file-manager-table td:nth-child(4),
+  .file-manager-table th:nth-child(5),
+  .file-manager-table td:nth-child(5),
+  .file-manager-table th:nth-child(6),
+  .file-manager-table td:nth-child(6),
+  .file-manager-table th:nth-child(7),
+  .file-manager-table td:nth-child(7) {
+    min-width: 5.5rem;
   }
 
   .file-manager-detail-panel {
