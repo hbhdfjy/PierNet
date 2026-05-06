@@ -14,6 +14,7 @@ type TooltipPosition = {
 
 const VIEWPORT_GAP = 12
 const ANCHOR_GAP = 10
+const OVERFLOW_EPSILON = 1
 
 function clamp(value: number, min: number, max: number) {
   if (max < min) return min
@@ -22,6 +23,50 @@ function clamp(value: number, min: number, max: number) {
 
 function tooltipTarget(node: EventTarget | null): HTMLElement | null {
   return node instanceof Element ? node.closest<HTMLElement>('[data-tooltip]') : null
+}
+
+function isOverflowClipped(style: CSSStyleDeclaration, axis: 'x' | 'y') {
+  const overflow = axis === 'x' ? style.overflowX : style.overflowY
+  return overflow === 'hidden' || overflow === 'clip' || overflow === 'auto' || overflow === 'scroll'
+}
+
+function elementIsVisuallyTruncated(element: HTMLElement) {
+  const style = window.getComputedStyle(element)
+  const clippedX = isOverflowClipped(style, 'x') || style.textOverflow === 'ellipsis' || style.whiteSpace === 'nowrap'
+  const clippedY = isOverflowClipped(style, 'y')
+
+  if (clippedX && element.scrollWidth - element.clientWidth > OVERFLOW_EPSILON) {
+    return true
+  }
+  if (clippedY && element.scrollHeight - element.clientHeight > OVERFLOW_EPSILON) {
+    return true
+  }
+  return false
+}
+
+function hasManualEllipsis(target: HTMLElement, tooltipText: string) {
+  const visibleText = target.innerText.trim()
+  if (!visibleText || visibleText === tooltipText) {
+    return false
+  }
+  return visibleText.includes('…') || visibleText.includes('...')
+}
+
+function shouldShowTooltip(target: HTMLElement, tooltipText: string) {
+  if (target.dataset.tooltipMode === 'always') {
+    return true
+  }
+
+  if (elementIsVisuallyTruncated(target) || hasManualEllipsis(target, tooltipText)) {
+    return true
+  }
+
+  for (const child of target.querySelectorAll<HTMLElement>('*')) {
+    if (elementIsVisuallyTruncated(child)) {
+      return true
+    }
+  }
+  return false
 }
 
 export default function PrettyTooltipLayer() {
@@ -38,10 +83,17 @@ export default function PrettyTooltipLayer() {
     }
   }
 
+  const clearActiveTarget = () => {
+    if (activeTargetRef.current) {
+      delete activeTargetRef.current.dataset.tooltipOverflow
+    }
+    activeTargetRef.current = null
+  }
+
   const hideSoon = () => {
     clearHideTimer()
     hideTimerRef.current = window.setTimeout(() => {
-      activeTargetRef.current = null
+      clearActiveTarget()
       setTooltip(null)
       setPosition(null)
     }, 420)
@@ -50,8 +102,23 @@ export default function PrettyTooltipLayer() {
   const showForTarget = (target: HTMLElement) => {
     const text = target.dataset.tooltip?.trim()
     if (!text) return
+    if (!shouldShowTooltip(target, text)) {
+      delete target.dataset.tooltipOverflow
+      if (activeTargetRef.current === target) {
+        clearHideTimer()
+        clearActiveTarget()
+        setTooltip(null)
+        setPosition(null)
+      }
+      return
+    }
+
     clearHideTimer()
+    if (activeTargetRef.current && activeTargetRef.current !== target) {
+      delete activeTargetRef.current.dataset.tooltipOverflow
+    }
     activeTargetRef.current = target
+    target.dataset.tooltipOverflow = 'true'
     const rect = target.getBoundingClientRect()
     setTooltip(current => ({
       id: current ? current.id + 1 : 1,
@@ -102,7 +169,7 @@ export default function PrettyTooltipLayer() {
 
     const hideNow = () => {
       clearHideTimer()
-      activeTargetRef.current = null
+      clearActiveTarget()
       setTooltip(null)
       setPosition(null)
     }

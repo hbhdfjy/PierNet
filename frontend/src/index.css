@@ -1520,6 +1520,9 @@
 
   .pretty-tooltip {
     position: relative;
+  }
+
+  .pretty-tooltip[data-tooltip-overflow='true'] {
     cursor: help;
   }
 
