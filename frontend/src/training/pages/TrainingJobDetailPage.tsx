@@ -294,6 +294,26 @@ function formatUnitDomainTick(value: number, domain: [number, number]) {
   return actual.toFixed(actual >= 0.99 ? 4 : 3)
 }
 
+function nodeTitle(value: React.ReactNode): string | undefined {
+  if (typeof value === 'string' || typeof value === 'number') {
+    return String(value)
+  }
+  return undefined
+}
+
+function compactPathName(value: string | null | undefined) {
+  const trimmed = (value ?? '').trim()
+  if (!trimmed) return '—'
+  return trimmed.split('/').filter(Boolean).pop() ?? trimmed
+}
+
+function inputRepresentationLabel(value: string | null | undefined) {
+  if (!value || value === 'pretrained_embeddings') {
+    return '预训练嵌入'
+  }
+  return value
+}
+
 function buildChartHoverSnapshot(axisLabel: string, state?: ChartMouseState | null): ChartHoverSnapshot | null {
   const entries = state?.activePayload?.filter(item => item.value !== null && item.value !== undefined) ?? []
   if (!entries.length) {
@@ -518,12 +538,13 @@ function MetaField({
   mono?: boolean
   title?: string
 }) {
+  const valueTitle = title ?? nodeTitle(value)
   return (
     <div>
       <div className="training-label">{label}</div>
       <div
-        className={`mt-1 min-w-0 text-[15px] leading-6 ${mono ? 'mono break-all text-slate-200' : 'break-words text-slate-100'}`}
-        title={title}
+        className={`mt-1 min-w-0 truncate text-[15px] leading-6 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}
+        title={valueTitle}
       >
         {value}
       </div>
@@ -908,10 +929,14 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="学习率" value={job.config.learning_rate} mono />
                           <MetaField label="权重衰减" value={job.config.weight_decay} mono />
                           <MetaField label="恢复训练" value={job.config.resume_from ? '是' : '否'} />
-                          <MetaField label="输入表示" value={job.config.input_representation ?? 'pretrained_embeddings'} mono />
+                          <MetaField
+                            label="输入表示"
+                            value={inputRepresentationLabel(job.config.input_representation)}
+                            title={job.config.input_representation ?? 'pretrained_embeddings'}
+                          />
                           <MetaField
                             label="嵌入模型"
-                            value={shortPath(job.config.embedding_model || job.config.embedding_tokenizer || '—', 64)}
+                            value={compactPathName(job.config.embedding_model || job.config.embedding_tokenizer)}
                             mono
                             title={job.config.embedding_model || job.config.embedding_tokenizer || undefined}
                           />

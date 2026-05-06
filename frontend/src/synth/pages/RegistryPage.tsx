@@ -891,7 +891,7 @@ function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, on
       </div>
       <div className="flex-1 min-w-0 space-y-2">
         <div className="flex items-start gap-2 min-w-0">
-          <span className="font-mono text-sm text-sky-300/80 leading-5 break-all min-w-0 flex-1">
+          <span className="font-mono text-sm text-sky-300/80 leading-5 truncate min-w-0 flex-1" title={scenario}>
             {scenario}
           </span>
           {!editing && (

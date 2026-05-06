@@ -1461,7 +1461,7 @@
   }
 
   .training-mono-note {
-    @apply mono text-[12px];
+    @apply mono truncate text-[12px];
     color: hsl(var(--text-ghost));
   }
 

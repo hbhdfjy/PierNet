@@ -43,6 +43,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
   const stopping = job.status === 'stopping'
   const deletable = !stoppable && !stopping
+  const scenarioText = job.scenarios.join(', ')
 
   const refreshAll = async () => {
     await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
@@ -84,12 +85,12 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="text-[17px] font-semibold text-slate-100">{job.name}</div>
+              <div className="max-w-full truncate text-[17px] font-semibold text-slate-100" title={job.name}>{job.name}</div>
               <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
             </div>
-            <div className="mono mt-1 text-[12px] text-slate-500">{job.job_id}</div>
+            <div className="mono mt-1 truncate text-[12px] text-slate-500" title={job.job_id}>{job.job_id}</div>
             <div className="mt-2 training-note">{job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个子场景</div>
-            <div className="mt-1 training-mono-note">{job.scenarios.join(', ')}</div>
+            <div className="mt-1 training-mono-note" title={scenarioText}>{scenarioText}</div>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">

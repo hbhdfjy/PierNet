@@ -56,7 +56,7 @@ function TargetSection({ target }: { target: string }) {
       </div>
       <div className="px-4 pb-4">
         <div className={cn(
-          'bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-400 leading-relaxed font-mono whitespace-pre-wrap break-all border border-slate-700/30',
+          'bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-400 leading-relaxed font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] border border-slate-700/30',
           !expanded && isLong ? 'max-h-24 overflow-hidden' : 'max-h-96 overflow-y-auto',
         )}>
           {expanded || !isLong ? target : target.slice(0, PREVIEW_LEN) + '…'}
@@ -185,7 +185,7 @@ export default function SampleCard({ sample, index }: Props) {
             ].map(([k, v]) => (
               <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
                 <div className="label mb-1">{k}</div>
-                <div className="text-slate-300 font-mono text-xs break-all">{String(v)}</div>
+                <div className="truncate text-slate-300 font-mono text-xs" title={String(v)}>{String(v)}</div>
               </div>
             ))}
           </div>

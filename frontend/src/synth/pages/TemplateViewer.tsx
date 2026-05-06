@@ -161,7 +161,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
           ].map(([k, v]) => (
             <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
               <div className="label mb-1 text-xs">{k}</div>
-              <div className="text-slate-300 font-mono text-xs break-all">{String(v)}</div>
+              <div className="truncate text-slate-300 font-mono text-xs" title={String(v)}>{String(v)}</div>
             </div>
           ))}
         </div>
@@ -172,7 +172,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
           {record.output_schema.map(slot => (
             <div key={slot.index} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-700/30 text-xs">
               <span className="text-violet-400 font-mono font-medium flex-shrink-0">{`{output_${slot.index}}`}</span>
-              <span className="text-slate-400 flex-1 break-all">{slot.name || '未命名输出'}</span>
+              <span className="min-w-0 flex-1 truncate text-slate-400" title={slot.name || undefined}>{slot.name || '未命名输出'}</span>
             </div>
           ))}
         </div>

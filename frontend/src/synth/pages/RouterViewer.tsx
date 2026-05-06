@@ -32,7 +32,7 @@ function SampleCard({ sample, index }: { sample: RouterSample; index: number }) 
       </div>
       <div className="px-4 py-3">
         <div className="text-xs text-slate-500 mb-1.5 font-medium">context</div>
-        <div className="text-sm text-slate-300 leading-relaxed font-mono bg-slate-800/40 rounded-lg px-3 py-2.5 break-all whitespace-pre-wrap">
+        <div className="text-sm text-slate-300 leading-relaxed font-mono bg-slate-800/40 rounded-lg px-3 py-2.5 break-words [overflow-wrap:anywhere] whitespace-pre-wrap">
           {sample.context}
         </div>
       </div>
