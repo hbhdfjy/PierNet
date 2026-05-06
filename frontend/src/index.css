@@ -1467,33 +1467,16 @@
 
   .pretty-tooltip {
     position: relative;
+    cursor: help;
   }
 
-  .pretty-tooltip[data-tooltip]:not([data-tooltip='']):hover::before,
-  .pretty-tooltip[data-tooltip]:not([data-tooltip='']):focus-visible::before {
-    content: '';
-    position: absolute;
-    left: 0.9rem;
-    top: calc(100% + 0.32rem);
-    z-index: 89;
-    width: 0.65rem;
-    height: 0.65rem;
-    border-left: 1px solid rgb(71 85 105 / 0.55);
-    border-top: 1px solid rgb(71 85 105 / 0.55);
-    background: rgb(15 23 42 / 0.96);
-    transform: rotate(45deg);
-    pointer-events: none;
-  }
-
-  .pretty-tooltip[data-tooltip]:not([data-tooltip='']):hover::after,
-  .pretty-tooltip[data-tooltip]:not([data-tooltip='']):focus-visible::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    left: 0;
-    top: calc(100% + 0.62rem);
-    z-index: 90;
+  .pretty-tooltip-panel {
+    position: fixed;
+    z-index: 9999;
     width: max-content;
     max-width: min(34rem, calc(100vw - 2rem));
+    max-height: min(42vh, 22rem);
+    overflow: auto;
     padding: 0.6rem 0.75rem;
     border: 1px solid rgb(71 85 105 / 0.55);
     border-radius: 0.9rem;
@@ -1506,7 +1489,8 @@
     letter-spacing: 0;
     line-height: 1.45;
     overflow-wrap: anywhere;
-    pointer-events: none;
+    pointer-events: auto;
+    user-select: text;
     text-align: left;
     text-transform: none;
     white-space: normal;
