@@ -314,7 +314,6 @@ python scripts/ci/check_consistency.py
 
 - `start_ui.sh` defaults to `/home/tpx/.conda/envs/piern`; use `PIERN_CONDA_ENV` when the environment is named differently.
 - `piern/training/services/training_manager.py` launches UI-created training jobs with the backend process Python by default; override `PIERN_TRAINING_PYTHON` if a different interpreter is needed.
-- `scripts/utils/summarize_all.py` is a legacy MODFLOW-oriented utility and should not be treated as the canonical project summary.
 - `piern/core/llm_client.py` has provider-specific paths; test the provider branch you change instead of assuming OpenAI-compatible behavior covers all providers.
 - Simulator-local requirement files can be stale relative to root dependency constraints.
 - Frontend UI has little automated coverage; use `npm run build` plus targeted manual smoke tests for route or layout changes.
