@@ -14,11 +14,19 @@ env/
 # Stage 3：样本填充结果（体积过大，不追踪）
 data/text2comp/
 
+# Stage 3/4：便携式 Parquet 数据湖（建议交给 DVC/rsync 管理，不直接进 Git）
+data/text2comp_parquet/
+data/router_parquet/
+data/catalog.sqlite
+data/catalog.sqlite-*
+
 # Stage 4：路由训练数据（体积过大，不追踪）
 data/router/
 data/.manifests/
 data/.indexes/
 data/**/*.pt
+data/**/*.parquet
+data/**/*.duckdb
 data/**/*.pth
 data/**/*.ckpt
 data/**/*.nc
@@ -59,6 +67,9 @@ migration_backup/
 
 # Environment variables (API keys, secrets)
 .env
+
+# Portable storage migration exports
+migration_exports/
 
 # Router training artifacts
 artifacts/

@@ -15,6 +15,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset, Sampler
 
+from piern.shared.storage import portable
 from .pretrained_embeddings import (
     EmbeddingBackboneSpec,
     PretrainedEmbeddingEncoder,
@@ -144,6 +145,44 @@ def assign_split(context: str, scenario: str, test_ratio: float) -> str:
     return "test" if (_stable_hash(key) % 1_000_000) < boundary else "train"
 
 
+def _materialize_parquet_router_files(router_dir: Path, simulator: str) -> list[Path]:
+    partitions = [part for part in portable.discover_partitions("router") if part.simulator == simulator]
+    if not partitions:
+        return []
+
+    cache_dir = Path(os.getenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(router_dir / ".parquet_jsonl_cache"))) / simulator
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    files: list[Path] = []
+    for part in sorted(partitions, key=lambda item: item.scenario):
+        out_path = cache_dir / f"{part.scenario}.jsonl"
+        meta_path = out_path.with_suffix(".meta.json")
+        cache_meta = {}
+        if meta_path.exists():
+            try:
+                cache_meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            except Exception:
+                cache_meta = {}
+        valid_cache = (
+            out_path.exists()
+            and cache_meta.get("source_path") == str(part.path)
+            and int(cache_meta.get("row_count", -1)) == int(part.row_count)
+            and float(cache_meta.get("source_mtime", -1.0)) == float(part.mtime)
+        )
+        if not valid_cache:
+            _log_prepare(f"materializing router Parquet partition scenario={part.scenario} -> {out_path}")
+            count = portable.export_records_to_jsonl("router", out_path, simulator=simulator, scenario=part.scenario)
+            meta_path.write_text(
+                json.dumps(
+                    {"source_path": str(part.path), "source_mtime": part.mtime, "row_count": count},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+        files.append(out_path)
+    return files
+
+
 def _scenario_files(router_dir: Path, simulator: str) -> list[Path]:
     files: list[Path] = []
     for path in sorted((router_dir / "by_scenario").glob("*.jsonl")):
@@ -154,6 +193,8 @@ def _scenario_files(router_dir: Path, simulator: str) -> list[Path]:
         first = json.loads(first_line)
         if first["metadata"].get("simulator") == simulator:
             files.append(path)
+    if not files:
+        files = _materialize_parquet_router_files(router_dir, simulator)
     if not files:
         raise FileNotFoundError(f"No router files found for simulator={simulator!r} under {router_dir}")
     return files

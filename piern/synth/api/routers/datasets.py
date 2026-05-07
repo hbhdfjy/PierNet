@@ -11,6 +11,7 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import DATA_DIR
+from piern.shared.storage import portable
 from piern.synth.api.routers import router_data as router_data_router
 from piern.synth.services import jsonl_filter_index, jsonl_index, manifest_store
 
@@ -22,7 +23,7 @@ LOGGER = logging.getLogger(__name__)
 def get_datasets():
     """返回 Stage 3 数据集列表，优先走 manifest。"""
     try:
-        manifest = manifest_store.ensure_sample_manifest()
+        manifest = _combined_sample_manifest()
         return [
             {
                 "name": item["scenario"],
@@ -31,6 +32,7 @@ def get_datasets():
                 "sample_count": item.get("sample_count", 0),
                 "file_size_bytes": item.get("file_size_bytes", 0),
                 "mtime": item.get("mtime", 0),
+                "storage": item.get("storage", "jsonl"),
             }
             for item in manifest.get("items", [])
         ]
@@ -47,10 +49,25 @@ def get_samples(
     language: Optional[str] = Query(None),
     style: Optional[str] = Query(None),
 ):
-    """分页读取指定场景的 JSONL 样本（当前仍使用流式扫描）。"""
+    """分页读取指定场景样本；Parquet 存在时优先使用 Parquet。"""
+    if portable.has_partitions("text2comp"):
+        try:
+            parquet_page = portable.read_text2comp_page(
+                scenario=scenario,
+                page=page,
+                page_size=page_size,
+                language=language,
+                style=style,
+            )
+            if parquet_page is not None:
+                total, items = parquet_page
+                return {"total": total, "page": page, "page_size": page_size, "items": items, "storage": "parquet"}
+        except Exception as exc:
+            raise HTTPException(500, f"读取 Parquet 失败: {exc}")
+
     jsonl_path = DATA_DIR / f"{scenario}.jsonl"
     if not jsonl_path.exists():
-        raise HTTPException(404, f"场景 {scenario} 的 JSONL 文件不存在")
+        raise HTTPException(404, f"场景 {scenario} 的数据文件不存在")
 
     has_filter = bool(language or style)
     start = page * page_size
@@ -113,7 +130,7 @@ def get_samples(
 def get_stats():
     """返回 Stage 3 聚合统计，优先走 manifest。"""
     try:
-        manifest = manifest_store.ensure_sample_manifest()
+        manifest = _combined_sample_manifest()
         return manifest.get(
             "summary",
             {
@@ -135,8 +152,8 @@ def get_stats():
 def get_dashboard_summary():
     """返回统计页所需的聚合摘要，优先复用 manifest。"""
     try:
-        sample_manifest = manifest_store.ensure_sample_manifest()
-        router_manifest = manifest_store.ensure_router_manifest()
+        sample_manifest = _combined_sample_manifest()
+        router_manifest = router_data_router._combined_router_manifest()
         datasets = [
             {
                 "name": item["scenario"],
@@ -145,6 +162,7 @@ def get_dashboard_summary():
                 "sample_count": item.get("sample_count", 0),
                 "file_size_bytes": item.get("file_size_bytes", 0),
                 "mtime": item.get("mtime", 0),
+                "storage": item.get("storage", "jsonl"),
             }
             for item in sample_manifest.get("items", [])
         ]
@@ -176,6 +194,62 @@ def get_dashboard_summary():
             "datasets": get_datasets(),
             "router": router_data_router.get_router_status(),
         }
+
+
+def _combined_sample_manifest() -> dict:
+    jsonl_manifest = manifest_store.ensure_sample_manifest()
+    parquet_manifest = portable.text2comp_manifest_like()
+    if not parquet_manifest:
+        return jsonl_manifest
+
+    parquet_items = list(parquet_manifest.get("items", []))
+    parquet_scenarios = {item.get("scenario") for item in parquet_items}
+    jsonl_items = [
+        {**item, "storage": "jsonl"}
+        for item in jsonl_manifest.get("items", [])
+        if item.get("scenario") not in parquet_scenarios
+    ]
+    items = sorted([*parquet_items, *jsonl_items], key=lambda item: item.get("scenario", ""))
+    return {
+        "version": 2,
+        "kind": "sample_manifest",
+        "storage": "mixed" if jsonl_items else "parquet",
+        "generated_at": max(float(jsonl_manifest.get("generated_at") or 0), float(parquet_manifest.get("generated_at") or 0)),
+        "items": items,
+        "summary": _summary_from_sample_items(items),
+    }
+
+
+def _summary_from_sample_items(items: list[dict]) -> dict:
+    by_simulator: Counter = Counter()
+    by_scenario: Counter = Counter()
+    by_language: Counter = Counter()
+    by_style: Counter = Counter()
+    by_time_mode: Counter = Counter()
+    timeseries_shapes: dict = {}
+    total = 0
+    for item in items:
+        count = int(item.get("sample_count") or 0)
+        simulator = str(item.get("simulator") or "unknown")
+        scenario = str(item.get("scenario") or "unknown")
+        total += count
+        by_simulator[simulator] += count
+        by_scenario[scenario] += count
+        by_language.update({str(k): int(v) for k, v in (item.get("by_language") or {}).items()})
+        by_style.update({str(k): int(v) for k, v in (item.get("by_style") or {}).items()})
+        by_time_mode.update({str(k): int(v) for k, v in (item.get("by_time_mode") or {}).items()})
+        shape = item.get("timeseries_shape_obs")
+        if shape is not None:
+            timeseries_shapes.setdefault(simulator, shape)
+    return {
+        "total_samples": total,
+        "by_simulator": dict(by_simulator),
+        "by_scenario": dict(by_scenario),
+        "by_language": dict(by_language),
+        "by_style": dict(by_style),
+        "by_time_mode": dict(by_time_mode),
+        "timeseries_shapes": timeseries_shapes,
+    }
 
 
 def _legacy_get_datasets():

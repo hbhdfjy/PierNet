@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from piern.shared.runtime.paths import DATA_DIR, PROJECT_ROOT, TEMPLATES_DIR
+from piern.shared.storage import portable
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
 from piern.synth.services import file_manager, hdf5_data, jsonl_filter_index, jsonl_index, manifest_store
 from piern.training.services import training_manager
@@ -44,14 +45,17 @@ _KIND_LABELS = {
     "sample": "样本 JSONL",
     "sample_merged": "合并样本",
     "router_scenario": "路由场景数据",
+    "sample_parquet": "样本 Parquet",
+    "router_parquet": "路由 Parquet",
     "router_train": "路由训练数据",
     "training_job": "训练任务",
     "training_checkpoint": "训练权重",
     "manifest": "清单",
     "index": "索引",
+    "catalog_db": "目录数据库",
 }
 
-_DELETABLE_KINDS = {"hdf5", "template", "sample", "router_scenario", "training_job", "training_checkpoint"}
+_DELETABLE_KINDS = {"hdf5", "template", "sample", "router_scenario", "sample_parquet", "router_parquet", "training_job", "training_checkpoint"}
 _PROTECTED_KINDS = {"sample_merged", "router_train", "manifest", "index"}
 
 
@@ -406,6 +410,61 @@ def _router_assets() -> list[dict[str, Any]]:
     return assets
 
 
+def _parquet_assets() -> list[dict[str, Any]]:
+    assets: list[dict[str, Any]] = []
+    for kind, stage, asset_kind, count_label in (
+        ("text2comp", "stage3", "sample_parquet", "行"),
+        ("router", "stage4", "router_parquet", "路由样本"),
+    ):
+        try:
+            partitions = portable.discover_partitions(kind)
+        except Exception as exc:
+            assets.append(_asset(
+                platform="system",
+                stage="system",
+                kind="manifest",
+                title=f"{kind} parquet scan failed",
+                path=None,
+                id_parts=("parquet_error", kind),
+                valid=False,
+                status="invalid",
+                protected=True,
+                deletable=False,
+                errors=[str(exc)],
+            ))
+            continue
+        for part in partitions:
+            assets.append(_asset(
+                platform="synth",
+                stage=stage,
+                kind=asset_kind,
+                title=f"{part.simulator}/{part.scenario}",
+                simulator=part.simulator,
+                scenario=part.scenario,
+                path=part.path,
+                id_parts=(asset_kind, part.simulator, part.scenario),
+                count=part.row_count,
+                count_label=count_label,
+                file_size_bytes=part.file_size_bytes,
+                mtime=part.mtime,
+                valid=True,
+                details={"storage": "parquet", "manifest": part.metadata},
+            ))
+    if portable.CATALOG_DB_PATH.exists():
+        assets.append(_asset(
+            platform="system",
+            stage="system",
+            kind="catalog_db",
+            title="catalog.sqlite",
+            path=portable.CATALOG_DB_PATH,
+            id_parts=("catalog_db", "catalog.sqlite"),
+            valid=True,
+            protected=True,
+            deletable=False,
+        ))
+    return assets
+
+
 def _manifest_index_assets() -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
     if MANIFEST_DIR.exists():
@@ -539,7 +598,7 @@ def _training_assets() -> list[dict[str, Any]]:
 
 def list_file_assets() -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
-    for collector in (_hdf5_assets, _template_assets, _sample_assets, _router_assets, _training_assets, _manifest_index_assets):
+    for collector in (_hdf5_assets, _template_assets, _sample_assets, _router_assets, _parquet_assets, _training_assets, _manifest_index_assets):
         try:
             assets.extend(collector())
         except Exception as exc:
@@ -608,6 +667,16 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
 
     if kind == "router_scenario" and len(parts) == 2:
         return _delete_router_scenario(parts[1])
+
+    if kind == "sample_parquet" and len(parts) == 3:
+        if not portable.delete_partition("text2comp", parts[2], simulator=parts[1]):
+            raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
+        return {"ok": True, "kind": kind, "deleted": 1}
+
+    if kind == "router_parquet" and len(parts) == 3:
+        if not portable.delete_partition("router", parts[2], simulator=parts[1]):
+            raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
+        return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "training_job" and len(parts) == 2:
         training_manager.delete_job(parts[1])

@@ -13,6 +13,7 @@ from pathlib import Path
 from fastapi import APIRouter, Query
 
 from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.storage import portable
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.synth.services.job_manager import publish
 
@@ -115,6 +116,7 @@ def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: 
         "source_count": sample_manifest.get("summary", {}).get("total_samples", 0),
         "source_by_scenario": source_by_scenario,
         "router_dir": str(ROUTER_DIR),
+        "storage": router_manifest.get("storage", "jsonl"),
     }
 
 
@@ -238,9 +240,45 @@ def _legacy_get_router_status() -> dict:
     }
 
 
+def _combined_router_manifest() -> dict:
+    try:
+        jsonl_manifest = manifest_store.ensure_router_manifest()
+    except Exception:
+        jsonl_manifest = {}
+    parquet_manifest = portable.router_manifest_like()
+    if not parquet_manifest:
+        return jsonl_manifest
+    if not jsonl_manifest:
+        return parquet_manifest
+
+    parquet_scenarios = {item.get("scenario") for item in parquet_manifest.get("scenarios", [])}
+    scenarios = [*parquet_manifest.get("scenarios", [])]
+    scenarios.extend(
+        {**item, "storage": "jsonl"}
+        for item in jsonl_manifest.get("scenarios", [])
+        if item.get("scenario") not in parquet_scenarios
+    )
+    total = sum(int(item.get("router_count") or 0) for item in scenarios)
+    size = sum(int(item.get("file_size_bytes") or 0) for item in scenarios)
+    mtime = max((float(item.get("mtime") or 0) for item in scenarios), default=0.0)
+    label_counts = parquet_manifest.get("label_counts", {"0": 0, "1": 0})
+    if len(scenarios) != len(parquet_manifest.get("scenarios", [])):
+        label_counts = jsonl_manifest.get("label_counts", label_counts)
+    return {
+        "version": 2,
+        "kind": "router_manifest",
+        "storage": "mixed" if len(scenarios) != len(parquet_manifest.get("scenarios", [])) else "parquet",
+        "generated_at": max(float(jsonl_manifest.get("generated_at") or 0), float(parquet_manifest.get("generated_at") or 0)),
+        "splits": {"train": {"exists": bool(scenarios), "count": total, "file_size_bytes": size, "mtime": mtime}},
+        "total": total,
+        "label_counts": label_counts,
+        "scenarios": sorted(scenarios, key=lambda item: item.get("scenario", "")),
+    }
+
+
 def _router_total_from_manifest(split: str, scenario: str) -> int | None:
     try:
-        manifest = manifest_store.ensure_router_manifest()
+        manifest = _combined_router_manifest()
     except Exception:
         return None
 
@@ -261,8 +299,8 @@ def _router_total_from_manifest(split: str, scenario: str) -> int | None:
 def get_router_status():
     """Return router dataset status and per-scenario stats."""
     try:
-        router_manifest = manifest_store.ensure_router_manifest()
-        sample_manifest = manifest_store.ensure_sample_manifest()
+        router_manifest = _combined_router_manifest()
+        sample_manifest = portable.text2comp_manifest_like() or manifest_store.ensure_sample_manifest()
         return _build_router_status_from_manifests(router_manifest, sample_manifest)
     except Exception:
         return _legacy_get_router_status()
@@ -459,6 +497,8 @@ def delete_router_scenario(scenario: str):
     """Delete one scenario file and rewrite train.jsonl."""
     path = SCENARIO_DIR / f"{scenario}.jsonl"
     meta_path = path.with_suffix(".meta.json")
+    if portable.delete_partition("router", scenario):
+        return {"ok": True, "train_count": 0, "storage": "parquet"}
     if not path.exists():
         return {"ok": False, "message": "scenario file does not exist"}
     path.unlink()
@@ -503,6 +543,20 @@ def get_router_samples(
     label: int = Query(-1, ge=-1, le=1),
 ):
     """Read router samples page-wise, optionally filtered by split, scenario and label."""
+    if portable.has_partitions("router"):
+        try:
+            parquet_page = portable.read_router_page(
+                scenario=scenario,
+                page=page,
+                page_size=page_size,
+                label=label,
+            )
+            if parquet_page is not None:
+                total, items = parquet_page
+                return {"total": total, "page": page, "page_size": page_size, "items": items, "storage": "parquet"}
+        except Exception as exc:
+            return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": f"读取 Parquet 失败: {exc}"}
+
     path = SCENARIO_DIR / f"{scenario}.jsonl" if scenario else ROUTER_DIR / f"{split}.jsonl"
     if not path.exists():
         return {"total": 0, "page": page, "page_size": page_size, "items": []}

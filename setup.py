@@ -12,6 +12,8 @@ setup(
         "scipy>=1.10.0",
         "pandas>=1.5.0",
         "h5py>=3.8.0",
+        "pyarrow>=15.0.0",
+        "duckdb>=1.0.0",
         "pyyaml>=6.0",
         "tqdm>=4.65.0",
         "requests>=2.28.0",
