@@ -97,6 +97,7 @@ def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: 
         entry["router_count"] = item.get("router_count", 0)
         entry["file_size_bytes"] = item.get("file_size_bytes", 0)
         entry["mtime"] = item.get("mtime", 0)
+        entry["storage"] = item.get("storage", "jsonl")
 
     return {
         "splits": router_manifest.get(
@@ -240,6 +241,35 @@ def _legacy_get_router_status() -> dict:
     }
 
 
+def _combined_sample_manifest() -> dict:
+    try:
+        jsonl_manifest = manifest_store.ensure_sample_manifest()
+    except Exception:
+        jsonl_manifest = {}
+    parquet_manifest = portable.text2comp_manifest_like()
+    if not parquet_manifest:
+        return jsonl_manifest
+    if not jsonl_manifest:
+        return parquet_manifest
+
+    parquet_items = list(parquet_manifest.get("items", []))
+    parquet_scenarios = {item.get("scenario") for item in parquet_items}
+    items = [*parquet_items]
+    items.extend(
+        {**item, "storage": "jsonl"}
+        for item in jsonl_manifest.get("items", [])
+        if item.get("scenario") not in parquet_scenarios
+    )
+    total = sum(int(item.get("sample_count") or 0) for item in items)
+    return {
+        "version": 2,
+        "kind": "sample_manifest",
+        "storage": "mixed" if len(items) != len(parquet_items) else "parquet",
+        "items": sorted(items, key=lambda item: item.get("scenario", "")),
+        "summary": {"total_samples": total},
+    }
+
+
 def _combined_router_manifest() -> dict:
     try:
         jsonl_manifest = manifest_store.ensure_router_manifest()
@@ -300,7 +330,7 @@ def get_router_status():
     """Return router dataset status and per-scenario stats."""
     try:
         router_manifest = _combined_router_manifest()
-        sample_manifest = portable.text2comp_manifest_like() or manifest_store.ensure_sample_manifest()
+        sample_manifest = _combined_sample_manifest()
         return _build_router_status_from_manifests(router_manifest, sample_manifest)
     except Exception:
         return _legacy_get_router_status()

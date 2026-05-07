@@ -31,7 +31,8 @@ ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "token_router"
 RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"
 CONTROL_ROOT = RUNLOGS_ROOT / "training-controls"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
-ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
+DEFAULT_ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
+ROUTER_MANIFEST_PATH = DEFAULT_ROUTER_MANIFEST_PATH
 ROUTER_DATA_DIR = PROJECT_ROOT / "data" / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
@@ -574,7 +575,7 @@ def _merge_router_manifests(primary: dict[str, Any], fallback: dict[str, Any] | 
 
 
 def list_datasets() -> list[dict[str, Any]]:
-    parquet_manifest = portable.router_manifest_like()
+    parquet_manifest = portable.router_manifest_like() if ROUTER_MANIFEST_PATH == DEFAULT_ROUTER_MANIFEST_PATH else None
     jsonl_manifest = _dataset_manifest()
     manifest = _merge_router_manifests(parquet_manifest, jsonl_manifest) if parquet_manifest else jsonl_manifest
     if not manifest:
