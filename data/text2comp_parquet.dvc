@@ -1,0 +1,6 @@
+outs:
+- md5: 739fbddbf912c803b2062a0ba8f5b342.dir
+  size: 299458942
+  nfiles: 8
+  hash: md5
+  path: text2comp_parquet

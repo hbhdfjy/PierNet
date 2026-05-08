@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pyarrow.parquet as pq
+
 from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 
 
@@ -52,18 +54,17 @@ def test_build_router_data_script_smoke(tmp_path: Path):
 
     assert result.returncode == 0, result.stderr or result.stdout
 
-    scenario_path = output_dir / "by_scenario" / "coastal_seawater.jsonl"
-    meta_path = output_dir / "by_scenario" / "coastal_seawater.meta.json"
-    train_path = output_dir / "train.jsonl"
+    scenario_dir = output_dir / "simulator=modflow" / "scenario=coastal_seawater"
+    parquet_path = scenario_dir / "part-00000.parquet"
+    meta_path = scenario_dir / "_manifest.json"
 
-    assert scenario_path.exists()
-    assert train_path.exists()
-
-    lines = [line for line in scenario_path.read_text(encoding="utf-8").splitlines() if line.strip()]
-    assert len(lines) == 2
+    assert parquet_path.exists()
+    assert pq.ParquetFile(parquet_path).metadata.num_rows == 2
 
     payload = json.loads(meta_path.read_text(encoding="utf-8"))
     assert payload["chat_template"] == "qwen"
     assert payload["embedding_model"] == DEFAULT_QWEN_EMBEDDING_MODEL
     assert payload["embedding_tokenizer"] == DEFAULT_QWEN_EMBEDDING_MODEL
+    assert payload["row_count"] == 2
+    assert payload["by_label"] == {"0": 1, "1": 1}
 

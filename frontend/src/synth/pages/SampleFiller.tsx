@@ -43,7 +43,7 @@ export default function SampleFiller() {
   useEffect(() => {
     if (monitor.status === 'done' || monitor.status === 'error') {
       refreshTemplates()
-      // 刷新场景列表以更新 existing_jsonl_count
+      // 刷新场景列表以更新样本状态
       refreshScenarios(undefined, { revalidate: true })
     }
   }, [monitor.status, refreshTemplates, refreshScenarios])
@@ -78,6 +78,9 @@ export default function SampleFiller() {
         n_samples: nSamples,
         templates_dir: '',
         output_dir: '',
+        output_format: 'parquet',
+        compression: 'zstd',
+        batch_size: 8192,
         skip_existing: skipExisting,
         config: 'configs/text2comp/default.yaml',
         seed,
@@ -111,7 +114,7 @@ export default function SampleFiller() {
             <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">阶段 3</span>
           </div>
           <p className="text-slate-500 text-sm mt-1 ml-9">
-            将模板库与 HDF5 数值结合，生成最终训练样本。
+            将模板库与 HDF5 数值结合，生成最终训练样本并直接保存为 Parquet。
             <span className="text-emerald-500/80"> 不调用 LLM</span>
           </p>
         </div>

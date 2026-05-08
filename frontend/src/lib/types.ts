@@ -231,7 +231,10 @@ export interface FillSamplesRequest {
   scenarios: string[]
   n_samples: number
   templates_dir: string   // 空=默认 data/templates/
-  output_dir: string      // 空=默认 data/text2comp/
+  output_dir: string      // 空=默认 data/text2comp_parquet/
+  output_format?: 'parquet' | 'jsonl' | 'both'
+  compression?: 'zstd' | 'snappy' | 'gzip' | 'brotli' | 'none'
+  batch_size?: number
   skip_existing: boolean
   config: string
   seed?: number

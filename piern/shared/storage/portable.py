@@ -8,6 +8,7 @@ partitioned Parquet directories, while generated SQLite catalogs can be rebuilt.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import time
 from collections import Counter
@@ -22,6 +23,8 @@ TEXT2COMP_PARQUET_DIR = PROJECT_ROOT / "data" / "text2comp_parquet"
 ROUTER_PARQUET_DIR = PROJECT_ROOT / "data" / "router_parquet"
 CATALOG_DB_PATH = PROJECT_ROOT / "data" / "catalog.sqlite"
 SUPPORTED_KINDS = {"text2comp", "router"}
+PARQUET_SCHEMA_VERSION = 1
+
 
 
 @dataclass(frozen=True)
@@ -47,6 +50,214 @@ def parquet_root(kind: str) -> Path:
     if kind == "router":
         return ROUTER_PARQUET_DIR
     raise ValueError(f"unsupported parquet dataset kind: {kind}")
+
+
+def require_parquet_modules():
+    try:
+        pa = import_module("pyarrow")
+        pq = import_module("pyarrow.parquet")
+    except Exception as exc:
+        raise RuntimeError("pyarrow is required for Parquet storage; install pyarrow>=15.0.0") from exc
+    return pa, pq
+
+
+def parquet_schema():
+    pa, _ = require_parquet_modules()
+    return pa.schema(
+        [
+            pa.field("row_index", pa.int64()),
+            pa.field("simulator", pa.string()),
+            pa.field("scenario", pa.string()),
+            pa.field("language", pa.string()),
+            pa.field("style", pa.string()),
+            pa.field("time_mode", pa.string()),
+            pa.field("label", pa.int8()),
+            pa.field("context", pa.string()),
+            pa.field("input", pa.string()),
+            pa.field("output", pa.string()),
+            pa.field("metadata_json", pa.string()),
+            pa.field("record_json", pa.string()),
+        ]
+    )
+
+
+def partition_dir_for(kind: str, simulator: str, scenario: str, output_root: Path | None = None) -> Path:
+    root = Path(output_root) if output_root is not None else parquet_root(kind)
+    return (
+        root
+        / f"simulator={safe_partition_value(simulator)}"
+        / f"scenario={safe_partition_value(scenario)}"
+    )
+
+
+def record_to_parquet_row(
+    kind: str,
+    scenario_hint: str,
+    row_index: int,
+    record: dict[str, Any],
+    *,
+    simulator_hint: str | None = None,
+) -> dict[str, Any]:
+    metadata = _record_metadata(record)
+    observation = metadata.get("observation", {})
+    if not isinstance(observation, dict):
+        observation = {}
+    simulator = str(metadata.get("simulator") or simulator_hint or "unknown")
+    scenario = str(metadata.get("scenario") or scenario_hint)
+    label_value = record.get("label") if kind == "router" else None
+    try:
+        label = int(label_value) if label_value is not None else None
+    except (TypeError, ValueError):
+        label = None
+    return {
+        "row_index": row_index,
+        "simulator": simulator,
+        "scenario": scenario,
+        "language": _optional_str(metadata.get("language")),
+        "style": _optional_str(metadata.get("style")),
+        "time_mode": _optional_str(observation.get("time_mode")),
+        "label": label,
+        "context": _optional_str(record.get("context")),
+        "input": _optional_str(record.get("input")),
+        "output": _optional_str(record.get("output")),
+        "metadata_json": json.dumps(metadata, ensure_ascii=False, separators=(",", ":")),
+        "record_json": json.dumps(record, ensure_ascii=False, separators=(",", ":")),
+    }
+
+
+def write_records_partition(
+    kind: str,
+    records: Iterable[dict[str, Any]],
+    *,
+    simulator: str,
+    scenario: str,
+    source: dict[str, Any] | None = None,
+    output_root: Path | None = None,
+    batch_size: int = 8192,
+    compression: str = "zstd",
+    overwrite: bool = True,
+    extra_manifest: dict[str, Any] | None = None,
+    progress_callback=None,
+    validate: bool = True,
+) -> dict[str, Any]:
+    if kind not in SUPPORTED_KINDS:
+        raise ValueError(f"unsupported parquet dataset kind: {kind}")
+    if batch_size < 1:
+        raise ValueError("batch_size must be >= 1")
+
+    pa, pq = require_parquet_modules()
+    schema = parquet_schema()
+    root = Path(output_root) if output_root is not None else parquet_root(kind)
+    partition_dir = partition_dir_for(kind, simulator, scenario, root)
+    if partition_dir.exists() and not overwrite:
+        return {"kind": kind, "scenario": scenario, "simulator": simulator, "status": "skipped", "reason": "partition exists", "path": str(partition_dir)}
+
+    tmp_dir = root / f".tmp-{kind}-{safe_partition_value(simulator)}-{safe_partition_value(scenario)}-{os.getpid()}"
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    part_path = tmp_dir / "part-00000.parquet"
+
+    writer = None
+    rows: list[dict[str, Any]] = []
+    counters = {
+        "by_language": Counter(),
+        "by_style": Counter(),
+        "by_time_mode": Counter(),
+        "by_label": Counter(),
+    }
+    timeseries_shape_obs = None
+    row_count = 0
+
+    def flush() -> None:
+        nonlocal writer, rows
+        if not rows:
+            return
+        table = pa.Table.from_pylist(rows, schema=schema)
+        if writer is None:
+            writer = pq.ParquetWriter(
+                part_path,
+                schema,
+                compression=None if compression == "none" else compression,
+                use_dictionary=True,
+            )
+        writer.write_table(table)
+        rows = []
+
+    try:
+        for row_index, record in enumerate(records):
+            if not isinstance(record, dict):
+                continue
+            row = record_to_parquet_row(kind, scenario, row_index, record, simulator_hint=simulator)
+            rows.append(row)
+            row_count += 1
+            if row["language"]:
+                counters["by_language"][row["language"]] += 1
+            if row["style"]:
+                counters["by_style"][row["style"]] += 1
+            if row["time_mode"]:
+                counters["by_time_mode"][row["time_mode"]] += 1
+            if row["label"] is not None:
+                counters["by_label"][str(row["label"])] += 1
+            metadata = _record_metadata(record)
+            if timeseries_shape_obs is None:
+                shape = metadata.get("timeseries_shape_obs")
+                if isinstance(shape, (list, tuple)):
+                    timeseries_shape_obs = list(shape)
+            if progress_callback:
+                progress_callback(row_count)
+            if len(rows) >= batch_size:
+                flush()
+        flush()
+    finally:
+        if writer is not None:
+            writer.close()
+
+    if row_count == 0:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        return {"kind": kind, "scenario": scenario, "simulator": simulator, "status": "empty", "rows": 0}
+
+    if validate:
+        actual = pq.ParquetFile(part_path).metadata.num_rows
+        if int(actual) != row_count:
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+            raise RuntimeError(f"row count mismatch for {kind}/{scenario}: generated={row_count}, parquet={actual}")
+
+    if partition_dir.exists():
+        shutil.rmtree(partition_dir)
+    partition_dir.parent.mkdir(parents=True, exist_ok=True)
+    tmp_dir.replace(partition_dir)
+
+    manifest = {
+        "version": PARQUET_SCHEMA_VERSION,
+        "kind": kind,
+        "storage": "parquet",
+        "generated_at": time.time(),
+        "source": source or {},
+        "simulator": simulator,
+        "scenario": scenario,
+        "row_count": row_count,
+        "by_language": dict(counters["by_language"]),
+        "by_style": dict(counters["by_style"]),
+        "by_time_mode": dict(counters["by_time_mode"]),
+        "by_label": dict(counters["by_label"]),
+        "timeseries_shape_obs": timeseries_shape_obs,
+        "schema": [field.name for field in schema],
+    }
+    if extra_manifest:
+        manifest.update(extra_manifest)
+    (partition_dir / "_manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return {
+        "kind": kind,
+        "scenario": scenario,
+        "simulator": simulator,
+        "status": "written",
+        "rows": row_count,
+        "path": str(partition_dir),
+    }
 
 
 def parquet_available() -> bool:
@@ -279,6 +490,44 @@ def read_records_page(
     return total, items
 
 
+def iter_records(
+    kind: str,
+    *,
+    filters: Iterable[tuple[str, Any]] = (),
+) -> Iterable[dict[str, Any]]:
+    if not has_partitions(kind):
+        return
+    if not duckdb_available():
+        raise RuntimeError("DuckDB is required to stream Parquet records; install duckdb>=1.0.0")
+
+    paths_expr = _paths_expr(_parquet_files(kind))
+    where_sql, params = _where_clause(filters)
+    con = _duckdb_connect()
+    try:
+        cursor = con.execute(
+            f"""
+            SELECT record_json
+            FROM read_parquet({paths_expr})
+            {where_sql}
+            ORDER BY scenario, row_index
+            """,
+            params,
+        )
+        while True:
+            rows = cursor.fetchmany(8192)
+            if not rows:
+                break
+            for (raw,) in rows:
+                try:
+                    value = json.loads(raw)
+                except Exception:
+                    continue
+                if isinstance(value, dict):
+                    yield value
+    finally:
+        con.close()
+
+
 def export_records_to_jsonl(
     kind: str,
     output_path: Path,
@@ -376,6 +625,17 @@ def current_storage_summary() -> dict[str, Any]:
         "router_parquet": [part.to_json() for part in discover_partitions("router")],
         "dependencies": {"pyarrow": parquet_available(), "duckdb": duckdb_available()},
     }
+
+
+def _record_metadata(record: dict[str, Any]) -> dict[str, Any]:
+    metadata = record.get("metadata", {})
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _optional_str(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    return str(value)
 
 
 def _module_available(name: str) -> bool:

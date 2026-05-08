@@ -1,6 +1,7 @@
 data_root: data
 registry: configs/text2comp/registry.yaml
 output_dir: data/text2comp
+parquet_output_dir: data/text2comp_parquet
 output_file: all_training_data.jsonl
 llm:
   provider: siliconflow
