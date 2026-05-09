@@ -4,7 +4,7 @@ import asyncio
 import json
 import time
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from piern.synth.services import job_manager
@@ -13,6 +13,18 @@ from piern.synth.api.schemas.jobs import JobStatusResponse
 
 router = APIRouter()
 _TERMINAL = {"done", "error", "terminated"}
+
+
+def _job_status_response(job) -> JobStatusResponse:
+    return JobStatusResponse(
+        job_id=job.job_id,
+        status=job.status,
+        job_type=job.job_type,
+        started_at=job.started_at,
+        scenario_totals=job.scenario_totals,
+        progress=job.progress,
+        stats=job.stats,
+    )
 
 
 def _sse(event: dict) -> str:
@@ -58,20 +70,27 @@ async def stream_job(job_id: str):
     )
 
 
+@router.get("/generate/jobs", response_model=list[JobStatusResponse])
+def list_jobs(
+    job_type: str | None = Query(None),
+    status: str | None = Query(None),
+):
+    """List in-memory generation jobs so reopened browsers can reconnect."""
+    jobs = list(job_manager.all_jobs().values())
+    if job_type:
+        jobs = [job for job in jobs if job.job_type == job_type]
+    if status:
+        jobs = [job for job in jobs if job.status == status]
+    jobs.sort(key=lambda job: job.started_at, reverse=True)
+    return [_job_status_response(job) for job in jobs]
+
+
 @router.get("/generate/{job_id}/status", response_model=JobStatusResponse)
 def get_job_status(job_id: str):
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(404, f"任务 {job_id} 不存在")
-    return JobStatusResponse(
-        job_id=job.job_id,
-        status=job.status,
-        job_type=job.job_type,
-        started_at=job.started_at,
-        scenario_totals=job.scenario_totals,
-        progress=job.progress,
-        stats=job.stats,
-    )
+    return _job_status_response(job)
 
 
 @router.delete("/generate/{job_id}")

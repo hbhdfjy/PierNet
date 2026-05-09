@@ -25,6 +25,9 @@ const EXPECTED_JOB_TYPES: Record<string, string[]> = {
   router: ['router'],
 }
 
+function expectedJobTypesForStage(stageKey: string): string[] | undefined {
+  return EXPECTED_JOB_TYPES[stageKey]
+}
 
 // localStorage：关闭标签页/浏览器后仍保留
 function loadStoredJobs(stageKey: string): string[] {
@@ -42,7 +45,7 @@ function saveStoredJobs(stageKey: string, ids: string[]) {
 }
 
 function isExpectedJobForStage(stageKey: string, jobType: string | null | undefined): boolean {
-  const expected = EXPECTED_JOB_TYPES[stageKey]
+  const expected = expectedJobTypesForStage(stageKey)
   return !expected || (typeof jobType === 'string' && expected.includes(jobType))
 }
 
@@ -221,17 +224,31 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     esMap.current.set(id, es)
   }, [applyBackendSnapshot])
 
-  // mount 时：从 localStorage 恢复，查询后端状态决定如何恢复
+  // mount 时：从 localStorage 恢复；没有本地记录时，从后端发现正在运行的同阶段任务
   useEffect(() => {
-    const stored = loadStoredJobs(stageKey)
-    if (stored.length === 0) return
+    const discoverRunningJobIds = async (): Promise<string[]> => {
+      const expected = expectedJobTypesForStage(stageKey)
+      if (!expected) return []
+      try {
+        const jobs = await api.listGenerationJobs({ status: 'running' })
+        return jobs
+          .filter(job => isExpectedJobForStage(stageKey, job.job_type))
+          .sort((a, b) => Number(b.started_at ?? 0) - Number(a.started_at ?? 0))
+          .slice(0, 1)
+          .map(job => job.job_id)
+      } catch { return [] }
+    }
 
     const restoreJobs = async () => {
+      const stored = loadStoredJobs(stageKey)
+      const candidateIds = stored.length > 0 ? stored : await discoverRunningJobIds()
+      if (candidateIds.length === 0) return
+
       const toConnect: string[] = []
       const toRestore: { id: string; status: JobStatus }[] = []
       const toDrop: string[] = []
 
-      await Promise.all(stored.map(async (id) => {
+      await Promise.all(candidateIds.map(async (id) => {
         try {
           const data = await api.getGenerationStatus(id)
           if (!isExpectedJobForStage(stageKey, data.job_type)) {

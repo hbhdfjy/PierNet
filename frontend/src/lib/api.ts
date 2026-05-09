@@ -107,6 +107,13 @@ export const api = {
   getGenerationStatus: (jobId: string): Promise<JobStatusSnapshot> =>
     get(`/generate/${encodeURIComponent(jobId)}/status`),
 
+  listGenerationJobs: (filters?: { job_type?: string; status?: string }): Promise<JobStatusSnapshot[]> => {
+    const params: Record<string, string> = {}
+    if (filters?.job_type) params.job_type = filters.job_type
+    if (filters?.status) params.status = filters.status
+    return get('/generate/jobs', params)
+  },
+
   // ── 注册 ────────────────────────────────────────────────────────
   getRegistry: (): Promise<Record<string, unknown>> =>
     get('/registry'),
