@@ -98,3 +98,8 @@ python scripts/utils/rebuild_manifests.py
 ```
 
 训练平台会优先识别 Parquet 路由数据；如果旧训练路径需要 JSONL，会在 `data/router/.parquet_jsonl_cache/` 下生成兼容缓存。这个目录属于可重建缓存，不需要迁移。
+
+
+## 当前离机备份
+
+当前已将 `migration_exports/piern-parquet-20260508.tar.gz` 拆分并推送到 GitHub 分支 `data-backup-20260508`。恢复步骤见 `docs/MIGRATION_RESTORE.md`。
