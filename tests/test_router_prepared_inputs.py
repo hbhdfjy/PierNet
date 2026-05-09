@@ -6,11 +6,14 @@ import numpy as np
 import pytest
 import torch
 
+from piern.shared.storage import portable
 from piern.training.router.data import (
     DEFAULT_QWEN_EMBEDDING_MODEL,
+    PREPARED_FORMAT,
     PRETRAINED_EMBEDDINGS,
     PackedSequenceDataset,
     collate_batch,
+    inspect_router_input_representation,
     prepare_router_dataset,
 )
 
@@ -272,3 +275,119 @@ def test_prepare_router_dataset_embedding_requires_resolvable_backbone(tmp_path,
             force=True,
             input_representation="embedding",
         )
+
+
+def _write_minimal_prepared_cache(prepared_dir, *, router_dir, scenarios):
+    prepared_dir.mkdir(parents=True, exist_ok=True)
+    (prepared_dir / "source_files.json").write_text("[]", encoding="utf-8")
+    for name in ("train_token_ids.bin", "test_token_ids.bin"):
+        (prepared_dir / name).write_bytes(b"")
+    for name in (
+        "train_token_offsets.npy",
+        "train_lengths.npy",
+        "train_labels.npy",
+        "train_scenario_ids.npy",
+        "test_token_offsets.npy",
+        "test_lengths.npy",
+        "test_labels.npy",
+        "test_scenario_ids.npy",
+    ):
+        np.save(prepared_dir / name, np.zeros(1, dtype=np.int64))
+    (prepared_dir / "meta.json").write_text(
+        json.dumps(
+            {
+                "simulator": "modflow",
+                "router_dir": str(router_dir),
+                "test_ratio": 0.1,
+                "scenarios": scenarios,
+                "scenario_to_id": {scenario: idx for idx, scenario in enumerate(scenarios)},
+                "vocab_size": 17,
+                "token_dtype": "uint16",
+                "train_samples": 1,
+                "test_samples": 1,
+                "train_positive": 0,
+                "test_positive": 0,
+                "train_tokens": 0,
+                "test_tokens": 0,
+                "max_sequence_length": 4,
+                "input_representation": PRETRAINED_EMBEDDINGS,
+                "input_storage_dtype": "",
+                "input_hidden_size": 3,
+                "chat_template": "qwen",
+                "embedding_provider": "",
+                "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+                "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
+                "embedding_source": "",
+                "prepared_format": PREPARED_FORMAT,
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def _router_partition(tmp_path, scenario="coastal_seawater", metadata=None):
+    partition_dir = tmp_path / "router_parquet" / "simulator=modflow" / f"scenario={scenario}"
+    partition_dir.mkdir(parents=True, exist_ok=True)
+    return portable.PartitionInfo(
+        kind="router",
+        simulator="modflow",
+        scenario=scenario,
+        path=partition_dir,
+        row_count=10,
+        file_size_bytes=100,
+        mtime=1.0,
+        metadata=metadata or {
+            "chat_template": "qwen",
+            "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+            "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
+        },
+    )
+
+
+def test_inspect_router_input_representation_reads_parquet_manifest_without_jsonl_export(tmp_path, monkeypatch):
+    partition = _router_partition(tmp_path)
+    monkeypatch.setattr("piern.training.router.data.portable.discover_partitions", lambda kind: [partition])
+    monkeypatch.setattr(
+        "piern.training.router.data.portable.export_records_to_jsonl",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not export parquet for inspection")),
+    )
+    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+
+    representation, metadata = inspect_router_input_representation(
+        simulator="modflow",
+        router_dir=tmp_path / "router",
+        scenarios=["coastal_seawater"],
+        input_representation="embedding",
+    )
+
+    assert representation == PRETRAINED_EMBEDDINGS
+    assert metadata.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
+
+
+def test_prepare_router_dataset_reuses_cached_parquet_summary_without_jsonl_export(tmp_path, monkeypatch):
+    router_dir = tmp_path / "router"
+    prepared_dir = tmp_path / "prepared"
+    scenarios = ["coastal_seawater"]
+    _write_minimal_prepared_cache(prepared_dir, router_dir=router_dir, scenarios=scenarios)
+    partition = _router_partition(tmp_path, scenario="coastal_seawater")
+    monkeypatch.setattr("piern.training.router.data.portable.discover_partitions", lambda kind: [partition])
+    monkeypatch.setattr(
+        "piern.training.router.data.portable.export_records_to_jsonl",
+        lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("cached parquet path should not export JSONL")),
+    )
+    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+
+    summary = prepare_router_dataset(
+        simulator="modflow",
+        router_dir=router_dir,
+        output_dir=prepared_dir,
+        test_ratio=0.1,
+        scenarios=scenarios,
+        force=False,
+        input_representation="embedding",
+    )
+
+    assert summary.input_representation == PRETRAINED_EMBEDDINGS
+    assert summary.scenarios == scenarios
+    assert not (router_dir / ".parquet_jsonl_cache").exists()

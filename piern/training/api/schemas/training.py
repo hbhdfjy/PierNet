@@ -57,6 +57,8 @@ class TrainingJobConfig(BaseModel):
     num_workers: int = 8
     prepare_workers: int | None = None
     test_ratio: float = 0.10
+    max_train_samples: int | None = None
+    max_test_samples: int | None = None
     resume_from: str | None = None
     input_representation: TrainingJobInputRepresentation = "pretrained_embeddings"
     embedding_model: str = ""
@@ -78,6 +80,8 @@ class TrainingJobCreateRequest(BaseModel):
     num_workers: int = Field(default=8, ge=0, le=128)
     prepare_workers: int | None = Field(default=None, ge=0, le=128)
     test_ratio: float = Field(default=0.10, ge=0.0, le=0.9)
+    max_train_samples: int | None = Field(default=None, ge=1, le=100_000_000)
+    max_test_samples: int | None = Field(default=None, ge=1, le=100_000_000)
     resume_from: str | None = None
     input_representation: TrainingJobRequestedInputRepresentation = "embedding"
 

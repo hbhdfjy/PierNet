@@ -79,12 +79,25 @@ export PIERN_MODFLOW_EXE=/path/to/mf2005
 
 ## Start The App
 
+Persistent server startup for shared remote machines:
+
+```bash
+scripts/services/start.sh
+scripts/services/status.sh
+scripts/services/restart.sh
+scripts/services/stop.sh
+```
+
+The service scripts write PID files and logs under `.runlogs/services/`, keep the processes alive after SSH exits, and put `/home/tpx/.conda/envs/piern/bin` first in `PATH` so Vite uses Node.js 20+.
+
+Interactive development startup:
+
 ```bash
 ./start_ui.sh
 ./start_ui.sh --dev
 ```
 
-The script starts:
+Both startup modes start:
 
 - FastAPI on `0.0.0.0:8000`
 - Vite on `0.0.0.0:5173`

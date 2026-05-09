@@ -706,6 +706,10 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     prepare_workers = payload.get("prepare_workers")
     prepare_workers = num_workers if prepare_workers is None else max(0, int(prepare_workers))
     test_ratio = float(payload["test_ratio"])
+    max_train_samples = payload.get("max_train_samples")
+    max_test_samples = payload.get("max_test_samples")
+    max_train_samples = int(max_train_samples) if max_train_samples is not None else None
+    max_test_samples = int(max_test_samples) if max_test_samples is not None else None
     prepared_name = _hash_prepared_name(
         simulator,
         scenarios,
@@ -770,6 +774,10 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         command.extend(["--scenarios", *scenarios])
     if resume_from:
         command.extend(["--resume-from", str(resume_from)])
+    if max_train_samples is not None:
+        command.extend(["--max-train-samples", str(max_train_samples)])
+    if max_test_samples is not None:
+        command.extend(["--max-test-samples", str(max_test_samples)])
 
     with _REGISTRY_LOCK:
         entries = _load_registry()
@@ -798,6 +806,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             f"[launch] log_path={log_path}",
             f"[launch] stop_file={stop_file}",
             f"[launch] keep_last_epochs={keep_last_epochs}",
+            f"[launch] max_train_samples={max_train_samples} max_test_samples={max_test_samples}",
             "[launch] spawning training subprocess...",
         )
 
@@ -852,6 +861,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "num_workers": num_workers,
                 "prepare_workers": prepare_workers,
                 "test_ratio": test_ratio,
+                "max_train_samples": max_train_samples,
+                "max_test_samples": max_test_samples,
                 "resume_from": resume_from,
                 "input_representation": resolved_input_representation,
                 "embedding_model": embedding_metadata.embedding_model,

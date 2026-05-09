@@ -576,6 +576,8 @@ export interface TrainingJobConfig {
   num_workers: number
   prepare_workers?: number | null
   test_ratio: number
+  max_train_samples?: number | null
+  max_test_samples?: number | null
   resume_from: string | null
   input_representation?: 'pretrained_embeddings'
   embedding_model?: string
@@ -657,6 +659,8 @@ export interface TrainingCreateJobRequest {
   num_workers: number
   prepare_workers?: number | null
   test_ratio: number
+  max_train_samples?: number | null
+  max_test_samples?: number | null
   resume_from?: string | null
 }
 
