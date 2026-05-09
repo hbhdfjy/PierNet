@@ -127,6 +127,7 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
             output_format=req.output_format,
             compression=req.compression,
             batch_size=req.batch_size,
+            max_workers=req.max_workers,
             on_scenario_start=on_scenario_start,
             on_progress=on_progress,
             on_log=on_log,

@@ -26,6 +26,7 @@ class FillSamplesRequest(BaseModel):
     output_format: str = Field("parquet", pattern="^(parquet|jsonl|both)$")
     compression: str = Field("zstd", pattern="^(zstd|snappy|gzip|brotli|none)$")
     batch_size: int = Field(8192, ge=1, le=1000000)
+    max_workers: Optional[int] = Field(None, ge=1, le=64)
     seed: Optional[int] = None
     precision: int = Field(4, ge=1, le=10)
 

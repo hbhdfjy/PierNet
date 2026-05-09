@@ -235,6 +235,7 @@ export interface FillSamplesRequest {
   output_format?: 'parquet' | 'jsonl' | 'both'
   compression?: 'zstd' | 'snappy' | 'gzip' | 'brotli' | 'none'
   batch_size?: number
+  max_workers?: number
   skip_existing: boolean
   config: string
   seed?: number

@@ -296,6 +296,14 @@ def fill_sample(
             ph = f"{{output_{slot.index}}}"
             target_text = target_text.replace(ph, ts_json)
 
+    cache_key = id(output_info)
+    cached_output_info = getattr(template, "_compact_output_info_cache", None)
+    if cached_output_info is not None and cached_output_info[0] == cache_key:
+        compact_output_info = cached_output_info[1]
+    else:
+        compact_output_info = _compact_output_info_for_metadata(template, output_info)
+        setattr(template, "_compact_output_info_cache", (cache_key, compact_output_info))
+
     # ── 组装最终样本 ──────────────────────────────────────────
     return {
         "input": input_text,
@@ -319,7 +327,7 @@ def fill_sample(
             "style": template.style,
             "input_template": template.input_template,
             "target_template": template.target_template,
-            "output_info": _compact_output_info_for_metadata(template, output_info),
+            "output_info": compact_output_info,
         },
     }
 

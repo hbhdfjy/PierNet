@@ -11,7 +11,9 @@ import argparse
 import json
 import logging
 import sys
+import threading
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Iterable
@@ -75,6 +77,7 @@ def run_fill_samples(
     output_format: str = "parquet",
     compression: str = "zstd",
     batch_size: int = 8192,
+    max_workers: int | None = None,
     on_scenario_start=None,  # (scenario: str, total: int) -> None
     on_progress=None,        # (scenario: str, done: int) -> None
     on_log=None,             # (line: str) -> None
@@ -89,6 +92,7 @@ def run_fill_samples(
 
     n_per_scenario = n_samples if n_samples is not None else gen_cfg.get("n_samples_per_scenario", 1000)
     _seed = seed if seed is not None else cfg.get("seed", 42)
+    scenario_workers = max(1, int(max_workers if max_workers is not None else 1))
 
     base_dir = cfg_path.parent.parent.parent
     if not (base_dir / "data").exists():
@@ -125,13 +129,17 @@ def run_fill_samples(
             if _scenario_name_from_path(p, sfx) in scenarios_set
         ]
 
+    log_lock = threading.Lock()
+
     def _log(line: str) -> None:
-        print(line)
-        if on_log:
-            on_log(line)
+        with log_lock:
+            print(line)
+            if on_log:
+                on_log(line)
 
     _log(f"\n找到 {len(h5_files)} 个场景，每场景生成 {n_per_scenario} 条样本")
     _log(f"输出格式: {output_format}")
+    _log(f"场景并行: {min(scenario_workers, max(len(h5_files), 1))}")
     if parquet_dir is not None:
         _log(f"Parquet目录: {parquet_dir}")
     if jsonl_dir is not None:
@@ -141,24 +149,30 @@ def run_fill_samples(
     stats = Counter()
     written_outputs: list[Path] = []
 
-    for h5_path, simulator, file_suffix in h5_files:
+    stats_lock = threading.Lock()
+
+    def _process_scenario(item: tuple[Path, str, str]) -> None:
+        h5_path, simulator, file_suffix = item
         scenario_name = _scenario_name_from_path(h5_path, file_suffix)
         tmpl_path = tmpl_dir / f"{scenario_name}_templates.jsonl"
         jsonl_out_path = jsonl_dir / f"{scenario_name}.jsonl" if jsonl_dir is not None else None
+        local_outputs: list[Path] = []
 
         if skip_existing:
             if parquet_dir is not None and _has_nonempty_partition(parquet_dir, simulator, scenario_name):
                 _log(f"[跳过] {scenario_name} Parquet 分区已存在")
-                continue
+                return
             if jsonl_out_path is not None and _has_nonempty_jsonl(jsonl_out_path):
                 _log(f"[跳过] {jsonl_out_path.name} 已存在")
-                written_outputs.append(jsonl_out_path)
-                continue
+                local_outputs.append(jsonl_out_path)
+                with stats_lock:
+                    written_outputs.extend(local_outputs)
+                return
 
         if not tmpl_path.exists():
             logger.warning(f"模板文件不存在，跳过: {tmpl_path}")
             logger.warning(f"  → 请先运行 generate_templates.py 为 {scenario_name} 生成模板")
-            continue
+            return
 
         _log(f"\n[处理] {scenario_name}")
         _log(f"  模板: {tmpl_path.name}")
@@ -175,13 +189,13 @@ def run_fill_samples(
         templates = load_templates(tmpl_path)
         if not templates:
             logger.warning(f"模板文件为空，跳过: {tmpl_path}")
-            continue
+            return
 
         try:
             timeseries, params, param_names = load_dataset(str(h5_path))
         except Exception as exc:
             logger.error(f"加载 {h5_path} 失败: {exc}")
-            continue
+            return
 
         n_avail_t = len(templates)
         n_avail_d = len(params)
@@ -190,6 +204,19 @@ def run_fill_samples(
 
         if on_scenario_start:
             on_scenario_start(scenario_name, n)
+
+        ts_len = int(timeseries.shape[2])
+        n_channels = int(timeseries.shape[1])
+        template_specs = []
+        for template in templates:
+            time_idx = np.asarray(template.time_indices, dtype=np.int64)
+            valid_time_idx = time_idx[time_idx < ts_len]
+            if template.channel_indices is None:
+                valid_ch = None
+            else:
+                ch_arr = np.asarray(template.channel_indices, dtype=np.int64)
+                valid_ch = ch_arr[ch_arr < n_channels]
+            template_specs.append((template, valid_time_idx, valid_ch))
 
         rng = np.random.default_rng(_seed)
         t_order = rng.permutation(n_avail_t)
@@ -204,28 +231,20 @@ def run_fill_samples(
             for i in range(n):
                 t_idx = t_order[i % n_avail_t]
                 d_idx = d_order[i % n_avail_d]
-                template = templates[t_idx]
+                template, valid_time_idx, valid_ch = template_specs[t_idx]
                 ts = timeseries[d_idx]
                 p = params[d_idx]
 
-                time_idx = np.array(template.time_indices)
-                ts_len = ts.shape[1]
-                valid_time_idx = time_idx[time_idx < ts_len]
                 if len(valid_time_idx) == 0:
                     skipped += 1
                     continue
 
-                ts_time = ts[:, valid_time_idx]
-                ch_idx = template.channel_indices
-                if ch_idx is not None:
-                    ch_arr = np.array(ch_idx)
-                    valid_ch = ch_arr[ch_arr < ts_time.shape[0]]
+                ts_obs = ts[:, valid_time_idx]
+                if valid_ch is not None:
                     if len(valid_ch) == 0:
                         skipped += 1
                         continue
-                    ts_obs = ts_time[valid_ch, :]
-                else:
-                    ts_obs = ts_time
+                    ts_obs = ts_obs[valid_ch, :]
 
                 if not np.isfinite(ts_obs).all():
                     nan_skipped += 1
@@ -253,6 +272,7 @@ def run_fill_samples(
             "requested_samples": n,
             "seed": _seed,
             "precision": precision,
+            "max_workers": scenario_workers,
         }
         result = None
         with ExitStack() as stack:
@@ -274,12 +294,12 @@ def run_fill_samples(
                     overwrite=True,
                 )
                 if result.get("status") == "written":
-                    written_outputs.append(Path(str(result["path"])))
+                    local_outputs.append(Path(str(result["path"])))
             else:
                 for _ in records:
                     pass
                 if jsonl_out_path is not None:
-                    written_outputs.append(jsonl_out_path)
+                    local_outputs.append(jsonl_out_path)
 
         if nan_skipped > 0:
             nan_ratio = nan_skipped / max(n, 1)
@@ -295,8 +315,24 @@ def run_fill_samples(
             on_progress(scenario_name, written)
         target_desc = result.get("path") if result else (str(jsonl_out_path) if jsonl_out_path else "")
         _log(f"  已写入 {written} 条，跳过 {skipped} 条 → {target_desc}")
-        stats["total"] += written
-        stats[simulator] += written
+        with stats_lock:
+            written_outputs.extend(local_outputs)
+            stats["total"] += written
+            stats[simulator] += written
+
+    if scenario_workers <= 1 or len(h5_files) <= 1:
+        for item in h5_files:
+            _process_scenario(item)
+    else:
+        with ThreadPoolExecutor(max_workers=min(scenario_workers, len(h5_files))) as executor:
+            futures = {executor.submit(_process_scenario, item): item for item in h5_files}
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except InterruptedError:
+                    for pending in futures:
+                        pending.cancel()
+                    raise
 
     total_merged = 0
     merged_path = None
@@ -347,6 +383,7 @@ def main():
     parser.add_argument("--precision", type=int, default=4, help="数值小数位数（默认4位）")
     parser.add_argument("--compression", default="zstd", choices=["zstd", "snappy", "gzip", "brotli", "none"])
     parser.add_argument("--batch-size", type=int, default=8192, help="Parquet 写入批大小")
+    parser.add_argument("--max-workers", type=int, default=None, help="场景级并行数（默认 1；线程并行不一定更快，建议实测后调高）")
     args = parser.parse_args()
 
     run_fill_samples(
@@ -361,6 +398,7 @@ def main():
         output_format=args.output_format,
         compression=args.compression,
         batch_size=args.batch_size,
+        max_workers=args.max_workers,
     )
 
 

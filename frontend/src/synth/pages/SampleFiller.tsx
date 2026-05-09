@@ -33,6 +33,7 @@ export default function SampleFiller() {
   const [nSamples, setNSamples] = useState(100)
   const [skipExisting, setSkipExisting] = useState(false)
   const [precision, setPrecision] = useState(4)
+  const [maxWorkers, setMaxWorkers] = useState(1)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,6 +82,7 @@ export default function SampleFiller() {
         output_format: 'parquet',
         compression: 'zstd',
         batch_size: 8192,
+        max_workers: maxWorkers,
         skip_existing: skipExisting,
         config: 'configs/text2comp/default.yaml',
         seed,
@@ -225,6 +227,11 @@ export default function SampleFiller() {
                 <label className="label block mb-1 text-sm">每场景样本数</label>
                 <input type="number" className="input w-full text-xs py-1.5 px-3" value={nSamples}
                   min={1} max={100000} onChange={e => setNSamples(parseInt(e.target.value) || 1)} />
+              </div>
+              <div>
+                <label className="label block mb-1 text-sm">并行场景数</label>
+                <input type="number" className="input w-full text-xs py-1.5 px-3" value={maxWorkers}
+                  min={1} max={16} onChange={e => setMaxWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))} />
               </div>
               <div>
                 <label className="label block mb-1 text-sm">数值精度（小数位）</label>
