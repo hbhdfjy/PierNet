@@ -5,7 +5,7 @@ import type {
   AgentTurnResponse, InterviewStartRequest, InterviewState,
   GenerateTemplatesRequest, FillSamplesRequest, TemplateInfo,
   LLMConfig, LLMConfigRequest,
-  TemplateFileInfo, SampleFileInfo, JobStartResponse,
+  TemplateFileInfo, SampleFileInfo, JobStartResponse, JobStatusSnapshot,
   TemplatesResponse,
   SimulationScenario, SimulateRequest, BatchSimulateRequest, SimulationHistoryRecord,
   Hdf5DataFileInfo, Hdf5UploadResponse,
@@ -103,6 +103,9 @@ export const api = {
   openGenerationStream: (jobId: string): EventSource => {
     return new EventSource(`${BASE}/generate/${jobId}/stream`)
   },
+
+  getGenerationStatus: (jobId: string): Promise<JobStatusSnapshot> =>
+    get(`/generate/${encodeURIComponent(jobId)}/status`),
 
   // ── 注册 ────────────────────────────────────────────────────────
   getRegistry: (): Promise<Record<string, unknown>> =>

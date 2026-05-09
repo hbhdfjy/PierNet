@@ -30,6 +30,8 @@ class JobRecord:
     scenario_totals: dict
     started_at: float
     events: list = field(default_factory=list)
+    progress: dict = field(default_factory=dict)
+    stats: dict = field(default_factory=lambda: {"elapsed_sec": 0.0, "samples_per_sec": 0.0})
     _subscribers: list = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     future: Optional[asyncio.Task] = None
@@ -72,18 +74,86 @@ def get_job(job_id: str) -> Optional[JobRecord]:
     return _jobs.get(job_id)
 
 
+def _coerce_non_negative_int(value, default: int = 0) -> int:
+    try:
+        return max(0, int(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_progress(progress: dict) -> dict | None:
+    scenario = str(progress.get("scenario") or "").strip()
+    if not scenario:
+        return None
+    return {
+        "scenario": scenario,
+        "done": _coerce_non_negative_int(progress.get("done")),
+        "total": _coerce_non_negative_int(progress.get("total")),
+    }
+
+
+def _apply_event_state(record: JobRecord, event: dict) -> None:
+    event_type = event.get("type")
+    if event_type in {"done", "error", "terminated"}:
+        record.status = event_type
+
+    scenario_totals = event.get("scenario_totals")
+    if isinstance(scenario_totals, dict):
+        for scenario, total in scenario_totals.items():
+            record.scenario_totals[str(scenario)] = _coerce_non_negative_int(total)
+
+    progress = event.get("progress")
+    if isinstance(progress, dict):
+        normalized = _normalize_progress(progress)
+        if normalized is not None:
+            event["progress"] = normalized
+            record.progress[normalized["scenario"]] = normalized
+
+    stats = event.get("stats")
+    if isinstance(stats, dict):
+        record.stats.update(stats)
+
+
+def _completion_progress_events(record: JobRecord, ts: float) -> list[dict]:
+    events: list[dict] = []
+    for scenario, raw_total in sorted(record.scenario_totals.items()):
+        total = _coerce_non_negative_int(raw_total)
+        if total <= 0:
+            continue
+        current = record.progress.get(scenario)
+        current_done = _coerce_non_negative_int(current.get("done")) if isinstance(current, dict) else 0
+        current_total = _coerce_non_negative_int(current.get("total")) if isinstance(current, dict) else total
+        if current_done >= total and current_total == total:
+            continue
+        events.append({
+            "type": "log",
+            "line": f"  {scenario}: {total}/{total}",
+            "ts": ts,
+            "progress": {"scenario": scenario, "done": total, "total": total},
+        })
+    return events
+
+
 def publish(record: JobRecord, event: dict) -> None:
     """向任务追加事件，并扇出给当前所有订阅者。"""
     with record._lock:
-        record.events.append(event)
+        events = []
+        if event.get("type") == "done":
+            events.extend(_completion_progress_events(record, float(event.get("ts") or time.time())))
+        events.append(event)
+
         dead = []
-        for q in record._subscribers:
-            try:
-                record.loop.call_soon_threadsafe(q.put_nowait, event)
-            except Exception:
-                dead.append(q)
+        for item in events:
+            _apply_event_state(record, item)
+            record.events.append(item)
+            for q in record._subscribers:
+                try:
+                    record.loop.call_soon_threadsafe(q.put_nowait, item)
+                except Exception:
+                    dead.append(q)
         for q in dead:
-            record._subscribers.remove(q)
+            if q in record._subscribers:
+                record._subscribers.remove(q)
 
 
 def subscribe(record: JobRecord) -> tuple[list[dict], asyncio.Queue]:

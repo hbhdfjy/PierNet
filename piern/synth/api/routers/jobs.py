@@ -69,6 +69,8 @@ def get_job_status(job_id: str):
         job_type=job.job_type,
         started_at=job.started_at,
         scenario_totals=job.scenario_totals,
+        progress=job.progress,
+        stats=job.stats,
     )
 
 

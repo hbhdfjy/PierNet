@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { api } from '../../lib/api'
-import type { LogLine, ScenarioProgress, LiveStats, JobStatus } from '../../lib/types'
+import type { LogLine, ScenarioProgress, LiveStats, JobStatus, JobStatusSnapshot } from '../../lib/types'
 
 export interface JobMonitorState {
   jobIds: string[]
@@ -34,6 +34,24 @@ function saveStoredJobs(stageKey: string, ids: string[]) {
   } catch { /* ignore */ }
 }
 
+function isTerminalStatus(status: string): status is JobStatus {
+  return status === 'done' || status === 'error' || status === 'terminated'
+}
+
+function toFiniteNumber(value: unknown, fallback = 0): number {
+  const next = Number(value)
+  return Number.isFinite(next) ? next : fallback
+}
+
+function normalizeProgress(scenario: string, progress: Partial<ScenarioProgress>): ScenarioProgress {
+  const name = String(progress.scenario ?? scenario ?? '').trim()
+  return {
+    scenario: name,
+    done: Math.max(0, toFiniteNumber(progress.done, 0)),
+    total: Math.max(0, toFiniteNumber(progress.total, 0)),
+  }
+}
+
 export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   const [jobIds, setJobIds] = useState<string[]>([])
   const [jobStatuses, setJobStatuses] = useState<Record<string, JobStatus>>({})
@@ -45,6 +63,28 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
   const esMap = useRef<Map<string, EventSource>>(new Map())
   const lastLoggedProgressRef = useRef<Record<string, Record<string, number>>>({})
+  const errorCheckInFlightRef = useRef<Set<string>>(new Set())
+
+  const applyBackendSnapshot = useCallback((data: JobStatusSnapshot) => {
+    setProgress(prev => {
+      const next = { ...prev }
+      for (const [scenario, total] of Object.entries(data.scenario_totals ?? {})) {
+        const existing = next[scenario]
+        next[scenario] = normalizeProgress(scenario, { scenario, done: existing?.done ?? 0, total })
+      }
+      for (const [scenario, item] of Object.entries(data.progress ?? {})) {
+        const normalized = normalizeProgress(scenario, item)
+        if (normalized.scenario) next[normalized.scenario] = normalized
+      }
+      return next
+    })
+    if (data.stats) {
+      setStats({
+        elapsed_sec: toFiniteNumber(data.stats.elapsed_sec, 0),
+        samples_per_sec: toFiniteNumber(data.stats.samples_per_sec, 0),
+      })
+    }
+  }, [])
 
   const status: JobStatus = (() => {
     const statuses = Object.values(jobStatuses)
@@ -90,20 +130,22 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
           setProgress(prev => {
             const next = { ...prev }
             for (const [sc, total] of Object.entries(totals)) {
-              next[sc] = { scenario: sc, done: prev[sc]?.done ?? 0, total: total as number }
+              next[sc] = normalizeProgress(sc, { scenario: sc, done: prev[sc]?.done ?? 0, total: total as number })
             }
             return next
           })
         } else if (event.type === 'log') {
           let shouldAppendLog = true
           if (event.progress) {
-            const p: ScenarioProgress = event.progress
-            setProgress(prev => ({ ...prev, [p.scenario]: p }))
-            const byJob = lastLoggedProgressRef.current[id] ?? {}
-            if (byJob[p.scenario] === p.done) {
-              shouldAppendLog = false
-            } else {
-              lastLoggedProgressRef.current[id] = { ...byJob, [p.scenario]: p.done }
+            const p = normalizeProgress(String(event.progress.scenario ?? ''), event.progress)
+            if (p.scenario) {
+              setProgress(prev => ({ ...prev, [p.scenario]: p }))
+              const byJob = lastLoggedProgressRef.current[id] ?? {}
+              if (byJob[p.scenario] === p.done) {
+                shouldAppendLog = false
+              } else {
+                lastLoggedProgressRef.current[id] = { ...byJob, [p.scenario]: p.done }
+              }
             }
           }
           if (event.stats) setStats(event.stats)
@@ -115,15 +157,6 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
           }
         } else if (event.type === 'done') {
           terminatedRef.current.add(id)   // 先标记，再 setState，防止 onerror 竞态
-          setProgress(prev => {
-            const next = { ...prev }
-            for (const [scenario, p] of Object.entries(next)) {
-              if (p.total > 0 && p.done < p.total) {
-                next[scenario] = { ...p, done: p.total }
-              }
-            }
-            return next
-          })
           setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
           es.close()
           esMap.current.delete(id)
@@ -145,19 +178,36 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     }
 
     es.onerror = () => {
-      es.close()
-      esMap.current.delete(id)
-      // 已收到终止事件（done/error/terminated）的连接断开不算错误
-      if (!terminatedRef.current.has(id)) {
-        setJobStatuses(prev => {
-          if (prev[id] === 'running') return { ...prev, [id]: 'error' }
-          return prev
-        })
+      if (terminatedRef.current.has(id)) {
+        es.close()
+        esMap.current.delete(id)
+        return
       }
+      if (errorCheckInFlightRef.current.has(id)) return
+      errorCheckInFlightRef.current.add(id)
+      api.getGenerationStatus(id)
+        .then(data => {
+          applyBackendSnapshot(data)
+          const snapshotStatus = data.status as JobStatus
+          setJobStatuses(prev => ({ ...prev, [id]: snapshotStatus }))
+          if (isTerminalStatus(snapshotStatus)) {
+            terminatedRef.current.add(id)
+            es.close()
+            esMap.current.delete(id)
+          }
+        })
+        .catch(() => {
+          // Keep the EventSource open; the browser will retry transient drops.
+        })
+        .finally(() => {
+          window.setTimeout(() => {
+            errorCheckInFlightRef.current.delete(id)
+          }, 1500)
+        })
     }
 
     esMap.current.set(id, es)
-  }, [stageKey])
+  }, [applyBackendSnapshot])
 
   // mount 时：从 localStorage 恢复，查询后端状态决定如何恢复
   useEffect(() => {
@@ -166,23 +216,20 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
     const restoreJobs = async () => {
       const toConnect: string[] = []
-      const toRestore: { id: string; status: 'done' | 'error' }[] = []
+      const toRestore: { id: string; status: JobStatus }[] = []
       const toDrop: string[] = []
 
       await Promise.all(stored.map(async (id) => {
         try {
-          const res = await fetch(`/api/generate/${id}/status`)
-          if (res.ok) {
-            const data = await res.json()
-            if (data.status === 'running') {
-              toConnect.push(id)
-            } else if (data.status === 'done' || data.status === 'error') {
-              toRestore.push({ id, status: data.status as 'done' | 'error' })
-            } else {
-              toDrop.push(id)
-            }
+          const data = await api.getGenerationStatus(id)
+          applyBackendSnapshot(data)
+          const snapshotStatus = data.status as JobStatus
+          if (snapshotStatus === 'running') {
+            toConnect.push(id)
+          } else if (isTerminalStatus(snapshotStatus)) {
+            toRestore.push({ id, status: snapshotStatus })
           } else {
-            toDrop.push(id)  // 404 等
+            toDrop.push(id)
           }
         } catch {
           toDrop.push(id)
@@ -264,6 +311,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     esMap.current.forEach(es => es.close())
     esMap.current.clear()
     terminatedRef.current.clear()
+    errorCheckInFlightRef.current.clear()
     lastLoggedProgressRef.current = {}
     setJobIds([])
     setJobStatuses({})

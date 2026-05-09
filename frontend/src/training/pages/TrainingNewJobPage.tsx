@@ -44,9 +44,10 @@ function Field({ label, children, note }: { label: string; children: React.React
 }
 
 function UsageBar({ value }: { value: number }) {
+  const pct = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
   return (
     <div className="training-progress mt-1.5">
-      <div className="training-progress__fill" style={{ width: `${Math.max(4, Math.min(100, value))}%` }} />
+      <div className="training-progress__fill" style={{ width: `${pct}%` }} />
     </div>
   )
 }

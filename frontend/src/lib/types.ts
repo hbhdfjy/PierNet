@@ -247,6 +247,16 @@ export interface JobStartResponse {
   scenario_totals: Record<string, number>
 }
 
+export interface JobStatusSnapshot {
+  job_id: string
+  status: JobStatus
+  job_type?: string | null
+  started_at?: number | null
+  scenario_totals: Record<string, number>
+  progress: Record<string, ScenarioProgress>
+  stats: LiveStats
+}
+
 // 模板库状态（来自 /api/templates）
 export interface TemplateInfo {
   scenario: string
