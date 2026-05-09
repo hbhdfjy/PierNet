@@ -18,6 +18,13 @@ export interface JobMonitorState {
 }
 
 const JOBS_KEY = (stageKey: string) => `piern_jobs_${stageKey}`
+const EXPECTED_JOB_TYPES: Record<string, string[]> = {
+  templates: ['generate_templates'],
+  fill: ['fill_samples'],
+  simulate: ['simulate'],
+  router: ['router'],
+}
+
 
 // localStorage：关闭标签页/浏览器后仍保留
 function loadStoredJobs(stageKey: string): string[] {
@@ -32,6 +39,11 @@ function saveStoredJobs(stageKey: string, ids: string[]) {
     if (ids.length > 0) localStorage.setItem(JOBS_KEY(stageKey), JSON.stringify(ids))
     else localStorage.removeItem(JOBS_KEY(stageKey))
   } catch { /* ignore */ }
+}
+
+function isExpectedJobForStage(stageKey: string, jobType: string | null | undefined): boolean {
+  const expected = EXPECTED_JOB_TYPES[stageKey]
+  return !expected || (typeof jobType === 'string' && expected.includes(jobType))
 }
 
 function isTerminalStatus(status: string): status is JobStatus {
@@ -222,6 +234,10 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
       await Promise.all(stored.map(async (id) => {
         try {
           const data = await api.getGenerationStatus(id)
+          if (!isExpectedJobForStage(stageKey, data.job_type)) {
+            toDrop.push(id)
+            return
+          }
           applyBackendSnapshot(data)
           const snapshotStatus = data.status as JobStatus
           if (snapshotStatus === 'running') {

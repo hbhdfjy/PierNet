@@ -10,7 +10,7 @@ import threading
 import time
 from pathlib import Path
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import PROJECT_ROOT
 from piern.shared.storage import portable
@@ -24,6 +24,14 @@ SCENARIO_DIR = ROUTER_DIR / "by_scenario"
 TEXT2COMP_DIR = PROJECT_ROOT / "data" / "text2comp"
 DEFAULT_QWEN_EMBEDDING_MODEL = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
+
+
+def _running_sample_fill_jobs() -> list[str]:
+    return [
+        job.job_id
+        for job in job_manager.all_jobs().values()
+        if job.job_type == "fill_samples" and job.status == "running"
+    ]
 
 
 def _count_lines(path: Path) -> int:
@@ -343,6 +351,16 @@ async def build_router_data(
     scenarios: str = Query(""),
 ):
     """Start Stage 4 router build and return a job id for SSE."""
+    running_fill_jobs = _running_sample_fill_jobs()
+    if running_fill_jobs:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "样本填充任务仍在运行（"
+                + ", ".join(running_fill_jobs)
+                + "）。请先终止或等待完成后再构建路由，避免从正在写入的样本数据生成不完整路由集。"
+            ),
+        )
     record = job_manager.create_job("router")
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
 
