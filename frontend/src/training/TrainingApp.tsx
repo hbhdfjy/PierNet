@@ -1,12 +1,20 @@
+import { lazy, Suspense } from 'react'
 import { Moon, Sun, ArrowLeft, BarChart3, Cpu, PlayCircle, Workflow, FolderOpen } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
-import TrainingOverviewPage from './pages/TrainingOverviewPage'
-import TrainingNewJobPage from './pages/TrainingNewJobPage'
-import TrainingJobsPage from './pages/TrainingJobsPage'
-import TrainingJobDetailPage from './pages/TrainingJobDetailPage'
-import { FileManagerContent } from '../files/FileManagerPage'
 
+const TrainingOverviewPage = lazy(() => import('./pages/TrainingOverviewPage'))
+const TrainingNewJobPage = lazy(() => import('./pages/TrainingNewJobPage'))
+const TrainingJobsPage = lazy(() => import('./pages/TrainingJobsPage'))
+const TrainingJobDetailPage = lazy(() => import('./pages/TrainingJobDetailPage'))
+const FileManagerContent = lazy(() =>
+  import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
+)
+
+
+function PageFallback() {
+  return <div className="px-6 py-5 text-sm text-slate-400">加载中...</div>
+}
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -96,14 +104,16 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
       </aside>
 
       <main className="app-main">
-        <Routes>
-          <Route index element={<TrainingOverviewPage />} />
-          <Route path="new" element={<TrainingNewJobPage />} />
-          <Route path="jobs" element={<TrainingJobsPage />} />
-          <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
-          <Route path="files" element={<FileManagerContent initialPlatform="training" lockPlatform title="训练文件管理" copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。" />} />
-          <Route path="*" element={<Navigate to="/training" replace />} />
-        </Routes>
+        <Suspense fallback={<PageFallback />}>
+          <Routes>
+            <Route index element={<TrainingOverviewPage />} />
+            <Route path="new" element={<TrainingNewJobPage />} />
+            <Route path="jobs" element={<TrainingJobsPage />} />
+            <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
+            <Route path="files" element={<FileManagerContent initialPlatform="training" lockPlatform title="训练文件管理" copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。" />} />
+            <Route path="*" element={<Navigate to="/training" replace />} />
+          </Routes>
+        </Suspense>
       </main>
     </div>
   )

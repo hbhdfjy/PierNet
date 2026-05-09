@@ -138,10 +138,27 @@ def _to_device(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str
     return {key: value.to(device, non_blocking=True) for key, value in batch.items()}
 
 
-def _autocast_context(device: torch.device):
+def _autocast_dtype(device: torch.device) -> torch.dtype | None:
+    if device.type != "cuda":
+        return None
+    major, _ = torch.cuda.get_device_capability(device)
+    if major >= 8 and torch.cuda.is_bf16_supported():
+        return torch.bfloat16
+    return torch.float16
+
+
+def _autocast_context(device: torch.device, dtype: torch.dtype | None = None):
     if device.type == "cuda":
-        return torch.autocast(device_type="cuda", dtype=torch.bfloat16)
+        return torch.autocast(device_type="cuda", dtype=dtype or _autocast_dtype(device) or torch.float16)
     return nullcontext()
+
+
+def _make_grad_scaler(device: torch.device, amp_dtype: torch.dtype | None):
+    enabled = device.type == "cuda" and amp_dtype == torch.float16
+    try:
+        return torch.amp.GradScaler("cuda", enabled=enabled)
+    except TypeError:  # pragma: no cover - compatibility for older PyTorch
+        return torch.cuda.amp.GradScaler(enabled=enabled)
 
 
 def _forward_logits(model: FullSeqDilatedConvRouter, batch: dict[str, torch.Tensor]) -> torch.Tensor:
@@ -161,6 +178,7 @@ def _evaluate(
     loader: DataLoader,
     *,
     device: torch.device,
+    amp_dtype: torch.dtype | None = None,
 ) -> tuple[dict[str, float | int], dict[str, dict[str, float | int]]]:
     model.eval()
     logits_buffer: list[np.ndarray] = []
@@ -170,7 +188,7 @@ def _evaluate(
     with torch.no_grad():
         for batch in loader:
             batch = _to_device(batch, device)
-            with _autocast_context(device):
+            with _autocast_context(device, amp_dtype):
                 logits = _forward_logits(model, batch)
             logits_buffer.append(logits.float().cpu().numpy())
             labels_buffer.append(batch["labels"].cpu().numpy())
@@ -244,8 +262,9 @@ def _run_test(
     train_sample_count: int,
     test_sample_count: int,
     device: torch.device,
+    amp_dtype: torch.dtype | None = None,
 ) -> dict[str, object]:
-    overall_metrics, raw_outputs = _evaluate(model, test_loader, device=device)
+    overall_metrics, raw_outputs = _evaluate(model, test_loader, device=device, amp_dtype=amp_dtype)
     scenario_names = summary.scenarios
     scenario_ids = np.asarray(raw_outputs.pop("_scenario_ids"), dtype=np.int64)
     logits = np.asarray(raw_outputs.pop("_logits"), dtype=np.float32)
@@ -468,6 +487,12 @@ def run_training(config: RouterTrainingConfig) -> Path:
         lr=config.learning_rate,
         weight_decay=config.weight_decay,
     )
+    amp_dtype = _autocast_dtype(device)
+    scaler = _make_grad_scaler(device, amp_dtype)
+    _log_startup(
+        "amp",
+        f"autocast_dtype={amp_dtype} grad_scaler={scaler.is_enabled()}",
+    )
     start_epoch = 0
     global_step = 0
     if config.resume_from:
@@ -565,11 +590,16 @@ def run_training(config: RouterTrainingConfig) -> Path:
 
                 batch = _to_device(batch, device)
                 optimizer.zero_grad(set_to_none=True)
-                with _autocast_context(device):
+                with _autocast_context(device, amp_dtype):
                     logits = _forward_logits(model, batch)
                     loss = F.binary_cross_entropy_with_logits(logits, batch["labels"])
-                loss.backward()
-                optimizer.step()
+                if scaler.is_enabled():
+                    scaler.scale(loss).backward()
+                    scaler.step(optimizer)
+                    scaler.update()
+                else:
+                    loss.backward()
+                    optimizer.step()
                 global_step += 1
 
                 running_loss += float(loss.item())
@@ -649,6 +679,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
                     train_sample_count=len(train_dataset),
                     test_sample_count=len(test_dataset),
                     device=device,
+                    amp_dtype=amp_dtype,
                 )
             if stop_controller.requested():
                 print(f"[stop] platform stop accepted after epoch={current_epoch}; saving checkpoint")

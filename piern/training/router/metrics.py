@@ -4,7 +4,13 @@ import numpy as np
 
 
 def sigmoid(x: np.ndarray) -> np.ndarray:
-    return 1.0 / (1.0 + np.exp(-x))
+    values = np.asarray(x, dtype=np.float64)
+    result = np.empty_like(values, dtype=np.float64)
+    positive = values >= 0
+    result[positive] = 1.0 / (1.0 + np.exp(-values[positive]))
+    exp_values = np.exp(values[~positive])
+    result[~positive] = exp_values / (1.0 + exp_values)
+    return result
 
 
 def precision_recall_auc(labels: np.ndarray, probabilities: np.ndarray) -> float:
@@ -18,7 +24,8 @@ def precision_recall_auc(labels: np.ndarray, probabilities: np.ndarray) -> float
     recall = tp / max(tp[-1], 1.0)
     precision = np.concatenate(([1.0], precision))
     recall = np.concatenate(([0.0], recall))
-    return float(np.trapz(precision, recall))
+    integrate = np.trapezoid if hasattr(np, "trapezoid") else np.trapz
+    return float(integrate(precision, recall))
 
 
 def binary_classification_metrics(

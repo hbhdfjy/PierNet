@@ -1,4 +1,4 @@
-import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
+import { lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import {
   Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
@@ -7,20 +7,23 @@ import {
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { SeedContext } from '../lib/seedContext'
-import DatasetStats from './pages/DatasetStats'
-import LLMConfigPage from './pages/LLMConfig'
-import RegisterSimulator from './pages/RegisterSimulator'
-import RegistryPage from './pages/RegistryPage'
-import RouterDataBuilder from './pages/RouterDataBuilder'
-import RouterViewer from './pages/RouterViewer'
-import SampleFiller from './pages/SampleFiller'
-import SampleViewer from './pages/SampleViewer'
-import SimulationRunner from './pages/SimulationRunner'
-import TemplateGenerator from './pages/TemplateGenerator'
-import TemplateViewer from './pages/TemplateViewer'
-import DataUploadPage from './pages/DataUploadPage'
-import { FileManagerContent } from '../files/FileManagerPage'
 import type { Theme } from '../shared/theme'
+
+const DatasetStats = lazy(() => import('./pages/DatasetStats'))
+const LLMConfigPage = lazy(() => import('./pages/LLMConfig'))
+const RegisterSimulator = lazy(() => import('./pages/RegisterSimulator'))
+const RegistryPage = lazy(() => import('./pages/RegistryPage'))
+const RouterDataBuilder = lazy(() => import('./pages/RouterDataBuilder'))
+const RouterViewer = lazy(() => import('./pages/RouterViewer'))
+const SampleFiller = lazy(() => import('./pages/SampleFiller'))
+const SampleViewer = lazy(() => import('./pages/SampleViewer'))
+const SimulationRunner = lazy(() => import('./pages/SimulationRunner'))
+const TemplateGenerator = lazy(() => import('./pages/TemplateGenerator'))
+const TemplateViewer = lazy(() => import('./pages/TemplateViewer'))
+const DataUploadPage = lazy(() => import('./pages/DataUploadPage'))
+const FileManagerContent = lazy(() =>
+  import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
+)
 
 const STAGE_COLORS = {
   amber:   { accent: 'hsl(36 96% 61%)', soft: 'rgba(245, 158, 11, 0.14)', border: 'rgba(245, 158, 11, 0.24)' },
@@ -44,6 +47,10 @@ function useSeedState(): [number, (v: number) => void] {
   }
 
   return [seed, setSeed]
+}
+
+function PageFallback() {
+  return <div className="px-6 py-5 text-sm text-slate-400">加载中...</div>
 }
 
 function SectionLabel({ children }: { children: ReactNode }) {
@@ -224,23 +231,25 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
         </aside>
 
         <main className="app-main">
-          <Routes>
-            <Route index element={<DatasetStats />} />
-            <Route path="simulate" element={<SimulationRunner />} />
-            <Route path="upload" element={<DataUploadPage />} />
-            <Route path="register" element={<RegisterSimulator />} />
-            <Route path="templates" element={<TemplateGenerator />} />
-            <Route path="fill" element={<SampleFiller />} />
-            <Route path="router" element={<RouterDataBuilder />} />
-            <Route path="template-viewer" element={<TemplateViewer />} />
-            <Route path="samples" element={<SampleViewer />} />
-            <Route path="router-viewer" element={<RouterViewer />} />
-            <Route path="files" element={<FileManagerContent />} />
-            <Route path="stats" element={<Navigate to="/synth" replace />} />
-            <Route path="registry" element={<RegistryPage />} />
-            <Route path="llm-config" element={<LLMConfigPage />} />
-            <Route path="*" element={<Navigate to="/synth/simulate" replace />} />
-          </Routes>
+          <Suspense fallback={<PageFallback />}>
+            <Routes>
+              <Route index element={<DatasetStats />} />
+              <Route path="simulate" element={<SimulationRunner />} />
+              <Route path="upload" element={<DataUploadPage />} />
+              <Route path="register" element={<RegisterSimulator />} />
+              <Route path="templates" element={<TemplateGenerator />} />
+              <Route path="fill" element={<SampleFiller />} />
+              <Route path="router" element={<RouterDataBuilder />} />
+              <Route path="template-viewer" element={<TemplateViewer />} />
+              <Route path="samples" element={<SampleViewer />} />
+              <Route path="router-viewer" element={<RouterViewer />} />
+              <Route path="files" element={<FileManagerContent />} />
+              <Route path="stats" element={<Navigate to="/synth" replace />} />
+              <Route path="registry" element={<RegistryPage />} />
+              <Route path="llm-config" element={<LLMConfigPage />} />
+              <Route path="*" element={<Navigate to="/synth/simulate" replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </SeedContext.Provider>
