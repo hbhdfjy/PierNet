@@ -349,6 +349,9 @@ def _sample_assets() -> list[dict[str, Any]]:
 
     merged_path = DATA_DIR / "all_training_data.jsonl"
     if merged_path.exists():
+        merged_count = int(manifest.get("summary", {}).get("total_samples", 0))
+        merged_size, merged_mtime = _safe_stat(merged_path)
+        is_empty_merged = merged_count == 0 and merged_size == 0
         assets.append(_asset(
             platform="synth",
             stage="stage3",
@@ -356,11 +359,15 @@ def _sample_assets() -> list[dict[str, Any]]:
             title="all_training_data.jsonl",
             path=merged_path,
             id_parts=("sample_merged", "all_training_data"),
-            count=int(manifest.get("summary", {}).get("total_samples", 0)),
+            count=merged_count,
             count_label="行",
+            file_size_bytes=merged_size,
+            mtime=merged_mtime,
             valid=True,
-            protected=True,
-            deletable=False,
+            status="empty" if is_empty_merged else "ok",
+            protected=not is_empty_merged,
+            deletable=is_empty_merged,
+            warnings=["空的合并样本文件，可直接删除。"] if is_empty_merged else [],
             details={"note": "由各场景样本文件合并生成，删除样本后会重建。"},
         ))
     return assets
@@ -663,6 +670,15 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
     if kind == "sample" and len(parts) == 2:
         if not file_manager.delete_sample_file(parts[1]):
             raise FileNotFoundError(f"file does not exist: {parts[1]}")
+        return {"ok": True, "kind": kind, "deleted": 1}
+
+    if kind == "sample_merged" and len(parts) == 2:
+        path = DATA_DIR / "all_training_data.jsonl"
+        if not path.exists():
+            raise FileNotFoundError(f"file does not exist: {_relative_path(path)}")
+        if path.stat().st_size > 0:
+            raise ValueError("non-empty merged sample file is protected; delete source sample files instead")
+        path.unlink()
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "router_scenario" and len(parts) == 2:
