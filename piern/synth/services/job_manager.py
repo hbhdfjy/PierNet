@@ -92,6 +92,20 @@ def _normalize_progress(progress: dict) -> dict | None:
     }
 
 
+def _progress_stats(record: JobRecord) -> dict:
+    elapsed = max(0.0, time.time() - record.started_at)
+    total_done = sum(
+        _coerce_non_negative_int(item.get("done"))
+        for item in record.progress.values()
+        if isinstance(item, dict)
+    )
+    samples_per_sec = total_done / elapsed if elapsed > 0 else 0.0
+    return {
+        "elapsed_sec": elapsed,
+        "samples_per_sec": samples_per_sec,
+    }
+
+
 def _apply_event_state(record: JobRecord, event: dict) -> None:
     event_type = event.get("type")
     if event_type in {"done", "error", "terminated"}:
@@ -108,6 +122,7 @@ def _apply_event_state(record: JobRecord, event: dict) -> None:
         if normalized is not None:
             event["progress"] = normalized
             record.progress[normalized["scenario"]] = normalized
+            event.setdefault("stats", _progress_stats(record))
 
     stats = event.get("stats")
     if isinstance(stats, dict):
