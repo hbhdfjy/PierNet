@@ -14,6 +14,7 @@ Keep durable project facts in these root documents:
 - `README.md`: installation, startup, quick start, and operational commands
 - `PROJECT_OVERVIEW.md`: system boundary, architecture, and data contracts
 - `CLAUDE.md`: implementation notes for developers and coding agents
+- `docs/INDUSTRIALIZATION_PLAN.md`: staged plan for production-grade engineering, CI, API contracts, task persistence, and migration readiness
 
 Historical plan documents are not the source of truth.
 
