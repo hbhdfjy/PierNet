@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import random
 import subprocess
 import sys
@@ -12,18 +13,19 @@ from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
 from piern.shared.storage import portable
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.synth.services.job_manager import publish
 
 router = APIRouter()
 
-ROUTER_DIR = PROJECT_ROOT / "data" / "router"
+ROUTER_DIR = DATA_ROOT / "router"
 SCENARIO_DIR = ROUTER_DIR / "by_scenario"
-TEXT2COMP_DIR = PROJECT_ROOT / "data" / "text2comp"
-DEFAULT_QWEN_EMBEDDING_MODEL = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
-DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
+TEXT2COMP_DIR = DATA_ROOT / "text2comp"
+DEFAULT_LOCAL_QWEN_DIR = str(Path.home() / "Qwen" / "Qwen2.5-0.5B-Instruct")
+DEFAULT_QWEN_EMBEDDING_MODEL = os.getenv("PIERN_QWEN_EMBEDDING_MODEL", DEFAULT_LOCAL_QWEN_DIR)
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PIERN_QWEN_EMBEDDING_TOKENIZER", DEFAULT_QWEN_EMBEDDING_MODEL)
 
 
 def _running_sample_fill_jobs() -> list[str]:

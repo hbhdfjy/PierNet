@@ -22,18 +22,18 @@ from piern.training.router.data import (
     PRETRAINED_EMBEDDINGS,
     inspect_router_input_representation,
 )
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.shared.storage import portable
 
 PYTHON_BIN = Path(os.getenv("PIERN_TRAINING_PYTHON", sys.executable))
 TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
-ARTIFACTS_ROOT = PROJECT_ROOT / "artifacts" / "token_router"
-RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs"
+ARTIFACTS_ROOT = ARTIFACT_ROOT / "token_router"
+RUNLOGS_ROOT = RUNLOG_ROOT
 CONTROL_ROOT = RUNLOGS_ROOT / "training-controls"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
-DEFAULT_ROUTER_MANIFEST_PATH = PROJECT_ROOT / "data" / ".manifests" / "router.json"
+DEFAULT_ROUTER_MANIFEST_PATH = DATA_ROOT / ".manifests" / "router.json"
 ROUTER_MANIFEST_PATH = DEFAULT_ROUTER_MANIFEST_PATH
-ROUTER_DATA_DIR = PROJECT_ROOT / "data" / "router"
+ROUTER_DATA_DIR = DATA_ROOT / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
 TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}

@@ -34,10 +34,11 @@ def test_validate_hdf5_file_accepts_stage1_contract(tmp_path):
 
 def test_canonical_hdf5_path_accepts_new_big_scene(monkeypatch, tmp_path):
     monkeypatch.setattr(hdf5_data, "PROJECT_ROOT", tmp_path)
+    monkeypatch.setattr(hdf5_data, "DATA_ROOT", tmp_path / "data")
 
     path = hdf5_data.canonical_hdf5_path("new_big_scene", "case_001")
 
-    assert path == tmp_path / "data" / "new_big_scene" / "new_big_scene_case_001.h5"
+    assert path == hdf5_data.DATA_ROOT / "new_big_scene" / "new_big_scene_case_001.h5"
 
 
 def test_validate_hdf5_file_rejects_shape_attr_mismatch(tmp_path):

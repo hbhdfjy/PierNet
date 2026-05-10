@@ -22,6 +22,7 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
 from piern.shared.storage import portable  # noqa: E402
 
 try:
@@ -80,10 +81,10 @@ def parse_args() -> argparse.Namespace:
 
 def iter_sources(kind: str, scenarios: set[str] | None) -> list[Path]:
     if kind == "text2comp":
-        source_dir = PROJECT_ROOT / "data" / "text2comp"
+        source_dir = DATA_ROOT / "text2comp"
         paths = sorted(path for path in source_dir.glob("*.jsonl") if path.name != "all_training_data.jsonl")
     elif kind == "router":
-        source_dir = PROJECT_ROOT / "data" / "router" / "by_scenario"
+        source_dir = DATA_ROOT / "router" / "by_scenario"
         paths = sorted(source_dir.glob("*.jsonl"))
     else:
         raise ValueError(kind)

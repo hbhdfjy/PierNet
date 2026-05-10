@@ -267,9 +267,9 @@ export default function RouterDataBuilder() {
               {'Embedding Backbone \u56fa\u5b9a\u4e3a '}
               <span
                 className="pretty-tooltip inline-block max-w-full align-bottom"
-                data-tooltip="/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
+                data-tooltip="由 PIERN_QWEN_EMBEDDING_MODEL 配置，默认读取 ~/Qwen/Qwen2.5-0.5B-Instruct"
               >
-                <span className="block truncate font-mono text-sky-300">Qwen2.5-0.5B-Instruct</span>
+                <span className="block truncate font-mono text-sky-300">PIERN_QWEN_EMBEDDING_MODEL</span>
               </span>
             </div>
           </div>

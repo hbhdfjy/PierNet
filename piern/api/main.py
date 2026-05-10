@@ -1,5 +1,7 @@
 """Unified FastAPI 入口，挂载 synth / training API 与前端静态资源。"""
 
+import os
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -19,15 +21,24 @@ from piern.synth.api.routers import (
 )
 from piern.training.api.routers import training
 
+
+def _cors_origins() -> list[str]:
+    configured = os.getenv('PIERN_CORS_ORIGINS', '').strip()
+    if configured:
+        return [item.strip() for item in configured.split(',') if item.strip()]
+    frontend_port = os.getenv('PIERN_FRONTEND_PORT', '5173')
+    return [
+        f'http://localhost:{frontend_port}',
+        'http://localhost:4173',
+        f'http://127.0.0.1:{frontend_port}',
+    ]
+
+
 app = FastAPI(title='PiERN Unified API', version='3.0')
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        'http://localhost:5173',
-        'http://localhost:4173',
-        'http://127.0.0.1:5173',
-    ],
+    allow_origins=_cors_origins(),
     allow_credentials=True,
     allow_methods=['*'],
     allow_headers=['*'],

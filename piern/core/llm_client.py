@@ -9,6 +9,7 @@ LLM 客户端，支持多种 API 提供商。
 - 本地 LLM (通过 OpenAI 兼容接口)
 """
 
+import json
 import os
 import time
 import logging

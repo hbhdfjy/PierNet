@@ -17,11 +17,11 @@ from importlib import import_module
 from pathlib import Path
 from typing import Any, Iterable
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT
 
-TEXT2COMP_PARQUET_DIR = PROJECT_ROOT / "data" / "text2comp_parquet"
-ROUTER_PARQUET_DIR = PROJECT_ROOT / "data" / "router_parquet"
-CATALOG_DB_PATH = PROJECT_ROOT / "data" / "catalog.sqlite"
+TEXT2COMP_PARQUET_DIR = DATA_ROOT / "text2comp_parquet"
+ROUTER_PARQUET_DIR = DATA_ROOT / "router_parquet"
+CATALOG_DB_PATH = DATA_ROOT / "catalog.sqlite"
 SUPPORTED_KINDS = {"text2comp", "router"}
 PARQUET_SCHEMA_VERSION = 1
 

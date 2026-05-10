@@ -10,10 +10,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.runtime.paths import DATA_DIR, TEMPLATES_DIR  # noqa: E402
+from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, TEMPLATES_DIR  # noqa: E402
 from piern.synth.services import jsonl_filter_index  # noqa: E402
 
-ROUTER_DIR = PROJECT_ROOT / "data" / "router"
+ROUTER_DIR = DATA_ROOT / "router"
 ROUTER_SCENARIO_DIR = ROUTER_DIR / "by_scenario"
 
 

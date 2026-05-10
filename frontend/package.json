@@ -5,28 +5,46 @@
   "type": "module",
   "scripts": {
     "dev": "node ../scripts/frontend/run-vite.mjs",
-    "build": "tsc && node ../scripts/frontend/run-vite.mjs build",
-    "preview": "node ../scripts/frontend/run-vite.mjs preview"
+    "build": "npm run typecheck && node ../scripts/frontend/run-vite.mjs build",
+    "preview": "node ../scripts/frontend/run-vite.mjs preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src/lib/utils.ts src/lib/utils.test.ts --max-warnings 0",
+    "format": "prettier --write eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
+    "format:check": "prettier --check eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
+    "test": "vitest run"
   },
   "dependencies": {
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.378.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.22.3",
+    "react-virtuoso": "^4.7.11",
     "recharts": "^2.12.7",
     "swr": "^2.2.5",
-    "react-virtuoso": "^4.7.11",
-    "lucide-react": "^0.378.0",
-    "clsx": "^2.1.1",
     "tailwind-merge": "^2.3.0"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.0",
-    "vite": "^5.2.11",
-    "typescript": "^5.4.5",
-    "tailwindcss": "^3.4.3",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
+    "@eslint/js": "^9.39.4",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0"
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "autoprefixer": "^10.4.19",
+    "eslint": "^9.39.4",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "eslint-plugin-react-refresh": "^0.4.26",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.38",
+    "prettier": "^3.8.3",
+    "tailwindcss": "^3.4.3",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^5.2.11",
+    "vitest": "^2.1.9"
+  },
+  "engines": {
+    "node": ">=20.19.0"
   }
 }

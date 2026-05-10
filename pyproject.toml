@@ -1,0 +1,91 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "piern-data-synthesis"
+version = "0.1.0"
+description = "PiERN multi-simulator data synthesis and Token Router training platform"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+  "numpy>=1.24.0",
+  "scipy>=1.10.0",
+  "pandas>=1.5.0",
+  "h5py>=3.8.0",
+  "pyyaml>=6.0",
+  "pyarrow>=15.0.0",
+  "duckdb>=1.0.0",
+  "tqdm>=4.65.0",
+  "flopy>=3.7.0",
+  "pandapower>=2.13.0",
+  "andes>=2.0.0",
+  "pypsa>=1.1.0,<1.2.0",
+  "linopy>=0.6.0,<0.7.0",
+  "highspy>=1.5.0",
+  "xarray>=2025.1.0,<2026.0.0",
+  "simpeg>=0.25.0,<0.26.0",
+  "fastapi>=0.100.0",
+  "uvicorn[standard]>=0.23.0",
+  "pydantic>=2.0.0",
+  "torch>=2.5.0,<2.6.0",
+  "transformers>=4.46.0,<4.47.0",
+  "tokenizers>=0.20.0,<0.21.0",
+  "accelerate>=1.1.0,<1.2.0",
+  "safetensors>=0.4.0,<0.5.0",
+  "requests>=2.28.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7.0.0",
+  "ruff>=0.3.0",
+  "mypy>=1.8.0",
+]
+
+[project.scripts]
+piern-modflow = "piern.simulators.modflow.pipeline:main"
+piern-simpeg = "piern.simulators.simpeg.pipeline:main"
+piern-power = "piern.simulators.power_flow.pipeline:main"
+piern-transient = "piern.simulators.transient.pipeline:main"
+piern-gcam = "piern.simulators.gcam.pipeline:main"
+
+[tool.setuptools.packages.find]
+include = ["piern*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+  ".git",
+  ".pytest_cache",
+  ".runlogs",
+  "artifacts",
+  "data",
+  "frontend",
+  "migration_exports",
+  "__pycache__",
+]
+
+[tool.ruff.lint]
+# Start with correctness-oriented checks so phase 1 adds a real gate without forcing
+# large style-only rewrites. Later milestones can expand this list.
+select = ["E9", "F63", "F7", "F82"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_configs = true
+no_implicit_optional = false
+check_untyped_defs = false
+exclude = [
+  "^data/",
+  "^artifacts/",
+  "^frontend/",
+  "^migration_exports/",
+]

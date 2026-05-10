@@ -2,17 +2,30 @@
 set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+
+ENV_FILE=${PIERN_ENV_FILE:-"$ROOT/.env"}
+if [[ -f "$ENV_FILE" ]]; then
+  set -a
+  # shellcheck disable=SC1090
+  source "$ENV_FILE"
+  set +a
+fi
+
 RUN_DIR=${PIERN_SERVICE_RUN_DIR:-"$ROOT/.runlogs/services"}
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
 BACKEND_LOG="$RUN_DIR/backend.log"
 FRONTEND_LOG="$RUN_DIR/frontend.log"
-HOST=${PIERN_SERVICE_HOST:-0.0.0.0}
+HOST=${PIERN_HOST:-${PIERN_SERVICE_HOST:-0.0.0.0}}
 BACKEND_PORT=${PIERN_BACKEND_PORT:-8000}
 FRONTEND_PORT=${PIERN_FRONTEND_PORT:-5173}
-CONDA_ENV=${PIERN_CONDA_ENV:-/home/tpx/.conda/envs/piern}
+CONDA_ENV=${PIERN_CONDA_ENV:-"$HOME/.conda/envs/piern"}
 PYTHON=${PIERN_PYTHON:-"$CONDA_ENV/bin/python"}
-SERVICE_PATH="$CONDA_ENV/bin:$PATH"
+NPM=${PIERN_NPM:-npm}
+NODE_BIN=${PIERN_NODE_BIN:-}
+NODE_BIN_DIR=${PIERN_NODE_BIN_DIR:-}
+[[ -n "$NODE_BIN" && -z "$NODE_BIN_DIR" ]] && NODE_BIN_DIR=$(dirname "$NODE_BIN")
+SERVICE_PATH="${NODE_BIN_DIR:+$NODE_BIN_DIR:}$CONDA_ENV/bin:$PATH"
 SERVICE_USER=${PIERN_SERVICE_USER:-$(id -un)}
 
 mkdir -p "$RUN_DIR"

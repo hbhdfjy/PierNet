@@ -20,7 +20,7 @@ else
   rm -f "$FRONTEND_PID_FILE"
   : > "$FRONTEND_LOG"
   echo "frontend: starting on $HOST:$FRONTEND_PORT"
-  nohup env PATH="$SERVICE_PATH" npm --prefix frontend run dev -- --host "$HOST" --port "$FRONTEND_PORT" --strictPort \
+  nohup env PATH="$SERVICE_PATH" "$NPM" --prefix frontend run dev -- --host "$HOST" --port "$FRONTEND_PORT" --strictPort \
     > "$FRONTEND_LOG" 2>&1 < /dev/null &
   write_pid "$FRONTEND_PID_FILE" "$!"
 fi

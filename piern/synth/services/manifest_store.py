@@ -9,11 +9,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Iterable
 
-from piern.shared.runtime.paths import DATA_DIR, PROJECT_ROOT, TEMPLATES_DIR
+from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, PROJECT_ROOT, TEMPLATES_DIR
 
-ROUTER_DIR = PROJECT_ROOT / "data" / "router"
+ROUTER_DIR = DATA_ROOT / "router"
 ROUTER_SCENARIO_DIR = ROUTER_DIR / "by_scenario"
-MANIFEST_DIR = PROJECT_ROOT / "data" / ".manifests"
+MANIFEST_DIR = DATA_ROOT / ".manifests"
 
 TEMPLATE_MANIFEST_PATH = MANIFEST_DIR / "templates.json"
 SAMPLE_MANIFEST_PATH = MANIFEST_DIR / "samples.json"

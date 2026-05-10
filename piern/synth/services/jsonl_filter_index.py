@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
 
-INDEX_ROOT = PROJECT_ROOT / "data" / ".indexes"
+INDEX_ROOT = DATA_ROOT / ".indexes"
 INDEX_VERSION = 1
 DEFAULT_STRIDE = 1000
 

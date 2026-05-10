@@ -13,16 +13,16 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from piern.shared.runtime.paths import DATA_DIR, PROJECT_ROOT, TEMPLATES_DIR
+from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, PROJECT_ROOT, TEMPLATES_DIR
 from piern.shared.storage import portable
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
 from piern.synth.services import file_manager, hdf5_data, jsonl_filter_index, jsonl_index, manifest_store
 from piern.training.services import training_manager
 
-ROUTER_DIR = PROJECT_ROOT / "data" / "router"
+ROUTER_DIR = DATA_ROOT / "router"
 ROUTER_SCENARIO_DIR = ROUTER_DIR / "by_scenario"
-MANIFEST_DIR = PROJECT_ROOT / "data" / ".manifests"
-INDEX_DIR = PROJECT_ROOT / "data" / ".indexes"
+MANIFEST_DIR = DATA_ROOT / ".manifests"
+INDEX_DIR = DATA_ROOT / ".indexes"
 
 _PLATFORM_LABELS = {
     "synth": "数据合成",
@@ -184,7 +184,7 @@ def _asset(
 
 def _hdf5_assets() -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
-    data_root = PROJECT_ROOT / "data"
+    data_root = DATA_ROOT
     if not data_root.exists():
         return assets
 

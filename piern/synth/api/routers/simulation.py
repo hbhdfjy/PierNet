@@ -15,7 +15,7 @@ import yaml
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
 from piern.synth.services import job_manager
 from piern.synth.services.job_manager import JobRecord, publish
@@ -30,8 +30,18 @@ router = APIRouter()
 
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sim-worker")
 
+
+def _display_path(path: Path) -> str:
+    for root in (PROJECT_ROOT, DATA_ROOT):
+        try:
+            return str(path.relative_to(root))
+        except ValueError:
+            continue
+    return str(path)
+
+
 # 清理上次遗留的临时 config 文件
-_tmp_configs_dir = PROJECT_ROOT / ".runlogs" / "tmp_configs"
+_tmp_configs_dir = RUNLOG_ROOT / "tmp_configs"
 if _tmp_configs_dir.exists():
     for _f in _tmp_configs_dir.glob("*.yaml"):
         try:
@@ -129,7 +139,7 @@ def _scan_scenarios() -> List[SimulationScenario]:
             continue
         for cfg_file in sorted(variants_dir.glob("*.yaml")):
             scenario = cfg_file.stem
-            config_path = str(cfg_file.relative_to(PROJECT_ROOT))
+            config_path = _display_path(cfg_file)
             h5_path = None
             sample_count = 0
             output_shape = None
@@ -145,9 +155,9 @@ def _scan_scenarios() -> List[SimulationScenario]:
                     if output_dir_str:
                         h5_candidate = PROJECT_ROOT / output_dir_str / output_file
                     else:
-                        h5_candidate = PROJECT_ROOT / "data" / sim / output_file
+                        h5_candidate = DATA_ROOT / sim / output_file
                     if h5_candidate.exists():
-                        h5_path = str(h5_candidate.relative_to(PROJECT_ROOT))
+                        h5_path = _display_path(h5_candidate)
                         sample_count, output_shape, file_size_bytes = _read_h5_info(h5_candidate)
             except Exception:
                 pass
@@ -222,10 +232,10 @@ async def upload_simulation_data(
 
     target = canonical_hdf5_path(simulator, scenario)
     if target.exists() and not overwrite:
-        rel = target.relative_to(PROJECT_ROOT)
+        rel = _display_path(target)
         raise HTTPException(status_code=409, detail=f"目标文件已存在: {rel}；如需覆盖请开启 overwrite")
 
-    tmp_dir = PROJECT_ROOT / ".runlogs" / "uploads"
+    tmp_dir = RUNLOG_ROOT / "uploads"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     tmp_path = tmp_dir / f".{simulator}_{scenario}_{time.time_ns()}.h5"
 
@@ -255,7 +265,7 @@ async def upload_simulation_data(
         "ok": True,
         "simulator": simulator,
         "scenario": scenario,
-        "saved_path": str(target.relative_to(PROJECT_ROOT)),
+        "saved_path": _display_path(target),
         "validation": saved_validation,
     }
 
@@ -304,7 +314,7 @@ def _resolve_output_h5_path(config_path: str, simulator: str) -> Optional[Path]:
     output_dir_str = cfg.get("output_dir")
     if output_dir_str:
         return PROJECT_ROOT / output_dir_str / output_file
-    return PROJECT_ROOT / "data" / simulator / output_file
+    return DATA_ROOT / simulator / output_file
 
 
 def _prepare_runtime_config(req: SimulateRequest) -> tuple[str, Optional[Path]]:
@@ -319,7 +329,7 @@ def _prepare_runtime_config(req: SimulateRequest) -> tuple[str, Optional[Path]]:
         return str(cfg_path), None
 
     cfg["seed"] = req.seed
-    tmp_dir = PROJECT_ROOT / ".runlogs" / "tmp_configs"
+    tmp_dir = RUNLOG_ROOT / "tmp_configs"
     tmp_dir.mkdir(parents=True, exist_ok=True)
     fd, tmp_name = tempfile.mkstemp(
         prefix=f"{req.simulator}_{req.scenario}_",

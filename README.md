@@ -15,6 +15,8 @@ Keep durable project facts in these root documents:
 - `PROJECT_OVERVIEW.md`: system boundary, architecture, and data contracts
 - `CLAUDE.md`: implementation notes for developers and coding agents
 - `docs/INDUSTRIALIZATION_PLAN.md`: staged plan for production-grade engineering, CI, API contracts, task persistence, and migration readiness
+- `docs/INDUSTRIALIZATION_EXECUTION_PLAN.md`: strict execution checklist for staged industrialization work
+- `docs/MIGRATION_CHECKLIST.md`: portable restore checklist for new servers
 
 Historical plan documents are not the source of truth.
 
@@ -47,15 +49,16 @@ cd frontend
 npm install
 ```
 
-`requirements.txt` is the main dependency entry. `setup.py` mirrors the package dependencies and console scripts, but should not be treated as the only source of truth.
+`pyproject.toml` contains package metadata and quality-tool configuration. `requirements.txt` remains the compatibility install entry for current servers.
 
 ### Conda Environment Note
 
-`start_ui.sh` defaults to `/home/tpx/.conda/envs/piern`. If your conda environment has another name, point the script at it explicitly:
+Service scripts load `.env` when it exists and default to `$HOME/.conda/envs/piern`. For portable deployment, copy `.env.example` to `.env` and point variables at local paths:
 
 ```bash
-export PIERN_CONDA_BASE=/usr/local/miniconda3
-export PIERN_CONDA_ENV=/home/tpx/.conda/envs/piern
+cp .env.example .env
+export PIERN_CONDA_ENV=$HOME/.conda/envs/piern
+export PIERN_QWEN_EMBEDDING_MODEL=$HOME/Qwen/Qwen2.5-0.5B-Instruct
 ```
 
 Then run the startup command in the same shell.
@@ -89,7 +92,7 @@ scripts/services/restart.sh
 scripts/services/stop.sh
 ```
 
-The service scripts write PID files and logs under `.runlogs/services/`, keep the processes alive after SSH exits, and put `/home/tpx/.conda/envs/piern/bin` first in `PATH` so Vite uses Node.js 20+.
+The service scripts write PID files and logs under `.runlogs/services/`, keep the processes alive after SSH exits, and put the configured conda or Node bin directory first in `PATH` so Vite uses Node.js 20+.
 
 Interactive development startup:
 
@@ -288,7 +291,7 @@ Current training core:
 
 - model: `FullSeqDilatedConvRouter`
 - input representation: Qwen tokenizer + frozen pretrained embedding table
-- default embedding backbone: `/home/tpx/Qwen/Qwen2.5-0.5B-Instruct`
+- default embedding backbone: `PIERN_QWEN_EMBEDDING_MODEL`, falling back to `~/Qwen/Qwen2.5-0.5B-Instruct`
 - split: train/test only
 - embeddings are looked up during training, not stored offline
 

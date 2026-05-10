@@ -9,6 +9,7 @@ partitions directly. JSONL input/output remains available for compatibility via
 from __future__ import annotations
 
 import argparse
+import os
 import json
 import random
 import sys
@@ -22,8 +23,9 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from piern.shared.storage import portable  # noqa: E402
 
-DEFAULT_QWEN_EMBEDDING_MODEL = "/home/tpx/Qwen/Qwen2.5-0.5B-Instruct"
-DEFAULT_QWEN_EMBEDDING_TOKENIZER = DEFAULT_QWEN_EMBEDDING_MODEL
+DEFAULT_LOCAL_QWEN_DIR = str(Path.home() / "Qwen" / "Qwen2.5-0.5B-Instruct")
+DEFAULT_QWEN_EMBEDDING_MODEL = os.getenv("PIERN_QWEN_EMBEDDING_MODEL", DEFAULT_LOCAL_QWEN_DIR)
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PIERN_QWEN_EMBEDDING_TOKENIZER", DEFAULT_QWEN_EMBEDDING_MODEL)
 
 QWEN_TEMPLATE = {
     "_name": "qwen",

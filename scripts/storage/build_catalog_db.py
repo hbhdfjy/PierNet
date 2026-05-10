@@ -17,6 +17,7 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
+from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
 from piern.shared.storage import portable  # noqa: E402
 
 CATALOG_PATH = portable.CATALOG_DB_PATH
@@ -110,8 +111,8 @@ def parquet_assets() -> list[dict[str, Any]]:
 def legacy_jsonl_assets() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     sources = [
-        ("text2comp_jsonl", PROJECT_ROOT / "data" / "text2comp", "*.jsonl"),
-        ("router_jsonl", PROJECT_ROOT / "data" / "router" / "by_scenario", "*.jsonl"),
+        ("text2comp_jsonl", DATA_ROOT / "text2comp", "*.jsonl"),
+        ("router_jsonl", DATA_ROOT / "router" / "by_scenario", "*.jsonl"),
     ]
     for kind, directory, pattern in sources:
         if not directory.exists():
@@ -139,7 +140,7 @@ def legacy_jsonl_assets() -> list[dict[str, Any]]:
 
 def hdf5_assets() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    data_root = PROJECT_ROOT / "data"
+    data_root = DATA_ROOT
     if not data_root.exists():
         return rows
     for path in sorted([*data_root.glob("*/*.h5"), *data_root.glob("*/*.hdf5")]):
@@ -164,7 +165,7 @@ def hdf5_assets() -> list[dict[str, Any]]:
 
 def training_artifact_assets() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    root = PROJECT_ROOT / "artifacts"
+    root = ARTIFACT_ROOT
     if not root.exists():
         return rows
     for path in sorted(root.glob("token_router/*/runs/*")):

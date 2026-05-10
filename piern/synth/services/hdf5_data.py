@@ -11,7 +11,7 @@ import h5py
 import numpy as np
 import yaml
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
 
 
 BUILTIN_SIMULATORS = ("modflow", "simpeg", "power_flow", "transient", "gcam")
@@ -33,7 +33,7 @@ def validate_name(kind: str, value: str, *, allowed: tuple[str, ...] | None = No
 def canonical_hdf5_path(simulator: str, scenario: str) -> Path:
     simulator = validate_name("simulator", simulator)
     scenario = validate_name("scenario", scenario)
-    return PROJECT_ROOT / "data" / simulator / f"{simulator}_{scenario}.h5"
+    return DATA_ROOT / simulator / f"{simulator}_{scenario}.h5"
 
 
 def scenario_from_hdf5_path(path: Path, simulator: str | None = None) -> str:
@@ -258,7 +258,7 @@ def validate_hdf5_file(path: Path) -> dict[str, Any]:
 
 
 def list_hdf5_data_files() -> list[dict[str, Any]]:
-    data_root = PROJECT_ROOT / "data"
+    data_root = DATA_ROOT
     items: list[dict[str, Any]] = []
     if not data_root.exists():
         return items
