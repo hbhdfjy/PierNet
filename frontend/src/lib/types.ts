@@ -1,3 +1,5 @@
+import type { components } from "./generated/openapi"
+
 // ── Stage 2 JSONL 样本类型（与 Python 端完全对应）──────────────────
 
 export interface ObservationConfig {
@@ -195,7 +197,7 @@ export interface LiveStats {
   samples_per_sec: number
 }
 
-export type JobStatus = 'running' | 'done' | 'error' | 'terminated' | 'idle'
+export type JobStatus = 'running' | 'done' | 'error' | 'terminated' | 'external_terminated' | 'idle'
 
 export interface GenerationJob {
   job_id: string
@@ -203,6 +205,8 @@ export interface GenerationJob {
   logs: LogLine[]
   progress: Record<string, ScenarioProgress>
   stats: LiveStats
+  finished_at?: number | null
+  error_message?: string | null
 }
 
 export interface RegisterRequest {
@@ -248,11 +252,10 @@ export interface JobStartResponse {
   scenario_totals: Record<string, number>
 }
 
-export interface JobStatusSnapshot {
-  job_id: string
+type ApiJobStatusResponse = components["schemas"]["JobStatusResponse"]
+
+export interface JobStatusSnapshot extends Omit<ApiJobStatusResponse, "status" | "scenario_totals" | "progress" | "stats"> {
   status: JobStatus
-  job_type?: string | null
-  started_at?: number | null
   scenario_totals: Record<string, number>
   progress: Record<string, ScenarioProgress>
   stats: LiveStats

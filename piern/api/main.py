@@ -5,6 +5,7 @@ import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from piern.shared.api.health import router as health_router
 from piern.shared.api.static import SPAStaticFiles
 from piern.shared.runtime.paths import PROJECT_ROOT
 from piern.synth.api.routers import (
@@ -45,6 +46,7 @@ app.add_middleware(
 )
 
 for _router in [
+    health_router,
     datasets.router,
     config.router,
     registry.router,

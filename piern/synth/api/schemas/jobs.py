@@ -12,6 +12,8 @@ class JobStatusResponse(BaseModel):
     scenario_totals: dict[str, int] = Field(default_factory=dict)
     progress: dict[str, dict[str, Any]] = Field(default_factory=dict)
     stats: dict[str, float] = Field(default_factory=dict)
+    finished_at: Optional[float] = None
+    error_message: Optional[str] = None
 
 
 class TemplateFileInfo(BaseModel):

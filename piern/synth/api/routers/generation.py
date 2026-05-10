@@ -5,7 +5,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 # 确保项目根目录在 sys.path，使 scripts/ 可导入（无论 uvicorn 从哪里启动）
 _PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -20,6 +20,19 @@ from scripts.text2comp.generate_templates import run_generate_templates  # noqa:
 from scripts.text2comp.fill_samples import run_fill_samples  # noqa: E402
 
 router = APIRouter()
+
+def _request_payload(req) -> dict:
+    if hasattr(req, "model_dump"):
+        return req.model_dump(mode="json")
+    return req.dict()
+
+
+def _reject_active_jobs(job_types: set[str], message: str) -> None:
+    try:
+        job_manager.assert_no_running_jobs(job_types, message=message)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
 
 # 后台线程池（生成任务是 CPU/IO 密集型，用独立线程池避免阻塞 event loop）
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gen-worker")
@@ -151,8 +164,9 @@ def _run_fill_samples(record: JobRecord, req: FillSamplesRequest) -> None:
 @router.post("/generate-templates", response_model=JobStartResponse)
 async def start_generate_templates(req: GenerateTemplatesRequest):
     """阶段一：生成语言模板库。"""
+    _reject_active_jobs({"generate_templates"}, "已有模板生成任务正在运行")
     scenario_totals = {sc: req.n_templates for sc in req.scenarios} if req.scenarios else {}
-    record = job_manager.create_job("generate_templates", scenario_totals)
+    record = job_manager.create_job("generate_templates", scenario_totals, request=_request_payload(req))
     if scenario_totals:
         publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_generate_templates, record, req)
@@ -162,8 +176,9 @@ async def start_generate_templates(req: GenerateTemplatesRequest):
 @router.post("/fill-samples", response_model=JobStartResponse)
 async def start_fill_samples(req: FillSamplesRequest):
     """阶段二：数值填充（不调 LLM）。"""
+    _reject_active_jobs({"fill_samples", "router"}, "样本填充或路由构建任务正在运行")
     scenario_totals = {sc: req.n_samples for sc in req.scenarios} if req.scenarios else {}
-    record = job_manager.create_job("fill_samples", scenario_totals)
+    record = job_manager.create_job("fill_samples", scenario_totals, request=_request_payload(req))
     if scenario_totals:
         publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_fill_samples, record, req)

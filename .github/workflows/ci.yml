@@ -41,6 +41,9 @@ jobs:
       - name: Consistency check
         run: python scripts/ci/check_consistency.py
 
+      - name: OpenAPI export
+        run: python scripts/ci/export_openapi.py /tmp/piern-openapi.json
+
       - name: Pytest
         run: python -m pytest
 

@@ -1,0 +1,4170 @@
+{
+  "components": {
+    "schemas": {
+      "BatchSimulateRequest": {
+        "properties": {
+          "max_workers": {
+            "default": 4,
+            "title": "Max Workers",
+            "type": "integer"
+          },
+          "n_samples": {
+            "default": 100,
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "parallel": {
+            "default": false,
+            "title": "Parallel",
+            "type": "boolean"
+          },
+          "scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "seed": {
+            "default": 42,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "skip_existing": {
+            "default": false,
+            "title": "Skip Existing",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "scenarios"
+        ],
+        "title": "BatchSimulateRequest",
+        "type": "object"
+      },
+      "FillSamplesRequest": {
+        "properties": {
+          "batch_size": {
+            "default": 8192,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "compression": {
+            "default": "zstd",
+            "pattern": "^(zstd|snappy|gzip|brotli|none)$",
+            "title": "Compression",
+            "type": "string"
+          },
+          "config": {
+            "default": "configs/text2comp/default.yaml",
+            "title": "Config",
+            "type": "string"
+          },
+          "max_workers": {
+            "anyOf": [
+              {
+                "maximum": 64.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Workers"
+          },
+          "n_samples": {
+            "default": 100,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "output_dir": {
+            "default": "",
+            "title": "Output Dir",
+            "type": "string"
+          },
+          "output_format": {
+            "default": "parquet",
+            "pattern": "^(parquet|jsonl|both)$",
+            "title": "Output Format",
+            "type": "string"
+          },
+          "precision": {
+            "default": 4,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Precision",
+            "type": "integer"
+          },
+          "scenarios": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
+          },
+          "skip_existing": {
+            "default": false,
+            "title": "Skip Existing",
+            "type": "boolean"
+          },
+          "templates_dir": {
+            "default": "",
+            "title": "Templates Dir",
+            "type": "string"
+          }
+        },
+        "title": "FillSamplesRequest",
+        "type": "object"
+      },
+      "GPUInfo": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "locked_by_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked By Job Id"
+          },
+          "memory_total_mib": {
+            "title": "Memory Total Mib",
+            "type": "integer"
+          },
+          "memory_used_mib": {
+            "title": "Memory Used Mib",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "utilization_gpu": {
+            "title": "Utilization Gpu",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "memory_used_mib",
+          "memory_total_mib",
+          "utilization_gpu",
+          "available"
+        ],
+        "title": "GPUInfo",
+        "type": "object"
+      },
+      "GenerateTemplatesRequest": {
+        "properties": {
+          "append_existing": {
+            "default": false,
+            "title": "Append Existing",
+            "type": "boolean"
+          },
+          "config": {
+            "default": "configs/text2comp/default.yaml",
+            "title": "Config",
+            "type": "string"
+          },
+          "language_mix": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language Mix"
+          },
+          "max_workers": {
+            "anyOf": [
+              {
+                "maximum": 64.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Workers"
+          },
+          "n_templates": {
+            "default": 100,
+            "maximum": 10000.0,
+            "minimum": 1.0,
+            "title": "N Templates",
+            "type": "integer"
+          },
+          "scenarios": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "skip_existing": {
+            "default": false,
+            "title": "Skip Existing",
+            "type": "boolean"
+          },
+          "transform_prob": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transform Prob"
+          }
+        },
+        "title": "GenerateTemplatesRequest",
+        "type": "object"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "InterviewConfirmRequest": {
+        "properties": {
+          "confirmed": {
+            "title": "Confirmed",
+            "type": "boolean"
+          },
+          "edited_data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Edited Data"
+          }
+        },
+        "required": [
+          "confirmed"
+        ],
+        "title": "InterviewConfirmRequest",
+        "type": "object"
+      },
+      "InterviewMessageRequest": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "InterviewMessageRequest",
+        "type": "object"
+      },
+      "InterviewStartRequest": {
+        "properties": {
+          "hdf5_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hdf5 Path"
+          },
+          "mode": {
+            "default": "simulator",
+            "title": "Mode",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator",
+          "scenario"
+        ],
+        "title": "InterviewStartRequest",
+        "type": "object"
+      },
+      "JobStatusResponse": {
+        "properties": {
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "job_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Job Type"
+          },
+          "progress": {
+            "additionalProperties": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Progress",
+            "type": "object"
+          },
+          "scenario_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Scenario Totals",
+            "type": "object"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "stats": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "title": "Stats",
+            "type": "object"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "JobStatusResponse",
+        "type": "object"
+      },
+      "LLMConfigRequest": {
+        "properties": {
+          "api_key": {
+            "default": "",
+            "title": "Api Key",
+            "type": "string"
+          },
+          "base_url": {
+            "default": "",
+            "title": "Base Url",
+            "type": "string"
+          },
+          "max_tokens": {
+            "default": 1024,
+            "title": "Max Tokens",
+            "type": "integer"
+          },
+          "model": {
+            "default": "",
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "default": "siliconflow",
+            "title": "Provider",
+            "type": "string"
+          },
+          "temperature": {
+            "default": 1.0,
+            "title": "Temperature",
+            "type": "number"
+          },
+          "thinking": {
+            "default": "disabled",
+            "title": "Thinking",
+            "type": "string"
+          }
+        },
+        "title": "LLMConfigRequest",
+        "type": "object"
+      },
+      "RegisterRequest": {
+        "properties": {
+          "config": {
+            "default": "configs/text2comp/default.yaml",
+            "title": "Config",
+            "type": "string"
+          },
+          "fields": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "output": {
+            "default": "configs/text2comp/registry.yaml",
+            "title": "Output",
+            "type": "string"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "scenarios": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator_level": {
+            "default": false,
+            "title": "Simulator Level",
+            "type": "boolean"
+          }
+        },
+        "title": "RegisterRequest",
+        "type": "object"
+      },
+      "SampleFileInfo": {
+        "properties": {
+          "file_size_bytes": {
+            "title": "File Size Bytes",
+            "type": "integer"
+          },
+          "mtime": {
+            "title": "Mtime",
+            "type": "number"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sample_count": {
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "sample_count",
+          "file_size_bytes",
+          "mtime",
+          "path"
+        ],
+        "title": "SampleFileInfo",
+        "type": "object"
+      },
+      "SimulateRequest": {
+        "properties": {
+          "config_path": {
+            "title": "Config Path",
+            "type": "string"
+          },
+          "max_workers": {
+            "default": 4,
+            "title": "Max Workers",
+            "type": "integer"
+          },
+          "n_samples": {
+            "default": 100,
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "parallel": {
+            "default": false,
+            "title": "Parallel",
+            "type": "boolean"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "seed": {
+            "default": 42,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "skip_existing": {
+            "default": false,
+            "title": "Skip Existing",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "simulator",
+          "scenario",
+          "config_path"
+        ],
+        "title": "SimulateRequest",
+        "type": "object"
+      },
+      "SimulationScenario": {
+        "properties": {
+          "config_path": {
+            "title": "Config Path",
+            "type": "string"
+          },
+          "file_size_bytes": {
+            "default": 0,
+            "title": "File Size Bytes",
+            "type": "integer"
+          },
+          "h5_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "H5 Path"
+          },
+          "output_shape": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Shape"
+          },
+          "sample_count": {
+            "default": 0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator",
+          "scenario",
+          "config_path"
+        ],
+        "title": "SimulationScenario",
+        "type": "object"
+      },
+      "TemplateFileInfo": {
+        "properties": {
+          "file_size_bytes": {
+            "title": "File Size Bytes",
+            "type": "integer"
+          },
+          "mtime": {
+            "title": "Mtime",
+            "type": "number"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "template_count": {
+            "title": "Template Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "scenario",
+          "template_count",
+          "file_size_bytes",
+          "mtime",
+          "path"
+        ],
+        "title": "TemplateFileInfo",
+        "type": "object"
+      },
+      "TrainingCheckpointInfo": {
+        "properties": {
+          "epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epoch"
+          },
+          "mtime": {
+            "title": "Mtime",
+            "type": "number"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "size_bytes": {
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "path",
+          "size_bytes",
+          "mtime"
+        ],
+        "title": "TrainingCheckpointInfo",
+        "type": "object"
+      },
+      "TrainingCurvesResponse": {
+        "properties": {
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingCheckpointInfo"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "test_points": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingTestPoint"
+            },
+            "title": "Test Points",
+            "type": "array"
+          },
+          "training_epoch_points": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingPoint"
+            },
+            "title": "Training Epoch Points",
+            "type": "array"
+          },
+          "training_points": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingPoint"
+            },
+            "title": "Training Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_id",
+          "training_points",
+          "training_epoch_points",
+          "test_points",
+          "checkpoints"
+        ],
+        "title": "TrainingCurvesResponse",
+        "type": "object"
+      },
+      "TrainingDatasetInfo": {
+        "properties": {
+          "scenarios": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingDatasetScenario"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "total_count": {
+            "title": "Total Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "simulator",
+          "total_count",
+          "scenarios"
+        ],
+        "title": "TrainingDatasetInfo",
+        "type": "object"
+      },
+      "TrainingDatasetScenario": {
+        "properties": {
+          "file_size_bytes": {
+            "title": "File Size Bytes",
+            "type": "integer"
+          },
+          "mtime": {
+            "title": "Mtime",
+            "type": "number"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "router_count": {
+            "title": "Router Count",
+            "type": "integer"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "scenario",
+          "simulator",
+          "router_count",
+          "file_size_bytes",
+          "mtime",
+          "path"
+        ],
+        "title": "TrainingDatasetScenario",
+        "type": "object"
+      },
+      "TrainingJobConfig": {
+        "properties": {
+          "batch_size": {
+            "default": 256,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "embedding_model": {
+            "default": "",
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "embedding_tokenizer": {
+            "default": "",
+            "title": "Embedding Tokenizer",
+            "type": "string"
+          },
+          "epochs": {
+            "default": 0,
+            "title": "Epochs",
+            "type": "integer"
+          },
+          "eval_interval": {
+            "default": 1,
+            "title": "Eval Interval",
+            "type": "integer"
+          },
+          "input_representation": {
+            "const": "pretrained_embeddings",
+            "default": "pretrained_embeddings",
+            "title": "Input Representation",
+            "type": "string"
+          },
+          "keep_last_epochs": {
+            "default": 5,
+            "title": "Keep Last Epochs",
+            "type": "integer"
+          },
+          "learning_rate": {
+            "default": 0.0002,
+            "title": "Learning Rate",
+            "type": "number"
+          },
+          "max_test_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Test Samples"
+          },
+          "max_train_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Train Samples"
+          },
+          "num_workers": {
+            "default": 8,
+            "title": "Num Workers",
+            "type": "integer"
+          },
+          "prepare_workers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepare Workers"
+          },
+          "resume_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume From"
+          },
+          "test_batch_size": {
+            "default": 256,
+            "title": "Test Batch Size",
+            "type": "integer"
+          },
+          "test_ratio": {
+            "default": 0.1,
+            "title": "Test Ratio",
+            "type": "number"
+          },
+          "weight_decay": {
+            "default": 0.01,
+            "title": "Weight Decay",
+            "type": "number"
+          }
+        },
+        "title": "TrainingJobConfig",
+        "type": "object"
+      },
+      "TrainingJobCreateRequest": {
+        "properties": {
+          "batch_size": {
+            "default": 256,
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "epochs": {
+            "default": 0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Epochs",
+            "type": "integer"
+          },
+          "eval_interval": {
+            "default": 1,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Eval Interval",
+            "type": "integer"
+          },
+          "gpu_id": {
+            "minimum": 0.0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "input_representation": {
+            "const": "embedding",
+            "default": "embedding",
+            "title": "Input Representation",
+            "type": "string"
+          },
+          "keep_last_epochs": {
+            "default": 5,
+            "maximum": 200.0,
+            "minimum": 0.0,
+            "title": "Keep Last Epochs",
+            "type": "integer"
+          },
+          "learning_rate": {
+            "default": 0.0002,
+            "exclusiveMinimum": 0.0,
+            "maximum": 1.0,
+            "title": "Learning Rate",
+            "type": "number"
+          },
+          "max_test_samples": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Test Samples"
+          },
+          "max_train_samples": {
+            "anyOf": [
+              {
+                "maximum": 100000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Train Samples"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "num_workers": {
+            "default": 8,
+            "maximum": 128.0,
+            "minimum": 0.0,
+            "title": "Num Workers",
+            "type": "integer"
+          },
+          "prepare_workers": {
+            "anyOf": [
+              {
+                "maximum": 128.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepare Workers"
+          },
+          "resume_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume From"
+          },
+          "scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator": {
+            "default": "modflow",
+            "title": "Simulator",
+            "type": "string"
+          },
+          "test_batch_size": {
+            "default": 256,
+            "maximum": 8192.0,
+            "minimum": 1.0,
+            "title": "Test Batch Size",
+            "type": "integer"
+          },
+          "test_ratio": {
+            "default": 0.1,
+            "maximum": 0.9,
+            "minimum": 0.0,
+            "title": "Test Ratio",
+            "type": "number"
+          },
+          "weight_decay": {
+            "default": 0.01,
+            "maximum": 10.0,
+            "minimum": 0.0,
+            "title": "Weight Decay",
+            "type": "number"
+          }
+        },
+        "required": [
+          "gpu_id"
+        ],
+        "title": "TrainingJobCreateRequest",
+        "type": "object"
+      },
+      "TrainingJobDetail": {
+        "properties": {
+          "artifact_root": {
+            "title": "Artifact Root",
+            "type": "string"
+          },
+          "avg_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss"
+          },
+          "checkpoints": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingCheckpointInfo"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "command": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "config": {
+            "$ref": "#/components/schemas/TrainingJobConfig"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "exit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Reason"
+          },
+          "global_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Step"
+          },
+          "gpu_id": {
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "latest_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Epoch"
+          },
+          "latest_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Step"
+          },
+          "latest_test_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Test Epoch"
+          },
+          "log_path": {
+            "title": "Log Path",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "prepared_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prepared Name"
+          },
+          "run_dir": {
+            "title": "Run Dir",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "starting",
+              "running",
+              "evaluating",
+              "stopping",
+              "done",
+              "error",
+              "terminated",
+              "external_terminated"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_per_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Epoch"
+          },
+          "steps_per_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Sec"
+          },
+          "stop_requested": {
+            "default": false,
+            "title": "Stop Requested",
+            "type": "boolean"
+          },
+          "stop_requested_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Requested At"
+          }
+        },
+        "required": [
+          "job_id",
+          "name",
+          "status",
+          "simulator",
+          "scenarios",
+          "gpu_id",
+          "created_at",
+          "artifact_root",
+          "run_dir",
+          "log_path",
+          "config",
+          "command"
+        ],
+        "title": "TrainingJobDetail",
+        "type": "object"
+      },
+      "TrainingJobSummary": {
+        "properties": {
+          "artifact_root": {
+            "title": "Artifact Root",
+            "type": "string"
+          },
+          "avg_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss"
+          },
+          "config": {
+            "$ref": "#/components/schemas/TrainingJobConfig"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "exit_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Reason"
+          },
+          "global_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Step"
+          },
+          "gpu_id": {
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "latest_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Epoch"
+          },
+          "latest_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "latest_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Step"
+          },
+          "latest_test_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Test Epoch"
+          },
+          "log_path": {
+            "title": "Log Path",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "run_dir": {
+            "title": "Run Dir",
+            "type": "string"
+          },
+          "scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "queued",
+              "starting",
+              "running",
+              "evaluating",
+              "stopping",
+              "done",
+              "error",
+              "terminated",
+              "external_terminated"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_per_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Epoch"
+          },
+          "steps_per_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Sec"
+          },
+          "stop_requested": {
+            "default": false,
+            "title": "Stop Requested",
+            "type": "boolean"
+          },
+          "stop_requested_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stop Requested At"
+          }
+        },
+        "required": [
+          "job_id",
+          "name",
+          "status",
+          "simulator",
+          "scenarios",
+          "gpu_id",
+          "created_at",
+          "artifact_root",
+          "run_dir",
+          "log_path",
+          "config"
+        ],
+        "title": "TrainingJobSummary",
+        "type": "object"
+      },
+      "TrainingLogResponse": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "lines": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_id",
+          "lines"
+        ],
+        "title": "TrainingLogResponse",
+        "type": "object"
+      },
+      "TrainingMetricsSummary": {
+        "properties": {
+          "accuracy": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accuracy"
+          },
+          "f1": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "F1"
+          },
+          "pr_auc": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pr Auc"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          },
+          "recall": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recall"
+          }
+        },
+        "title": "TrainingMetricsSummary",
+        "type": "object"
+      },
+      "TrainingOverviewResponse": {
+        "properties": {
+          "completed_job_count": {
+            "title": "Completed Job Count",
+            "type": "integer"
+          },
+          "datasets": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingDatasetInfo"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "gpus": {
+            "items": {
+              "$ref": "#/components/schemas/GPUInfo"
+            },
+            "title": "Gpus",
+            "type": "array"
+          },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/TrainingJobSummary"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "running_job_count": {
+            "title": "Running Job Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "datasets",
+          "gpus",
+          "jobs",
+          "running_job_count",
+          "completed_job_count"
+        ],
+        "title": "TrainingOverviewResponse",
+        "type": "object"
+      },
+      "TrainingPoint": {
+        "properties": {
+          "avg_loss": {
+            "title": "Avg Loss",
+            "type": "number"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "eta_seconds": {
+            "title": "Eta Seconds",
+            "type": "number"
+          },
+          "global_step": {
+            "title": "Global Step",
+            "type": "integer"
+          },
+          "step": {
+            "title": "Step",
+            "type": "integer"
+          },
+          "steps_per_sec": {
+            "title": "Steps Per Sec",
+            "type": "number"
+          }
+        },
+        "required": [
+          "epoch",
+          "step",
+          "global_step",
+          "avg_loss",
+          "steps_per_sec",
+          "eta_seconds"
+        ],
+        "title": "TrainingPoint",
+        "type": "object"
+      },
+      "TrainingTestPoint": {
+        "properties": {
+          "accuracy": {
+            "title": "Accuracy",
+            "type": "number"
+          },
+          "epoch": {
+            "title": "Epoch",
+            "type": "integer"
+          },
+          "f1": {
+            "title": "F1",
+            "type": "number"
+          },
+          "per_scenario": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "integer"
+                  }
+                ]
+              },
+              "type": "object"
+            },
+            "title": "Per Scenario",
+            "type": "object"
+          },
+          "pr_auc": {
+            "title": "Pr Auc",
+            "type": "number"
+          },
+          "precision": {
+            "title": "Precision",
+            "type": "number"
+          },
+          "recall": {
+            "title": "Recall",
+            "type": "number"
+          }
+        },
+        "required": [
+          "epoch",
+          "accuracy",
+          "precision",
+          "recall",
+          "f1",
+          "pr_auc",
+          "per_scenario"
+        ],
+        "title": "TrainingTestPoint",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      },
+      "piern__synth__api__routers__simulation__JobStartResponse": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "scenario_totals": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Scenario Totals",
+            "type": "object"
+          },
+          "status": {
+            "default": "running",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "JobStartResponse",
+        "type": "object"
+      },
+      "piern__synth__api__schemas__generation__JobStartResponse": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "scenario_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "default": {},
+            "title": "Scenario Totals",
+            "type": "object"
+          },
+          "status": {
+            "default": "running",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "JobStartResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "PiERN Unified API",
+    "version": "3.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/config": {
+      "get": {
+        "description": "读取 default.yaml 的 generation 节配置。",
+        "operationId": "get_config_api_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Config"
+      }
+    },
+    "/api/config/scenarios": {
+      "get": {
+        "description": "扫描 configs/*/variants/*.yaml，返回各 simulator 的场景列表。",
+        "operationId": "get_scenarios_api_config_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Scenarios"
+      }
+    },
+    "/api/config/text2comp-scenarios": {
+      "get": {
+        "description": "返回 Stage 2 可用场景列表（按 simulator 子目录分组）。\n约定：data/{simulator}/{simulator}_{scenario}.h5",
+        "operationId": "get_text2comp_scenarios_api_config_text2comp_scenarios_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Scenarios"
+      }
+    },
+    "/api/dashboard/summary": {
+      "get": {
+        "description": "返回统计页所需的聚合摘要，优先复用 manifest。",
+        "operationId": "get_dashboard_summary_api_dashboard_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Dashboard Summary"
+      }
+    },
+    "/api/datasets": {
+      "get": {
+        "description": "返回 Stage 3 数据集列表，优先走 manifest。",
+        "operationId": "get_datasets_api_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Datasets"
+      }
+    },
+    "/api/files/catalog": {
+      "get": {
+        "operationId": "get_file_catalog_api_files_catalog_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get File Catalog"
+      }
+    },
+    "/api/files/catalog/assets/{asset_id}": {
+      "delete": {
+        "operationId": "delete_file_asset_api_files_catalog_assets__asset_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "asset_id",
+            "required": true,
+            "schema": {
+              "title": "Asset Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete File Asset"
+      }
+    },
+    "/api/files/catalog/groups/{kind}": {
+      "delete": {
+        "operationId": "clear_file_group_api_files_catalog_groups__kind__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "title": "Kind",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Clear File Group"
+      }
+    },
+    "/api/files/catalog/rebuild": {
+      "post": {
+        "operationId": "rebuild_file_catalog_indexes_api_files_catalog_rebuild_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scope",
+            "required": false,
+            "schema": {
+              "default": "all",
+              "title": "Scope",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Rebuild File Catalog Indexes"
+      }
+    },
+    "/api/files/samples": {
+      "delete": {
+        "description": "清空所有样本文件（保留 all_training_data.jsonl）。",
+        "operationId": "clear_all_samples_api_files_samples_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear All Samples"
+      },
+      "get": {
+        "description": "列出所有样本文件。",
+        "operationId": "list_sample_files_api_files_samples_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SampleFileInfo"
+                  },
+                  "title": "Response List Sample Files Api Files Samples Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Sample Files"
+      }
+    },
+    "/api/files/samples/{scenario}": {
+      "delete": {
+        "description": "删除指定场景的样本文件。",
+        "operationId": "delete_sample_file_api_files_samples__scenario__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Sample File"
+      }
+    },
+    "/api/files/templates": {
+      "delete": {
+        "description": "清空所有模板文件。",
+        "operationId": "clear_all_templates_api_files_templates_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear All Templates"
+      },
+      "get": {
+        "description": "列出所有模板文件。",
+        "operationId": "list_template_files_api_files_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateFileInfo"
+                  },
+                  "title": "Response List Template Files Api Files Templates Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Template Files"
+      }
+    },
+    "/api/files/templates/{scenario}": {
+      "delete": {
+        "description": "删除指定场景的模板文件。",
+        "operationId": "delete_template_file_api_files_templates__scenario__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Template File"
+      }
+    },
+    "/api/files/templates/{scenario}/items": {
+      "get": {
+        "description": "分页读取指定场景的模板条目（TemplateRecord）。",
+        "operationId": "get_template_items_api_files_templates__scenario__items_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "title": "Language",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "style",
+            "required": false,
+            "schema": {
+              "title": "Style",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Template Items"
+      }
+    },
+    "/api/files/templates/{scenario}/trim": {
+      "post": {
+        "description": "将指定场景的模板文件截断到 n 条。",
+        "operationId": "trim_template_file_api_files_templates__scenario__trim_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "description": "保留的模板条数",
+            "in": "query",
+            "name": "n",
+            "required": true,
+            "schema": {
+              "description": "保留的模板条数",
+              "minimum": 1,
+              "title": "N",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Trim Template File"
+      }
+    },
+    "/api/fill-samples": {
+      "post": {
+        "description": "阶段二：数值填充（不调 LLM）。",
+        "operationId": "start_fill_samples_api_fill_samples_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FillSamplesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/piern__synth__api__schemas__generation__JobStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Fill Samples"
+      }
+    },
+    "/api/generate-templates": {
+      "post": {
+        "description": "阶段一：生成语言模板库。",
+        "operationId": "start_generate_templates_api_generate_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateTemplatesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/piern__synth__api__schemas__generation__JobStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Generate Templates"
+      }
+    },
+    "/api/generate/jobs": {
+      "get": {
+        "description": "List recent generation jobs so reopened browsers can reconnect after backend restarts.",
+        "operationId": "list_jobs_api_generate_jobs_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "job_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Job Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/JobStatusResponse"
+                  },
+                  "title": "Response List Jobs Api Generate Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Jobs"
+      }
+    },
+    "/api/generate/{job_id}": {
+      "delete": {
+        "description": "终止指定作业。",
+        "operationId": "cancel_job_api_generate__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Job"
+      }
+    },
+    "/api/generate/{job_id}/status": {
+      "get": {
+        "operationId": "get_job_status_api_generate__job_id__status_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Job Status"
+      }
+    },
+    "/api/generate/{job_id}/stream": {
+      "get": {
+        "description": "返回指定作业的 SSE 事件流。\n已结束作业会先回放历史事件，再结束连接。",
+        "operationId": "stream_job_api_generate__job_id__stream_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stream Job"
+      }
+    },
+    "/api/health/gpu": {
+      "get": {
+        "operationId": "gpu_api_health_gpu_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Gpu Api Health Gpu Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Gpu"
+      }
+    },
+    "/api/health/live": {
+      "get": {
+        "operationId": "live_api_health_live_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Live Api Health Live Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Live"
+      }
+    },
+    "/api/health/ready": {
+      "get": {
+        "operationId": "ready_api_health_ready_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Ready Api Health Ready Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Ready"
+      }
+    },
+    "/api/health/storage": {
+      "get": {
+        "operationId": "storage_api_health_storage_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Storage Api Health Storage Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Storage"
+      }
+    },
+    "/api/interview/start": {
+      "post": {
+        "description": "创建新的面试会话，返回第一个问题。",
+        "operationId": "start_interview_api_interview_start_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewStartRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Interview"
+      }
+    },
+    "/api/interview/{session_id}": {
+      "delete": {
+        "description": "取消并删除会话。",
+        "operationId": "cancel_interview_api_interview__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Interview"
+      }
+    },
+    "/api/interview/{session_id}/confirm": {
+      "post": {
+        "description": "确认或拒绝当前步骤的提取结果。",
+        "operationId": "confirm_interview_step_api_interview__session_id__confirm_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Confirm Interview Step"
+      }
+    },
+    "/api/interview/{session_id}/message": {
+      "post": {
+        "description": "发送用户消息，获取 Agent 回复。",
+        "operationId": "send_interview_message_api_interview__session_id__message_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InterviewMessageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Send Interview Message"
+      }
+    },
+    "/api/interview/{session_id}/state": {
+      "get": {
+        "description": "获取会话完整状态快照。",
+        "operationId": "get_interview_state_api_interview__session_id__state_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Interview State"
+      }
+    },
+    "/api/llm-config": {
+      "get": {
+        "description": "读取当前 LLM 配置（default.yaml 的 llm 节），api_key 脱敏返回。",
+        "operationId": "get_llm_config_api_llm_config_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Llm Config"
+      },
+      "post": {
+        "description": "保存 LLM 配置到 default.yaml 的 llm 节。api_key 为空时保持原有值不变。",
+        "operationId": "save_llm_config_api_llm_config_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Llm Config"
+      }
+    },
+    "/api/llm-config/test": {
+      "post": {
+        "description": "用给定配置测试 LLM 连通性（不保存）。\napi_key 为空时从已保存的配置中读取。\n返回 {\"ok\": True/False, \"message\": \"...\", \"response_preview\": \"...\"}",
+        "operationId": "test_llm_config_api_llm_config_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LLMConfigRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Llm Config"
+      }
+    },
+    "/api/register": {
+      "post": {
+        "description": "启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。",
+        "operationId": "start_register_api_register_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Register"
+      }
+    },
+    "/api/registry": {
+      "get": {
+        "description": "读取 registry.yaml，返回完整内容。",
+        "operationId": "get_registry_api_registry_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Registry"
+      }
+    },
+    "/api/registry/{key}": {
+      "delete": {
+        "description": "删除 registry 中的记录。\n\nkey = \"simulator\"          → 删除整个 simulator 条目\nkey = \"simulator/scenario\" → 只删除 simulator.scenarios.scenario",
+        "operationId": "delete_registry_entry_api_registry__key__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Registry Entry"
+      },
+      "put": {
+        "description": "更新（或新建）registry 中的记录。\n\nkey = \"simulator\"              → 更新 simulator 级字段（body 为完整条目）\nkey = \"simulator/scenario\"     → 更新 simulator.scenarios.scenario（body 为字符串或 {\"scenario_description\": \"...\"}）",
+        "operationId": "update_registry_entry_api_registry__key__put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "key",
+            "required": true,
+            "schema": {
+              "title": "Key",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": true,
+                "title": "Body",
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Registry Entry"
+      }
+    },
+    "/api/router/all": {
+      "delete": {
+        "description": "Delete all per-scenario router files and train.jsonl.",
+        "operationId": "delete_all_router_data_api_router_all_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Delete All Router Data"
+      }
+    },
+    "/api/router/build": {
+      "post": {
+        "description": "Start Stage 4 router build and return a job id for SSE.",
+        "operationId": "build_router_data_api_router_build_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "seed",
+            "required": false,
+            "schema": {
+              "default": 42,
+              "title": "Seed",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "neg_ratio",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "maximum": 10,
+              "minimum": 1,
+              "title": "Neg Ratio",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenarios",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Scenarios",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Build Router Data"
+      }
+    },
+    "/api/router/samples": {
+      "get": {
+        "description": "Read router samples page-wise, optionally filtered by split, scenario and label.",
+        "operationId": "get_router_samples_api_router_samples_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "split",
+            "required": false,
+            "schema": {
+              "default": "train",
+              "title": "Split",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "label",
+            "required": false,
+            "schema": {
+              "default": -1,
+              "maximum": 1,
+              "minimum": -1,
+              "title": "Label",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Router Samples"
+      }
+    },
+    "/api/router/scenario/{scenario}": {
+      "delete": {
+        "description": "Delete one scenario file and rewrite train.jsonl.",
+        "operationId": "delete_router_scenario_api_router_scenario__scenario__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Router Scenario"
+      }
+    },
+    "/api/router/status": {
+      "get": {
+        "description": "Return router dataset status and per-scenario stats.",
+        "operationId": "get_router_status_api_router_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Router Status"
+      }
+    },
+    "/api/samples": {
+      "get": {
+        "description": "分页读取指定场景样本；Parquet 存在时优先使用 Parquet。",
+        "operationId": "get_samples_api_samples_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "language",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Language"
+            }
+          },
+          {
+            "in": "query",
+            "name": "style",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Style"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Samples"
+      }
+    },
+    "/api/simulate": {
+      "post": {
+        "description": "启动单场景仿真。",
+        "operationId": "start_simulate_api_simulate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/piern__synth__api__routers__simulation__JobStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Simulate"
+      }
+    },
+    "/api/simulate/batch": {
+      "post": {
+        "description": "批量启动多场景仿真（顺序执行）。",
+        "operationId": "start_batch_simulate_api_simulate_batch_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BatchSimulateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/piern__synth__api__routers__simulation__JobStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Batch Simulate"
+      }
+    },
+    "/api/simulation/data-files": {
+      "get": {
+        "description": "列出 data/ 下已存在的 Stage 1 HDF5 文件及校验状态。",
+        "operationId": "get_simulation_data_files_api_simulation_data_files_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Simulation Data Files"
+      }
+    },
+    "/api/simulation/history": {
+      "delete": {
+        "description": "清空历史记录。",
+        "operationId": "clear_simulation_history_api_simulation_history_delete",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Clear Simulation History"
+      },
+      "get": {
+        "description": "返回最近的仿真历史记录（内存，重启后清空）。",
+        "operationId": "get_simulation_history_api_simulation_history_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Simulation History"
+      }
+    },
+    "/api/simulation/scenarios": {
+      "get": {
+        "description": "扫描场景配置，返回所有场景及 HDF5 状态。refresh=true 强制刷新缓存。",
+        "operationId": "get_simulation_scenarios_api_simulation_scenarios_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "refresh",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Refresh",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SimulationScenario"
+                  },
+                  "title": "Response Get Simulation Scenarios Api Simulation Scenarios Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Simulation Scenarios"
+      }
+    },
+    "/api/simulation/upload": {
+      "post": {
+        "description": "上传外部 HDF5 数据，保存后返回预检结果；注册时执行强校验。",
+        "operationId": "upload_simulation_data_api_simulation_upload_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "simulator",
+            "required": true,
+            "schema": {
+              "title": "Simulator",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scenario",
+            "required": true,
+            "schema": {
+              "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "overwrite",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Overwrite",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Simulation Data"
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "description": "返回 Stage 3 聚合统计，优先走 manifest。",
+        "operationId": "get_stats_api_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Stats"
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "description": "扫描 data/templates/ 目录，返回各场景的模板库状态。",
+        "operationId": "get_templates_status_api_templates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Templates Status"
+      }
+    },
+    "/api/training/datasets": {
+      "get": {
+        "operationId": "get_training_datasets_api_training_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingDatasetInfo"
+                  },
+                  "title": "Response Get Training Datasets Api Training Datasets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Training Datasets",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/gpus": {
+      "get": {
+        "operationId": "get_training_gpus_api_training_gpus_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GPUInfo"
+                  },
+                  "title": "Response Get Training Gpus Api Training Gpus Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Training Gpus",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs": {
+      "get": {
+        "operationId": "get_training_jobs_api_training_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingJobSummary"
+                  },
+                  "title": "Response Get Training Jobs Api Training Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Training Jobs",
+        "tags": [
+          "training"
+        ]
+      },
+      "post": {
+        "operationId": "create_training_job_api_training_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingJobCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Training Job",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs/{job_id}": {
+      "delete": {
+        "operationId": "delete_training_job_api_training_jobs__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Training Job",
+        "tags": [
+          "training"
+        ]
+      },
+      "get": {
+        "operationId": "get_training_job_api_training_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Training Job",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs/{job_id}/curves": {
+      "get": {
+        "operationId": "get_training_curves_api_training_jobs__job_id__curves_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_points",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 10000,
+              "minimum": 100,
+              "title": "Max Points",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingCurvesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Training Curves",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs/{job_id}/logs": {
+      "get": {
+        "operationId": "get_training_logs_api_training_jobs__job_id__logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 2000,
+              "minimum": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingLogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Training Logs",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs/{job_id}/stop": {
+      "post": {
+        "operationId": "stop_training_job_api_training_jobs__job_id__stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Training Job",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/overview": {
+      "get": {
+        "operationId": "get_training_overview_api_training_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Training Overview",
+        "tags": [
+          "training"
+        ]
+      }
+    }
+  }
+}

@@ -11,7 +11,9 @@
     "lint": "eslint src/lib/utils.ts src/lib/utils.test.ts --max-warnings 0",
     "format": "prettier --write eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
     "format:check": "prettier --check eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "openapi:types": "node ../scripts/frontend/generate-openapi-types.mjs",
+    "openapi:check": "npm run openapi:types && git diff --exit-code -- src/lib/generated/openapi.json src/lib/generated/openapi.d.ts"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -36,6 +38,7 @@
     "eslint-plugin-react-hooks": "^5.2.0",
     "eslint-plugin-react-refresh": "^0.4.26",
     "jsdom": "^25.0.1",
+    "openapi-typescript": "^7.13.0",
     "postcss": "^8.4.38",
     "prettier": "^3.8.3",
     "tailwindcss": "^3.4.3",

@@ -16,7 +16,7 @@ from typing import Any
 from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, PROJECT_ROOT, TEMPLATES_DIR
 from piern.shared.storage import portable
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
-from piern.synth.services import file_manager, hdf5_data, jsonl_filter_index, jsonl_index, manifest_store
+from piern.synth.services import file_manager, hdf5_data, job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.training.services import training_manager
 
 ROUTER_DIR = DATA_ROOT / "router"
@@ -29,6 +29,23 @@ _PLATFORM_LABELS = {
     "training": "训练产物",
     "system": "系统",
 }
+
+
+
+def _assert_no_active_jobs(job_types: set[str], message: str) -> None:
+    active = job_manager.running_jobs(job_types)
+    if active:
+        raise RuntimeError(f"{message}: {', '.join(job.job_id for job in active)}")
+
+
+def _assert_no_active_training_jobs(message: str) -> None:
+    active = [
+        str(job["job_id"])
+        for job in training_manager.list_jobs(refresh=True)
+        if job.get("status") in training_manager.TRAINING_ACTIVE_STATUSES
+    ]
+    if active:
+        raise RuntimeError(f"{message}: {', '.join(active)}")
 
 _STAGE_LABELS = {
     "stage1": "阶段 1 HDF5",
@@ -654,6 +671,7 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
     parts = decode_asset_id(asset_id)
     kind = parts[0]
     if kind == "hdf5" and len(parts) == 3:
+        _assert_no_active_jobs({"simulate", "fill_samples", "router"}, "HDF5 正在被仿真、样本填充或路由构建任务使用")
         simulator, scenario = parts[1], parts[2]
         path = hdf5_data.canonical_hdf5_path(simulator, scenario)
         if not path.exists():
@@ -663,11 +681,13 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "template" and len(parts) == 2:
+        _assert_no_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
         if not file_manager.delete_template_file(parts[1]):
             raise FileNotFoundError(f"file does not exist: {parts[1]}")
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "sample" and len(parts) == 2:
+        _assert_no_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
         if not file_manager.delete_sample_file(parts[1]):
             raise FileNotFoundError(f"file does not exist: {parts[1]}")
         return {"ok": True, "kind": kind, "deleted": 1}
@@ -682,14 +702,19 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "router_scenario" and len(parts) == 2:
+        _assert_no_active_jobs({"router"}, "路由数据正在构建")
+        _assert_no_active_training_jobs("路由数据正在被训练任务使用")
         return _delete_router_scenario(parts[1])
 
     if kind == "sample_parquet" and len(parts) == 3:
+        _assert_no_active_jobs({"fill_samples", "router"}, "样本分区正在被填充或路由构建任务使用")
         if not portable.delete_partition("text2comp", parts[2], simulator=parts[1]):
             raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "router_parquet" and len(parts) == 3:
+        _assert_no_active_jobs({"router"}, "路由分区正在构建")
+        _assert_no_active_training_jobs("路由分区正在被训练任务使用")
         if not portable.delete_partition("router", parts[2], simulator=parts[1]):
             raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
         return {"ok": True, "kind": kind, "deleted": 1}
@@ -707,10 +732,14 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
 
 def clear_group(kind: str) -> dict[str, Any]:
     if kind == "templates":
+        _assert_no_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
         return {"ok": True, "kind": kind, "deleted": file_manager.clear_all_templates()}
     if kind == "samples":
+        _assert_no_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
         return {"ok": True, "kind": kind, "deleted": file_manager.clear_all_samples()}
     if kind == "router":
+        _assert_no_active_jobs({"router"}, "路由数据正在构建")
+        _assert_no_active_training_jobs("路由数据正在被训练任务使用")
         return _delete_all_router_data()
     raise ValueError(f"unsupported clear group kind: {kind}")
 

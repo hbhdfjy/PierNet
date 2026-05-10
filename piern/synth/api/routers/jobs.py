@@ -12,7 +12,7 @@ from piern.synth.services.job_manager import subscribe, unsubscribe
 from piern.synth.api.schemas.jobs import JobStatusResponse
 
 router = APIRouter()
-_TERMINAL = {"done", "error", "terminated"}
+_TERMINAL = {"done", "error", "terminated", "external_terminated"}
 
 
 def _job_status_response(job) -> JobStatusResponse:
@@ -24,6 +24,8 @@ def _job_status_response(job) -> JobStatusResponse:
         scenario_totals=job.scenario_totals,
         progress=job.progress,
         stats=job.stats,
+        finished_at=job.finished_at,
+        error_message=job.error_message,
     )
 
 
@@ -75,7 +77,7 @@ def list_jobs(
     job_type: str | None = Query(None),
     status: str | None = Query(None),
 ):
-    """List in-memory generation jobs so reopened browsers can reconnect."""
+    """List recent generation jobs so reopened browsers can reconnect after backend restarts."""
     jobs = list(job_manager.all_jobs().values())
     if job_type:
         jobs = [job for job in jobs if job.job_type == job_type]

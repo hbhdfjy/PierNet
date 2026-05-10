@@ -28,6 +28,7 @@ const STATUS_ICON: Record<JobStatus, React.ReactNode> = {
   done:       <CheckCircle size={14} className="text-emerald-400" />,
   error:      <XCircle size={14} className="text-red-400" />,
   terminated: <XCircle size={14} className="text-amber-400" />,
+  external_terminated: <XCircle size={14} className="text-amber-400" />,
 }
 
 // ── Registry 类型 ─────────────────────────────────────────────────
@@ -417,8 +418,8 @@ function AutoRegisterPanel() {
           {status !== 'idle' && (
             <span className="flex items-center gap-1.5 mr-2">
               {STATUS_ICON[status]}
-              <span className={cn('text-xs', { running: 'text-sky-400', done: 'text-emerald-400', error: 'text-red-400', terminated: 'text-amber-400', idle: '' }[status])}>
-                {{ idle: '', running: '注册中…', done: `已完成 ${registeredKeys.length} 条`, error: '出错', terminated: '已终止' }[status]}
+              <span className={cn('text-xs', { running: 'text-sky-400', done: 'text-emerald-400', error: 'text-red-400', terminated: 'text-amber-400', external_terminated: 'text-amber-400', idle: '' }[status])}>
+                {{ idle: '', running: '注册中…', done: `已完成 ${registeredKeys.length} 条`, error: '出错', terminated: '已终止', external_terminated: '外部终止' }[status]}
               </span>
             </span>
           )}

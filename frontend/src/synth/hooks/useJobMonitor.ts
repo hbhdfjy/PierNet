@@ -50,7 +50,7 @@ function isExpectedJobForStage(stageKey: string, jobType: string | null | undefi
 }
 
 function isTerminalStatus(status: string): status is JobStatus {
-  return status === 'done' || status === 'error' || status === 'terminated'
+  return status === 'done' || status === 'error' || status === 'terminated' || status === 'external_terminated'
 }
 
 function toFiniteNumber(value: unknown, fallback = 0): number {
@@ -106,6 +106,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     if (statuses.length === 0) return 'idle'
     if (statuses.some(s => s === 'running')) return 'running'
     if (statuses.some(s => s === 'error')) return 'error'
+    if (statuses.some(s => s === 'external_terminated')) return 'external_terminated'
     if (statuses.some(s => s === 'terminated')) return 'terminated'
     if (statuses.every(s => s === 'done')) return 'done'
     return 'idle'
@@ -181,9 +182,12 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
           setLogs(prev => [...prev, { line: `[ERROR] ${event.message ?? '未知错误'}`, ts: event.ts }])
           es.close()
           esMap.current.delete(id)
-        } else if (event.type === 'terminated') {
+        } else if (event.type === 'terminated' || event.type === 'external_terminated') {
           terminatedRef.current.add(id)
-          setJobStatuses(prev => ({ ...prev, [id]: 'terminated' }))
+          setJobStatuses(prev => ({ ...prev, [id]: event.type }))
+          if (event.message) {
+            setLogs(prev => [...prev, { line: `[终止] ${event.message}`, ts: event.ts }])
+          }
           es.close()
           esMap.current.delete(id)
         } else if (event.type === 'scenario_done') {

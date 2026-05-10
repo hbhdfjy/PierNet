@@ -24,20 +24,24 @@
 | 7 | 前端结构升级 | 基础组件抽象、关键页面拆分、布局回归 |
 | 8 | 后端模块化与观测 | 统一错误模型、健康检查分层、结构化日志 |
 
-## 当前首批交付范围
+## 已交付范围
 
-1. 阶段 0：记录当前基线。
+1. 阶段 0：记录并验证当前基线。
 2. 阶段 1：新增 Python/前端工程配置和最小前端测试。
 3. 阶段 2：新增轻量 CI。
 4. 阶段 3：新增 `.env.example`、迁移清单和服务脚本环境变量入口。
+5. 阶段 4：后端强制样本填充、Router 构建、文件删除的 active job 互斥和删除保护。
+6. 阶段 5：新增 OpenAPI schema 导出、前端类型生成脚本，并将合成任务状态类型接入生成 schema。
+7. 阶段 6：新增合成任务 SQLite `jobs` / `job_events` 存储，后端重启后保留历史任务并标记未完成任务为 `external_terminated`。
+8. 阶段 8 部分：新增 `/api/health/live`、`/api/health/ready`、`/api/health/storage`、`/api/health/gpu`。
 
 ## 后续升级顺序
 
 1. 扩大前端 lint/format 覆盖范围，逐页修复历史 warning。
-2. 为文件删除、Router 构建、样本填充和训练任务建立统一 active reference 检查。
-3. 引入 OpenAPI 类型生成脚本，先迁移训练 API 类型。
-4. 引入 SQLite job store，替换仅靠 JSON/内存的任务状态。
-5. 拆分 `training_manager.py`、`RegistryPage.tsx`、`TrainingJobDetailPage.tsx`。
+2. 继续拆分 `training_manager.py`、`RegistryPage.tsx`、`TrainingJobDetailPage.tsx`。
+3. 将训练任务 registry 从 JSON 进一步迁移到 SQLite，或在 JSON registry 外加 SQLite 事件审计。
+4. 为主要 API 引入统一错误模型 `{ code, message, details }`。
+5. 加 Playwright 冒烟测试和布局回归检查。
 
 ## 默认命令
 

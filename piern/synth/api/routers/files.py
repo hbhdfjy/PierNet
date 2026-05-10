@@ -5,10 +5,17 @@ import json
 from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import TEMPLATES_DIR
-from piern.synth.services import file_manager, jsonl_filter_index, jsonl_index, manifest_store
+from piern.synth.services import file_manager, job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.synth.api.schemas.jobs import TemplateFileInfo, SampleFileInfo
 
 router = APIRouter()
+
+def _reject_active_jobs(job_types: set[str], message: str) -> None:
+    try:
+        job_manager.assert_no_running_jobs(job_types, message=message)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
 
 
 @router.get("/files/templates", response_model=list[TemplateFileInfo])
@@ -113,6 +120,7 @@ def get_template_items(
 @router.post("/files/templates/{scenario}/trim")
 def trim_template_file(scenario: str, n: int = Query(..., ge=1, description="保留的模板条数")):
     """将指定场景的模板文件截断到 n 条。"""
+    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
     path = TEMPLATES_DIR / f"{scenario}_templates.jsonl"
     if not path.exists():
         raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
@@ -136,6 +144,7 @@ def trim_template_file(scenario: str, n: int = Query(..., ge=1, description="保
 @router.delete("/files/templates/{scenario}")
 def delete_template_file(scenario: str):
     """删除指定场景的模板文件。"""
+    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
     if not file_manager.delete_template_file(scenario):
         raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
     return {"ok": True, "scenario": scenario}
@@ -144,6 +153,7 @@ def delete_template_file(scenario: str):
 @router.delete("/files/samples/{scenario}")
 def delete_sample_file(scenario: str):
     """删除指定场景的样本文件。"""
+    _reject_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
     if not file_manager.delete_sample_file(scenario):
         raise HTTPException(404, f"场景 {scenario} 的样本文件不存在")
     return {"ok": True, "scenario": scenario}
@@ -152,6 +162,7 @@ def delete_sample_file(scenario: str):
 @router.delete("/files/templates")
 def clear_all_templates():
     """清空所有模板文件。"""
+    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
     count = file_manager.clear_all_templates()
     return {"ok": True, "deleted": count}
 
@@ -159,6 +170,7 @@ def clear_all_templates():
 @router.delete("/files/samples")
 def clear_all_samples():
     """清空所有样本文件（保留 all_training_data.jsonl）。"""
+    _reject_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
     count = file_manager.clear_all_samples()
     return {"ok": True, "deleted": count}
 

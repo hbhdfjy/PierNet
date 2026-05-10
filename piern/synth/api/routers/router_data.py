@@ -16,6 +16,7 @@ from fastapi import APIRouter, HTTPException, Query
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
 from piern.shared.storage import portable
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
+from piern.training.services import training_manager
 from piern.synth.services.job_manager import publish
 
 router = APIRouter()
@@ -28,12 +29,34 @@ DEFAULT_QWEN_EMBEDDING_MODEL = os.getenv("PIERN_QWEN_EMBEDDING_MODEL", DEFAULT_L
 DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PIERN_QWEN_EMBEDDING_TOKENIZER", DEFAULT_QWEN_EMBEDDING_MODEL)
 
 
-def _running_sample_fill_jobs() -> list[str]:
-    return [
-        job.job_id
-        for job in job_manager.all_jobs().values()
-        if job.job_type == "fill_samples" and job.status == "running"
-    ]
+def _running_job_ids(job_types: set[str]) -> list[str]:
+    return [job.job_id for job in job_manager.running_jobs(job_types)]
+
+
+def _running_training_job_ids() -> list[str]:
+    try:
+        return [
+            str(job["job_id"])
+            for job in training_manager.list_jobs(refresh=True)
+            if job.get("status") in training_manager.TRAINING_ACTIVE_STATUSES
+        ]
+    except Exception:
+        return []
+
+
+def _assert_router_data_mutable() -> None:
+    active_router_jobs = _running_job_ids({"router"})
+    active_training_jobs = _running_training_job_ids()
+    if active_router_jobs or active_training_jobs:
+        pieces = []
+        if active_router_jobs:
+            pieces.append("路由构建任务 " + ", ".join(active_router_jobs))
+        if active_training_jobs:
+            pieces.append("训练任务 " + ", ".join(active_training_jobs))
+        raise HTTPException(
+            status_code=409,
+            detail="路由数据正在被使用，不能删除或重建：" + "；".join(pieces),
+        )
 
 
 def _count_lines(path: Path) -> int:
@@ -353,18 +376,21 @@ async def build_router_data(
     scenarios: str = Query(""),
 ):
     """Start Stage 4 router build and return a job id for SSE."""
-    running_fill_jobs = _running_sample_fill_jobs()
-    if running_fill_jobs:
+    active_jobs = _running_job_ids({"fill_samples", "router"})
+    if active_jobs:
         raise HTTPException(
             status_code=409,
             detail=(
-                "样本填充任务仍在运行（"
-                + ", ".join(running_fill_jobs)
+                "样本填充或路由构建任务仍在运行（"
+                + ", ".join(active_jobs)
                 + "）。请先终止或等待完成后再构建路由，避免从正在写入的样本数据生成不完整路由集。"
             ),
         )
-    record = job_manager.create_job("router")
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
+    record = job_manager.create_job(
+        "router",
+        request={"seed": seed, "neg_ratio": neg_ratio, "scenarios": scenario_list},
+    )
 
     def _run():
         try:
@@ -549,6 +575,7 @@ async def build_router_data(
 @router.delete("/router/scenario/{scenario}")
 def delete_router_scenario(scenario: str):
     """Delete one scenario file and rewrite train.jsonl."""
+    _assert_router_data_mutable()
     path = SCENARIO_DIR / f"{scenario}.jsonl"
     meta_path = path.with_suffix(".meta.json")
     if portable.delete_partition("router", scenario):
@@ -569,6 +596,7 @@ def delete_router_scenario(scenario: str):
 @router.delete("/router/all")
 def delete_all_router_data():
     """Delete all per-scenario router files and train.jsonl."""
+    _assert_router_data_mutable()
     deleted = 0
     if SCENARIO_DIR.exists():
         for path in SCENARIO_DIR.glob("*.jsonl"):

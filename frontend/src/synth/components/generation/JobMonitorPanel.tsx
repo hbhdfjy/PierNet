@@ -168,7 +168,7 @@ function OverallRing({
           {totalTarget > 0 && <span className="text-slate-600"> / {totalTarget.toLocaleString()}</span>}
         </div>
         <div className="text-xs text-slate-500 mt-0.5">
-          {{ running: '处理中', done: '已完成', error: '出错', terminated: '已终止', idle: '' }[status]}
+          {{ running: '处理中', done: '已完成', error: '出错', terminated: '已终止', external_terminated: '外部终止', idle: '' }[status]}
         </div>
       </div>
     </div>
@@ -222,13 +222,14 @@ export default function JobMonitorPanel({
             done:       'text-emerald-400',
             error:      'text-red-400',
             terminated: 'text-amber-400',
+            external_terminated: 'text-amber-400',
             idle:       'text-slate-400',
           }[status])}>
             {isRunning && <Loader2 size={13} className="animate-spin" />}
             {isDone    && <CheckCircle size={13} />}
-            {(status === 'error' || status === 'terminated') && <XCircle size={13} />}
+            {(status === 'error' || status === 'terminated' || status === 'external_terminated') && <XCircle size={13} />}
             <span className="font-medium text-sm">
-              {{ running: '运行中', done: '已完成', error: '出错', terminated: '已终止', idle: '' }[status]}
+              {{ running: '运行中', done: '已完成', error: '出错', terminated: '已终止', external_terminated: '外部终止', idle: '' }[status]}
             </span>
           </div>
 

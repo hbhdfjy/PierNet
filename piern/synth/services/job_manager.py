@@ -1,11 +1,10 @@
-"""后台任务注册与 SSE 事件分发。
+"""后台任务注册、SQLite 状态持久化与 SSE 事件分发。
 
-说明：
-  每个 job 都会保留 events 历史，新的订阅者先收到快照，再接收后续 queue。
-  后台线程通过 publish() 推送事件，不直接感知 SSE 订阅端。
-  SSE 路由通过 subscribe() 获取 (snapshot, queue) 组合，支持断线后的历史回放。
-  terminate_job() 负责同步停止子进程并广播 terminated 事件。
+每个 job 都会保留事件历史。新的订阅者先收到快照，再接收后续 queue。
+进程重启后，SQLite 中未完成的任务会被标记为 external_terminated，前端仍能看到历史状态和日志。
 """
+
+from __future__ import annotations
 
 import asyncio
 import logging
@@ -16,22 +15,30 @@ import threading
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Any, Optional
+
+from piern.synth.services import job_store
 
 logger = logging.getLogger(__name__)
+
+SYNTH_ACTIVE_STATUSES = {"running"}
+SYNTH_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
 
 
 @dataclass
 class JobRecord:
     job_id: str
-    job_type: str          # "generate_templates" | "fill_samples" | "register" | "simulate" | "router"
-    status: str            # "running" | "done" | "error" | "terminated"
-    loop: asyncio.AbstractEventLoop
+    job_type: str
+    status: str
+    loop: Optional[asyncio.AbstractEventLoop]
     scenario_totals: dict
     started_at: float
     events: list = field(default_factory=list)
     progress: dict = field(default_factory=dict)
     stats: dict = field(default_factory=lambda: {"elapsed_sec": 0.0, "samples_per_sec": 0.0})
+    finished_at: Optional[float] = None
+    error_message: Optional[str] = None
+    persisted: bool = False
     _subscribers: list = field(default_factory=list)
     _lock: threading.Lock = field(default_factory=threading.Lock)
     future: Optional[asyncio.Task] = None
@@ -43,7 +50,7 @@ class JobRecord:
 _jobs: dict[str, JobRecord] = {}
 
 
-def create_job(job_type: str, scenario_totals: dict = None) -> JobRecord:
+def create_job(job_type: str, scenario_totals: dict = None, request: dict[str, Any] | None = None) -> JobRecord:
     """创建后台任务，并绑定当前 async loop 供 FastAPI SSE 推送。"""
     loop = asyncio.get_running_loop()
     job_id = _make_prefix(job_type) + str(uuid.uuid4())[:6]
@@ -56,6 +63,7 @@ def create_job(job_type: str, scenario_totals: dict = None) -> JobRecord:
         started_at=time.time(),
     )
     _jobs[job_id] = record
+    _persist_record(record, request=request)
     return record
 
 
@@ -71,7 +79,57 @@ def _make_prefix(job_type: str) -> str:
 
 
 def get_job(job_id: str) -> Optional[JobRecord]:
-    return _jobs.get(job_id)
+    job = _jobs.get(job_id)
+    if job is not None:
+        return job
+    stored = job_store.load_job(job_id)
+    if not stored:
+        return None
+    return _record_from_stored(stored)
+
+
+def _record_from_stored(stored: dict[str, Any]) -> JobRecord:
+    return JobRecord(
+        job_id=str(stored["job_id"]),
+        job_type=str(stored.get("job_type") or "job"),
+        status=str(stored.get("status") or "external_terminated"),
+        loop=None,
+        scenario_totals=stored.get("scenario_totals") or {},
+        started_at=float(stored.get("started_at") or stored.get("created_at") or time.time()),
+        events=list(stored.get("events") or []),
+        progress=stored.get("progress") or {},
+        stats=stored.get("stats") or {"elapsed_sec": 0.0, "samples_per_sec": 0.0},
+        finished_at=stored.get("finished_at"),
+        error_message=stored.get("error_message"),
+        persisted=True,
+    )
+
+
+def _persist_record(record: JobRecord, request: dict[str, Any] | None = None) -> None:
+    try:
+        job_store.upsert_job(
+            job_id=record.job_id,
+            job_type=record.job_type,
+            status=record.status,
+            started_at=record.started_at,
+            finished_at=record.finished_at,
+            pid=record.proc.pid if record.proc is not None else None,
+            request_json=request,
+            scenario_totals=record.scenario_totals,
+            progress=record.progress,
+            stats=record.stats,
+            error_message=record.error_message,
+        )
+    except Exception:
+        logger.exception("Failed to persist synthesis job %s", record.job_id)
+
+
+def _persist_event(record: JobRecord, event: dict[str, Any]) -> None:
+    try:
+        job_store.append_event(record.job_id, event)
+        _persist_record(record)
+    except Exception:
+        logger.exception("Failed to persist synthesis job event job=%s event=%s", record.job_id, event.get("type"))
 
 
 def _coerce_non_negative_int(value, default: int = 0) -> int:
@@ -108,8 +166,12 @@ def _progress_stats(record: JobRecord) -> dict:
 
 def _apply_event_state(record: JobRecord, event: dict) -> None:
     event_type = event.get("type")
-    if event_type in {"done", "error", "terminated"}:
+    if event_type in SYNTH_TERMINAL_STATUSES:
         record.status = event_type
+        record.finished_at = record.finished_at or float(event.get("ts") or time.time())
+        if event_type in {"error", "terminated", "external_terminated"}:
+            message = event.get("message")
+            record.error_message = str(message) if message else record.error_message
 
     scenario_totals = event.get("scenario_totals")
     if isinstance(scenario_totals, dict):
@@ -150,7 +212,7 @@ def _completion_progress_events(record: JobRecord, ts: float) -> list[dict]:
 
 
 def publish(record: JobRecord, event: dict) -> None:
-    """向任务追加事件，并扇出给当前所有订阅者。"""
+    """向任务追加事件，写入 SQLite，并扇出给当前所有订阅者。"""
     with record._lock:
         events = []
         if event.get("type") == "done":
@@ -161,6 +223,9 @@ def publish(record: JobRecord, event: dict) -> None:
         for item in events:
             _apply_event_state(record, item)
             record.events.append(item)
+            _persist_event(record, item)
+            if record.loop is None:
+                continue
             for q in record._subscribers:
                 try:
                     record.loop.call_soon_threadsafe(q.put_nowait, item)
@@ -176,7 +241,7 @@ def subscribe(record: JobRecord) -> tuple[list[dict], asyncio.Queue]:
     q: asyncio.Queue = asyncio.Queue()
     with record._lock:
         snapshot = list(record.events)
-        if record.status == "running":
+        if record.status not in SYNTH_TERMINAL_STATUSES and record.loop is not None:
             record._subscribers.append(q)
     return snapshot, q
 
@@ -193,11 +258,24 @@ def unsubscribe(record: JobRecord, q: asyncio.Queue) -> None:
 def terminate_job(job_id: str) -> bool:
     record = _jobs.get(job_id)
     if not record:
-        return False
+        stored = job_store.load_job(job_id)
+        if not stored:
+            return False
+        if stored.get("status") not in SYNTH_TERMINAL_STATUSES:
+            synthetic = _record_from_stored(stored)
+            synthetic.status = "terminated"
+            synthetic.finished_at = time.time()
+            synthetic.error_message = "任务已由平台终止。"
+            _persist_record(synthetic)
+            job_store.append_event(
+                synthetic.job_id,
+                {"type": "terminated", "ts": synthetic.finished_at, "message": synthetic.error_message},
+            )
+        return True
 
     record.status = "terminated"
     record.stop_event.set()
-    publish(record, {"type": "terminated", "ts": time.time()})
+    publish(record, {"type": "terminated", "ts": time.time(), "message": "任务已由平台终止。"})
 
     if record.proc is not None:
         try:
@@ -206,7 +284,7 @@ def terminate_job(job_id: str) -> bool:
             else:
                 record.proc.kill()
         except Exception as e:
-            logger.warning(f"终止子进程失败，job={record.job_id}: {e}")
+            logger.warning("终止子进程失败，job=%s: %s", record.job_id, e)
         finally:
             record.proc = None
             record.proc_uses_process_group = False
@@ -216,5 +294,38 @@ def terminate_job(job_id: str) -> bool:
     return True
 
 
-def all_jobs() -> dict[str, JobRecord]:
-    return dict(_jobs)
+def all_jobs(max_recent: int = 200) -> dict[str, JobRecord]:
+    jobs = dict(_jobs)
+    for stored in job_store.list_jobs(limit=max_recent):
+        job_id = str(stored["job_id"])
+        if job_id not in jobs:
+            jobs[job_id] = _record_from_stored(stored)
+    return jobs
+
+
+def running_jobs(job_types: set[str] | None = None) -> list[JobRecord]:
+    jobs = []
+    for job in all_jobs().values():
+        if job.status in SYNTH_ACTIVE_STATUSES and (job_types is None or job.job_type in job_types):
+            jobs.append(job)
+    return sorted(jobs, key=lambda item: item.started_at, reverse=True)
+
+
+def assert_no_running_jobs(job_types: set[str], *, message: str) -> None:
+    active = running_jobs(job_types)
+    if active:
+        ids = ", ".join(job.job_id for job in active)
+        raise RuntimeError(f"{message}: {ids}")
+
+
+def _recover_orphaned_jobs() -> None:
+    try:
+        recovered = job_store.mark_incomplete_external_terminated(active_job_ids=_jobs.keys())
+    except Exception:
+        logger.exception("Failed to recover orphaned synthesis jobs")
+        return
+    if recovered:
+        logger.info("Recovered orphaned synthesis jobs as external_terminated: %s", ", ".join(recovered))
+
+
+_recover_orphaned_jobs()
