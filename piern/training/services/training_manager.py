@@ -39,6 +39,7 @@ GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
 TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}
 TRAINING_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
+TRAINING_ALL_STATUSES = TRAINING_ACTIVE_STATUSES | TRAINING_TERMINAL_STATUSES
 TRAINING_STOP_GRACE_SECONDS = 45.0
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
@@ -95,9 +96,64 @@ def _coerce_float(value: Any, fallback: float | None = None) -> float | None:
     if value is None:
         return fallback
     try:
-        return float(value)
+        parsed = float(value)
     except (TypeError, ValueError):
         return fallback
+    return parsed if math.isfinite(parsed) else fallback
+
+
+def _coerce_status(value: Any) -> str:
+    status = str(value or "external_terminated")
+    return status if status in TRAINING_ALL_STATUSES else "external_terminated"
+
+
+def _normalize_training_config(config: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(config)
+    if normalized.get("input_representation") != PRETRAINED_EMBEDDINGS:
+        normalized["input_representation"] = PRETRAINED_EMBEDDINGS
+    return normalized
+
+
+def _normalize_per_scenario_metrics(value: Any) -> dict[str, dict[str, float]]:
+    if not isinstance(value, dict):
+        return {}
+    normalized: dict[str, dict[str, float]] = {}
+    for scenario, metrics in value.items():
+        if not isinstance(metrics, dict):
+            continue
+        clean: dict[str, float] = {}
+        for key, raw_value in metrics.items():
+            parsed = _coerce_float(raw_value)
+            if parsed is not None:
+                clean[str(key)] = parsed
+        if clean:
+            normalized[str(scenario)] = clean
+    return normalized
+
+
+def _coerce_training_curve_point(payload: Any, *, include_steps_per_epoch: bool = False) -> dict[str, Any] | None:
+    if not isinstance(payload, dict):
+        return None
+    epoch = _coerce_int(payload.get("epoch"))
+    step = _coerce_int(payload.get("step"))
+    avg_loss = _coerce_float(payload.get("avg_loss"))
+    steps_per_sec = _coerce_float(payload.get("steps_per_sec"))
+    eta_seconds = _coerce_float(payload.get("eta_seconds"))
+    if epoch is None or step is None or avg_loss is None or steps_per_sec is None or eta_seconds is None:
+        return None
+    point: dict[str, Any] = {
+        "epoch": epoch,
+        "step": step,
+        "global_step": _coerce_int(payload.get("global_step"), 0) or 0,
+        "avg_loss": avg_loss,
+        "steps_per_sec": steps_per_sec,
+        "eta_seconds": eta_seconds,
+    }
+    if include_steps_per_epoch:
+        steps_per_epoch = _coerce_int(payload.get("steps_per_epoch"))
+        if steps_per_epoch is not None:
+            point["steps_per_epoch"] = steps_per_epoch
+    return point
 
 
 def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
@@ -109,8 +165,7 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
     normalized = dict(entry)
     config = normalized.get("config") if isinstance(normalized.get("config"), dict) else {}
     config = dict(config)
-    if config.get("input_representation") == "embedding":
-        config["input_representation"] = "pretrained_embeddings"
+    config = _normalize_training_config(config)
 
     run_dir = str(normalized.get("run_dir") or ARTIFACTS_ROOT / "unknown" / "runs" / job_id)
     log_path = str(normalized.get("log_path") or RUNLOGS_ROOT / f"{job_id}.log")
@@ -128,7 +183,7 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
         {
             "job_id": job_id,
             "name": _normalize_job_name(normalized.get("name"), fallback=job_id),
-            "status": str(normalized.get("status") or "external_terminated"),
+            "status": _coerce_status(normalized.get("status")),
             "simulator": simulator,
             "scenarios": [str(item) for item in scenarios],
             "gpu_id": _coerce_int(normalized.get("gpu_id"), -1),
@@ -325,7 +380,11 @@ def _tail_lines(path: Path, limit: int = 200) -> list[str]:
 def _read_json(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 @lru_cache(maxsize=256)
@@ -365,13 +424,18 @@ def _checkpoint_epoch_from_file(path_str: str, mtime_ns: int, size_bytes: int) -
 
 def _latest_training_point(run_dir: Path) -> dict[str, Any] | None:
     log_path = run_dir / "train_log.jsonl"
-    lines = _tail_lines(log_path, 1)
-    if not lines:
-        return None
-    try:
-        return json.loads(lines[-1])
-    except json.JSONDecodeError:
-        return None
+    for line in reversed(_tail_lines(log_path, 20)):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        point = _coerce_training_curve_point(payload, include_steps_per_epoch=True)
+        if point is not None:
+            return point
+    return None
 
 
 def _latest_test_metrics(run_dir: Path) -> dict[str, Any] | None:
@@ -564,24 +628,24 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     alive = _pid_alive(pid)
     latest_point = _latest_training_point(run_dir)
     if latest_point:
-        entry["latest_epoch"] = int(latest_point.get("epoch", 0)) or None
-        entry["latest_step"] = int(latest_point.get("step", 0)) or None
-        entry["steps_per_epoch"] = int(latest_point.get("steps_per_epoch", 0)) or None
-        entry["global_step"] = int(latest_point.get("global_step", 0)) or None
-        entry["avg_loss"] = float(latest_point.get("avg_loss", 0.0))
-        entry["steps_per_sec"] = float(latest_point.get("steps_per_sec", 0.0))
-        entry["eta_seconds"] = float(latest_point.get("eta_seconds", 0.0))
+        entry["latest_epoch"] = _coerce_int(latest_point.get("epoch")) or None
+        entry["latest_step"] = _coerce_int(latest_point.get("step")) or None
+        entry["steps_per_epoch"] = _coerce_int(latest_point.get("steps_per_epoch")) or None
+        entry["global_step"] = _coerce_int(latest_point.get("global_step")) or None
+        entry["avg_loss"] = _coerce_float(latest_point.get("avg_loss"))
+        entry["steps_per_sec"] = _coerce_float(latest_point.get("steps_per_sec"))
+        entry["eta_seconds"] = _coerce_float(latest_point.get("eta_seconds"))
 
     latest_metrics = _latest_test_metrics(run_dir)
     if latest_metrics:
-        entry["latest_test_epoch"] = int(latest_metrics.get("epoch", 0)) or None
-        overall = latest_metrics.get("overall", {})
+        entry["latest_test_epoch"] = _coerce_int(latest_metrics.get("epoch")) or None
+        overall = latest_metrics.get("overall", {}) if isinstance(latest_metrics.get("overall"), dict) else {}
         entry["latest_metrics"] = {
-            "accuracy": overall.get("accuracy"),
-            "precision": overall.get("precision"),
-            "recall": overall.get("recall"),
-            "f1": overall.get("f1"),
-            "pr_auc": overall.get("pr_auc"),
+            "accuracy": _coerce_float(overall.get("accuracy")),
+            "precision": _coerce_float(overall.get("precision")),
+            "recall": _coerce_float(overall.get("recall")),
+            "f1": _coerce_float(overall.get("f1")),
+            "pr_auc": _coerce_float(overall.get("pr_auc")),
         }
 
     stop_requested = bool(entry.get("stop_requested"))
@@ -1127,25 +1191,21 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
     training_points: list[dict[str, Any]] = []
     train_log_path = run_dir / "train_log.jsonl"
     if train_log_path.exists():
-        with train_log_path.open("r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    payload = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                training_points.append(
-                    {
-                        "epoch": int(payload["epoch"]),
-                        "step": int(payload["step"]),
-                        "global_step": int(payload.get("global_step", 0)),
-                        "avg_loss": float(payload["avg_loss"]),
-                        "steps_per_sec": float(payload["steps_per_sec"]),
-                        "eta_seconds": float(payload["eta_seconds"]),
-                    }
-                )
+        try:
+            with train_log_path.open("r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        payload = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    point = _coerce_training_curve_point(payload)
+                    if point is not None:
+                        training_points.append(point)
+        except OSError:
+            pass
     epoch_points_map: dict[int, dict[str, Any]] = {}
     for point in training_points:
         epoch_points_map[int(point["epoch"])] = point
@@ -1153,17 +1213,22 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
 
     test_points: list[dict[str, Any]] = []
     for path in sorted(run_dir.glob("test_metrics_epoch_*.json")):
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        overall = payload.get("overall", {})
+        payload = _read_json(path)
+        if not payload:
+            continue
+        epoch = _coerce_int(payload.get("epoch"))
+        if epoch is None:
+            continue
+        overall = payload.get("overall", {}) if isinstance(payload.get("overall"), dict) else {}
         test_points.append(
             {
-                "epoch": int(payload["epoch"]),
-                "accuracy": float(overall.get("accuracy", 0.0)),
-                "precision": float(overall.get("precision", 0.0)),
-                "recall": float(overall.get("recall", 0.0)),
-                "f1": float(overall.get("f1", 0.0)),
-                "pr_auc": float(overall.get("pr_auc", 0.0)),
-                "per_scenario": payload.get("per_scenario", {}),
+                "epoch": epoch,
+                "accuracy": _coerce_float(overall.get("accuracy"), 0.0) or 0.0,
+                "precision": _coerce_float(overall.get("precision"), 0.0) or 0.0,
+                "recall": _coerce_float(overall.get("recall"), 0.0) or 0.0,
+                "f1": _coerce_float(overall.get("f1"), 0.0) or 0.0,
+                "pr_auc": _coerce_float(overall.get("pr_auc"), 0.0) or 0.0,
+                "per_scenario": _normalize_per_scenario_metrics(payload.get("per_scenario")),
             }
         )
 

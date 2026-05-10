@@ -708,6 +708,11 @@ function AutoRegisterPanel() {
             setStatus('error')
             setLogs(prev => [...prev, { line: `[ERROR] ${event.message}`, ts: event.ts }])
             es.close()
+          } else if (event.type === 'terminated' || event.type === 'external_terminated') {
+            setStatus(event.type as JobStatus)
+            const message = event.message ?? (event.type === 'external_terminated' ? '任务已外部终止' : '任务已终止')
+            setLogs(prev => [...prev, { line: `[STOP] ${message}`, ts: event.ts }])
+            es.close()
           }
         } catch {
           /* ignore */

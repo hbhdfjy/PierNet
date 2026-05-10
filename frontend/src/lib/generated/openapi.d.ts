@@ -1198,11 +1198,8 @@ export interface components {
              * @default 4
              */
             precision: number;
-            /**
-             * Scenarios
-             * @default []
-             */
-            scenarios: string[];
+            /** Scenarios */
+            scenarios?: string[];
             /** Seed */
             seed?: number | null;
             /**
@@ -1256,11 +1253,8 @@ export interface components {
              * @default 100
              */
             n_templates: number;
-            /**
-             * Scenarios
-             * @default []
-             */
-            scenarios: string[];
+            /** Scenarios */
+            scenarios?: string[];
             /**
              * Skip Existing
              * @default false
@@ -1376,11 +1370,8 @@ export interface components {
              * @default configs/text2comp/default.yaml
              */
             config: string;
-            /**
-             * Fields
-             * @default []
-             */
-            fields: string[];
+            /** Fields */
+            fields?: string[];
             /**
              * Output
              * @default configs/text2comp/registry.yaml
@@ -1391,11 +1382,8 @@ export interface components {
              * @default false
              */
             overwrite: boolean;
-            /**
-             * Scenarios
-             * @default []
-             */
-            scenarios: string[];
+            /** Scenarios */
+            scenarios?: string[];
             /**
              * Simulator Level
              * @default false
@@ -1911,11 +1899,8 @@ export interface components {
         piern__synth__api__schemas__generation__JobStartResponse: {
             /** Job Id */
             job_id: string;
-            /**
-             * Scenario Totals
-             * @default {}
-             */
-            scenario_totals: {
+            /** Scenario Totals */
+            scenario_totals?: {
                 [key: string]: number;
             };
             /**

@@ -9,7 +9,7 @@ import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
-import { useJobMonitor } from '../hooks/useJobMonitor'
+import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
 export default function SampleFiller() {
@@ -49,7 +49,7 @@ export default function SampleFiller() {
   }, [genCfg])
 
   useEffect(() => {
-    if (monitor.status === 'done' || monitor.status === 'error') {
+    if (isTerminalJobStatus(monitor.status)) {
       refreshTemplates()
       // 刷新场景列表以更新样本状态
       refreshScenarios(undefined, { revalidate: true })
@@ -107,7 +107,7 @@ export default function SampleFiller() {
     }
   }
 
-  const canLaunch = !monitor.status || ['idle', 'done', 'error', 'terminated'].includes(monitor.status)
+  const canLaunch = isRestartableJobStatus(monitor.status)
 
   return (
     <div className="workbench-shell">
@@ -338,7 +338,7 @@ export default function SampleFiller() {
                   </>
                 )}
               </button>
-              {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
+              {isTerminalJobStatus(monitor.status) && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
                   重新配置
                 </button>

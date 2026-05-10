@@ -8,7 +8,7 @@ import { GitBranch, RefreshCw, Settings, Layers, AlertCircle, Check, Database, F
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
-import { useJobMonitor } from '../hooks/useJobMonitor'
+import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
 // ── 场景按钮（对齐 ScenarioButton 风格）────────────────────────────
@@ -126,7 +126,7 @@ export default function RouterDataBuilder() {
   const hasRouterData = status && status.total > 0
 
   useEffect(() => {
-    if (monitor.status === 'done' || monitor.status === 'error') {
+    if (isTerminalJobStatus(monitor.status)) {
       refreshStatus()
     }
   }, [monitor.status, refreshStatus])
@@ -148,12 +148,7 @@ export default function RouterDataBuilder() {
     }
   }
 
-  const canLaunch =
-    !monitor.status ||
-    monitor.status === 'idle' ||
-    monitor.status === 'done' ||
-    monitor.status === 'error' ||
-    monitor.status === 'terminated'
+  const canLaunch = isRestartableJobStatus(monitor.status)
 
   return (
     <div className="workbench-shell">
@@ -313,7 +308,7 @@ export default function RouterDataBuilder() {
                   </>
                 )}
               </button>
-              {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
+              {isTerminalJobStatus(monitor.status) && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
                   重新配置
                 </button>

@@ -20,7 +20,7 @@ import {
 import { cn, formatBytes } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
-import { useJobMonitor } from '../hooks/useJobMonitor'
+import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
 // ── 模拟器元数据 ──────────────────────────────────────────────────
@@ -294,7 +294,7 @@ export default function SimulationRunner() {
     setSelected(new Set(incomplete))
   }
 
-  const canLaunch = !monitor.status || ['idle', 'done', 'error', 'terminated'].includes(monitor.status)
+  const canLaunch = isRestartableJobStatus(monitor.status)
 
   const handleLaunch = async () => {
     if (selected.size === 0) {
@@ -345,7 +345,7 @@ export default function SimulationRunner() {
 
   // 全部完成后也刷新一次
   useEffect(() => {
-    if (monitor.status === 'done' || monitor.status === 'error') {
+    if (isTerminalJobStatus(monitor.status)) {
       refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
     }
   }, [monitor.status, refreshScenarios])
@@ -629,7 +629,7 @@ export default function SimulationRunner() {
                   </>
                 )}
               </button>
-              {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
+              {isTerminalJobStatus(monitor.status) && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
                   重新配置
                 </button>

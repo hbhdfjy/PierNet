@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import torch
@@ -253,3 +254,90 @@ def test_delete_checkpoint_rejects_primary_weight(monkeypatch, tmp_path: Path):
         assert 'only epoch checkpoints' in str(exc)
     else:
         raise AssertionError('expected ValueError for primary checkpoint deletion')
+
+
+def test_training_curves_ignore_partial_and_non_finite_metrics(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    run_dir = tmp_path / "artifacts" / "modflow" / "runs" / "train-corrupt"
+    log_path = tmp_path / "train-corrupt.log"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    log_path.write_text("[done] completed", encoding="utf-8")
+
+    valid_train_point = {
+        "epoch": 1,
+        "step": 2,
+        "global_step": 3,
+        "avg_loss": 0.25,
+        "steps_per_sec": 4.5,
+        "eta_seconds": 6.0,
+    }
+    non_finite_train_point = {
+        "epoch": 2,
+        "step": 3,
+        "global_step": 4,
+        "avg_loss": "nan",
+        "steps_per_sec": 5.0,
+        "eta_seconds": 7.0,
+    }
+    (run_dir / "train_log.jsonl").write_text(
+        "\n".join(
+            [
+                json.dumps(valid_train_point),
+                '{"epoch": 2,',
+                json.dumps(non_finite_train_point),
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "test_metrics_epoch_0001.json").write_text(
+        json.dumps(
+            {
+                "epoch": 1,
+                "overall": {
+                    "accuracy": 1,
+                    "precision": 0.8,
+                    "recall": 0.75,
+                    "f1": 0.77,
+                    "pr_auc": "nan",
+                },
+                "per_scenario": {"coastal_seawater": {"f1": 0.9, "pr_auc": "nan"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run_dir / "test_metrics_epoch_0002.json").write_text('{"epoch": 2,', encoding="utf-8")
+    (run_dir / "test_metrics_latest.json").write_text('{"epoch": 2,', encoding="utf-8")
+
+    training_manager._save_registry(
+        [
+            {
+                "job_id": "train-corrupt",
+                "name": "corrupt-job",
+                "status": "done",
+                "pid": None,
+                "created_at": 1.0,
+                "run_dir": str(run_dir),
+                "log_path": str(log_path),
+            }
+        ]
+    )
+
+    job = training_manager.get_job("train-corrupt", refresh=True)
+    assert job["latest_epoch"] == 1
+    assert job.get("latest_metrics") is None
+
+    curves = training_manager.get_curves("train-corrupt")
+    assert curves["training_points"] == [valid_train_point]
+    assert curves["training_epoch_points"] == [valid_train_point]
+    assert curves["test_points"] == [
+        {
+            "epoch": 1,
+            "accuracy": 1.0,
+            "precision": 0.8,
+            "recall": 0.75,
+            "f1": 0.77,
+            "pr_auc": 0.0,
+            "per_scenario": {"coastal_seawater": {"f1": 0.9}},
+        }
+    ]

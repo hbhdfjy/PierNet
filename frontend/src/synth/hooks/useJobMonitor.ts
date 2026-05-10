@@ -53,8 +53,12 @@ function isExpectedJobForStage(stageKey: string, jobType: string | null | undefi
   return !expected || (typeof jobType === 'string' && expected.includes(jobType))
 }
 
-function isTerminalStatus(status: string): status is JobStatus {
+export function isTerminalJobStatus(status: string | null | undefined): status is JobStatus {
   return status === 'done' || status === 'error' || status === 'terminated' || status === 'external_terminated'
+}
+
+export function isRestartableJobStatus(status: JobStatus | null | undefined): boolean {
+  return !status || status === 'idle' || isTerminalJobStatus(status)
 }
 
 function toFiniteNumber(value: unknown, fallback = 0): number {
@@ -204,7 +208,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             applyBackendSnapshot(data)
             const snapshotStatus = data.status as JobStatus
             setJobStatuses(prev => ({ ...prev, [id]: snapshotStatus }))
-            if (isTerminalStatus(snapshotStatus)) {
+            if (isTerminalJobStatus(snapshotStatus)) {
               terminatedRef.current.add(id)
               es.close()
               esMap.current.delete(id)
@@ -263,7 +267,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             const snapshotStatus = data.status as JobStatus
             if (snapshotStatus === 'running') {
               toConnect.push(id)
-            } else if (isTerminalStatus(snapshotStatus)) {
+            } else if (isTerminalJobStatus(snapshotStatus)) {
               toRestore.push({ id, status: snapshotStatus })
             } else {
               toDrop.push(id)

@@ -101,7 +101,6 @@
             "type": "integer"
           },
           "scenarios": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -239,7 +238,6 @@
             "type": "integer"
           },
           "scenarios": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -486,7 +484,6 @@
             "type": "string"
           },
           "fields": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -504,7 +501,6 @@
             "type": "boolean"
           },
           "scenarios": {
-            "default": [],
             "items": {
               "type": "string"
             },
@@ -1915,7 +1911,6 @@
             "additionalProperties": {
               "type": "integer"
             },
-            "default": {},
             "title": "Scenario Totals",
             "type": "object"
           },

@@ -24,7 +24,7 @@ import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
-import { useJobMonitor } from '../hooks/useJobMonitor'
+import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
 export default function TemplateGenerator() {
@@ -73,7 +73,7 @@ export default function TemplateGenerator() {
   }, [genCfg])
 
   useEffect(() => {
-    if (monitor.status === 'done' || monitor.status === 'error') {
+    if (isTerminalJobStatus(monitor.status)) {
       refreshTemplates()
     }
   }, [monitor.status, refreshTemplates])
@@ -119,12 +119,7 @@ export default function TemplateGenerator() {
   }
 
   const totalTemplates = Object.values(templateMap).reduce((s, t) => s + t.template_count, 0)
-  const canLaunch =
-    !monitor.status ||
-    monitor.status === 'idle' ||
-    monitor.status === 'done' ||
-    monitor.status === 'error' ||
-    monitor.status === 'terminated'
+  const canLaunch = isRestartableJobStatus(monitor.status)
   const llmReady = llmCfg?.has_api_key === true
 
   return (
@@ -423,7 +418,7 @@ export default function TemplateGenerator() {
                   </>
                 )}
               </button>
-              {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
+              {isTerminalJobStatus(monitor.status) && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
                   重新配置
                 </button>
