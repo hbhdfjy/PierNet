@@ -2,7 +2,6 @@ import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { useTheme } from '../shared/theme'
 
-
 const LandingPage = lazy(() => import('./LandingPage'))
 const SynthApp = lazy(() => import('../synth/SynthApp'))
 const TrainingApp = lazy(() => import('../training/TrainingApp'))
@@ -36,7 +35,7 @@ export default function PlatformRouter() {
         <Route path="/training/*" element={<TrainingApp theme={theme} toggleTheme={toggleTheme} />} />
         <Route path="/files" element={<Navigate to="/synth/files" replace />} />
         <Route path="/synth/*" element={<SynthApp theme={theme} toggleTheme={toggleTheme} />} />
-        {SYNTH_LEGACY_ROUTES.map((path) => (
+        {SYNTH_LEGACY_ROUTES.map(path => (
           <Route key={path} path={path} element={<Navigate to={`/synth${path}`} replace />} />
         ))}
         <Route path="*" element={<Navigate to="/" replace />} />

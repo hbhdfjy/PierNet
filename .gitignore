@@ -42,6 +42,8 @@ logs/
 .runlogs/
 wandb/
 *.log
+frontend/test-results/
+frontend/playwright-report/
 
 # IDE
 .vscode/

@@ -1,9 +1,23 @@
 import { lazy, Suspense, useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import {
-  Database, BarChart2, BookOpen, Cpu, FlaskConical, BookTemplate,
-  KeyRound, FileText, Zap, Sun, Moon, GitBranch, Network,
-  Shuffle, ChevronRight, UploadCloud, FolderOpen,
+  Database,
+  BarChart2,
+  BookOpen,
+  Cpu,
+  FlaskConical,
+  BookTemplate,
+  KeyRound,
+  FileText,
+  Zap,
+  Sun,
+  Moon,
+  GitBranch,
+  Network,
+  Shuffle,
+  ChevronRight,
+  UploadCloud,
+  FolderOpen,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
 import { SeedContext } from '../lib/seedContext'
@@ -26,11 +40,11 @@ const FileManagerContent = lazy(() =>
 )
 
 const STAGE_COLORS = {
-  amber:   { accent: 'hsl(36 96% 61%)', soft: 'rgba(245, 158, 11, 0.14)', border: 'rgba(245, 158, 11, 0.24)' },
-  sky:     { accent: 'hsl(198 93% 60%)', soft: 'rgba(14, 165, 233, 0.14)', border: 'rgba(14, 165, 233, 0.24)' },
-  violet:  { accent: 'hsl(262 88% 68%)', soft: 'rgba(139, 92, 246, 0.15)', border: 'rgba(139, 92, 246, 0.24)' },
+  amber: { accent: 'hsl(36 96% 61%)', soft: 'rgba(245, 158, 11, 0.14)', border: 'rgba(245, 158, 11, 0.24)' },
+  sky: { accent: 'hsl(198 93% 60%)', soft: 'rgba(14, 165, 233, 0.14)', border: 'rgba(14, 165, 233, 0.24)' },
+  violet: { accent: 'hsl(262 88% 68%)', soft: 'rgba(139, 92, 246, 0.15)', border: 'rgba(139, 92, 246, 0.24)' },
   emerald: { accent: 'hsl(158 64% 52%)', soft: 'rgba(16, 185, 129, 0.14)', border: 'rgba(16, 185, 129, 0.22)' },
-  rose:    { accent: 'hsl(347 86% 62%)', soft: 'rgba(244, 63, 94, 0.14)', border: 'rgba(244, 63, 94, 0.22)' },
+  rose: { accent: 'hsl(347 86% 62%)', soft: 'rgba(244, 63, 94, 0.14)', border: 'rgba(244, 63, 94, 0.22)' },
 } as const
 
 type StageColor = keyof typeof STAGE_COLORS
@@ -98,9 +112,7 @@ function NavItem({
       {({ isActive }) => (
         <>
           {isActive && <span className="nav-item__rail" />}
-          <div className={cn('nav-item__icon', step && 'nav-item__icon--step')}>
-            {step ? step : <Icon size={14} />}
-          </div>
+          <div className={cn('nav-item__icon', step && 'nav-item__icon--step')}>{step ? step : <Icon size={14} />}</div>
           <span className="nav-item__label">{label}</span>
           {!isActive && RightIcon && (
             <span className="nav-item__hint">
@@ -174,7 +186,12 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
                 <NavItem to="/synth/template-viewer" icon={BookTemplate} label="模板浏览" rightIcon={ChevronRight} />
                 <NavItem to="/synth/samples" icon={Database} label="样本浏览" rightIcon={ChevronRight} />
                 <NavItem to="/synth/router-viewer" icon={Network} label="路由浏览" rightIcon={ChevronRight} />
-                <NavItem to="/synth/files" icon={FolderOpen} label={'\u6587\u4ef6\u7ba1\u7406'} rightIcon={ChevronRight} />
+                <NavItem
+                  to="/synth/files"
+                  icon={FolderOpen}
+                  label={'\u6587\u4ef6\u7ba1\u7406'}
+                  rightIcon={ChevronRight}
+                />
               </div>
             </div>
 

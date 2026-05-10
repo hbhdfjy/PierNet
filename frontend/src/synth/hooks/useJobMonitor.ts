@@ -14,7 +14,7 @@ export interface JobMonitorState {
   start: (jobId: string, scenarioTotals?: Record<string, number>) => void
   stop: () => Promise<void>
   reset: () => void
-  scenarioDoneCount: number  // 每完成一个场景递增，用于触发外部刷新
+  scenarioDoneCount: number // 每完成一个场景递增，用于触发外部刷新
 }
 
 const JOBS_KEY = (stageKey: string) => `piern_jobs_${stageKey}`
@@ -34,14 +34,18 @@ function loadStoredJobs(stageKey: string): string[] {
   try {
     const raw = localStorage.getItem(JOBS_KEY(stageKey))
     return raw ? JSON.parse(raw) : []
-  } catch { return [] }
+  } catch {
+    return []
+  }
 }
 
 function saveStoredJobs(stageKey: string, ids: string[]) {
   try {
     if (ids.length > 0) localStorage.setItem(JOBS_KEY(stageKey), JSON.stringify(ids))
     else localStorage.removeItem(JOBS_KEY(stageKey))
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
 }
 
 function isExpectedJobForStage(stageKey: string, jobType: string | null | undefined): boolean {
@@ -112,121 +116,114 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     return 'idle'
   })()
 
-  const removeJob = useCallback((id: string) => {
-    setJobIds(prev => {
-      const next = prev.filter(j => j !== id)
-      saveStoredJobs(stageKey, next)
-      return next
-    })
-    setJobStatuses(prev => {
-      const next = { ...prev }
-      delete next[id]
-      return next
-    })
-  }, [stageKey])
-
   // 用 ref 记录每个 job 是否已收到终止事件，避免 onerror 与 onmessage 的竞态
   const terminatedRef = useRef<Set<string>>(new Set())
 
-  const connectOne = useCallback((id: string, initialStatus: JobStatus = 'running') => {
-    if (esMap.current.has(id)) return
-    // 用传入的 initialStatus 初始化，不用 ?? 避免 React 批处理导致旧状态覆盖
-    setJobStatuses(prev => {
-      if (prev[id] !== undefined) return prev   // 已有状态不覆盖（restoreJobs 已预设）
-      return { ...prev, [id]: initialStatus }
-    })
+  const connectOne = useCallback(
+    (id: string, initialStatus: JobStatus = 'running') => {
+      if (esMap.current.has(id)) return
+      // 用传入的 initialStatus 初始化，不用 ?? 避免 React 批处理导致旧状态覆盖
+      setJobStatuses(prev => {
+        if (prev[id] !== undefined) return prev // 已有状态不覆盖（restoreJobs 已预设）
+        return { ...prev, [id]: initialStatus }
+      })
 
-    const es = api.openGenerationStream(id)
+      const es = api.openGenerationStream(id)
 
-    es.onmessage = (e) => {
-      try {
-        const event = JSON.parse(e.data)
-        if (event.type === 'init') {
-          const totals: Record<string, number> = event.scenario_totals ?? {}
-          setProgress(prev => {
-            const next = { ...prev }
-            for (const [sc, total] of Object.entries(totals)) {
-              next[sc] = normalizeProgress(sc, { scenario: sc, done: prev[sc]?.done ?? 0, total: total as number })
-            }
-            return next
-          })
-        } else if (event.type === 'log') {
-          let shouldAppendLog = true
-          if (event.progress) {
-            const p = normalizeProgress(String(event.progress.scenario ?? ''), event.progress)
-            if (p.scenario) {
-              setProgress(prev => ({ ...prev, [p.scenario]: p }))
-              const byJob = lastLoggedProgressRef.current[id] ?? {}
-              if (byJob[p.scenario] === p.done) {
-                shouldAppendLog = false
-              } else {
-                lastLoggedProgressRef.current[id] = { ...byJob, [p.scenario]: p.done }
+      es.onmessage = e => {
+        try {
+          const event = JSON.parse(e.data)
+          if (event.type === 'init') {
+            const totals: Record<string, number> = event.scenario_totals ?? {}
+            setProgress(prev => {
+              const next = { ...prev }
+              for (const [sc, total] of Object.entries(totals)) {
+                next[sc] = normalizeProgress(sc, { scenario: sc, done: prev[sc]?.done ?? 0, total: total as number })
+              }
+              return next
+            })
+          } else if (event.type === 'log') {
+            let shouldAppendLog = true
+            if (event.progress) {
+              const p = normalizeProgress(String(event.progress.scenario ?? ''), event.progress)
+              if (p.scenario) {
+                setProgress(prev => ({ ...prev, [p.scenario]: p }))
+                const byJob = lastLoggedProgressRef.current[id] ?? {}
+                if (byJob[p.scenario] === p.done) {
+                  shouldAppendLog = false
+                } else {
+                  lastLoggedProgressRef.current[id] = { ...byJob, [p.scenario]: p.done }
+                }
               }
             }
-          }
-          if (event.stats) setStats(event.stats)
-          if (shouldAppendLog) {
-            setLogs(prev => {
-              const next = [...prev, { line: event.line, ts: event.ts } as LogLine]
-              return next.length > 5000 ? next.slice(-5000) : next
-            })
-          }
-        } else if (event.type === 'done') {
-          terminatedRef.current.add(id)   // 先标记，再 setState，防止 onerror 竞态
-          setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
-          es.close()
-          esMap.current.delete(id)
-        } else if (event.type === 'error') {
-          terminatedRef.current.add(id)
-          setJobStatuses(prev => ({ ...prev, [id]: 'error' }))
-          setLogs(prev => [...prev, { line: `[ERROR] ${event.message ?? '未知错误'}`, ts: event.ts }])
-          es.close()
-          esMap.current.delete(id)
-        } else if (event.type === 'terminated' || event.type === 'external_terminated') {
-          terminatedRef.current.add(id)
-          setJobStatuses(prev => ({ ...prev, [id]: event.type }))
-          if (event.message) {
-            setLogs(prev => [...prev, { line: `[终止] ${event.message}`, ts: event.ts }])
-          }
-          es.close()
-          esMap.current.delete(id)
-        } else if (event.type === 'scenario_done') {
-          setScenarioDoneCount(n => n + 1)
-        }
-      } catch { /* ignore */ }
-    }
-
-    es.onerror = () => {
-      if (terminatedRef.current.has(id)) {
-        es.close()
-        esMap.current.delete(id)
-        return
-      }
-      if (errorCheckInFlightRef.current.has(id)) return
-      errorCheckInFlightRef.current.add(id)
-      api.getGenerationStatus(id)
-        .then(data => {
-          applyBackendSnapshot(data)
-          const snapshotStatus = data.status as JobStatus
-          setJobStatuses(prev => ({ ...prev, [id]: snapshotStatus }))
-          if (isTerminalStatus(snapshotStatus)) {
-            terminatedRef.current.add(id)
+            if (event.stats) setStats(event.stats)
+            if (shouldAppendLog) {
+              setLogs(prev => {
+                const next = [...prev, { line: event.line, ts: event.ts } as LogLine]
+                return next.length > 5000 ? next.slice(-5000) : next
+              })
+            }
+          } else if (event.type === 'done') {
+            terminatedRef.current.add(id) // 先标记，再 setState，防止 onerror 竞态
+            setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
             es.close()
             esMap.current.delete(id)
+          } else if (event.type === 'error') {
+            terminatedRef.current.add(id)
+            setJobStatuses(prev => ({ ...prev, [id]: 'error' }))
+            setLogs(prev => [...prev, { line: `[ERROR] ${event.message ?? '未知错误'}`, ts: event.ts }])
+            es.close()
+            esMap.current.delete(id)
+          } else if (event.type === 'terminated' || event.type === 'external_terminated') {
+            terminatedRef.current.add(id)
+            setJobStatuses(prev => ({ ...prev, [id]: event.type }))
+            if (event.message) {
+              setLogs(prev => [...prev, { line: `[终止] ${event.message}`, ts: event.ts }])
+            }
+            es.close()
+            esMap.current.delete(id)
+          } else if (event.type === 'scenario_done') {
+            setScenarioDoneCount(n => n + 1)
           }
-        })
-        .catch(() => {
-          // Keep the EventSource open; the browser will retry transient drops.
-        })
-        .finally(() => {
-          window.setTimeout(() => {
-            errorCheckInFlightRef.current.delete(id)
-          }, 1500)
-        })
-    }
+        } catch {
+          /* ignore */
+        }
+      }
 
-    esMap.current.set(id, es)
-  }, [applyBackendSnapshot])
+      es.onerror = () => {
+        if (terminatedRef.current.has(id)) {
+          es.close()
+          esMap.current.delete(id)
+          return
+        }
+        if (errorCheckInFlightRef.current.has(id)) return
+        errorCheckInFlightRef.current.add(id)
+        api
+          .getGenerationStatus(id)
+          .then(data => {
+            applyBackendSnapshot(data)
+            const snapshotStatus = data.status as JobStatus
+            setJobStatuses(prev => ({ ...prev, [id]: snapshotStatus }))
+            if (isTerminalStatus(snapshotStatus)) {
+              terminatedRef.current.add(id)
+              es.close()
+              esMap.current.delete(id)
+            }
+          })
+          .catch(() => {
+            // Keep the EventSource open; the browser will retry transient drops.
+          })
+          .finally(() => {
+            window.setTimeout(() => {
+              errorCheckInFlightRef.current.delete(id)
+            }, 1500)
+          })
+      }
+
+      esMap.current.set(id, es)
+    },
+    [applyBackendSnapshot],
+  )
 
   // mount 时：从 localStorage 恢复；没有本地记录时，从后端发现正在运行的同阶段任务
   useEffect(() => {
@@ -240,7 +237,9 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
           .sort((a, b) => Number(b.started_at ?? 0) - Number(a.started_at ?? 0))
           .slice(0, 1)
           .map(job => job.job_id)
-      } catch { return [] }
+      } catch {
+        return []
+      }
     }
 
     const restoreJobs = async () => {
@@ -252,26 +251,28 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
       const toRestore: { id: string; status: JobStatus }[] = []
       const toDrop: string[] = []
 
-      await Promise.all(candidateIds.map(async (id) => {
-        try {
-          const data = await api.getGenerationStatus(id)
-          if (!isExpectedJobForStage(stageKey, data.job_type)) {
+      await Promise.all(
+        candidateIds.map(async id => {
+          try {
+            const data = await api.getGenerationStatus(id)
+            if (!isExpectedJobForStage(stageKey, data.job_type)) {
+              toDrop.push(id)
+              return
+            }
+            applyBackendSnapshot(data)
+            const snapshotStatus = data.status as JobStatus
+            if (snapshotStatus === 'running') {
+              toConnect.push(id)
+            } else if (isTerminalStatus(snapshotStatus)) {
+              toRestore.push({ id, status: snapshotStatus })
+            } else {
+              toDrop.push(id)
+            }
+          } catch {
             toDrop.push(id)
-            return
           }
-          applyBackendSnapshot(data)
-          const snapshotStatus = data.status as JobStatus
-          if (snapshotStatus === 'running') {
-            toConnect.push(id)
-          } else if (isTerminalStatus(snapshotStatus)) {
-            toRestore.push({ id, status: snapshotStatus })
-          } else {
-            toDrop.push(id)
-          }
-        } catch {
-          toDrop.push(id)
-        }
-      }))
+        }),
+      )
 
       const validIds = [...toConnect, ...toRestore.map(r => r.id)]
 
@@ -284,7 +285,9 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
         // done/error：设置真实最终状态（connectOne 里检测到 prev[id] 已有值会跳过覆盖）
         const finalStatuses: Record<string, JobStatus> = {}
-        toRestore.forEach(({ id, status }) => { finalStatuses[id] = status })
+        toRestore.forEach(({ id, status }) => {
+          finalStatuses[id] = status
+        })
         setJobStatuses(prev => ({ ...prev, ...finalStatuses }))
 
         // running：建立 SSE 连接
@@ -299,34 +302,40 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
     restoreJobs()
 
+    const eventSources = esMap.current
     return () => {
-      esMap.current.forEach(es => es.close())
-      esMap.current.clear()
+      eventSources.forEach(es => es.close())
+      eventSources.clear()
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const start = useCallback((id: string, scenarioTotals?: Record<string, number>) => {
-    // 清理旧的已完成/出错任务，只保留 running 的
-    const toClose: string[] = []
-    esMap.current.forEach((_, oldId) => {
-      if (jobStatuses[oldId] !== 'running') toClose.push(oldId)
-    })
-    toClose.forEach(oldId => {
-      esMap.current.get(oldId)?.close()
-      esMap.current.delete(oldId)
-    })
-    setJobIds([id])
-    setJobStatuses({ [id]: 'running' })
-    setLogs([])
-    setProgress(Object.fromEntries(
-      Object.entries(scenarioTotals ?? {}).map(([scenario, total]) => [scenario, { scenario, done: 0, total }]),
-    ))
-    setStats({ elapsed_sec: 0, samples_per_sec: 0 })
-    lastLoggedProgressRef.current = { [id]: {} }
-    saveStoredJobs(stageKey, [id])
-    connectOne(id)
-  }, [connectOne, stageKey, jobStatuses])
+  const start = useCallback(
+    (id: string, scenarioTotals?: Record<string, number>) => {
+      // 清理旧的已完成/出错任务，只保留 running 的
+      const toClose: string[] = []
+      esMap.current.forEach((_, oldId) => {
+        if (jobStatuses[oldId] !== 'running') toClose.push(oldId)
+      })
+      toClose.forEach(oldId => {
+        esMap.current.get(oldId)?.close()
+        esMap.current.delete(oldId)
+      })
+      setJobIds([id])
+      setJobStatuses({ [id]: 'running' })
+      setLogs([])
+      setProgress(
+        Object.fromEntries(
+          Object.entries(scenarioTotals ?? {}).map(([scenario, total]) => [scenario, { scenario, done: 0, total }]),
+        ),
+      )
+      setStats({ elapsed_sec: 0, samples_per_sec: 0 })
+      lastLoggedProgressRef.current = { [id]: {} }
+      saveStoredJobs(stageKey, [id])
+      connectOne(id)
+    },
+    [connectOne, stageKey, jobStatuses],
+  )
 
   const stop = useCallback(async () => {
     const runningIds = Object.entries(jobStatuses)
@@ -335,7 +344,9 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
     await Promise.all(runningIds.map(id => api.stopGeneration(id)))
     setJobStatuses(prev => {
       const next = { ...prev }
-      runningIds.forEach(id => { next[id] = 'terminated' })
+      runningIds.forEach(id => {
+        next[id] = 'terminated'
+      })
       return next
     })
     esMap.current.forEach(es => es.close())

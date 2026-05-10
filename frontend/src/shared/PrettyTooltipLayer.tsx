@@ -143,10 +143,7 @@ export default function PrettyTooltipLayer() {
       const activeTarget = activeTargetRef.current
       if (!activeTarget) return
       const next = event.relatedTarget
-      if (
-        next instanceof Node &&
-        (activeTarget.contains(next) || panelRef.current?.contains(next))
-      ) {
+      if (next instanceof Node && (activeTarget.contains(next) || panelRef.current?.contains(next))) {
         return
       }
       hideSoon()
@@ -198,6 +195,8 @@ export default function PrettyTooltipLayer() {
       window.removeEventListener('resize', hideNow)
       window.removeEventListener('scroll', hideNow, true)
     }
+    // The document-level listeners read latest refs; re-registering on every hover would be noisy.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   useLayoutEffect(() => {

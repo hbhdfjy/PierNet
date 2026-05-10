@@ -11,7 +11,6 @@ const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
 
-
 function PageFallback() {
   return <div className="px-6 py-5 text-sm text-slate-400">加载中...</div>
 }
@@ -41,7 +40,9 @@ function NavItem({
       {({ isActive }) => (
         <>
           {isActive && <span className="nav-item__rail" />}
-          <div className="nav-item__icon"><Icon size={14} /></div>
+          <div className="nav-item__icon">
+            <Icon size={14} />
+          </div>
           <span className="nav-item__label">{label}</span>
         </>
       )}
@@ -110,7 +111,17 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
             <Route path="new" element={<TrainingNewJobPage />} />
             <Route path="jobs" element={<TrainingJobsPage />} />
             <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
-            <Route path="files" element={<FileManagerContent initialPlatform="training" lockPlatform title="训练文件管理" copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。" />} />
+            <Route
+              path="files"
+              element={
+                <FileManagerContent
+                  initialPlatform="training"
+                  lockPlatform
+                  title="训练文件管理"
+                  copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。"
+                />
+              }
+            />
             <Route path="*" element={<Navigate to="/training" replace />} />
           </Routes>
         </Suspense>

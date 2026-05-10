@@ -16,13 +16,7 @@ import {
 } from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 import { cn } from '../../lib/utils'
-import {
-  formatBytes,
-  LANGUAGE_LABELS,
-  STYLE_LABELS,
-  SIMULATOR_LABELS,
-  getSimulatorBadgeClass,
-} from '../../lib/utils'
+import { formatBytes, LANGUAGE_LABELS, STYLE_LABELS, SIMULATOR_LABELS, getSimulatorBadgeClass } from '../../lib/utils'
 
 const PALETTE = ['#38bdf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#4ade80']
 
@@ -54,17 +48,7 @@ function SectionTitle({ title, copy }: { title: string; copy: string }) {
   )
 }
 
-function KpiCard({
-  label,
-  value,
-  note,
-  icon,
-}: {
-  label: string
-  value: string
-  note: string
-  icon: React.ReactNode
-}) {
+function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
   return (
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
@@ -132,9 +116,7 @@ function OverviewHero({
             <span>数据集</span>
           </div>
           <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">数据总览</h1>
-          <p className="mt-1.5 max-w-2xl training-copy">
-            直接查看样本规模、内容分布、文件结构和 Router 训练数据。
-          </p>
+          <p className="mt-1.5 max-w-2xl training-copy">直接查看样本规模、内容分布、文件结构和 Router 训练数据。</p>
         </div>
         <button className="btn-ghost self-start" onClick={onRefresh}>
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -143,8 +125,18 @@ function OverviewHero({
       </div>
 
       <div className="mt-4 training-kpi-grid">
-        <KpiCard label="样本" value={totalSamples.toLocaleString()} note={`${datasetCount} 个 JSONL`} icon={<Database size={16} />} />
-        <KpiCard label="场景" value={scenarioCount.toString()} note={`${simulatorCount} 个仿真器`} icon={<Layers size={16} />} />
+        <KpiCard
+          label="样本"
+          value={totalSamples.toLocaleString()}
+          note={`${datasetCount} 个 JSONL`}
+          icon={<Database size={16} />}
+        />
+        <KpiCard
+          label="场景"
+          value={scenarioCount.toString()}
+          note={`${simulatorCount} 个仿真器`}
+          icon={<Layers size={16} />}
+        />
         <KpiCard label="Router" value={formatCompact(routerTotal)} note="训练输入规模" icon={<GitBranch size={16} />} />
         <KpiCard label="结构" value={shapeCount.toString()} note="时序形状" icon={<BarChart2 size={16} />} />
       </div>
@@ -180,14 +172,26 @@ function PieCard({
           <div className="relative flex-shrink-0">
             <ResponsiveContainer width={108} height={108}>
               <PieChart>
-                <Pie data={chartData} cx="50%" cy="50%" innerRadius={24} outerRadius={48} dataKey="value" paddingAngle={2} strokeWidth={0}>
+                <Pie
+                  data={chartData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={24}
+                  outerRadius={48}
+                  dataKey="value"
+                  paddingAngle={2}
+                  strokeWidth={0}
+                >
                   {chartData.map((_, index) => (
                     <Cell key={index} fill={PALETTE[index % PALETTE.length]} />
                   ))}
                 </Pie>
                 <Tooltip
                   {...TOOLTIP_STYLE}
-                  formatter={(value: number) => [`${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`, '']}
+                  formatter={(value: number) => [
+                    `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
+                    '',
+                  ]}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -204,14 +208,22 @@ function PieCard({
               return (
                 <div key={name}>
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: PALETTE[index % PALETTE.length] }} />
+                    <span
+                      className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                      style={{ background: PALETTE[index % PALETTE.length] }}
+                    />
                     <span className="flex-1 truncate text-sm font-medium text-slate-300">
                       {LANGUAGE_LABELS[name] ?? STYLE_LABELS[name] ?? SIMULATOR_LABELS[name] ?? name}
                     </span>
-                    <span className="flex-shrink-0 font-mono text-sm tabular-nums text-slate-400">{value.toLocaleString()}</span>
+                    <span className="flex-shrink-0 font-mono text-sm tabular-nums text-slate-400">
+                      {value.toLocaleString()}
+                    </span>
                   </div>
                   <div className="ml-4 h-1.5 overflow-hidden rounded-full bg-slate-800/70">
-                    <div className="h-full rounded-full transition-all duration-500" style={{ width: `${pct}%`, background: PALETTE[index % PALETTE.length] }} />
+                    <div
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: PALETTE[index % PALETTE.length] }}
+                    />
                   </div>
                 </div>
               )
@@ -224,7 +236,9 @@ function PieCard({
 }
 
 function ScenarioBar({ data }: { data: Record<string, number> }) {
-  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]).slice(0, 22)
+  const entries = Object.entries(data)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 22)
   if (entries.length === 0) return null
 
   const maxVal = Math.max(...entries.map(([, value]) => value))
@@ -296,14 +310,26 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
           </thead>
           <tbody>
             {entries.map(([sim, [channels, timesteps]], index) => (
-              <tr key={sim} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', index % 2 === 0 ? '' : 'bg-slate-800/10')}>
+              <tr
+                key={sim}
+                className={cn(
+                  'border-b border-slate-800/40 transition-colors hover:bg-slate-700/20',
+                  index % 2 === 0 ? '' : 'bg-slate-800/10',
+                )}
+              >
                 <td className="px-5 py-3">
-                  <span className={cn('badge border', getSimulatorBadgeClass(sim))}>{SIMULATOR_LABELS[sim] ?? sim}</span>
+                  <span className={cn('badge border', getSimulatorBadgeClass(sim))}>
+                    {SIMULATOR_LABELS[sim] ?? sim}
+                  </span>
                 </td>
                 <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{channels}</td>
                 <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{timesteps}</td>
-                <td className="px-5 py-3 text-right font-mono text-slate-500">({channels}, {timesteps})</td>
-                <td className="px-5 py-3 text-right font-mono tabular-nums font-semibold text-sky-400">{(channels * timesteps).toLocaleString()}</td>
+                <td className="px-5 py-3 text-right font-mono text-slate-500">
+                  ({channels}, {timesteps})
+                </td>
+                <td className="px-5 py-3 text-right font-mono tabular-nums font-semibold text-sky-400">
+                  {(channels * timesteps).toLocaleString()}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -330,7 +356,12 @@ function RouterStatCard({
     <div className="training-surface">
       <div className="flex items-start justify-between gap-3">
         <div className="training-kpi__label">{label}</div>
-        <span className={cn('flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35', color)}>
+        <span
+          className={cn(
+            'flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35',
+            color,
+          )}
+        >
           {icon}
         </span>
       </div>
@@ -342,8 +373,11 @@ function RouterStatCard({
 
 export default function DatasetStats() {
   const statsSwrOptions = { revalidateOnFocus: false }
-  const { data: summary, isLoading: loading, mutate: refreshSummary } =
-    useSWR<DashboardSummary>('dashboard-summary', () => api.getDashboardSummary(), statsSwrOptions)
+  const {
+    data: summary,
+    isLoading: loading,
+    mutate: refreshSummary,
+  } = useSWR<DashboardSummary>('dashboard-summary', () => api.getDashboardSummary(), statsSwrOptions)
 
   const stats = summary?.stats
   const datasets = summary?.datasets ?? []
@@ -379,7 +413,9 @@ export default function DatasetStats() {
               simulatorCount={simulatorCount}
               routerTotal={routerTotal}
               shapeCount={shapeCount}
-              onRefresh={() => { refreshSummary() }}
+              onRefresh={() => {
+                refreshSummary()
+              }}
               loading={loading}
             />
 
@@ -389,7 +425,12 @@ export default function DatasetStats() {
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                   <PieCard title="语言分布" icon={<Globe size={15} />} data={stats.by_language} />
                   <PieCard title="写作风格" icon={<FileText size={15} />} data={stats.by_style} />
-                  <PieCard title="时间采样" icon={<TrendingUp size={15} />} data={stats.by_time_mode} className="md:col-span-2" />
+                  <PieCard
+                    title="时间采样"
+                    icon={<TrendingUp size={15} />}
+                    data={stats.by_time_mode}
+                    className="md:col-span-2"
+                  />
                 </div>
               </div>
             </SectionBlock>
@@ -415,14 +456,28 @@ export default function DatasetStats() {
                       </thead>
                       <tbody>
                         {datasets.map((dataset, index) => (
-                          <tr key={dataset.name} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', index % 2 === 0 ? '' : 'bg-slate-800/10')}>
+                          <tr
+                            key={dataset.name}
+                            className={cn(
+                              'border-b border-slate-800/40 transition-colors hover:bg-slate-700/20',
+                              index % 2 === 0 ? '' : 'bg-slate-800/10',
+                            )}
+                          >
                             <td className="px-5 py-3 font-mono text-slate-200">{dataset.name}</td>
                             <td className="px-5 py-3">
-                              <span className={cn('badge border', getSimulatorBadgeClass(dataset.simulator))}>{SIMULATOR_LABELS[dataset.simulator] ?? dataset.simulator}</span>
+                              <span className={cn('badge border', getSimulatorBadgeClass(dataset.simulator))}>
+                                {SIMULATOR_LABELS[dataset.simulator] ?? dataset.simulator}
+                              </span>
                             </td>
-                            <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-400">{dataset.sample_count.toLocaleString()}</td>
-                            <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{formatBytes(dataset.file_size_bytes)}</td>
-                            <td className="px-5 py-3 text-right text-slate-500">{new Date(dataset.mtime * 1000).toLocaleString('zh-CN')}</td>
+                            <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-400">
+                              {dataset.sample_count.toLocaleString()}
+                            </td>
+                            <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">
+                              {formatBytes(dataset.file_size_bytes)}
+                            </td>
+                            <td className="px-5 py-3 text-right text-slate-500">
+                              {new Date(dataset.mtime * 1000).toLocaleString('zh-CN')}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -435,11 +490,33 @@ export default function DatasetStats() {
         )}
 
         {routerStatus && routerStatus.scenarios.length > 0 && (
-          <SectionBlock icon={<GitBranch size={17} />} title="路由训练数据" copy="源样本规模、正负分布和按场景落盘明细。">
+          <SectionBlock
+            icon={<GitBranch size={17} />}
+            title="路由训练数据"
+            copy="源样本规模、正负分布和按场景落盘明细。"
+          >
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <RouterStatCard label="源样本数" value={(routerStatus.source_count ?? 0).toLocaleString()} note="与 Router 源数据一一对应" color="text-sky-400" icon={<Database size={18} />} />
-              <RouterStatCard label="正样本" value={routerPositive.toLocaleString()} note={`${routerPositiveRate}% / label = 1`} color="text-emerald-400" icon={<Activity size={18} />} />
-              <RouterStatCard label="负样本" value={routerNegative.toLocaleString()} note={`${routerNegativeRate}% / label = 0`} color="text-amber-400" icon={<FileText size={18} />} />
+              <RouterStatCard
+                label="源样本数"
+                value={(routerStatus.source_count ?? 0).toLocaleString()}
+                note="与 Router 源数据一一对应"
+                color="text-sky-400"
+                icon={<Database size={18} />}
+              />
+              <RouterStatCard
+                label="正样本"
+                value={routerPositive.toLocaleString()}
+                note={`${routerPositiveRate}% / label = 1`}
+                color="text-emerald-400"
+                icon={<Activity size={18} />}
+              />
+              <RouterStatCard
+                label="负样本"
+                value={routerNegative.toLocaleString()}
+                note={`${routerNegativeRate}% / label = 0`}
+                color="text-amber-400"
+                icon={<FileText size={18} />}
+              />
             </div>
 
             <div className="training-card overflow-hidden">
@@ -461,15 +538,31 @@ export default function DatasetStats() {
                   </thead>
                   <tbody>
                     {routerStatus.scenarios.map((scenario, index) => (
-                      <tr key={scenario.scenario} className={cn('border-b border-slate-800/40 transition-colors hover:bg-slate-700/20', index % 2 === 0 ? '' : 'bg-slate-800/10')}>
+                      <tr
+                        key={scenario.scenario}
+                        className={cn(
+                          'border-b border-slate-800/40 transition-colors hover:bg-slate-700/20',
+                          index % 2 === 0 ? '' : 'bg-slate-800/10',
+                        )}
+                      >
                         <td className="px-5 py-3 font-mono text-slate-200">{scenario.scenario}</td>
                         <td className="px-5 py-3">
-                          <span className={cn('badge border', getSimulatorBadgeClass(scenario.simulator))}>{SIMULATOR_LABELS[scenario.simulator] ?? scenario.simulator}</span>
+                          <span className={cn('badge border', getSimulatorBadgeClass(scenario.simulator))}>
+                            {SIMULATOR_LABELS[scenario.simulator] ?? scenario.simulator}
+                          </span>
                         </td>
-                        <td className="px-5 py-3 text-right font-mono tabular-nums text-rose-400">{(scenario.router_count ?? 0).toLocaleString()}</td>
-                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{(routerStatus.source_by_scenario[scenario.scenario] ?? 0).toLocaleString()}</td>
-                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">{formatBytes(scenario.file_size_bytes ?? 0)}</td>
-                        <td className="px-5 py-3 text-right text-slate-500">{scenario.mtime ? new Date(scenario.mtime * 1000).toLocaleString('zh-CN') : '-'}</td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-rose-400">
+                          {(scenario.router_count ?? 0).toLocaleString()}
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">
+                          {(routerStatus.source_by_scenario[scenario.scenario] ?? 0).toLocaleString()}
+                        </td>
+                        <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">
+                          {formatBytes(scenario.file_size_bytes ?? 0)}
+                        </td>
+                        <td className="px-5 py-3 text-right text-slate-500">
+                          {scenario.mtime ? new Date(scenario.mtime * 1000).toLocaleString('zh-CN') : '-'}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

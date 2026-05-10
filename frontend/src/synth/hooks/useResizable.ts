@@ -29,14 +29,17 @@ export function useResizable({ defaultWidth, minWidth, maxWidth, storageKey }: U
     optionsRef.current = { minWidth, maxWidth, storageKey }
   }, [minWidth, maxWidth, storageKey])
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    dragging.current = true
-    startX.current = e.clientX
-    startW.current = width   // 记录拖拽开始时的宽度
-    document.body.style.cursor = 'col-resize'
-    document.body.style.userSelect = 'none'
-  }, [width])
+  const onMouseDown = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      dragging.current = true
+      startX.current = e.clientX
+      startW.current = width // 记录拖拽开始时的宽度
+      document.body.style.cursor = 'col-resize'
+      document.body.style.userSelect = 'none'
+    },
+    [width],
+  )
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -68,8 +71,6 @@ export function useResizable({ defaultWidth, minWidth, maxWidth, storageKey }: U
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
     }
-  // Bug #2 fix: event handlers 通过 optionsRef 读取最新值，不依赖闭包
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return { width, onMouseDown }

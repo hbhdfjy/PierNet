@@ -8,11 +8,14 @@ export type TrainingJobNotice = {
 const PLATFORM_STOP_PENDING_MESSAGE = 'Platform stop requested; waiting for checkpoint save.'
 const PLATFORM_STOP_PENDING_DISPLAY = '已发送停止请求，正在等待当前 checkpoint 安全保存。'
 
-export function trainingJobNotice(job: Pick<TrainingJobSummary, 'error_message' | 'exit_reason' | 'status' | 'stop_requested'>): TrainingJobNotice | null {
+export function trainingJobNotice(
+  job: Pick<TrainingJobSummary, 'error_message' | 'exit_reason' | 'status' | 'stop_requested'>,
+): TrainingJobNotice | null {
   const message = job.error_message
   if (!message) return null
 
-  const platformStop = job.exit_reason === 'platform_stop' || job.exit_reason === 'platform_stop_requested' || Boolean(job.stop_requested)
+  const platformStop =
+    job.exit_reason === 'platform_stop' || job.exit_reason === 'platform_stop_requested' || Boolean(job.stop_requested)
   if (platformStop && job.status === 'terminated' && message === PLATFORM_STOP_PENDING_MESSAGE) {
     return null
   }

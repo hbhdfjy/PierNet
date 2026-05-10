@@ -1,12 +1,10 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import {
   AlertTriangle,
   CheckCircle2,
   Database,
   FileCode2,
-  FolderOpen,
   Info,
   RefreshCw,
   ShieldCheck,
@@ -35,15 +33,21 @@ function deriveScenarioName(fileName: string, simulator: string): string {
 function ValidationPanel({ validation }: { validation: Hdf5ValidationResult }) {
   const hasMessages = validation.errors.length > 0 || validation.warnings.length > 0
   return (
-    <div className={cn(
-      'rounded-2xl border p-4',
-      validation.valid
-        ? 'border-emerald-500/25 bg-emerald-500/8'
-        : 'border-red-500/25 bg-red-500/8',
-    )}>
+    <div
+      className={cn(
+        'rounded-2xl border p-4',
+        validation.valid ? 'border-emerald-500/25 bg-emerald-500/8' : 'border-red-500/25 bg-red-500/8',
+      )}
+    >
       <div className="flex items-center gap-2">
-        {validation.valid ? <CheckCircle2 size={16} className="text-emerald-400" /> : <XCircle size={16} className="text-red-400" />}
-        <div className="font-semibold text-slate-100">{validation.valid ? '预检通过' : '预检未通过，注册前需要修复'}</div>
+        {validation.valid ? (
+          <CheckCircle2 size={16} className="text-emerald-400" />
+        ) : (
+          <XCircle size={16} className="text-red-400" />
+        )}
+        <div className="font-semibold text-slate-100">
+          {validation.valid ? '预检通过' : '预检未通过，注册前需要修复'}
+        </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
         <Metric label="样本" value={validation.sample_count.toLocaleString()} />
@@ -54,14 +58,27 @@ function ValidationPanel({ validation }: { validation: Hdf5ValidationResult }) {
       {validation.param_names_preview.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {validation.param_names_preview.map(name => (
-            <span key={name} className="rounded-lg border border-slate-700/40 bg-slate-900/35 px-2 py-1 font-mono text-xs text-slate-300">{name}</span>
+            <span
+              key={name}
+              className="rounded-lg border border-slate-700/40 bg-slate-900/35 px-2 py-1 font-mono text-xs text-slate-300"
+            >
+              {name}
+            </span>
           ))}
         </div>
       )}
       {hasMessages && (
         <div className="mt-3 space-y-1.5 text-sm">
-          {validation.errors.map(msg => <div key={`err-${msg}`} className="text-red-300">错误：{msg}</div>)}
-          {validation.warnings.map(msg => <div key={`warn-${msg}`} className="text-amber-300">警告：{msg}</div>)}
+          {validation.errors.map(msg => (
+            <div key={`err-${msg}`} className="text-red-300">
+              错误：{msg}
+            </div>
+          ))}
+          {validation.warnings.map(msg => (
+            <div key={`warn-${msg}`} className="text-amber-300">
+              警告：{msg}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -81,12 +98,14 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function FileStatus({ file }: { file: Hdf5DataFileInfo }) {
   return (
-    <span className={cn(
-      'inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold',
-      file.valid
-        ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-        : 'border-red-500/25 bg-red-500/10 text-red-300',
-    )}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 rounded-lg border px-2 py-0.5 text-xs font-semibold',
+        file.valid
+          ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+          : 'border-red-500/25 bg-red-500/10 text-red-300',
+      )}
+    >
       {file.valid ? <CheckCircle2 size={11} /> : <AlertTriangle size={11} />}
       {file.valid ? '合规' : '需修复'}
     </span>
@@ -94,8 +113,11 @@ function FileStatus({ file }: { file: Hdf5DataFileInfo }) {
 }
 
 export default function DataUploadPage() {
-  const navigate = useNavigate()
-  const { data: files, isLoading, mutate } = useSWR<Hdf5DataFileInfo[]>('hdf5-data-files', () => api.listHdf5DataFiles())
+  const {
+    data: files,
+    isLoading,
+    mutate,
+  } = useSWR<Hdf5DataFileInfo[]>('hdf5-data-files', () => api.listHdf5DataFiles())
   const { mutate: refreshSimulationScenarios } = useSWR('simulation-scenarios')
 
   const [simulator, setSimulator] = useState('modflow')
@@ -110,7 +132,10 @@ export default function DataUploadPage() {
   const cleanScenario = scenario.trim()
   const simulatorValid = NAME_RE.test(cleanSimulator)
   const scenarioValid = NAME_RE.test(cleanScenario)
-  const targetPath = cleanSimulator && cleanScenario ? `data/${cleanSimulator}/${cleanSimulator}_${cleanScenario}.h5` : 'data/{big_scene}/{big_scene}_{scenario}.h5'
+  const targetPath =
+    cleanSimulator && cleanScenario
+      ? `data/${cleanSimulator}/${cleanSimulator}_${cleanScenario}.h5`
+      : 'data/{big_scene}/{big_scene}_{scenario}.h5'
 
   const summary = useMemo(() => {
     const list = files ?? []
@@ -165,12 +190,13 @@ export default function DataUploadPage() {
         <section className="training-hero training-hero--compact">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <div className="training-eyebrow">
-                阶段 1 上传
-              </div>
-              <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">上传物理数据</h1>
+              <div className="training-eyebrow">阶段 1 上传</div>
+              <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">
+                上传物理数据
+              </h1>
               <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
-                将外部仿真器/大场景的数据纳入 PiERN 合成链路。上传后即时预检；注册场景时会执行强校验，不合规数据不能进入模板生成。
+                将外部仿真器/大场景的数据纳入 PiERN
+                合成链路。上传后即时预检；注册场景时会执行强校验，不合规数据不能进入模板生成。
               </p>
             </div>
             <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full">
@@ -188,7 +214,9 @@ export default function DataUploadPage() {
               <UploadCloud size={17} className="text-amber-400" />
               <div>
                 <div className="training-panel-title">上传与落盘</div>
-                <div className="training-panel-copy">目标路径固定为 data/&lt;big_scene&gt;/&lt;big_scene&gt;_&lt;scenario&gt;.h5</div>
+                <div className="training-panel-copy">
+                  目标路径固定为 data/&lt;big_scene&gt;/&lt;big_scene&gt;_&lt;scenario&gt;.h5
+                </div>
               </div>
             </div>
 
@@ -202,7 +230,9 @@ export default function DataUploadPage() {
                     onChange={e => setSimulator(e.target.value)}
                     placeholder="new_big_scene"
                   />
-                  <div className="text-xs text-slate-500">直接输入大场景命名空间，例如 modflow、simpeg 或 new_big_scene。</div>
+                  <div className="text-xs text-slate-500">
+                    直接输入大场景命名空间，例如 modflow、simpeg 或 new_big_scene。
+                  </div>
                 </label>
                 <label className="space-y-1.5">
                   <span className="label">场景名</span>
@@ -228,7 +258,11 @@ export default function DataUploadPage() {
                     />
                     {file && (
                       <div className="mt-3 text-sm text-slate-400">
-                        已选择 <span className="pretty-tooltip inline-block max-w-full align-bottom" data-tooltip={file.name}><span className="block truncate font-mono text-slate-200">{file.name}</span></span>，大小 {formatBytes(file.size)}
+                        已选择{' '}
+                        <span className="pretty-tooltip inline-block max-w-full align-bottom" data-tooltip={file.name}>
+                          <span className="block truncate font-mono text-slate-200">{file.name}</span>
+                        </span>
+                        ，大小 {formatBytes(file.size)}
                       </div>
                     )}
                   </div>
@@ -283,7 +317,9 @@ export default function DataUploadPage() {
               {SPEC_ITEMS.map((item, index) => (
                 <div key={item} className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
                   <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-100">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/12 font-mono text-xs text-emerald-300">{index + 1}</span>
+                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/12 font-mono text-xs text-emerald-300">
+                      {index + 1}
+                    </span>
                     必需项
                   </div>
                   <div className="text-sm leading-6 text-slate-400">{item}</div>
@@ -302,7 +338,8 @@ export default function DataUploadPage() {
             </div>
             <div className="flex-1" />
             <button className="btn-ghost py-1.5 text-xs" onClick={() => mutate()}>
-              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />刷新
+              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+              刷新
             </button>
           </div>
 
@@ -321,24 +358,44 @@ export default function DataUploadPage() {
               </thead>
               <tbody>
                 {(files ?? []).map((item, index) => (
-                  <tr key={item.path} className={cn('border-b border-slate-800/45 hover:bg-slate-700/18', index % 2 === 0 ? '' : 'bg-slate-800/10')}>
-                    <td className="px-5 py-3"><FileStatus file={item} /></td>
+                  <tr
+                    key={item.path}
+                    className={cn(
+                      'border-b border-slate-800/45 hover:bg-slate-700/18',
+                      index % 2 === 0 ? '' : 'bg-slate-800/10',
+                    )}
+                  >
                     <td className="px-5 py-3">
-                      <span className={cn('badge border', getSimulatorBadgeClass(item.simulator))}>{SIMULATOR_LABELS[item.simulator] ?? item.simulator}</span>
+                      <FileStatus file={item} />
+                    </td>
+                    <td className="px-5 py-3">
+                      <span className={cn('badge border', getSimulatorBadgeClass(item.simulator))}>
+                        {SIMULATOR_LABELS[item.simulator] ?? item.simulator}
+                      </span>
                     </td>
                     <td className="px-5 py-3">
                       <div className="font-mono font-semibold text-slate-100">{item.scenario}</div>
                       <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{item.path}</div>
                     </td>
-                    <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-300">{item.sample_count.toLocaleString()}</td>
-                    <td className="px-5 py-3 font-mono text-slate-400">{item.output_shape ? item.output_shape.join(' × ') : '—'}</td>
-                    <td className="px-5 py-3 text-right font-mono text-slate-400">{formatBytes(item.file_size_bytes)}</td>
-                    <td className="px-5 py-3 text-right text-slate-500">{new Date(item.mtime * 1000).toLocaleString('zh-CN')}</td>
+                    <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-300">
+                      {item.sample_count.toLocaleString()}
+                    </td>
+                    <td className="px-5 py-3 font-mono text-slate-400">
+                      {item.output_shape ? item.output_shape.join(' × ') : '—'}
+                    </td>
+                    <td className="px-5 py-3 text-right font-mono text-slate-400">
+                      {formatBytes(item.file_size_bytes)}
+                    </td>
+                    <td className="px-5 py-3 text-right text-slate-500">
+                      {new Date(item.mtime * 1000).toLocaleString('zh-CN')}
+                    </td>
                   </tr>
                 ))}
                 {!isLoading && (!files || files.length === 0) && (
                   <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-slate-500">暂无 HDF5 文件</td>
+                    <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
+                      暂无 HDF5 文件
+                    </td>
                   </tr>
                 )}
               </tbody>

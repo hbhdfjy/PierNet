@@ -110,8 +110,12 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
             </div>
           </div>
           <div className="platform-topbar__actions">
-            <Link to="/synth" className="btn-ghost">进入数据合成</Link>
-            <Link to="/training" className="btn-primary">进入训练平台</Link>
+            <Link to="/synth" className="btn-ghost">
+              进入数据合成
+            </Link>
+            <Link to="/training" className="btn-primary">
+              进入训练平台
+            </Link>
             <button type="button" onClick={toggleTheme} className="theme-toggle platform-theme-toggle">
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
               <span>{theme === 'dark' ? '日间' : '夜间'}</span>
@@ -128,7 +132,8 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               </div>
               <h1 className="platform-hero-title">从物理仿真到路由训练的清晰入口</h1>
               <p className="platform-hero-copy">
-                `/synth` 负责阶段 1-4 数据合成，`/training` 负责 Token Router 单卡训练。两个平台逻辑隔离，共享同一个前后端部署入口。
+                `/synth` 负责阶段 1-4 数据合成，`/training` 负责 Token Router
+                单卡训练。两个平台逻辑隔离，共享同一个前后端部署入口。
               </p>
               <div className="platform-hero-actions">
                 <Link to="/synth" className="btn-primary">
@@ -213,9 +218,17 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
           <section className="platform-info-grid" aria-label="Required project information">
             <InfoPill label="部署入口" value="单 FastAPI 应用托管 API 与前端静态资源" icon={<Server size={16} />} />
             <InfoPill label="数据读取" value="阶段 2-4 使用清单和索引加速浏览" icon={<BarChart3 size={16} />} />
-            <InfoPill label="代码边界" value="synth / training 独立命名空间，shared 只放基础设施" icon={<Boxes size={16} />} />
+            <InfoPill
+              label="代码边界"
+              value="synth / training 独立命名空间，shared 只放基础设施"
+              icon={<Boxes size={16} />}
+            />
             <InfoPill label="训练核心" value="Qwen embedding + full-sequence conv router" icon={<Cpu size={16} />} />
-            <InfoPill label="平台联通" value="两个平台仅通过入口链接与阶段 4 数据契约衔接" icon={<Network size={16} />} />
+            <InfoPill
+              label="平台联通"
+              value="两个平台仅通过入口链接与阶段 4 数据契约衔接"
+              icon={<Network size={16} />}
+            />
             <InfoPill label="运行约束" value="训练平台当前不是通用多卡训练系统" icon={<Workflow size={16} />} />
           </section>
         </main>

@@ -24,6 +24,7 @@ from piern.training.router.data import (
 )
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.shared.storage import portable
+from piern.training.services import job_store as training_job_store
 
 PYTHON_BIN = Path(os.getenv("PIERN_TRAINING_PYTHON", sys.executable))
 TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
@@ -64,24 +65,20 @@ def _ensure_dirs() -> None:
 
 def _load_registry() -> list[dict[str, Any]]:
     _ensure_dirs()
-    if not REGISTRY_PATH.exists():
+    try:
+        return training_job_store.list_job_snapshots()
+    except Exception:
+        LOGGER.exception("Failed to load training jobs from SQLite")
         return []
-    return json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
 
 
 def _save_registry(entries: list[dict[str, Any]]) -> None:
     _ensure_dirs()
-    tmp_path = REGISTRY_PATH.with_suffix(REGISTRY_PATH.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
     try:
-        tmp_path.chmod(0o600)
-    except OSError:
-        LOGGER.debug("Failed to chmod temporary training registry %s", tmp_path, exc_info=True)
-    tmp_path.replace(REGISTRY_PATH)
-    try:
-        REGISTRY_PATH.chmod(0o600)
-    except OSError:
-        LOGGER.debug("Failed to chmod training registry %s", REGISTRY_PATH, exc_info=True)
+        training_job_store.save_jobs(entries)
+    except Exception:
+        LOGGER.exception("Failed to save training jobs to SQLite")
+        raise
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -570,6 +567,10 @@ def delete_job(job_id: str) -> dict[str, Any]:
 
     _remove_job_log(entry)
     _remove_job_stop_file(entry)
+    try:
+        training_job_store.mark_deleted(job_id)
+    except Exception:
+        LOGGER.exception("Failed to mark training job deleted in SQLite store: %s", job_id)
     _delete_job_artifacts_in_background([target for _, target in staged])
     return entry
 

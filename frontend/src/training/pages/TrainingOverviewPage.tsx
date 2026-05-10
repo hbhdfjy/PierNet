@@ -13,17 +13,7 @@ import {
   statusLabel,
 } from '../shared'
 
-function KpiCard({
-  label,
-  value,
-  note,
-  icon,
-}: {
-  label: string
-  value: string
-  note: string
-  icon: React.ReactNode
-}) {
+function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
   return (
     <div className="training-kpi training-kpi--compact">
       <div className="flex items-center justify-between gap-3">
@@ -75,7 +65,9 @@ export default function TrainingOverviewPage() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">Token Router 训练</div>
-                <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">训练总览</h1>
+                <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">
+                  训练总览
+                </h1>
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <Link to="/training/new" className="btn-primary">
@@ -90,10 +82,30 @@ export default function TrainingOverviewPage() {
             </div>
 
             <div className="mt-4 training-kpi-grid">
-              <KpiCard label="样本" value={formatCount(totalDatasets)} note={`${data?.datasets.length ?? 0} 个大场景`} icon={<Database size={16} />} />
-              <KpiCard label="GPU" value={`${availableGpus}/${data?.gpus.length ?? 0}`} note="当前可用卡数" icon={<Gauge size={16} />} />
-              <KpiCard label="运行中" value={formatCount(data?.running_job_count ?? 0)} note="启动中 / 训练中 / 评测中 / 停止中" icon={<Activity size={16} />} />
-              <KpiCard label="已完成" value={formatCount(data?.completed_job_count ?? 0)} note="已有权重和测试结果" icon={<TimerReset size={16} />} />
+              <KpiCard
+                label="样本"
+                value={formatCount(totalDatasets)}
+                note={`${data?.datasets.length ?? 0} 个大场景`}
+                icon={<Database size={16} />}
+              />
+              <KpiCard
+                label="GPU"
+                value={`${availableGpus}/${data?.gpus.length ?? 0}`}
+                note="当前可用卡数"
+                icon={<Gauge size={16} />}
+              />
+              <KpiCard
+                label="运行中"
+                value={formatCount(data?.running_job_count ?? 0)}
+                note="启动中 / 训练中 / 评测中 / 停止中"
+                icon={<Activity size={16} />}
+              />
+              <KpiCard
+                label="已完成"
+                value={formatCount(data?.completed_job_count ?? 0)}
+                note="已有权重和测试结果"
+                icon={<TimerReset size={16} />}
+              />
             </div>
           </section>
 
@@ -135,9 +147,15 @@ export default function TrainingOverviewPage() {
                         </div>
                         <div className="mt-2 training-chip-grid">
                           {dataset.scenarios.map(scenario => (
-                            <div key={scenario.scenario} className="training-chip" title={`${scenario.scenario} · ${formatCount(scenario.router_count)} 条 · ${formatBytes(scenario.file_size_bytes)}`}>
+                            <div
+                              key={scenario.scenario}
+                              className="training-chip"
+                              title={`${scenario.scenario} · ${formatCount(scenario.router_count)} 条 · ${formatBytes(scenario.file_size_bytes)}`}
+                            >
                               <span className="truncate text-slate-200">{scenario.scenario}</span>
-                              <span className="mono text-[11px] text-slate-500">{formatCount(scenario.router_count)}</span>
+                              <span className="mono text-[11px] text-slate-500">
+                                {formatCount(scenario.router_count)}
+                              </span>
                             </div>
                           ))}
                         </div>
@@ -159,7 +177,8 @@ export default function TrainingOverviewPage() {
                 {data?.gpus?.length ? (
                   <div className="space-y-2">
                     {data.gpus.map(gpu => {
-                      const memoryRatio = gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
+                      const memoryRatio =
+                        gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
                       return (
                         <div key={gpu.index} className="training-surface--compact">
                           <div className="flex items-center justify-between gap-3">
@@ -167,14 +186,22 @@ export default function TrainingOverviewPage() {
                               <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
                               <div className="mt-0.5 truncate text-[13px] text-slate-400">{gpu.name}</div>
                             </div>
-                            <span className={gpu.available ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'}>
-                              {gpu.available ? '可用' : gpu.reason ?? '占用中'}
+                            <span
+                              className={
+                                gpu.available
+                                  ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
+                                  : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'
+                              }
+                            >
+                              {gpu.available ? '可用' : (gpu.reason ?? '占用中')}
                             </span>
                           </div>
                           <div className="mt-2 training-stat-grid">
                             <div>
                               <div className="training-label">显存</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">{gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">
+                                {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
+                              </div>
                               <UsageBar value={memoryRatio} />
                             </div>
                             <div>
@@ -210,7 +237,9 @@ export default function TrainingOverviewPage() {
                           </div>
                           <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
                         </div>
-                        <div className="mt-1.5 training-note">GPU {job.gpu_id} · {job.simulator} · {job.scenarios.length} 个子场景</div>
+                        <div className="mt-1.5 training-note">
+                          GPU {job.gpu_id} · {job.simulator} · {job.scenarios.length} 个子场景
+                        </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] text-slate-400">
                           <div>
                             <div className="training-label">创建时间</div>
@@ -218,7 +247,9 @@ export default function TrainingOverviewPage() {
                           </div>
                           <div>
                             <div className="training-label">最近 F1</div>
-                            <div className="mt-0.5 text-[13px] text-slate-200">{formatMetric(job.latest_metrics?.f1, 4)}</div>
+                            <div className="mt-0.5 text-[13px] text-slate-200">
+                              {formatMetric(job.latest_metrics?.f1, 4)}
+                            </div>
                           </div>
                         </div>
                       </Link>

@@ -4,7 +4,7 @@ import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo } from '../../lib/types'
-import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, Trash2, FolderOpen, ChevronDown, ChevronUp } from 'lucide-react'
+import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, FolderOpen } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
@@ -22,12 +22,19 @@ export default function SampleFiller() {
     storageKey: 'piern_fill_sidebar_width',
   })
 
-  const { data: scenariosCfg, isLoading: scLoading, mutate: refreshScenarios } =
-    useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios(), { revalidateOnMount: true })
-  const { data: genCfg } =
-    useSWR<GenerationConfig>('config', () => api.getConfig())
-  const { data: templatesStatus, mutate: refreshTemplates } =
-    useSWR<TemplateInfo[]>('templates', () => api.getTemplatesStatus(), { refreshInterval: 5000 })
+  const {
+    data: scenariosCfg,
+    isLoading: scLoading,
+    mutate: refreshScenarios,
+  } = useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios(), {
+    revalidateOnMount: true,
+  })
+  const { data: genCfg } = useSWR<GenerationConfig>('config', () => api.getConfig())
+  const { data: templatesStatus, mutate: refreshTemplates } = useSWR<TemplateInfo[]>(
+    'templates',
+    () => api.getTemplatesStatus(),
+    { refreshInterval: 5000 },
+  )
   const { seed } = useSeed()
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nSamples, setNSamples] = useState(100)
@@ -59,13 +66,17 @@ export default function SampleFiller() {
     if (!templateMap[name]) return
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(name)) next.delete(name); else next.add(name)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
       return next
     })
   }
 
   const handleLaunch = async () => {
-    if (selected.size === 0) { setError('请至少选择一个场景'); return }
+    if (selected.size === 0) {
+      setError('请至少选择一个场景')
+      return
+    }
     const missing = Array.from(selected).filter(n => !templateMap[n])
     if (missing.length > 0) {
       setError(`以下场景缺少模板：${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}`)
@@ -100,12 +111,8 @@ export default function SampleFiller() {
 
   return (
     <div className="workbench-shell">
-
       {/* ── 左栏：配置（可拖动宽度，内部分区滚动）── */}
-      <div
-        className="workbench-sidebar"
-        style={{ width: sidebarWidth }}
-      >
+      <div className="workbench-sidebar" style={{ width: sidebarWidth }}>
         {/* 顶部：页头（固定）*/}
         <div className="workbench-sidebar-header">
           <div className="flex items-center gap-2.5">
@@ -113,7 +120,9 @@ export default function SampleFiller() {
               <FlaskConical size={14} className="text-emerald-400" />
             </div>
             <h1 className="text-lg font-bold text-white">样本填充</h1>
-            <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">阶段 3</span>
+            <span className="badge bg-emerald-500/15 text-emerald-300 border border-emerald-500/20 text-xs">
+              阶段 3
+            </span>
           </div>
           <p className="text-slate-500 text-sm mt-1 ml-9">
             将模板库与 HDF5 数值结合，生成最终训练样本并直接保存为 Parquet。
@@ -133,7 +142,11 @@ export default function SampleFiller() {
                 </span>
               </div>
               <span className="text-xs text-slate-600 tabular-nums">
-                共 {Object.values(templateMap).reduce((s, t) => s + t.template_count, 0).toLocaleString()} 条
+                共{' '}
+                {Object.values(templateMap)
+                  .reduce((s, t) => s + t.template_count, 0)
+                  .toLocaleString()}{' '}
+                条
               </span>
             </div>
           </div>
@@ -143,8 +156,10 @@ export default function SampleFiller() {
               <Sparkles size={11} className="text-slate-600" />
               <span className="text-xs text-slate-600">暂无模板，请先完成阶段 2 模板生成</span>
             </div>
-            <button className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
-              onClick={() => navigate('/templates')}>
+            <button
+              className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
+              onClick={() => navigate('/templates')}
+            >
               去生成 →
             </button>
           </div>
@@ -164,12 +179,22 @@ export default function SampleFiller() {
               )}
             </div>
             <div className="flex items-center gap-0.5">
-              <button className="btn-ghost py-0.5 px-2 text-sm"
-                onClick={() => setSelected(new Set(scenariosWithTemplates.map(s => s.name)))}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-sm"
+                onClick={() => setSelected(new Set(scenariosWithTemplates.map(s => s.name)))}
+              >
                 全选
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-sm" onClick={() => setSelected(new Set())}>清空</button>
-              <button className="btn-ghost py-0.5 px-1.5" onClick={() => { refreshScenarios(); refreshTemplates() }}>
+              <button className="btn-ghost py-0.5 px-2 text-sm" onClick={() => setSelected(new Set())}>
+                清空
+              </button>
+              <button
+                className="btn-ghost py-0.5 px-1.5"
+                onClick={() => {
+                  refreshScenarios()
+                  refreshTemplates()
+                }}
+              >
                 <RefreshCw size={11} className={scLoading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -182,23 +207,25 @@ export default function SampleFiller() {
                 <RefreshCw size={11} className="animate-spin" /> 扫描中…
               </div>
             )}
-            {scenariosCfg && Object.entries(scenariosCfg).map(([dirKey, list]) => (
-              <div key={dirKey}>
-                <div className="workbench-group-label">{dirKey}</div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {list.map(s => (
-                    <ScenarioButton
-                      key={s.name} s={s}
-                      active={selected.has(s.name)}
-                      onClick={() => toggle(s.name)}
-                      templateCount={templateMap[s.name]?.template_count}
-                      disabled={!templateMap[s.name]}
-                      tone="emerald"
-                    />
-                  ))}
+            {scenariosCfg &&
+              Object.entries(scenariosCfg).map(([dirKey, list]) => (
+                <div key={dirKey}>
+                  <div className="workbench-group-label">{dirKey}</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {list.map(s => (
+                      <ScenarioButton
+                        key={s.name}
+                        s={s}
+                        active={selected.has(s.name)}
+                        onClick={() => toggle(s.name)}
+                        templateCount={templateMap[s.name]?.template_count}
+                        disabled={!templateMap[s.name]}
+                        tone="emerald"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
             {scenariosWithTemplates.length === 0 && !scLoading && (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Layers size={20} className="text-slate-700" />
@@ -206,8 +233,10 @@ export default function SampleFiller() {
                   <p className="text-slate-500 text-xs font-medium">暂无有模板的场景</p>
                   <p className="text-slate-600 text-sm mt-1">请先在「模板生成」页面生成语言模板</p>
                 </div>
-                <button className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
-                  onClick={() => navigate('/templates')}>
+                <button
+                  className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
+                  onClick={() => navigate('/templates')}
+                >
                   前往模板生成 →
                 </button>
               </div>
@@ -225,33 +254,49 @@ export default function SampleFiller() {
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <label className="label block mb-1 text-sm">每场景样本数</label>
-                <input type="number" className="input w-full text-xs py-1.5 px-3" value={nSamples}
-                  min={1} max={100000} onChange={e => setNSamples(parseInt(e.target.value) || 1)} />
+                <input
+                  type="number"
+                  className="input w-full text-xs py-1.5 px-3"
+                  value={nSamples}
+                  min={1}
+                  max={100000}
+                  onChange={e => setNSamples(parseInt(e.target.value) || 1)}
+                />
               </div>
               <div>
                 <label className="label block mb-1 text-sm">并行场景数</label>
-                <input type="number" className="input w-full text-xs py-1.5 px-3" value={maxWorkers}
-                  min={1} max={16} onChange={e => setMaxWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))} />
+                <input
+                  type="number"
+                  className="input w-full text-xs py-1.5 px-3"
+                  value={maxWorkers}
+                  min={1}
+                  max={16}
+                  onChange={e => setMaxWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                />
               </div>
               <div>
                 <label className="label block mb-1 text-sm">数值精度（小数位）</label>
-                <select className="select w-full text-xs py-1.5 px-3" value={precision}
-                  onChange={e => setPrecision(parseInt(e.target.value))}>
+                <select
+                  className="select w-full text-xs py-1.5 px-3"
+                  value={precision}
+                  onChange={e => setPrecision(parseInt(e.target.value))}
+                >
                   {[2, 3, 4, 5, 6, 8].map(p => (
-                    <option key={p} value={p}>{p} 位</option>
+                    <option key={p} value={p}>
+                      {p} 位
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
             {/* 断点续跑开关 */}
-            <div
-              className="flex items-center gap-2 cursor-pointer"
-              onClick={() => setSkipExisting(v => !v)}
-            >
-              <div className={cn(
-                'relative w-8 h-4 rounded-full transition-all duration-200 flex-shrink-0',
-                skipExisting ? 'bg-emerald-500' : 'bg-slate-700',
-              )}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSkipExisting(v => !v)}>
+              <div
+                className={cn(
+                  'relative w-8 h-4 rounded-full transition-all duration-200 flex-shrink-0',
+                  skipExisting ? 'bg-emerald-500' : 'bg-slate-700',
+                )}
+              >
                 <div
                   className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all duration-200"
                   style={{ left: skipExisting ? '18px' : '2px' }}
@@ -283,10 +328,15 @@ export default function SampleFiller() {
                 onClick={handleLaunch}
                 disabled={launching || selected.size === 0}
               >
-                {launching
-                  ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
-                  : <><FlaskConical size={14} /> 开始填充{selected.size > 0 ? `（${selected.size} 个场景）` : ''}</>
-                }
+                {launching ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> 启动中…
+                  </>
+                ) : (
+                  <>
+                    <FlaskConical size={14} /> 开始填充{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
+                  </>
+                )}
               </button>
               {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
@@ -302,7 +352,6 @@ export default function SampleFiller() {
 
       {/* ── 右栏：监控 + 文件管理 ── */}
       <div className="workbench-main-scroll">
-
         <JobMonitorPanel
           status={monitor.status}
           logs={monitor.logs}
@@ -346,14 +395,15 @@ export default function SampleFiller() {
           <div className="p-4">
             <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
               <div className="font-semibold text-slate-100">Centralized file manager</div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Sample delete, clear, and merged-file state now live in the unified file manager.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Sample delete, clear, and merged-file state now live in the unified file manager.
+              </p>
               <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/files')}>
                 打开统一文件管理
               </button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

@@ -9,15 +9,7 @@ import type {
   TrainingGPUInfo,
   TrainingJobSummary,
 } from '../../lib/types'
-import {
-  formatBytes,
-  formatCount,
-  formatDateTime,
-  formatMetric,
-  gpuUsageLabel,
-  statusBadgeClass,
-  statusLabel,
-} from '../shared'
+import { formatBytes, formatCount, gpuUsageLabel } from '../shared'
 
 function toNumber(value: string, fallback: number): number {
   const parsed = Number(value)
@@ -100,7 +92,11 @@ export default function TrainingNewJobPage() {
         .filter(job => {
           const selected = [...selectedScenarios].sort()
           const candidate = [...job.scenarios].sort()
-          return selected.length > 0 && selected.length === candidate.length && selected.every((item, idx) => item === candidate[idx])
+          return (
+            selected.length > 0 &&
+            selected.length === candidate.length &&
+            selected.every((item, idx) => item === candidate[idx])
+          )
         })
         .map(job => ({
           label: `${job.name} · 最新权重`,
@@ -120,7 +116,7 @@ export default function TrainingNewJobPage() {
     if (!dataset) return
     setSimulator(dataset.simulator)
     setSelectedScenarios(dataset.scenarios.map(item => item.scenario))
-  }, [dataset?.simulator])
+  }, [dataset])
 
   useEffect(() => {
     if (!dataset) return
@@ -200,9 +196,13 @@ export default function TrainingNewJobPage() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">新建训练</div>
-                <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">Token Router 训练</h1>
+                <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">
+                  Token Router 训练
+                </h1>
                 <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-slate-400">
-                  <span className="training-chip">场景 {selectedScenarios.length}/{dataset?.scenarios.length ?? 0}</span>
+                  <span className="training-chip">
+                    场景 {selectedScenarios.length}/{dataset?.scenarios.length ?? 0}
+                  </span>
                   <span className="training-chip">样本 {formatCount(selectedRouterCount)}</span>
                   <span className="training-chip">GPU {gpuId ?? '—'}</span>
                 </div>
@@ -215,9 +215,7 @@ export default function TrainingNewJobPage() {
           </section>
 
           {error && (
-            <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
-              {error}
-            </div>
+            <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">{error}</div>
           )}
 
           <div className="grid items-start gap-4 xl:grid-cols-[1.22fr_0.78fr]">
@@ -230,10 +228,19 @@ export default function TrainingNewJobPage() {
                 <div className="training-card__body space-y-3">
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="任务名称" note="为空时自动使用任务 ID">
-                      <input className="input" value={jobName} onChange={e => setJobName(e.target.value)} placeholder="例如：modflow-router-v1" />
+                      <input
+                        className="input"
+                        value={jobName}
+                        onChange={e => setJobName(e.target.value)}
+                        placeholder="例如：modflow-router-v1"
+                      />
                     </Field>
                     <Field label="大场景">
-                      <select className="select" value={dataset?.simulator ?? simulator} onChange={e => setSimulator(e.target.value)}>
+                      <select
+                        className="select"
+                        value={dataset?.simulator ?? simulator}
+                        onChange={e => setSimulator(e.target.value)}
+                      >
                         {(datasets ?? []).map(item => (
                           <option key={item.simulator} value={item.simulator}>
                             {item.simulator.toUpperCase()} · {formatCount(item.total_count)} 条
@@ -248,10 +255,16 @@ export default function TrainingNewJobPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="text-[14px] font-medium text-slate-100">
                           已选择 {selectedScenarios.length} / {dataset.scenarios.length} 个子场景
-                          <span className="ml-2 text-slate-500">{formatCount(selectedRouterCount)} 条 · {formatBytes(selectedFileSize)}</span>
+                          <span className="ml-2 text-slate-500">
+                            {formatCount(selectedRouterCount)} 条 · {formatBytes(selectedFileSize)}
+                          </span>
                         </div>
                         <div className="flex items-center gap-2">
-                          <button type="button" className="btn-ghost" onClick={() => setSelectedScenarios(dataset.scenarios.map(item => item.scenario))}>
+                          <button
+                            type="button"
+                            className="btn-ghost"
+                            onClick={() => setSelectedScenarios(dataset.scenarios.map(item => item.scenario))}
+                          >
                             全选
                           </button>
                           <button type="button" className="btn-ghost" onClick={() => setSelectedScenarios([])}>
@@ -270,9 +283,7 @@ export default function TrainingNewJobPage() {
                               onClick={() => toggleScenario(scenario.scenario)}
                               title={`${scenario.scenario} · ${formatCount(scenario.router_count)} 条 · ${formatBytes(scenario.file_size_bytes)}`}
                               className={`training-select-chip min-h-[4.25rem] ${
-                                checked
-                                  ? 'training-select-chip--active'
-                                  : 'training-select-chip--idle'
+                                checked ? 'training-select-chip--active' : 'training-select-chip--idle'
                               }`}
                             >
                               <div className="flex items-center justify-between gap-2">
@@ -307,7 +318,8 @@ export default function TrainingNewJobPage() {
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <div className="grid gap-2 md:grid-cols-2">
                     {(gpus ?? []).map(gpu => {
-                      const memoryRatio = gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
+                      const memoryRatio =
+                        gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
                       return (
                         <label
                           key={gpu.index}
@@ -315,20 +327,34 @@ export default function TrainingNewJobPage() {
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2.5">
-                              <input type="radio" className="mt-1" checked={gpuId === gpu.index} disabled={!gpu.available} onChange={() => setGpuId(gpu.index)} />
+                              <input
+                                type="radio"
+                                className="mt-1"
+                                checked={gpuId === gpu.index}
+                                disabled={!gpu.available}
+                                onChange={() => setGpuId(gpu.index)}
+                              />
                               <div className="min-w-0">
                                 <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
                                 <div className="mt-0.5 truncate text-[12px] text-slate-400">{gpu.name}</div>
                               </div>
                             </div>
-                            <span className={gpu.available ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300' : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'}>
-                              {gpu.available ? '可用' : gpu.reason ?? '占用中'}
+                            <span
+                              className={
+                                gpu.available
+                                  ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
+                                  : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'
+                              }
+                            >
+                              {gpu.available ? '可用' : (gpu.reason ?? '占用中')}
                             </span>
                           </div>
                           <div className="mt-2 training-stat-grid">
                             <div>
                               <div className="training-label">显存</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">{gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">
+                                {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
+                              </div>
                               <UsageBar value={memoryRatio} />
                             </div>
                             <div>
@@ -355,7 +381,11 @@ export default function TrainingNewJobPage() {
                   <Field label="训练轮数">
                     <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
                       <label className="flex items-center gap-2 text-[14px] text-slate-300">
-                        <input type="checkbox" checked={infiniteEpochs} onChange={e => setInfiniteEpochs(e.target.checked)} />
+                        <input
+                          type="checkbox"
+                          checked={infiniteEpochs}
+                          onChange={e => setInfiniteEpochs(e.target.checked)}
+                        />
                         无限训练
                       </label>
                       <input
@@ -368,19 +398,38 @@ export default function TrainingNewJobPage() {
                     </div>
                   </Field>
                   <Field label="测试间隔">
-                    <input className="input mono" value={evalInterval} onChange={e => setEvalInterval(e.target.value)} />
+                    <input
+                      className="input mono"
+                      value={evalInterval}
+                      onChange={e => setEvalInterval(e.target.value)}
+                    />
                   </Field>
-                  <Field label="保留最近权重" note="每个 epoch 保存一份权重，仅保留最近 N 份；0 表示只保留 latest/final 权重。">
-                    <input className="input mono" value={keepLastEpochs} onChange={e => setKeepLastEpochs(e.target.value)} />
+                  <Field
+                    label="保留最近权重"
+                    note="每个 epoch 保存一份权重，仅保留最近 N 份；0 表示只保留 latest/final 权重。"
+                  >
+                    <input
+                      className="input mono"
+                      value={keepLastEpochs}
+                      onChange={e => setKeepLastEpochs(e.target.value)}
+                    />
                   </Field>
                   <Field label="训练批大小">
                     <input className="input mono" value={batchSize} onChange={e => setBatchSize(e.target.value)} />
                   </Field>
                   <Field label="测试批大小">
-                    <input className="input mono" value={testBatchSize} onChange={e => setTestBatchSize(e.target.value)} />
+                    <input
+                      className="input mono"
+                      value={testBatchSize}
+                      onChange={e => setTestBatchSize(e.target.value)}
+                    />
                   </Field>
                   <Field label="学习率">
-                    <input className="input mono" value={learningRate} onChange={e => setLearningRate(e.target.value)} />
+                    <input
+                      className="input mono"
+                      value={learningRate}
+                      onChange={e => setLearningRate(e.target.value)}
+                    />
                   </Field>
                   <Field label="权重衰减">
                     <input className="input mono" value={weightDecay} onChange={e => setWeightDecay(e.target.value)} />
@@ -415,46 +464,77 @@ export default function TrainingNewJobPage() {
                   <div className="grid gap-2 sm:grid-cols-2">
                     <div className="training-surface--compact">
                       <div className="training-label">任务</div>
-                      <div className="mt-1 truncate text-[15px] font-semibold text-slate-100">{jobName.trim() || '默认使用任务 ID'}</div>
-                      <div className="mt-1 text-[12px] text-slate-500">{dataset?.simulator.toUpperCase() ?? '—'} · {selectedScenarios.length} 个场景</div>
+                      <div className="mt-1 truncate text-[15px] font-semibold text-slate-100">
+                        {jobName.trim() || '默认使用任务 ID'}
+                      </div>
+                      <div className="mt-1 text-[12px] text-slate-500">
+                        {dataset?.simulator.toUpperCase() ?? '—'} · {selectedScenarios.length} 个场景
+                      </div>
                     </div>
                     <div className="training-surface--compact">
                       <div className="training-label">GPU</div>
-                      <div className="mt-1 text-[15px] font-semibold text-slate-100">{gpuId != null ? `GPU ${gpuId}` : '未选择'}</div>
-                      <div className="mt-1 truncate text-[12px] text-slate-500">{selectedGpu?.name ?? selectedGpu?.reason ?? '等待选择'}</div>
+                      <div className="mt-1 text-[15px] font-semibold text-slate-100">
+                        {gpuId != null ? `GPU ${gpuId}` : '未选择'}
+                      </div>
+                      <div className="mt-1 truncate text-[12px] text-slate-500">
+                        {selectedGpu?.name ?? selectedGpu?.reason ?? '等待选择'}
+                      </div>
                     </div>
                   </div>
                   <div className="training-surface--compact">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <div className="training-label">训练子场景</div>
-                        <div className="mt-1 text-[13px] text-slate-400">{formatCount(selectedRouterCount)} 条 · {formatBytes(selectedFileSize)}</div>
+                        <div className="mt-1 text-[13px] text-slate-400">
+                          {formatCount(selectedRouterCount)} 条 · {formatBytes(selectedFileSize)}
+                        </div>
                       </div>
-                      <div className="text-[13px] font-semibold text-slate-200">{selectedScenarios.length}/{dataset?.scenarios.length ?? 0}</div>
+                      <div className="text-[13px] font-semibold text-slate-200">
+                        {selectedScenarios.length}/{dataset?.scenarios.length ?? 0}
+                      </div>
                     </div>
                     <div className="mt-2 training-chip-grid">
                       {(selectedScenarios.length > 0 ? selectedScenarios : ['未选择']).map(item => (
-                        <span key={item} className="training-chip max-w-[180px] truncate">{item}</span>
+                        <span key={item} className="training-chip max-w-[180px] truncate">
+                          {item}
+                        </span>
                       ))}
                     </div>
                   </div>
                   <div className="training-surface--compact">
                     <div className="training-label">训练配置</div>
                     <div className="mt-2 grid grid-cols-2 gap-2 text-[13px] text-slate-400">
-                      <div>训练轮数： <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span></div>
-                      <div>测试间隔： <span className="mono text-slate-200">{evalInterval}</span></div>
-                      <div>保留权重： <span className="mono text-slate-200">{keepLastEpochs}</span></div>
-                      <div>训练批量： <span className="mono text-slate-200">{batchSize}</span></div>
-                      <div>测试批量： <span className="mono text-slate-200">{testBatchSize}</span></div>
-                      <div>学习率： <span className="mono text-slate-200">{learningRate}</span></div>
-                      <div>权重衰减： <span className="mono text-slate-200">{weightDecay}</span></div>
-                      <div>线程： <span className="mono text-slate-200">{numWorkers}</span></div>
-                      <div>测试比例： <span className="mono text-slate-200">{testRatio}</span></div>
+                      <div>
+                        训练轮数： <span className="mono text-slate-200">{infiniteEpochs ? '∞' : epochs}</span>
+                      </div>
+                      <div>
+                        测试间隔： <span className="mono text-slate-200">{evalInterval}</span>
+                      </div>
+                      <div>
+                        保留权重： <span className="mono text-slate-200">{keepLastEpochs}</span>
+                      </div>
+                      <div>
+                        训练批量： <span className="mono text-slate-200">{batchSize}</span>
+                      </div>
+                      <div>
+                        测试批量： <span className="mono text-slate-200">{testBatchSize}</span>
+                      </div>
+                      <div>
+                        学习率： <span className="mono text-slate-200">{learningRate}</span>
+                      </div>
+                      <div>
+                        权重衰减： <span className="mono text-slate-200">{weightDecay}</span>
+                      </div>
+                      <div>
+                        线程： <span className="mono text-slate-200">{numWorkers}</span>
+                      </div>
+                      <div>
+                        测试比例： <span className="mono text-slate-200">{testRatio}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-
             </section>
           </div>
         </div>

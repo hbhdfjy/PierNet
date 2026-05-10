@@ -2,8 +2,24 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, LLMConfig } from '../../lib/types'
-import { Cpu, Settings, Layers, RefreshCw, AlertCircle, Sparkles, ChevronDown, ChevronUp, KeyRound, Trash2, FolderOpen, ChevronRight } from 'lucide-react'
+import type {
+  Text2CompScenariosConfig,
+  Text2CompScenario,
+  GenerationConfig,
+  TemplateInfo,
+  LLMConfig,
+} from '../../lib/types'
+import {
+  Cpu,
+  Settings,
+  Layers,
+  RefreshCw,
+  AlertCircle,
+  Sparkles,
+  KeyRound,
+  FolderOpen,
+  ChevronRight,
+} from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
@@ -21,14 +37,20 @@ export default function TemplateGenerator() {
     storageKey: 'piern_template_sidebar_width',
   })
 
-  const { data: scenariosCfg, isLoading: scLoading, mutate: refreshScenarios } =
-    useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios(), { revalidateOnMount: true })
-  const { data: genCfg } =
-    useSWR<GenerationConfig>('config', () => api.getConfig())
-  const { data: templatesStatus, mutate: refreshTemplates } =
-    useSWR<TemplateInfo[]>('templates', () => api.getTemplatesStatus(), { refreshInterval: 5000 })
-  const { data: llmCfg } =
-    useSWR<LLMConfig>('llm-config', () => api.getLLMConfig())
+  const {
+    data: scenariosCfg,
+    isLoading: scLoading,
+    mutate: refreshScenarios,
+  } = useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios(), {
+    revalidateOnMount: true,
+  })
+  const { data: genCfg } = useSWR<GenerationConfig>('config', () => api.getConfig())
+  const { data: templatesStatus, mutate: refreshTemplates } = useSWR<TemplateInfo[]>(
+    'templates',
+    () => api.getTemplatesStatus(),
+    { refreshInterval: 5000 },
+  )
+  const { data: llmCfg } = useSWR<LLMConfig>('llm-config', () => api.getLLMConfig())
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [nTemplates, setNTemplates] = useState(100)
   const [nTemplatesInput, setNTemplatesInput] = useState('100')
@@ -62,14 +84,19 @@ export default function TemplateGenerator() {
   const templateMap: Record<string, TemplateInfo> = {}
   for (const t of templatesStatus ?? []) templateMap[t.scenario] = t
 
-  const toggle = (name: string) => setSelected(prev => {
-    const next = new Set(prev)
-    if (next.has(name)) next.delete(name); else next.add(name)
-    return next
-  })
+  const toggle = (name: string) =>
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
 
   const handleLaunch = async () => {
-    if (selected.size === 0) { setError('请至少选择一个场景'); return }
+    if (selected.size === 0) {
+      setError('请至少选择一个场景')
+      return
+    }
     setError(null)
     setLaunching(true)
     try {
@@ -92,17 +119,18 @@ export default function TemplateGenerator() {
   }
 
   const totalTemplates = Object.values(templateMap).reduce((s, t) => s + t.template_count, 0)
-  const canLaunch = !monitor.status || monitor.status === 'idle' || monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated'
+  const canLaunch =
+    !monitor.status ||
+    monitor.status === 'idle' ||
+    monitor.status === 'done' ||
+    monitor.status === 'error' ||
+    monitor.status === 'terminated'
   const llmReady = llmCfg?.has_api_key === true
 
   return (
     <div className="workbench-shell">
-
       {/* ── 左栏：配置（可拖动宽度，内部分区滚动）── */}
-      <div
-        className="workbench-sidebar"
-        style={{ width: sidebarWidth }}
-      >
+      <div className="workbench-sidebar" style={{ width: sidebarWidth }}>
         {/* 顶部：页头（固定）*/}
         <div className="workbench-sidebar-header">
           <div className="flex items-center justify-between">
@@ -138,16 +166,27 @@ export default function TemplateGenerator() {
             </div>
             <div className="flex items-center gap-0.5">
               {(['全选', '无模板', '清空'] as const).map((label, i) => (
-                <button key={label} className="btn-ghost py-0.5 px-2 text-sm"
-                  onClick={[
-                    () => setSelected(new Set(scenariosWithData.map(s => s.name))),
-                    () => setSelected(new Set(scenariosWithData.filter(s => !templateMap[s.name]).map(s => s.name))),
-                    () => setSelected(new Set()),
-                  ][i]}>
+                <button
+                  key={label}
+                  className="btn-ghost py-0.5 px-2 text-sm"
+                  onClick={
+                    [
+                      () => setSelected(new Set(scenariosWithData.map(s => s.name))),
+                      () => setSelected(new Set(scenariosWithData.filter(s => !templateMap[s.name]).map(s => s.name))),
+                      () => setSelected(new Set()),
+                    ][i]
+                  }
+                >
                   {label}
                 </button>
               ))}
-              <button className="btn-ghost py-0.5 px-1.5" onClick={() => { refreshScenarios(); refreshTemplates() }}>
+              <button
+                className="btn-ghost py-0.5 px-1.5"
+                onClick={() => {
+                  refreshScenarios()
+                  refreshTemplates()
+                }}
+              >
                 <RefreshCw size={11} className={scLoading ? 'animate-spin' : ''} />
               </button>
             </div>
@@ -170,31 +209,35 @@ export default function TemplateGenerator() {
                     {unregisteredWithData.length} 个场景有数据但未注册元数据
                   </p>
                   <p className="text-xs text-slate-500 mb-2">未注册的场景生成时会因缺少 domain 信息而失败。</p>
-                  <button className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                    onClick={() => navigate('/register')}>
+                  <button
+                    className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
+                    onClick={() => navigate('/register')}
+                  >
                     前往注册数据集 <ChevronRight size={11} />
                   </button>
                 </div>
               </div>
             )}
 
-            {scenariosCfg && Object.entries(scenariosCfg).map(([dirKey, list]) => (
-              <div key={dirKey}>
-                <div className="workbench-group-label">{dirKey}</div>
-                <div className="grid grid-cols-2 gap-1.5">
-                  {list.map(s => (
-                    <ScenarioButton
-                      key={s.name} s={s}
-                      active={selected.has(s.name)}
-                      onClick={() => toggle(s.name)}
-                      templateCount={templateMap[s.name]?.template_count}
-                      disabled={!s.has_h5}
-                      tone="violet"
-                    />
-                  ))}
+            {scenariosCfg &&
+              Object.entries(scenariosCfg).map(([dirKey, list]) => (
+                <div key={dirKey}>
+                  <div className="workbench-group-label">{dirKey}</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {list.map(s => (
+                      <ScenarioButton
+                        key={s.name}
+                        s={s}
+                        active={selected.has(s.name)}
+                        onClick={() => toggle(s.name)}
+                        templateCount={templateMap[s.name]?.template_count}
+                        disabled={!s.has_h5}
+                        tone="violet"
+                      />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))}
             {!scLoading && allScenarios.length === 0 && (
               <div className="flex flex-col items-center gap-3 py-8 text-center">
                 <Layers size={20} className="text-slate-700" />
@@ -202,8 +245,10 @@ export default function TemplateGenerator() {
                   <p className="text-slate-500 text-xs font-medium">未找到任何场景</p>
                   <p className="text-slate-600 text-sm mt-1">请先配置数据目录或运行阶段 1 物理仿真</p>
                 </div>
-                <button className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 transition-colors"
-                  onClick={() => navigate('/data-dirs')}>
+                <button
+                  className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 transition-colors"
+                  onClick={() => navigate('/data-dirs')}
+                >
                   配置数据目录 <ChevronRight size={11} />
                 </button>
               </div>
@@ -213,7 +258,6 @@ export default function TemplateGenerator() {
 
         {/* 底部：参数 + 按钮（固定，不滚动）*/}
         <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/20">
-
           {/* 参数区 */}
           <div className="px-4 py-3 space-y-3">
             <div className="flex items-center gap-1.5">
@@ -228,7 +272,8 @@ export default function TemplateGenerator() {
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
                 value={nTemplatesInput}
-                min={1} max={10000}
+                min={1}
+                max={10000}
                 onChange={e => {
                   setNTemplatesInput(e.target.value)
                   const n = parseInt(e.target.value, 10)
@@ -247,20 +292,24 @@ export default function TemplateGenerator() {
             <div>
               <label className="label block mb-1.5 text-sm">已有模板时的处理方式</label>
               <div className="grid grid-cols-3 gap-1.5">
-                {([
-                  { value: 'append',    label: '继续生成', desc: '追加到现有数量', color: 'emerald' },
-                  { value: 'skip',      label: '跳过场景', desc: '已有则不处理',   color: 'slate'   },
-                  { value: 'overwrite', label: '重新生成', desc: '清空后重新写入', color: 'red'     },
-                ] as const).map(({ value, label, desc, color }) => (
+                {(
+                  [
+                    { value: 'append', label: '继续生成', desc: '追加到现有数量', color: 'emerald' },
+                    { value: 'skip', label: '跳过场景', desc: '已有则不处理', color: 'slate' },
+                    { value: 'overwrite', label: '重新生成', desc: '清空后重新写入', color: 'red' },
+                  ] as const
+                ).map(({ value, label, desc, color }) => (
                   <button
                     key={value}
                     onClick={() => setGenMode(value)}
                     className={cn(
                       'flex flex-col items-start px-2.5 py-2 rounded-xl border text-left transition-all',
                       genMode === value
-                        ? color === 'emerald' ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                        : color === 'red'     ? 'bg-red-500/15 border-red-500/40 text-red-300'
-                        :                      'bg-slate-600/30 border-slate-500/40 text-slate-200'
+                        ? color === 'emerald'
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                          : color === 'red'
+                            ? 'bg-red-500/15 border-red-500/40 text-red-300'
+                            : 'bg-slate-600/30 border-slate-500/40 text-slate-200'
                         : 'bg-slate-800/40 border-slate-700/30 text-slate-500 hover:border-slate-600/50 hover:text-slate-400',
                     )}
                   >
@@ -277,21 +326,24 @@ export default function TemplateGenerator() {
                 {
                   label: '并发',
                   value: maxWorkers ?? genCfg?.generation?.max_workers ?? 1,
-                  min: 1, max: 64,
+                  min: 1,
+                  max: 64,
                   display: String(maxWorkers ?? genCfg?.generation?.max_workers ?? 1),
                   onChange: (v: number) => setMaxWorkers(v),
                 },
                 {
                   label: '中文',
                   value: Math.round((languageMix ?? genCfg?.generation?.language_mix ?? 0.5) * 100),
-                  min: 0, max: 100,
+                  min: 0,
+                  max: 100,
                   display: `${Math.round((languageMix ?? genCfg?.generation?.language_mix ?? 0.5) * 100)}%`,
                   onChange: (v: number) => setLanguageMix(v / 100),
                 },
                 {
                   label: '变换',
                   value: Math.round((transformProb ?? genCfg?.generation?.transform_prob ?? 0.1) * 100),
-                  min: 0, max: 50,
+                  min: 0,
+                  max: 50,
                   display: `${Math.round((transformProb ?? genCfg?.generation?.transform_prob ?? 0.1) * 100)}%`,
                   onChange: (v: number) => setTransformProb(v / 100),
                 },
@@ -301,8 +353,14 @@ export default function TemplateGenerator() {
                     <span className="label text-xs">{label}</span>
                     <span className="text-xs text-slate-500 tabular-nums">{display}</span>
                   </div>
-                  <input type="range" className="w-full accent-violet-500 h-1" min={min} max={max}
-                    value={value} onChange={e => onChange(parseInt(e.target.value))} />
+                  <input
+                    type="range"
+                    className="w-full accent-violet-500 h-1"
+                    min={min}
+                    max={max}
+                    value={value}
+                    onChange={e => onChange(parseInt(e.target.value))}
+                  />
                 </div>
               ))}
             </div>
@@ -319,10 +377,11 @@ export default function TemplateGenerator() {
                 </span>
               </div>
               <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                {llmCfg?.has_api_key
-                  ? <span className="text-emerald-500 text-xs">✓</span>
-                  : <span className="text-red-400 text-xs">⚠</span>
-                }
+                {llmCfg?.has_api_key ? (
+                  <span className="text-emerald-500 text-xs">✓</span>
+                ) : (
+                  <span className="text-red-400 text-xs">⚠</span>
+                )}
                 <span className="text-xs text-slate-600">→</span>
               </div>
             </button>
@@ -341,16 +400,28 @@ export default function TemplateGenerator() {
             <div className="px-4 pb-4 space-y-1.5">
               <button
                 className="btn-primary w-full py-2.5 text-sm justify-center shadow-lg"
-                style={{ background: selected.size > 0 && !launching && llmReady ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : undefined }}
+                style={{
+                  background:
+                    selected.size > 0 && !launching && llmReady
+                      ? 'linear-gradient(135deg, #7c3aed, #6d28d9)'
+                      : undefined,
+                }}
                 onClick={handleLaunch}
                 disabled={launching || selected.size === 0 || !llmReady}
               >
-                {launching
-                  ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
-                  : !llmReady
-                  ? <><AlertCircle size={14} /> 请先配置 LLM API Key</>
-                  : <><Cpu size={14} /> 开始生成{selected.size > 0 ? `（${selected.size} 个场景）` : ''}</>
-                }
+                {launching ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> 启动中…
+                  </>
+                ) : !llmReady ? (
+                  <>
+                    <AlertCircle size={14} /> 请先配置 LLM API Key
+                  </>
+                ) : (
+                  <>
+                    <Cpu size={14} /> 开始生成{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
+                  </>
+                )}
               </button>
               {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
@@ -366,7 +437,6 @@ export default function TemplateGenerator() {
 
       {/* ── 右栏：监控 + 文件管理 ── */}
       <div className="workbench-main-scroll">
-
         <JobMonitorPanel
           status={monitor.status}
           logs={monitor.logs}
@@ -410,14 +480,15 @@ export default function TemplateGenerator() {
           <div className="p-4">
             <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
               <div className="font-semibold text-slate-100">Centralized file manager</div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Template trim, delete, and clear operations now live in the unified file manager.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Template trim, delete, and clear operations now live in the unified file manager.
+              </p>
               <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/files')}>
                 打开统一文件管理
               </button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

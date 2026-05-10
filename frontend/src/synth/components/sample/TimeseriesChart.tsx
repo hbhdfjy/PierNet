@@ -1,12 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
-import {
-  LineChart, Line, XAxis, YAxis, CartesianGrid,
-  Tooltip, Legend, ResponsiveContainer, ReferenceLine,
-} from 'recharts'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import type { SampleRecord } from '../../../lib/types'
 import { parseTimeseries, toRechartsData } from '../../../lib/parseTimeseries'
 import { getLineColor } from '../../../lib/utils'
-import { TrendingUp, AlertCircle } from 'lucide-react'
+import { AlertCircle } from 'lucide-react'
 
 interface Props {
   sample: SampleRecord
@@ -15,13 +12,10 @@ interface Props {
 const MAX_CHANNELS_DEFAULT = 1
 
 export default function TimeseriesChart({ sample }: Props) {
-  const parsed = useMemo(
-    () => parseTimeseries(sample.target, sample.metadata),
-    [sample],
-  )
+  const parsed = useMemo(() => parseTimeseries(sample.target, sample.metadata), [sample])
 
   const [visibleChannels, setVisibleChannels] = useState<Set<number>>(
-    () => new Set(parsed ? parsed.channels.map((_, i) => i) : [])
+    () => new Set(parsed ? parsed.channels.map((_, i) => i) : []),
   )
 
   // 当解析结果变化（换了样本）时重置通道选择
@@ -48,8 +42,9 @@ export default function TimeseriesChart({ sample }: Props) {
   const toggleChannel = (i: number) => {
     setVisibleChannels(prev => {
       const next = new Set(prev)
-      if (next.has(i)) { if (next.size > 1) next.delete(i) }
-      else next.add(i)
+      if (next.has(i)) {
+        if (next.size > 1) next.delete(i)
+      } else next.add(i)
       return next
     })
   }
@@ -119,13 +114,9 @@ export default function TimeseriesChart({ sample }: Props) {
               }}
               labelStyle={{ color: '#94a3b8', marginBottom: 4 }}
               itemStyle={{ color: '#cbd5e1' }}
-              labelFormatter={(v) => `t = ${v}`}
+              labelFormatter={v => `t = ${v}`}
             />
-            {n_ch <= 6 && (
-              <Legend
-                wrapperStyle={{ fontSize: 11, color: '#64748b', paddingTop: 6 }}
-              />
-            )}
+            {n_ch <= 6 && <Legend wrapperStyle={{ fontSize: 11, color: '#64748b', paddingTop: 6 }} />}
             {visibleLabels.map((label, i) => {
               // use the original channel index for consistent color assignment
               // find by position in the full labels array to handle duplicate labels

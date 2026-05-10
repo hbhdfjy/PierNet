@@ -1,15 +1,6 @@
-
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import {
-  FolderOpen,
-  Lock,
-  RefreshCw,
-  Scissors,
-  Search,
-  ShieldCheck,
-  Trash2,
-} from 'lucide-react'
+import { FolderOpen, Lock, RefreshCw, Scissors, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import type { FileAsset, FileCatalogResponse } from '../lib/types'
 import { cn, formatBytes } from '../lib/utils'
@@ -87,7 +78,12 @@ function statusClass(asset: FileAsset) {
   return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
 }
 
-function SelectFilter({ label, value, options, onChange }: {
+function SelectFilter({
+  label,
+  value,
+  options,
+  onChange,
+}: {
   label: string
   value: string
   options: Array<{ value: string; label: string; count?: number }>
@@ -99,7 +95,8 @@ function SelectFilter({ label, value, options, onChange }: {
       <select className="select w-full" value={value} onChange={e => onChange(e.target.value)}>
         {options.map(option => (
           <option key={option.value} value={option.value}>
-            {option.label}{option.count != null ? ` (${option.count})` : ''}
+            {option.label}
+            {option.count != null ? ` (${option.count})` : ''}
           </option>
         ))}
       </select>
@@ -139,7 +136,11 @@ function DetailPanel({
   onTrim: (asset: FileAsset) => void
 }) {
   if (!asset) {
-    return <div className="training-card file-manager-detail-panel file-manager-detail-empty">选择一个文件资产查看详情。</div>
+    return (
+      <div className="training-card file-manager-detail-panel file-manager-detail-empty">
+        选择一个文件资产查看详情。
+      </div>
+    )
   }
 
   const detailEntries = Object.entries(asset.details ?? {})
@@ -163,17 +164,30 @@ function DetailPanel({
           <Metric label="阶段" value={stageLabel(asset)} />
           <Metric label="类型" value={kindLabel(asset)} />
           <Metric label="大小" value={formatBytes(asset.file_size_bytes)} />
-          <Metric label="数量" value={asset.count != null ? `${asset.count.toLocaleString()} ${asset.count_label ?? ''}` : '-'} />
+          <Metric
+            label="数量"
+            value={asset.count != null ? `${asset.count.toLocaleString()} ${asset.count_label ?? ''}` : '-'}
+          />
           <Metric label="修改时间" value={timeText(asset.mtime)} />
         </div>
 
         {(asset.errors.length > 0 || asset.warnings.length > 0) && (
           <div className="space-y-2">
             {asset.errors.map(msg => (
-              <div key={`err-${msg}`} className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">{msg}</div>
+              <div
+                key={`err-${msg}`}
+                className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200"
+              >
+                {msg}
+              </div>
             ))}
             {asset.warnings.map(msg => (
-              <div key={`warn-${msg}`} className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200">{msg}</div>
+              <div
+                key={`warn-${msg}`}
+                className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-sm text-amber-200"
+              >
+                {msg}
+              </div>
             ))}
           </div>
         )}
@@ -181,7 +195,8 @@ function DetailPanel({
         {asset.kind === 'template' && (
           <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
             <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
-              <Scissors size={14} className="text-amber-300" />裁剪模板文件
+              <Scissors size={14} className="text-amber-300" />
+              裁剪模板文件
             </div>
             <div className="flex gap-2">
               <input
@@ -192,7 +207,11 @@ function DetailPanel({
                 value={trimValue}
                 onChange={e => onTrimValueChange(e.target.value)}
               />
-              <button className="btn-ghost flex-shrink-0 text-amber-300" disabled={busy || !trimValue} onClick={() => onTrim(asset)}>
+              <button
+                className="btn-ghost flex-shrink-0 text-amber-300"
+                disabled={busy || !trimValue}
+                onClick={() => onTrim(asset)}
+              >
                 裁剪
               </button>
             </div>
@@ -206,7 +225,8 @@ function DetailPanel({
           </button>
           {asset.protected && (
             <div className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-sm text-amber-200">
-              <Lock size={13} />受保护资产不能直接删除。
+              <Lock size={13} />
+              受保护资产不能直接删除。
             </div>
           )}
         </div>
@@ -244,12 +264,13 @@ export function FileManagerContent({
   title = '统一文件管理',
   copy = '集中管理 HDF5、模板、样本、路由数据、训练产物、清单与索引。',
 }: FileManagerContentProps = {}) {
-  const { data, isLoading, mutate } = useSWR<FileCatalogResponse>('file-catalog', () => api.getFileCatalog(), { refreshInterval: 12000 })
-  const assets = data?.assets ?? []
-  const scopedAssets = useMemo(
-    () => (lockPlatform ? assets.filter(asset => asset.platform === initialPlatform) : assets),
-    [assets, initialPlatform, lockPlatform],
-  )
+  const { data, isLoading, mutate } = useSWR<FileCatalogResponse>('file-catalog', () => api.getFileCatalog(), {
+    refreshInterval: 12000,
+  })
+  const scopedAssets = useMemo(() => {
+    const assets = data?.assets ?? []
+    return lockPlatform ? assets.filter(asset => asset.platform === initialPlatform) : assets
+  }, [data?.assets, initialPlatform, lockPlatform])
 
   const [platform, setPlatform] = useState(initialPlatform)
   const [stage, setStage] = useState(ALL)
@@ -276,8 +297,18 @@ export function FileManagerContent({
       if (status === 'deletable' && !asset.deletable) return false
       if (status === 'protected' && !asset.protected) return false
       if (q) {
-        const haystack = [asset.title, asset.path, asset.simulator, asset.scenario, kindLabel(asset), stageLabel(asset), asset.job_id]
-          .filter(Boolean).join(' ').toLowerCase()
+        const haystack = [
+          asset.title,
+          asset.path,
+          asset.simulator,
+          asset.scenario,
+          kindLabel(asset),
+          stageLabel(asset),
+          asset.job_id,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
         if (!haystack.includes(q)) return false
       }
       return true
@@ -285,14 +316,16 @@ export function FileManagerContent({
   }, [scopedAssets, lockPlatform, platform, stage, kind, status, query])
 
   const selectedAsset = scopedAssets.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
-  const scopedSummary = useMemo(() => ({
-    total_assets: scopedAssets.length,
-    total_size_bytes: scopedAssets.reduce((sum, asset) => sum + asset.file_size_bytes, 0),
-    deletable_count: scopedAssets.filter(asset => asset.deletable).length,
-    protected_count: scopedAssets.filter(asset => asset.protected).length,
-    invalid_count: scopedAssets.filter(asset => asset.valid === false || asset.status === 'invalid').length,
-  }), [scopedAssets])
-
+  const scopedSummary = useMemo(
+    () => ({
+      total_assets: scopedAssets.length,
+      total_size_bytes: scopedAssets.reduce((sum, asset) => sum + asset.file_size_bytes, 0),
+      deletable_count: scopedAssets.filter(asset => asset.deletable).length,
+      protected_count: scopedAssets.filter(asset => asset.protected).length,
+      invalid_count: scopedAssets.filter(asset => asset.valid === false || asset.status === 'invalid').length,
+    }),
+    [scopedAssets],
+  )
 
   async function refresh() {
     setError(null)
@@ -368,162 +401,199 @@ export function FileManagerContent({
 
   return (
     <div className="page-shell">
-          <div className="page-content space-y-4 p-4">
-            <section className="training-hero training-hero--compact">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="training-eyebrow">
-                    统一文件目录
-                  </div>
-                  <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">{title}</h1>
-                  <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
-                    {copy}
-                  </p>
-                </div>
-                <div className="grid min-w-[460px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
-                  <Metric label="文件" value={scopedSummary.total_assets.toLocaleString()} />
-                  <Metric label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
-                  <Metric label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
-                  <Metric label="受保护" value={scopedSummary.protected_count.toLocaleString()} />
-                  <Metric label="无效" value={scopedSummary.invalid_count.toLocaleString()} />
-                </div>
-              </div>
-            </section>
-
-            <section className="training-card overflow-hidden">
-              <div className="card-header flex-wrap gap-3">
-                <FolderOpen size={17} className="text-sky-400" />
-                <div className="min-w-[180px]">
-                  <div className="training-panel-title">文件筛选</div>
-                  <div className="training-panel-copy">左侧列表支持独立滚动，右侧查看详情和操作。</div>
-                </div>
-                <div className="flex-1" />
-                <button className="btn-ghost text-xs" onClick={refresh} disabled={isLoading}>
-                  <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />刷新
-                </button>
-                {!lockPlatform && (
-                  <button className="btn-ghost text-xs text-sky-300" onClick={rebuildIndexes} disabled={busyAction === 'rebuild'}>
-                    {busyAction === 'rebuild' ? <RefreshCw size={12} className="animate-spin" /> : <ShieldCheck size={12} />}
-                    重建索引
-                  </button>
-                )}
-                {!lockPlatform && KIND_CLEAR_OPTIONS.map(option => (
-                  <button
-                    key={option.key}
-                    className="btn-ghost text-xs text-red-300"
-                    disabled={busyAction === option.key}
-                    onClick={() => clearGroup(option.key)}
-                  >
-                    {busyAction === option.key ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className={`grid grid-cols-1 gap-3 border-b border-slate-700/35 p-4 ${lockPlatform ? 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr]' : 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_0.9fr]'}`}>
-                <label className="space-y-1.5">
-                  <span className="label text-xs">搜索</span>
-                  <div className="relative">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-                    <input className="input pl-9" value={query} onChange={e => setQuery(e.target.value)} placeholder="场景、路径或任务名" />
-                  </div>
-                </label>
-                {!lockPlatform && <SelectFilter label="平台" value={platform} options={platformOptions} onChange={setPlatform} />}
-                <SelectFilter label="阶段" value={stage} options={stageOptions} onChange={setStage} />
-                <SelectFilter label="类型" value={kind} options={kindOptions} onChange={setKind} />
-                <SelectFilter
-                  label="状态"
-                  value={status}
-                  options={[
-                    { value: ALL, label: '全部' },
-                    { value: 'deletable', label: '可管理' },
-                    { value: 'protected', label: '受保护' },
-                    { value: 'invalid', label: '无效' },
-                  ]}
-                  onChange={setStatus}
-                />
-              </div>
-
-              {error && (
-                <div className="mx-4 mt-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm whitespace-pre-wrap text-red-200">
-                  {error}
-                </div>
-              )}
-
-              <div className="file-manager-workspace">
-                <div className="file-manager-list-panel">
-                  <table className="file-manager-table w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-700/40 bg-slate-800/40">
-                        <th className="px-4 py-3 text-left label">文件</th>
-                        <th className="px-4 py-3 text-left label">阶段</th>
-                        <th className="px-4 py-3 text-left label">类型</th>
-                        <th className="px-4 py-3 text-right label">数量</th>
-                        <th className="px-4 py-3 text-right label">大小</th>
-                        <th className="px-4 py-3 text-right label">状态</th>
-                        <th className="px-4 py-3 text-right label">操作</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtered.map(asset => (
-                        <tr
-                          key={asset.id}
-                          className={cn(
-                            'cursor-pointer border-b border-slate-800/45 transition-colors hover:bg-slate-700/18',
-                            selectedAsset?.id === asset.id && 'bg-sky-500/8',
-                          )}
-                          onClick={() => setSelectedId(asset.id)}
-                        >
-                          <td className="px-4 py-3">
-                            <div className="pretty-tooltip max-w-[22rem] truncate font-mono font-semibold text-slate-100" data-tooltip={asset.title}>{asset.title}</div>
-                            <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{asset.path}</div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-400">{stageLabel(asset)}</td>
-                          <td className="px-4 py-3 text-slate-400">{kindLabel(asset)}</td>
-                          <td className="px-4 py-3 text-right font-mono tabular-nums text-sky-300">
-                            {asset.count != null ? asset.count.toLocaleString() : '-'}
-                          </td>
-                          <td className="px-4 py-3 text-right font-mono text-slate-400">{formatBytes(asset.file_size_bytes)}</td>
-                          <td className="px-4 py-3 text-right">
-                            <span className={cn('badge border text-xs', statusClass(asset))}>{statusLabel(asset)}</span>
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              className="btn-ghost py-1 px-2 text-red-300"
-                              disabled={!asset.deletable || busyAssetId === asset.id}
-                              onClick={e => { e.stopPropagation(); deleteAsset(asset) }}
-                              title={asset.deletable ? '删除' : '不可删除'}
-                            >
-                              {busyAssetId === asset.id ? <RefreshCw size={12} className="animate-spin" /> : asset.protected ? <Lock size={12} /> : <Trash2 size={12} />}
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {!isLoading && filtered.length === 0 && (
-                        <tr>
-                          <td colSpan={7} className="px-5 py-14 text-center text-slate-500">没有匹配的文件</td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-
-                <DetailPanel
-                  asset={selectedAsset}
-                  busy={!!busyAssetId}
-                  trimValue={trimValue}
-                  onTrimValueChange={setTrimValue}
-                  onDelete={deleteAsset}
-                  onTrim={trimTemplate}
-                />
-              </div>
-            </section>
+      <div className="page-content space-y-4 p-4">
+        <section className="training-hero training-hero--compact">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="training-eyebrow">统一文件目录</div>
+              <h1 className="mt-2 text-[1.65rem] font-semibold tracking-tight text-white xl:text-[1.9rem]">{title}</h1>
+              <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">{copy}</p>
+            </div>
+            <div className="grid min-w-[460px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
+              <Metric label="文件" value={scopedSummary.total_assets.toLocaleString()} />
+              <Metric label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
+              <Metric label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
+              <Metric label="受保护" value={scopedSummary.protected_count.toLocaleString()} />
+              <Metric label="无效" value={scopedSummary.invalid_count.toLocaleString()} />
+            </div>
           </div>
+        </section>
+
+        <section className="training-card overflow-hidden">
+          <div className="card-header flex-wrap gap-3">
+            <FolderOpen size={17} className="text-sky-400" />
+            <div className="min-w-[180px]">
+              <div className="training-panel-title">文件筛选</div>
+              <div className="training-panel-copy">左侧列表支持独立滚动，右侧查看详情和操作。</div>
+            </div>
+            <div className="flex-1" />
+            <button className="btn-ghost text-xs" onClick={refresh} disabled={isLoading}>
+              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+              刷新
+            </button>
+            {!lockPlatform && (
+              <button
+                className="btn-ghost text-xs text-sky-300"
+                onClick={rebuildIndexes}
+                disabled={busyAction === 'rebuild'}
+              >
+                {busyAction === 'rebuild' ? (
+                  <RefreshCw size={12} className="animate-spin" />
+                ) : (
+                  <ShieldCheck size={12} />
+                )}
+                重建索引
+              </button>
+            )}
+            {!lockPlatform &&
+              KIND_CLEAR_OPTIONS.map(option => (
+                <button
+                  key={option.key}
+                  className="btn-ghost text-xs text-red-300"
+                  disabled={busyAction === option.key}
+                  onClick={() => clearGroup(option.key)}
+                >
+                  {busyAction === option.key ? <RefreshCw size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                  {option.label}
+                </button>
+              ))}
+          </div>
+
+          <div
+            className={`grid grid-cols-1 gap-3 border-b border-slate-700/35 p-4 ${lockPlatform ? 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr]' : 'lg:grid-cols-[1.2fr_0.9fr_0.9fr_0.9fr_0.9fr]'}`}
+          >
+            <label className="space-y-1.5">
+              <span className="label text-xs">搜索</span>
+              <div className="relative">
+                <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                <input
+                  className="input pl-9"
+                  value={query}
+                  onChange={e => setQuery(e.target.value)}
+                  placeholder="场景、路径或任务名"
+                />
+              </div>
+            </label>
+            {!lockPlatform && (
+              <SelectFilter label="平台" value={platform} options={platformOptions} onChange={setPlatform} />
+            )}
+            <SelectFilter label="阶段" value={stage} options={stageOptions} onChange={setStage} />
+            <SelectFilter label="类型" value={kind} options={kindOptions} onChange={setKind} />
+            <SelectFilter
+              label="状态"
+              value={status}
+              options={[
+                { value: ALL, label: '全部' },
+                { value: 'deletable', label: '可管理' },
+                { value: 'protected', label: '受保护' },
+                { value: 'invalid', label: '无效' },
+              ]}
+              onChange={setStatus}
+            />
+          </div>
+
+          {error && (
+            <div className="mx-4 mt-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-sm whitespace-pre-wrap text-red-200">
+              {error}
+            </div>
+          )}
+
+          <div className="file-manager-workspace">
+            <div className="file-manager-list-panel">
+              <table className="file-manager-table w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-700/40 bg-slate-800/40">
+                    <th className="px-4 py-3 text-left label">文件</th>
+                    <th className="px-4 py-3 text-left label">阶段</th>
+                    <th className="px-4 py-3 text-left label">类型</th>
+                    <th className="px-4 py-3 text-right label">数量</th>
+                    <th className="px-4 py-3 text-right label">大小</th>
+                    <th className="px-4 py-3 text-right label">状态</th>
+                    <th className="px-4 py-3 text-right label">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.map(asset => (
+                    <tr
+                      key={asset.id}
+                      className={cn(
+                        'cursor-pointer border-b border-slate-800/45 transition-colors hover:bg-slate-700/18',
+                        selectedAsset?.id === asset.id && 'bg-sky-500/8',
+                      )}
+                      onClick={() => setSelectedId(asset.id)}
+                    >
+                      <td className="px-4 py-3">
+                        <div
+                          className="pretty-tooltip max-w-[22rem] truncate font-mono font-semibold text-slate-100"
+                          data-tooltip={asset.title}
+                        >
+                          {asset.title}
+                        </div>
+                        <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{asset.path}</div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-400">{stageLabel(asset)}</td>
+                      <td className="px-4 py-3 text-slate-400">{kindLabel(asset)}</td>
+                      <td className="px-4 py-3 text-right font-mono tabular-nums text-sky-300">
+                        {asset.count != null ? asset.count.toLocaleString() : '-'}
+                      </td>
+                      <td className="px-4 py-3 text-right font-mono text-slate-400">
+                        {formatBytes(asset.file_size_bytes)}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={cn('badge border text-xs', statusClass(asset))}>{statusLabel(asset)}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          className="btn-ghost py-1 px-2 text-red-300"
+                          disabled={!asset.deletable || busyAssetId === asset.id}
+                          onClick={e => {
+                            e.stopPropagation()
+                            deleteAsset(asset)
+                          }}
+                          title={asset.deletable ? '删除' : '不可删除'}
+                        >
+                          {busyAssetId === asset.id ? (
+                            <RefreshCw size={12} className="animate-spin" />
+                          ) : asset.protected ? (
+                            <Lock size={12} />
+                          ) : (
+                            <Trash2 size={12} />
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {!isLoading && filtered.length === 0 && (
+                    <tr>
+                      <td colSpan={7} className="px-5 py-14 text-center text-slate-500">
+                        没有匹配的文件
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            <DetailPanel
+              asset={selectedAsset}
+              busy={!!busyAssetId}
+              trimValue={trimValue}
+              onTrimValueChange={setTrimValue}
+              onDelete={deleteAsset}
+              onTrim={trimTemplate}
+            />
+          </div>
+        </section>
+      </div>
     </div>
   )
 }
 
-function toOptions(assets: FileAsset[], valueKey: 'platform' | 'stage' | 'kind', labelFn: (asset: FileAsset) => string) {
+function toOptions(
+  assets: FileAsset[],
+  valueKey: 'platform' | 'stage' | 'kind',
+  labelFn: (asset: FileAsset) => string,
+) {
   const counts = new Map<string, { label: string; count: number }>()
   for (const asset of assets) {
     const key = asset[valueKey]

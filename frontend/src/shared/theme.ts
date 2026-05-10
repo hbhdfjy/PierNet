@@ -16,5 +16,5 @@ export function useTheme(): [Theme, () => void] {
     localStorage.setItem('piern-theme', theme)
   }, [theme])
 
-  return [theme, () => setTheme(current => current === 'dark' ? 'light' : 'dark')]
+  return [theme, () => setTheme(current => (current === 'dark' ? 'light' : 'dark'))]
 }

@@ -1,6 +1,7 @@
 import { AlertTriangle, Gauge, PauseCircle, PlayCircle, RefreshCcw, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { ConfirmDialog, MetricTile, StatusBadge, TruncatedText } from '../../shared/ui'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import type { TrainingJobSummary } from '../../lib/types'
@@ -14,21 +15,6 @@ import {
   trainingJobNotice,
 } from '../shared'
 
-function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
-  return (
-    <div className="training-kpi">
-      <div className="flex items-start justify-between gap-3">
-        <span className="training-kpi__label">{label}</span>
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-          {icon}
-        </span>
-      </div>
-      <div className="training-kpi__value">{value}</div>
-      <div className="training-kpi__note">{note}</div>
-    </div>
-  )
-}
-
 function actionErrorMessage(error: unknown): string {
   if (error instanceof Error && error.message) {
     return error.message
@@ -41,6 +27,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   const [isStopping, setIsStopping] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
   const stopping = job.status === 'stopping'
   const deletable = !stoppable && !stopping
@@ -67,13 +54,12 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
 
   const deleteJob = async () => {
     if (isDeleting) return
-    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。`)
-    if (!ok) return
     setActionError(null)
     setIsDeleting(true)
     try {
       await api.deleteTrainingJob(job.job_id)
       await refreshAll()
+      setConfirmDeleteOpen(false)
     } catch (error) {
       setActionError(`删除失败：${actionErrorMessage(error)}`)
     } finally {
@@ -87,14 +73,10 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
         <div className="grid gap-3 xl:grid-cols-[minmax(13rem,0.95fr)_minmax(12rem,0.9fr)_minmax(14rem,1.1fr)_auto] xl:items-center">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <div className="pretty-tooltip min-w-0" data-tooltip={job.name}>
-                <div className="truncate text-[15px] font-semibold text-slate-100">{job.name}</div>
-              </div>
-              <span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>
+              <TruncatedText value={job.name} className="text-[15px] font-semibold text-slate-100" />
+              <StatusBadge className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</StatusBadge>
             </div>
-            <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={job.job_id}>
-              <div className="mono truncate text-[11px] text-slate-500">{job.job_id}</div>
-            </div>
+            <TruncatedText value={job.job_id} tooltipClassName="mt-1" className="mono text-[11px] text-slate-500" />
           </div>
 
           <div className="min-w-0">
@@ -104,9 +86,9 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
             </div>
           </div>
 
-          <div className="pretty-tooltip min-w-0" data-tooltip={scenarioText}>
+          <div className="min-w-0">
             <div className="training-label">子场景</div>
-            <div className="training-mono-note mt-1">{scenarioText || '—'}</div>
+            <TruncatedText value={scenarioText || '—'} className="training-mono-note mt-1" />
           </div>
 
           <div className="flex flex-wrap items-center gap-2 xl:justify-end">
@@ -117,12 +99,20 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
               </button>
             )}
             {deletable && (
-              <button type="button" className="btn-ghost" onClick={deleteJob} disabled={isDeleting}>
+              <button
+                type="button"
+                className="btn-ghost"
+                onClick={() => setConfirmDeleteOpen(true)}
+                disabled={isDeleting}
+              >
                 <Trash2 size={14} />
-                {isDeleting ? '删除中...' : '删除'}
+                删除
               </button>
             )}
-            <Link to={`/training/jobs/${job.job_id}`} className={isDeleting ? 'btn-primary pointer-events-none opacity-60' : 'btn-primary'}>
+            <Link
+              to={`/training/jobs/${job.job_id}`}
+              className={isDeleting ? 'btn-primary pointer-events-none opacity-60' : 'btn-primary'}
+            >
               <PlayCircle size={14} />
               查看详情
             </Link>
@@ -136,7 +126,9 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
           </div>
           <div className="training-surface--dense">
             <div className="training-label">轮次 / 步数</div>
-            <div className="mt-1 truncate text-[13px] text-slate-100">{job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}</div>
+            <div className="mt-1 truncate text-[13px] text-slate-100">
+              {job.latest_epoch ?? '—'} / {job.latest_step ?? '—'}
+            </div>
           </div>
           <div className="training-surface--dense">
             <div className="training-label">训练损失</div>
@@ -160,12 +152,30 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
         )}
 
         {notice && (
-          <div className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}>
+          <div
+            className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}
+          >
             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
             <span>{notice.message}</span>
           </div>
         )}
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteOpen}
+        title="删除训练任务"
+        description={
+          <>
+            将彻底删除 <span className="font-semibold text-slate-100">{job.name}</span>{' '}
+            的任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。
+          </>
+        }
+        confirmLabel="删除"
+        danger
+        busy={isDeleting}
+        onCancel={() => setConfirmDeleteOpen(false)}
+        onConfirm={deleteJob}
+      />
     </div>
   )
 }
@@ -176,7 +186,8 @@ export default function TrainingJobsPage() {
     revalidateOnFocus: false,
   })
 
-  const runningCount = data?.filter(job => ['starting', 'running', 'evaluating', 'stopping'].includes(job.status)).length ?? 0
+  const runningCount =
+    data?.filter(job => ['starting', 'running', 'evaluating', 'stopping'].includes(job.status)).length ?? 0
   const doneCount = data?.filter(job => job.status === 'done').length ?? 0
   const errorCount = data?.filter(job => job.status === 'error' || job.status === 'external_terminated').length ?? 0
 
@@ -188,7 +199,9 @@ export default function TrainingJobsPage() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">任务管理</div>
-                <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">训练任务</h1>
+                <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">
+                  训练任务
+                </h1>
               </div>
               <div className="flex flex-wrap items-center gap-2.5">
                 <button type="button" className="btn-ghost" onClick={() => mutate()}>
@@ -203,10 +216,30 @@ export default function TrainingJobsPage() {
             </div>
 
             <div className="mt-4 training-kpi-grid">
-              <KpiCard label="总任务数" value={formatCount(data?.length ?? 0)} note="注册表中的全部任务" icon={<Gauge size={16} />} />
-              <KpiCard label="运行中" value={formatCount(runningCount)} note="启动中 / 训练中 / 评测中 / 停止中" icon={<PlayCircle size={16} />} />
-              <KpiCard label="已完成" value={formatCount(doneCount)} note="包含 权重 和测试结果" icon={<RefreshCcw size={16} />} />
-              <KpiCard label="失败" value={formatCount(errorCount)} note="可进入详情页查看错误" icon={<AlertTriangle size={16} />} />
+              <MetricTile
+                label="总任务数"
+                value={formatCount(data?.length ?? 0)}
+                note="注册表中的全部任务"
+                icon={<Gauge size={16} />}
+              />
+              <MetricTile
+                label="运行中"
+                value={formatCount(runningCount)}
+                note="启动中 / 训练中 / 评测中 / 停止中"
+                icon={<PlayCircle size={16} />}
+              />
+              <MetricTile
+                label="已完成"
+                value={formatCount(doneCount)}
+                note="包含 权重 和测试结果"
+                icon={<RefreshCcw size={16} />}
+              />
+              <MetricTile
+                label="失败"
+                value={formatCount(errorCount)}
+                note="可进入详情页查看错误"
+                icon={<AlertTriangle size={16} />}
+              />
             </div>
           </section>
 
@@ -227,11 +260,15 @@ export default function TrainingJobsPage() {
             <div className="training-card__body training-scroll training-job-list-scroll">
               {isLoading && !data ? (
                 <div className="space-y-2.5">
-                  {[0, 1, 2].map(item => <div key={item} className="skeleton h-40 rounded-xl" />)}
+                  {[0, 1, 2].map(item => (
+                    <div key={item} className="skeleton h-40 rounded-xl" />
+                  ))}
                 </div>
               ) : data?.length ? (
                 <div className="space-y-2.5">
-                  {data.map(job => <JobRow key={job.job_id} job={job} expanded={data.length <= 2} />)}
+                  {data.map(job => (
+                    <JobRow key={job.job_id} job={job} expanded={data.length <= 2} />
+                  ))}
                 </div>
               ) : (
                 <div className="training-card p-6 text-center text-sm text-slate-400">

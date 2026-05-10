@@ -50,7 +50,7 @@ jobs:
   frontend:
     name: Frontend Quality Gate
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -83,3 +83,11 @@ jobs:
 
       - name: Build
         run: npm run build
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+
+      - name: Playwright smoke
+        env:
+          PIERN_E2E_START_SERVER: '1'
+        run: npm run e2e:smoke

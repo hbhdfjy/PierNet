@@ -2,30 +2,50 @@ import { useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import {
-  BookOpen, XCircle, Loader2, ChevronRight,
-  FileText, Tag, Eye, Clock, Layers, Pencil, Trash2,
-  Save, X, Check, RefreshCw, Plus,
+  BookOpen,
+  XCircle,
+  Loader2,
+  ChevronRight,
+  FileText,
+  Tag,
+  Eye,
+  Clock,
+  Layers,
+  Pencil,
+  Trash2,
+  Save,
+  X,
+  Check,
+  RefreshCw,
+  Plus,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import EmptyState from '../components/ui/EmptyState'
 
-
 // ── 场景名预览 ────────────────────────────────────────────────────
 
-type OutputInfoItem = { name: string; name_zh?: string; description: string; unit: string; slice: [number, number | null] }
-type TimeModeItem   = { name: string; desc_en: string; desc_zh?: string; indices: string }
+type OutputInfoItem = {
+  name: string
+  name_zh?: string
+  description: string
+  unit: string
+  slice: [number, number | null]
+}
+type TimeModeItem = { name: string; desc_en: string; desc_zh?: string; indices: string }
 type ObsConfig = {
   fixed_time_mode?: string
-  fixed_channels?: Array<number | string> | null   // null=全选，列表=指定索引或 output_info.name
+  fixed_channels?: Array<number | string> | null // null=全选，列表=指定索引或 output_info.name
   channel_level?: string
   channel_name_template?: string
   channel_name_template_zh?: string
   time_modes?: TimeModeItem[]
 }
 type RegistryEntry = {
-  domain_context?: string; output_description?: string
+  domain_context?: string
+  output_description?: string
   param_info?: Record<string, [string, string]>
-  output_info?: OutputInfoItem[]; observation_config?: ObsConfig
+  output_info?: OutputInfoItem[]
+  observation_config?: ObsConfig
   [k: string]: unknown
 }
 
@@ -35,7 +55,11 @@ function normalizeChannelLevel(level?: string): 'row' | 'output_info' {
   return level === 'output' || level === 'output_info' ? 'output_info' : 'row'
 }
 
-function ChannelEditor({ obs, outputInfo, onChange }: {
+function ChannelEditor({
+  obs,
+  outputInfo,
+  onChange,
+}: {
   obs: ObsConfig
   outputInfo: OutputInfoItem[]
   onChange: (u: ObsConfig) => void
@@ -45,28 +69,31 @@ function ChannelEditor({ obs, outputInfo, onChange }: {
   const isOutputLevel = channelLevel === 'output_info'
   const rawChannels = isAll ? [] : (obs.fixed_channels ?? [])
   const channels = rawChannels
-    .map(v => typeof v === 'number' ? v : parseInt(String(v), 10))
+    .map(v => (typeof v === 'number' ? v : parseInt(String(v), 10)))
     .filter(n => Number.isInteger(n) && n >= 0)
-  const outputChannels = Array.from(new Set(rawChannels
-    .map(v => {
-      if (typeof v === 'number') return v
-      const s = String(v).trim()
-      const named = outputInfo.findIndex(info => info.name === s)
-      if (named >= 0) return named
-      return parseInt(s, 10)
-    })
-    .filter(n => Number.isInteger(n) && n >= 0 && n < outputInfo.length)))
-    .sort((a, b) => a - b)
+  const outputChannels = Array.from(
+    new Set(
+      rawChannels
+        .map(v => {
+          if (typeof v === 'number') return v
+          const s = String(v).trim()
+          const named = outputInfo.findIndex(info => info.name === s)
+          if (named >= 0) return named
+          return parseInt(s, 10)
+        })
+        .filter(n => Number.isInteger(n) && n >= 0 && n < outputInfo.length),
+    ),
+  ).sort((a, b) => a - b)
   const [input, setInput] = useState('')
   const [localErr, setLocalErr] = useState<string | null>(null)
 
-  const visibleErr = localErr ?? (
-    !isAll && isOutputLevel && outputChannels.length === 0
+  const visibleErr =
+    localErr ??
+    (!isAll && isOutputLevel && outputChannels.length === 0
       ? '至少选择 1 个输出维度'
       : !isAll && !isOutputLevel && channels.length === 0
         ? '至少选择 1 个输出通道'
-        : null
-  )
+        : null)
 
   const setMode = (mode: 'all' | 'row' | 'output_info') => {
     setLocalErr(null)
@@ -152,22 +179,32 @@ function ChannelEditor({ obs, outputInfo, onChange }: {
 
   return (
     <div className="space-y-2">
-      <div className="label text-xs flex items-center gap-1.5"><Layers size={12} />通道采样</div>
+      <div className="label text-xs flex items-center gap-1.5">
+        <Layers size={12} />
+        通道采样
+      </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
         {modeButton('all', '全选所有通道', 'fixed_channels = null', isAll)}
         {modeButton('row', '指定通道索引', 'channel_level = row', !isAll && !isOutputLevel)}
-        {modeButton('output_info', '指定输出维度', 'channel_level = output_info', !isAll && isOutputLevel, outputInfo.length === 0)}
+        {modeButton(
+          'output_info',
+          '指定输出维度',
+          'channel_level = output_info',
+          !isAll && isOutputLevel,
+          outputInfo.length === 0,
+        )}
       </div>
 
       {!isAll && !isOutputLevel && (
         <div className="rounded-xl border border-slate-700/30 bg-slate-800/30 p-3 space-y-2">
           <div className="flex flex-wrap gap-1.5 min-h-[28px]">
-            {channels.length === 0 && (
-              <span className="text-xs text-slate-600 italic">尚未添加通道索引</span>
-            )}
+            {channels.length === 0 && <span className="text-xs text-slate-600 italic">尚未添加通道索引</span>}
             {channels.map(n => (
-              <span key={n} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-mono">
+              <span
+                key={n}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-sky-500/15 border border-sky-500/30 text-sky-300 text-xs font-mono"
+              >
                 {n}
                 <button type="button" onClick={() => removeChannel(n)} className="hover:text-red-400 transition-colors">
                   <X size={10} />
@@ -177,12 +214,18 @@ function ChannelEditor({ obs, outputInfo, onChange }: {
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <input
-              type="number" min={0}
+              type="number"
+              min={0}
               className="input w-24 text-xs py-1 px-2 font-mono"
               placeholder="索引"
               value={input}
               onChange={e => setInput(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') { addChannel(input); e.preventDefault() } }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  addChannel(input)
+                  e.preventDefault()
+                }
+              }}
             />
             <button
               type="button"
@@ -215,10 +258,14 @@ function ChannelEditor({ obs, outputInfo, onChange }: {
                   )}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-xs font-semibold font-mono text-sky-200">#{index} {info.name}</span>
+                    <span className="text-xs font-semibold font-mono text-sky-200">
+                      #{index} {info.name}
+                    </span>
                     {selected && <Check size={12} className="text-emerald-400 flex-shrink-0" />}
                   </div>
-                  <div className="mt-1 text-[11px] text-slate-500 truncate">{info.name_zh || info.description || '-'}</div>
+                  <div className="mt-1 text-[11px] text-slate-500 truncate">
+                    {info.name_zh || info.description || '-'}
+                  </div>
                   <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-600 font-mono">
                     <span>{info.unit || '-'}</span>
                     <span>{Array.isArray(info.slice) ? `[${info.slice[0]}, ${info.slice[1] ?? ''}]` : ''}</span>
@@ -245,16 +292,16 @@ function ChannelEditor({ obs, outputInfo, onChange }: {
 type TimeModeName = 'monthly' | 'weekly' | 'full' | 'every_n'
 
 const TIME_MODE_OPTIONS: { value: TimeModeName; label: string; desc: string }[] = [
-  { value: 'monthly', label: '月度',     desc: '每月取1个点，共12点' },
-  { value: 'weekly',  label: '每周',     desc: '每7步取1个点，最多52点' },
-  { value: 'full',    label: '全量',     desc: '保留所有时间步' },
+  { value: 'monthly', label: '月度', desc: '每月取1个点，共12点' },
+  { value: 'weekly', label: '每周', desc: '每7步取1个点，最多52点' },
+  { value: 'full', label: '全量', desc: '保留所有时间步' },
   { value: 'every_n', label: '自定义步长', desc: '每 N 步取1个点' },
 ]
 
 function parseTimeModeName(fixed: string): { type: TimeModeName; step: number } {
   if (fixed === 'monthly') return { type: 'monthly', step: 10 }
-  if (fixed === 'weekly')  return { type: 'weekly',  step: 7 }
-  if (fixed === 'full')    return { type: 'full',    step: 1 }
+  if (fixed === 'weekly') return { type: 'weekly', step: 7 }
+  if (fixed === 'full') return { type: 'full', step: 1 }
   if (fixed.startsWith('every_')) {
     const n = parseInt(fixed.slice(6))
     return { type: 'every_n', step: isNaN(n) || n <= 0 ? 10 : n }
@@ -263,13 +310,28 @@ function parseTimeModeName(fixed: string): { type: TimeModeName; step: number } 
 }
 
 function buildTimeModeEntry(type: TimeModeName, step: number): { indices: string; desc_en: string; desc_zh: string } {
-  if (type === 'monthly') return { indices: 'monthly', desc_en: 'monthly (day 15 of each month), 12 time points', desc_zh: '月度（每月第15天），共12个时间点' }
-  if (type === 'weekly')  return { indices: 'weekly',  desc_en: 'weekly (every 7 steps), up to 52 time points',  desc_zh: '每周（每7步），最多52个时间点' }
-  if (type === 'full')    return { indices: 'full',    desc_en: 'full time series, all time points',             desc_zh: '全量时间序列，所有时间步' }
+  if (type === 'monthly')
+    return {
+      indices: 'monthly',
+      desc_en: 'monthly (day 15 of each month), 12 time points',
+      desc_zh: '月度（每月第15天），共12个时间点',
+    }
+  if (type === 'weekly')
+    return {
+      indices: 'weekly',
+      desc_en: 'weekly (every 7 steps), up to 52 time points',
+      desc_zh: '每周（每7步），最多52个时间点',
+    }
+  if (type === 'full')
+    return { indices: 'full', desc_en: 'full time series, all time points', desc_zh: '全量时间序列，所有时间步' }
   return { indices: `every_${step}`, desc_en: `every ${step} steps`, desc_zh: `每 ${step} 步取1个点` }
 }
 
-function ObsConfigEditor({ obs, outputInfo, onChange }: {
+function ObsConfigEditor({
+  obs,
+  outputInfo,
+  onChange,
+}: {
   obs: ObsConfig
   outputInfo: OutputInfoItem[]
   onChange: (updated: ObsConfig) => void
@@ -279,7 +341,7 @@ function ObsConfigEditor({ obs, outputInfo, onChange }: {
   const [stepInput, setStepInput] = useState(String(everyStep))
 
   const selectMode = (type: TimeModeName, step?: number) => {
-    const n = step ?? (type === 'every_n' ? (parseInt(stepInput) || 10) : 10)
+    const n = step ?? (type === 'every_n' ? parseInt(stepInput) || 10 : 10)
     const modeStr = type === 'every_n' ? `every_${n}` : type
     const { indices, desc_en, desc_zh } = buildTimeModeEntry(type, n)
     onChange({ ...obs, fixed_time_mode: modeStr, time_modes: [{ name: modeStr, indices, desc_en, desc_zh }] })
@@ -295,14 +357,20 @@ function ObsConfigEditor({ obs, outputInfo, onChange }: {
     <div className="space-y-4">
       {/* 时间模式选择 */}
       <div className="space-y-2">
-        <div className="label text-xs flex items-center gap-1.5"><Clock size={12} />时间采样模式</div>
+        <div className="label text-xs flex items-center gap-1.5">
+          <Clock size={12} />
+          时间采样模式
+        </div>
         <div className="grid grid-cols-2 gap-2">
           {TIME_MODE_OPTIONS.map(opt => {
             const active = selectedType === opt.value
             return (
               <button
                 key={opt.value}
-                onClick={() => { if (opt.value !== 'every_n') selectMode(opt.value); else selectMode('every_n') }}
+                onClick={() => {
+                  if (opt.value !== 'every_n') selectMode(opt.value)
+                  else selectMode('every_n')
+                }}
                 className={cn(
                   'rounded-xl border px-3 py-2.5 text-left transition-all',
                   active
@@ -318,8 +386,13 @@ function ObsConfigEditor({ obs, outputInfo, onChange }: {
                 {opt.value === 'every_n' && active && (
                   <div className="mt-2 flex items-center gap-2" onClick={e => e.stopPropagation()}>
                     <span className="text-xs text-slate-400">N =</span>
-                    <input type="number" min={1} className="input w-20 text-xs py-1 px-2"
-                      value={stepInput} onChange={e => handleStepChange(e.target.value)} />
+                    <input
+                      type="number"
+                      min={1}
+                      className="input w-20 text-xs py-1 px-2"
+                      value={stepInput}
+                      onChange={e => handleStepChange(e.target.value)}
+                    />
                     <span className="text-xs text-slate-500">步</span>
                   </div>
                 )}
@@ -341,8 +414,15 @@ function ObsConfigEditor({ obs, outputInfo, onChange }: {
 
 // ── Domain tab ────────────────────────────────────────────────────
 
-function DomainTab({ entry, saving, saveErr, onSave }: {
-  entry: RegistryEntry; saving: boolean; saveErr: string | null
+function DomainTab({
+  entry,
+  saving,
+  saveErr,
+  onSave,
+}: {
+  entry: RegistryEntry
+  saving: boolean
+  saveErr: string | null
   onSave: (patch: Partial<RegistryEntry>) => Promise<void>
 }) {
   const [dcVal, setDcVal] = useState(entry.domain_context ?? '')
@@ -355,16 +435,30 @@ function DomainTab({ entry, saving, saveErr, onSave }: {
       {/* domain_context */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <div className="label flex items-center gap-1.5"><FileText size={12} />domain_context</div>
+          <div className="label flex items-center gap-1.5">
+            <FileText size={12} />
+            domain_context
+          </div>
           <div className="flex-1" />
           {dcDirty && (
             <div className="flex gap-1">
-              <button className="btn-ghost py-0.5 px-2 text-xs text-emerald-400" disabled={saving}
-                onClick={async () => { await onSave({ domain_context: dcVal }); setDcDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
+                disabled={saving}
+                onClick={async () => {
+                  await onSave({ domain_context: dcVal })
+                  setDcDirty(false)
+                }}
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
-                onClick={() => { setDcVal(entry.domain_context ?? ''); setDcDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+                onClick={() => {
+                  setDcVal(entry.domain_context ?? '')
+                  setDcDirty(false)
+                }}
+              >
                 <X size={12} /> 取消
               </button>
             </div>
@@ -374,22 +468,39 @@ function DomainTab({ entry, saving, saveErr, onSave }: {
           className="input w-full text-sm resize-y leading-relaxed"
           rows={6}
           value={dcVal}
-          onChange={e => { setDcVal(e.target.value); setDcDirty(true) }}
+          onChange={e => {
+            setDcVal(e.target.value)
+            setDcDirty(true)
+          }}
         />
       </div>
       {/* output_description */}
       <div>
         <div className="flex items-center gap-2 mb-2">
-          <div className="label flex items-center gap-1.5"><Eye size={12} />output_description</div>
+          <div className="label flex items-center gap-1.5">
+            <Eye size={12} />
+            output_description
+          </div>
           <div className="flex-1" />
           {odDirty && (
             <div className="flex gap-1">
-              <button className="btn-ghost py-0.5 px-2 text-xs text-emerald-400" disabled={saving}
-                onClick={async () => { await onSave({ output_description: odVal }); setOdDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
+                disabled={saving}
+                onClick={async () => {
+                  await onSave({ output_description: odVal })
+                  setOdDirty(false)
+                }}
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
-                onClick={() => { setOdVal(entry.output_description ?? ''); setOdDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+                onClick={() => {
+                  setOdVal(entry.output_description ?? '')
+                  setOdDirty(false)
+                }}
+              >
                 <X size={12} /> 取消
               </button>
             </div>
@@ -399,27 +510,45 @@ function DomainTab({ entry, saving, saveErr, onSave }: {
           className="input w-full text-sm font-mono"
           placeholder="{ch} channels × {ts} timesteps of ..."
           value={odVal}
-          onChange={e => { setOdVal(e.target.value); setOdDirty(true) }}
+          onChange={e => {
+            setOdVal(e.target.value)
+            setOdDirty(true)
+          }}
         />
-        <p className="text-xs text-slate-600 mt-1">必须包含 {'{ch}'} 和 {'{ts}'} 占位符</p>
+        <p className="text-xs text-slate-600 mt-1">
+          必须包含 {'{ch}'} 和 {'{ts}'} 占位符
+        </p>
       </div>
-      {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
+      {saveErr && (
+        <div className="text-xs text-red-400 flex items-center gap-1">
+          <XCircle size={11} />
+          {saveErr}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Output info tab ───────────────────────────────────────────────
 
-function OutputInfoTab({ outputInfo, saving, saveErr, onSave }: {
-  outputInfo: OutputInfoItem[]; saving: boolean; saveErr: string | null
+function OutputInfoTab({
+  outputInfo,
+  saving,
+  saveErr,
+  onSave,
+}: {
+  outputInfo: OutputInfoItem[]
+  saving: boolean
+  saveErr: string | null
   onSave: (updated: OutputInfoItem[]) => Promise<void>
 }) {
   const [items, setItems] = useState<OutputInfoItem[]>(outputInfo)
   const [dirty, setDirty] = useState(false)
 
   const update = (i: number, patch: Partial<OutputInfoItem>) => {
-    const next = items.map((x, j) => j === i ? { ...x, ...patch } : x)
-    setItems(next); setDirty(true)
+    const next = items.map((x, j) => (j === i ? { ...x, ...patch } : x))
+    setItems(next)
+    setDirty(true)
   }
   const addItem = () => {
     const last = items[items.length - 1]
@@ -427,85 +556,146 @@ function OutputInfoTab({ outputInfo, saving, saveErr, onSave }: {
     setItems([...items, { name: '', description: '', unit: '-', slice: [start, null] }])
     setDirty(true)
   }
-  const removeItem = (i: number) => { setItems(items.filter((_, j) => j !== i)); setDirty(true) }
+  const removeItem = (i: number) => {
+    setItems(items.filter((_, j) => j !== i))
+    setDirty(true)
+  }
 
   return (
     <div className="list-scroll-lg space-y-3">
       <div className="flex items-center justify-between">
-        <div className="label flex items-center gap-1.5"><Layers size={12} />output_info — {items.length} 个通道组</div>
+        <div className="label flex items-center gap-1.5">
+          <Layers size={12} />
+          output_info — {items.length} 个通道组
+        </div>
         <div className="flex items-center gap-2">
           {dirty && (
             <>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-emerald-400" disabled={saving}
-                onClick={async () => { await onSave(items); setDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
+                disabled={saving}
+                onClick={async () => {
+                  await onSave(items)
+                  setDirty(false)
+                }}
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
-                onClick={() => { setItems(outputInfo); setDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+                onClick={() => {
+                  setItems(outputInfo)
+                  setDirty(false)
+                }}
+              >
                 <X size={12} /> 取消
               </button>
             </>
           )}
-          <button className="btn-ghost py-0.5 px-2 text-xs" onClick={addItem}><Plus size={11} /> 添加</button>
+          <button className="btn-ghost py-0.5 px-2 text-xs" onClick={addItem}>
+            <Plus size={11} /> 添加
+          </button>
         </div>
       </div>
       {items.map((o, i) => (
         <div key={i} className="rounded-xl border border-slate-700/30 p-3 space-y-2 bg-slate-900/30 group">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-slate-600 bg-slate-800 rounded px-1.5 py-0.5 flex-shrink-0">#{i}</span>
+            <span className="font-mono text-xs text-slate-600 bg-slate-800 rounded px-1.5 py-0.5 flex-shrink-0">
+              #{i}
+            </span>
             <div className="flex-1 grid grid-cols-3 gap-2">
               <div>
                 <label className="label text-xs block mb-1">name</label>
-                <input className="input w-full text-xs py-1 px-2 font-mono" placeholder="snake_case"
-                  value={o.name} onChange={e => update(i, { name: e.target.value })} />
+                <input
+                  className="input w-full text-xs py-1 px-2 font-mono"
+                  placeholder="snake_case"
+                  value={o.name}
+                  onChange={e => update(i, { name: e.target.value })}
+                />
               </div>
               <div>
                 <label className="label text-xs block mb-1">name_zh</label>
-                <input className="input w-full text-xs py-1 px-2" placeholder="中文名"
-                  value={o.name_zh ?? ''} onChange={e => update(i, { name_zh: e.target.value })} />
+                <input
+                  className="input w-full text-xs py-1 px-2"
+                  placeholder="中文名"
+                  value={o.name_zh ?? ''}
+                  onChange={e => update(i, { name_zh: e.target.value })}
+                />
               </div>
               <div>
                 <label className="label text-xs block mb-1">unit</label>
-                <input className="input w-full text-xs py-1 px-2 font-mono" placeholder="m/d"
-                  value={o.unit} onChange={e => update(i, { unit: e.target.value })} />
+                <input
+                  className="input w-full text-xs py-1 px-2 font-mono"
+                  placeholder="m/d"
+                  value={o.unit}
+                  onChange={e => update(i, { unit: e.target.value })}
+                />
               </div>
             </div>
-            <button className="btn-ghost py-0.5 px-1 text-slate-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
-              onClick={() => removeItem(i)}><Trash2 size={12} /></button>
+            <button
+              className="btn-ghost py-0.5 px-1 text-slate-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+              onClick={() => removeItem(i)}
+            >
+              <Trash2 size={12} />
+            </button>
           </div>
           <div className="grid grid-cols-3 gap-2">
             <div className="col-span-2">
               <label className="label text-xs block mb-1">description</label>
-              <input className="input w-full text-xs py-1 px-2" placeholder="物理含义"
-                value={o.description} onChange={e => update(i, { description: e.target.value })} />
+              <input
+                className="input w-full text-xs py-1 px-2"
+                placeholder="物理含义"
+                value={o.description}
+                onChange={e => update(i, { description: e.target.value })}
+              />
             </div>
             <div>
               <label className="label text-xs block mb-1">slice [start, end]</label>
               <div className="flex items-center gap-1">
-                <input type="number" className="input w-full text-xs py-1 px-2 font-mono" placeholder="0"
+                <input
+                  type="number"
+                  className="input w-full text-xs py-1 px-2 font-mono"
+                  placeholder="0"
                   value={o.slice?.[0] ?? 0}
-                  onChange={e => update(i, { slice: [parseInt(e.target.value) || 0, o.slice?.[1] ?? null] })} />
+                  onChange={e => update(i, { slice: [parseInt(e.target.value) || 0, o.slice?.[1] ?? null] })}
+                />
                 <span className="text-slate-600 text-xs">:</span>
-                <input type="number" className="input w-full text-xs py-1 px-2 font-mono" placeholder="null"
+                <input
+                  type="number"
+                  className="input w-full text-xs py-1 px-2 font-mono"
+                  placeholder="null"
                   value={o.slice?.[1] ?? ''}
                   onChange={e => {
                     const v = e.target.value === '' ? null : parseInt(e.target.value)
                     update(i, { slice: [o.slice?.[0] ?? 0, v] })
-                  }} />
+                  }}
+                />
               </div>
             </div>
           </div>
         </div>
       ))}
-      {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
+      {saveErr && (
+        <div className="text-xs text-red-400 flex items-center gap-1">
+          <XCircle size={11} />
+          {saveErr}
+        </div>
+      )}
     </div>
   )
 }
 
 // ── Param info tab ────────────────────────────────────────────────
 
-function ParamInfoTab({ params, saving, saveErr, onSave }: {
-  params: Record<string, [string, string]>; saving: boolean; saveErr: string | null
+function ParamInfoTab({
+  params,
+  saving,
+  saveErr,
+  onSave,
+}: {
+  params: Record<string, [string, string]>
+  saving: boolean
+  saveErr: string | null
   onSave: (updated: Record<string, [string, string]>) => Promise<void>
 }) {
   type Row = { name: string; meaning: string; unit: string }
@@ -514,112 +704,181 @@ function ParamInfoTab({ params, saving, saveErr, onSave }: {
       name,
       meaning: Array.isArray(info) ? info[0] : String(info),
       unit: Array.isArray(info) ? info[1] : '-',
-    }))
+    })),
   )
   const [dirty, setDirty] = useState(false)
   const [editingRow, setEditingRow] = useState<number | null>(null)
 
   const updateRow = (i: number, patch: Partial<Row>) => {
-    setRows(rows.map((r, j) => j === i ? { ...r, ...patch } : r))
+    setRows(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)))
     setDirty(true)
   }
-  const addRow = () => { setRows([...rows, { name: '', meaning: '', unit: '-' }]); setDirty(true); setEditingRow(rows.length) }
-  const removeRow = (i: number) => { setRows(rows.filter((_, j) => j !== i)); setDirty(true) }
+  const addRow = () => {
+    setRows([...rows, { name: '', meaning: '', unit: '-' }])
+    setDirty(true)
+    setEditingRow(rows.length)
+  }
+  const removeRow = (i: number) => {
+    setRows(rows.filter((_, j) => j !== i))
+    setDirty(true)
+  }
 
-  const toParamInfo = () => Object.fromEntries(rows.filter(r => r.name).map(r => [r.name, [r.meaning, r.unit] as [string, string]]))
+  const toParamInfo = () =>
+    Object.fromEntries(rows.filter(r => r.name).map(r => [r.name, [r.meaning, r.unit] as [string, string]]))
 
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <div className="label flex items-center gap-1.5"><Tag size={12} />param_info — {rows.length} 个参数</div>
+        <div className="label flex items-center gap-1.5">
+          <Tag size={12} />
+          param_info — {rows.length} 个参数
+        </div>
         <div className="flex items-center gap-2">
           {dirty && (
             <>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-emerald-400" disabled={saving}
-                onClick={async () => { await onSave(toParamInfo()); setDirty(false) }}>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
+                disabled={saving}
+                onClick={async () => {
+                  await onSave(toParamInfo())
+                  setDirty(false)
+                }}
+              >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
               </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
                 onClick={() => {
-                  setRows(Object.entries(params).map(([name, info]) => ({ name, meaning: Array.isArray(info) ? info[0] : String(info), unit: Array.isArray(info) ? info[1] : '-' })))
+                  setRows(
+                    Object.entries(params).map(([name, info]) => ({
+                      name,
+                      meaning: Array.isArray(info) ? info[0] : String(info),
+                      unit: Array.isArray(info) ? info[1] : '-',
+                    })),
+                  )
                   setDirty(false)
-                }}>
+                }}
+              >
                 <X size={12} /> 取消
               </button>
             </>
           )}
-          <button className="btn-ghost py-0.5 px-2 text-xs" onClick={addRow}><Plus size={11} /> 添加</button>
+          <button className="btn-ghost py-0.5 px-2 text-xs" onClick={addRow}>
+            <Plus size={11} /> 添加
+          </button>
         </div>
       </div>
       <div className="rounded-xl border border-slate-700/30 overflow-hidden">
         <div className="list-table-scroll">
           <table className="w-full text-sm">
-          <thead className="bg-slate-900/50">
-            <tr className="border-b border-slate-700/30">
-              <th className="px-3 py-2 text-left label w-40">参数名</th>
-              <th className="px-3 py-2 text-left label">物理含义</th>
-              <th className="px-3 py-2 text-left label w-28">单位</th>
-              <th className="px-3 py-2 w-8" />
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((r, i) => (
-              <tr key={i} className="border-b border-slate-800/40 hover:bg-slate-700/10 group">
-                {editingRow === i ? (
-                  <>
-                    <td className="px-2 py-1.5">
-                      <input className="input w-full text-xs py-1 px-2 font-mono"
-                        value={r.name} onChange={e => updateRow(i, { name: e.target.value })} autoFocus />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <input className="input w-full text-xs py-1 px-2"
-                        value={r.meaning} onChange={e => updateRow(i, { meaning: e.target.value })} />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <input className="input w-full text-xs py-1 px-2 font-mono"
-                        value={r.unit} onChange={e => updateRow(i, { unit: e.target.value })}
-                        onKeyDown={e => e.key === 'Enter' && setEditingRow(null)} />
-                    </td>
-                    <td className="px-2 py-1.5">
-                      <button className="btn-ghost py-0.5 px-1 text-emerald-400" onClick={() => setEditingRow(null)}>
-                        <Check size={11} />
-                      </button>
-                    </td>
-                  </>
-                ) : (
-                  <>
-                    <td className="px-3 py-2 font-mono text-sky-300/80 cursor-pointer" onClick={() => setEditingRow(i)}>{r.name || <span className="text-slate-600 italic">（空）</span>}</td>
-                    <td className="px-3 py-2 text-slate-300 cursor-pointer" onClick={() => setEditingRow(i)}>{r.meaning}</td>
-                    <td className="px-3 py-2 font-mono text-slate-500 text-xs cursor-pointer" onClick={() => setEditingRow(i)}>{r.unit}</td>
-                    <td className="px-2 py-2">
-                      <button className="btn-ghost py-0.5 px-1 text-slate-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeRow(i)}><Trash2 size={11} /></button>
-                    </td>
-                  </>
-                )}
+            <thead className="bg-slate-900/50">
+              <tr className="border-b border-slate-700/30">
+                <th className="px-3 py-2 text-left label w-40">参数名</th>
+                <th className="px-3 py-2 text-left label">物理含义</th>
+                <th className="px-3 py-2 text-left label w-28">单位</th>
+                <th className="px-3 py-2 w-8" />
               </tr>
-            ))}
-          </tbody>
+            </thead>
+            <tbody>
+              {rows.map((r, i) => (
+                <tr key={i} className="border-b border-slate-800/40 hover:bg-slate-700/10 group">
+                  {editingRow === i ? (
+                    <>
+                      <td className="px-2 py-1.5">
+                        <input
+                          className="input w-full text-xs py-1 px-2 font-mono"
+                          value={r.name}
+                          onChange={e => updateRow(i, { name: e.target.value })}
+                          autoFocus
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          className="input w-full text-xs py-1 px-2"
+                          value={r.meaning}
+                          onChange={e => updateRow(i, { meaning: e.target.value })}
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <input
+                          className="input w-full text-xs py-1 px-2 font-mono"
+                          value={r.unit}
+                          onChange={e => updateRow(i, { unit: e.target.value })}
+                          onKeyDown={e => e.key === 'Enter' && setEditingRow(null)}
+                        />
+                      </td>
+                      <td className="px-2 py-1.5">
+                        <button className="btn-ghost py-0.5 px-1 text-emerald-400" onClick={() => setEditingRow(null)}>
+                          <Check size={11} />
+                        </button>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td
+                        className="px-3 py-2 font-mono text-sky-300/80 cursor-pointer"
+                        onClick={() => setEditingRow(i)}
+                      >
+                        {r.name || <span className="text-slate-600 italic">（空）</span>}
+                      </td>
+                      <td className="px-3 py-2 text-slate-300 cursor-pointer" onClick={() => setEditingRow(i)}>
+                        {r.meaning}
+                      </td>
+                      <td
+                        className="px-3 py-2 font-mono text-slate-500 text-xs cursor-pointer"
+                        onClick={() => setEditingRow(i)}
+                      >
+                        {r.unit}
+                      </td>
+                      <td className="px-2 py-2">
+                        <button
+                          className="btn-ghost py-0.5 px-1 text-slate-700 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeRow(i)}
+                        >
+                          <Trash2 size={11} />
+                        </button>
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
           </table>
         </div>
       </div>
-      {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
+      {saveErr && (
+        <div className="text-xs text-red-400 flex items-center gap-1">
+          <XCircle size={11} />
+          {saveErr}
+        </div>
+      )}
     </div>
   )
 }
 
 function FieldBadge({ present, label }: { present: boolean; label: string }) {
   return (
-    <span className={cn('badge border text-xs', present
-      ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
-      : 'bg-slate-700/30 text-slate-600 border-slate-700/30')}>
+    <span
+      className={cn(
+        'badge border text-xs',
+        present
+          ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25'
+          : 'bg-slate-700/30 text-slate-600 border-slate-700/30',
+      )}
+    >
       {present ? '✓' : '○'} {label}
     </span>
   )
 }
 
-function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
-  entryKey: string; entry: RegistryEntry
+function RegistryEntryCard({
+  entryKey,
+  entry,
+  onSave,
+  onDelete,
+}: {
+  entryKey: string
+  entry: RegistryEntry
   onSave: (key: string, data: RegistryEntry) => Promise<void>
   onDelete: (key: string) => Promise<void>
 }) {
@@ -633,7 +892,7 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
 
   const hasDomain = !!entry.domain_context
   const hasOutput = Array.isArray(entry.output_info)
-  const hasObs    = !!entry.observation_config
+  const hasObs = !!entry.observation_config
   const hasParams = !!entry.param_info
   const [simulator, scenario] = entryKey.includes('/') ? entryKey.split('/', 2) : [entryKey, '']
   const obs = entry.observation_config
@@ -641,30 +900,57 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
   const outputInfo = (entry.output_info ?? []) as OutputInfoItem[]
 
   return (
-    <div className={cn('border rounded-2xl overflow-hidden transition-all duration-200',
-      open ? 'border-sky-500/30 bg-slate-800/60' : 'border-slate-700/40 bg-slate-800/30 hover:border-slate-600/60')}>
+    <div
+      className={cn(
+        'border rounded-2xl overflow-hidden transition-all duration-200',
+        open ? 'border-sky-500/30 bg-slate-800/60' : 'border-slate-700/40 bg-slate-800/30 hover:border-slate-600/60',
+      )}
+    >
       <div className="flex items-center gap-3 px-4 py-3.5">
         <button onClick={() => setOpen(o => !o)} className="flex items-center gap-3 flex-1 text-left min-w-0">
-          <span className={cn('transition-transform duration-200 text-slate-500 flex-shrink-0', open && 'rotate-90')}><ChevronRight size={15} /></span>
+          <span className={cn('transition-transform duration-200 text-slate-500 flex-shrink-0', open && 'rotate-90')}>
+            <ChevronRight size={15} />
+          </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <span className="font-mono text-base text-slate-200 font-medium">{scenario || simulator}</span>
-              {scenario && <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">{simulator}</span>}
+              {scenario && (
+                <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
+                  {simulator}
+                </span>
+              )}
             </div>
           </div>
         </button>
         <div className="flex items-center gap-1.5 flex-shrink-0">
           <FieldBadge present={hasDomain} label="domain" />
           <FieldBadge present={hasOutput} label="output" />
-          <FieldBadge present={hasObs}    label="obs" />
+          <FieldBadge present={hasObs} label="obs" />
           {!confirmDelete ? (
-            <button className="btn-ghost py-1 px-2 text-xs text-slate-600 hover:text-red-400 ml-1"
-              onClick={e => { e.stopPropagation(); setConfirmDelete(true) }}><Trash2 size={13} /></button>
+            <button
+              className="btn-ghost py-1 px-2 text-xs text-slate-600 hover:text-red-400 ml-1"
+              onClick={e => {
+                e.stopPropagation()
+                setConfirmDelete(true)
+              }}
+            >
+              <Trash2 size={13} />
+            </button>
           ) : (
             <div className="flex items-center gap-1 ml-1">
               <span className="text-xs text-red-400">确认？</span>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-red-400" onClick={async () => { await onDelete(entryKey); setConfirmDelete(false) }}><Check size={12} /></button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}><X size={12} /></button>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-red-400"
+                onClick={async () => {
+                  await onDelete(entryKey)
+                  setConfirmDelete(false)
+                }}
+              >
+                <Check size={12} />
+              </button>
+              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}>
+                <X size={12} />
+              </button>
             </div>
           )}
         </div>
@@ -673,92 +959,178 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
       {open && (
         <div className="border-t border-slate-700/30">
           <div className="flex border-b border-slate-700/30 bg-slate-900/30 overflow-x-auto">
-            {([
-              { id: 'domain', icon: <FileText size={13} />,   label: '领域描述', disabled: false },
-              { id: 'output', icon: <Layers size={13} />,     label: '输出通道', disabled: !hasOutput },
-              { id: 'obs',    icon: <Clock size={13} />,      label: '观测配置', disabled: !hasObs },
-              { id: 'params', icon: <Tag size={13} />,        label: `参数 (${Object.keys(params).length})`, disabled: !hasParams },
-              { id: 'raw',    icon: <FileText size={13} />,   label: 'Raw JSON', disabled: false },
-            ] as const).map(t => (
-              <button key={t.id} disabled={t.disabled} onClick={() => { setTab(t.id) }}
-                className={cn('flex items-center gap-1.5 px-4 py-2.5 text-sm transition-colors border-b-2 whitespace-nowrap flex-shrink-0',
-                  tab === t.id && !t.disabled ? 'border-sky-500 text-sky-300 bg-sky-500/5'
-                  : t.disabled ? 'border-transparent text-slate-700 cursor-not-allowed'
-                  : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-700/20')}>
-                {t.icon}{t.label}
+            {(
+              [
+                { id: 'domain', icon: <FileText size={13} />, label: '领域描述', disabled: false },
+                { id: 'output', icon: <Layers size={13} />, label: '输出通道', disabled: !hasOutput },
+                { id: 'obs', icon: <Clock size={13} />, label: '观测配置', disabled: !hasObs },
+                {
+                  id: 'params',
+                  icon: <Tag size={13} />,
+                  label: `参数 (${Object.keys(params).length})`,
+                  disabled: !hasParams,
+                },
+                { id: 'raw', icon: <FileText size={13} />, label: 'Raw JSON', disabled: false },
+              ] as const
+            ).map(t => (
+              <button
+                key={t.id}
+                disabled={t.disabled}
+                onClick={() => {
+                  setTab(t.id)
+                }}
+                className={cn(
+                  'flex items-center gap-1.5 px-4 py-2.5 text-sm transition-colors border-b-2 whitespace-nowrap flex-shrink-0',
+                  tab === t.id && !t.disabled
+                    ? 'border-sky-500 text-sky-300 bg-sky-500/5'
+                    : t.disabled
+                      ? 'border-transparent text-slate-700 cursor-not-allowed'
+                      : 'border-transparent text-slate-500 hover:text-slate-300 hover:bg-slate-700/20',
+                )}
+              >
+                {t.icon}
+                {t.label}
               </button>
             ))}
           </div>
           <div className="p-4">
             {tab === 'domain' && (
-              <DomainTab entry={entry} saving={saving} saveErr={saveErr}
-                onSave={async (patch) => {
-                  setSaving(true); setSaveErr(null)
-                  try { await onSave(entryKey, { ...entry, ...patch }) }
-                  catch (e) { setSaveErr(String(e)) }
-                  finally { setSaving(false) }
-                }} />
+              <DomainTab
+                entry={entry}
+                saving={saving}
+                saveErr={saveErr}
+                onSave={async patch => {
+                  setSaving(true)
+                  setSaveErr(null)
+                  try {
+                    await onSave(entryKey, { ...entry, ...patch })
+                  } catch (e) {
+                    setSaveErr(String(e))
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              />
             )}
             {tab === 'output' && (
-              <OutputInfoTab outputInfo={outputInfo} saving={saving} saveErr={saveErr}
-                onSave={async (updated) => {
-                  setSaving(true); setSaveErr(null)
-                  try { await onSave(entryKey, { ...entry, output_info: updated }) }
-                  catch (e) { setSaveErr(String(e)) }
-                  finally { setSaving(false) }
-                }} />
+              <OutputInfoTab
+                outputInfo={outputInfo}
+                saving={saving}
+                saveErr={saveErr}
+                onSave={async updated => {
+                  setSaving(true)
+                  setSaveErr(null)
+                  try {
+                    await onSave(entryKey, { ...entry, output_info: updated })
+                  } catch (e) {
+                    setSaveErr(String(e))
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              />
             )}
             {tab === 'obs' && (
               <div>
                 <div className="flex items-center gap-2 mb-3">
-                  <div className="label flex items-center gap-1.5"><Clock size={12} />observation_config</div>
+                  <div className="label flex items-center gap-1.5">
+                    <Clock size={12} />
+                    observation_config
+                  </div>
                   <div className="flex-1" />
                   {saving && <Loader2 size={12} className="animate-spin text-slate-500" />}
-                  {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
+                  {saveErr && (
+                    <div className="text-xs text-red-400 flex items-center gap-1">
+                      <XCircle size={11} />
+                      {saveErr}
+                    </div>
+                  )}
                 </div>
                 {hasObs && obs ? (
-                  <ObsConfigEditor obs={obs} outputInfo={outputInfo}
-                    onChange={async (updated) => {
-                      setSaving(true); setSaveErr(null)
-                      try { await onSave(entryKey, { ...entry, observation_config: updated }) }
-                      catch (e) { setSaveErr(String(e)) }
-                      finally { setSaving(false) }
-                    }} />
-                ) : <p className="text-sm text-slate-600 italic">（未填写）</p>}
+                  <ObsConfigEditor
+                    obs={obs}
+                    outputInfo={outputInfo}
+                    onChange={async updated => {
+                      setSaving(true)
+                      setSaveErr(null)
+                      try {
+                        await onSave(entryKey, { ...entry, observation_config: updated })
+                      } catch (e) {
+                        setSaveErr(String(e))
+                      } finally {
+                        setSaving(false)
+                      }
+                    }}
+                  />
+                ) : (
+                  <p className="text-sm text-slate-600 italic">（未填写）</p>
+                )}
               </div>
             )}
             {tab === 'params' && (
-              <ParamInfoTab params={params} saving={saving} saveErr={saveErr}
-                onSave={async (updated) => {
-                  setSaving(true); setSaveErr(null)
-                  try { await onSave(entryKey, { ...entry, param_info: updated }) }
-                  catch (e) { setSaveErr(String(e)) }
-                  finally { setSaving(false) }
-                }} />
+              <ParamInfoTab
+                params={params}
+                saving={saving}
+                saveErr={saveErr}
+                onSave={async updated => {
+                  setSaving(true)
+                  setSaveErr(null)
+                  try {
+                    await onSave(entryKey, { ...entry, param_info: updated })
+                  } catch (e) {
+                    setSaveErr(String(e))
+                  } finally {
+                    setSaving(false)
+                  }
+                }}
+              />
             )}
             {tab === 'raw' && (
               <div>
                 <div className="flex items-center gap-2 mb-2">
-                  <div className="label flex items-center gap-1.5"><FileText size={12} />完整 JSON</div>
+                  <div className="label flex items-center gap-1.5">
+                    <FileText size={12} />
+                    完整 JSON
+                  </div>
                   <div className="flex-1" />
                   {!rawEdit ? (
-                    <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500 hover:text-slate-200"
-                      onClick={() => { setRawVal(JSON.stringify(entry, null, 2)); setRawEdit(true); setSaveErr(null) }}>
+                    <button
+                      className="btn-ghost py-0.5 px-2 text-xs text-slate-500 hover:text-slate-200"
+                      onClick={() => {
+                        setRawVal(JSON.stringify(entry, null, 2))
+                        setRawEdit(true)
+                        setSaveErr(null)
+                      }}
+                    >
                       <Pencil size={12} /> 编辑
                     </button>
                   ) : (
                     <div className="flex gap-1">
-                      <button className="btn-ghost py-0.5 px-2 text-xs text-emerald-400" disabled={saving}
+                      <button
+                        className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
+                        disabled={saving}
                         onClick={async () => {
-                          setSaving(true); setSaveErr(null)
-                          try { await onSave(entryKey, JSON.parse(rawVal)); setRawEdit(false) }
-                          catch (e) { setSaveErr(e instanceof SyntaxError ? 'JSON 格式错误' : String(e)) }
-                          finally { setSaving(false) }
-                        }}>
+                          setSaving(true)
+                          setSaveErr(null)
+                          try {
+                            await onSave(entryKey, JSON.parse(rawVal))
+                            setRawEdit(false)
+                          } catch (e) {
+                            setSaveErr(e instanceof SyntaxError ? 'JSON 格式错误' : String(e))
+                          } finally {
+                            setSaving(false)
+                          }
+                        }}
+                      >
                         {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
                       </button>
-                      <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
-                        onClick={() => { setRawEdit(false); setSaveErr(null) }}>
+                      <button
+                        className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+                        onClick={() => {
+                          setRawEdit(false)
+                          setSaveErr(null)
+                        }}
+                      >
                         <X size={12} /> 取消
                       </button>
                     </div>
@@ -766,12 +1138,24 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
                 </div>
                 {rawEdit ? (
                   <div className="space-y-1.5">
-                    <textarea className="input w-full font-mono text-sm resize-y leading-relaxed" rows={20}
-                      value={rawVal} onChange={e => setRawVal(e.target.value)} autoFocus />
-                    {saveErr && <div className="text-xs text-red-400 flex items-center gap-1"><XCircle size={11} />{saveErr}</div>}
+                    <textarea
+                      className="input w-full font-mono text-sm resize-y leading-relaxed"
+                      rows={20}
+                      value={rawVal}
+                      onChange={e => setRawVal(e.target.value)}
+                      autoFocus
+                    />
+                    {saveErr && (
+                      <div className="text-xs text-red-400 flex items-center gap-1">
+                        <XCircle size={11} />
+                        {saveErr}
+                      </div>
+                    )}
                   </div>
                 ) : (
-                  <pre className="text-xs font-mono text-slate-400 bg-slate-950/50 rounded-xl p-4 border border-slate-700/30 overflow-x-auto max-h-96 overflow-y-auto leading-relaxed">{JSON.stringify(entry, null, 2)}</pre>
+                  <pre className="text-xs font-mono text-slate-400 bg-slate-950/50 rounded-xl p-4 border border-slate-700/30 overflow-x-auto max-h-96 overflow-y-auto leading-relaxed">
+                    {JSON.stringify(entry, null, 2)}
+                  </pre>
                 )}
               </div>
             )}
@@ -784,8 +1168,17 @@ function RegistryEntryCard({ entryKey, entry, onSave, onDelete }: {
 
 // ── 场景描述行 ────────────────────────────────────────────────────
 
-function ScenarioRow({ simulator, scenario, description, onSave, onDelete }: {
-  simulator: string; scenario: string; description: string
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function ScenarioRow({
+  simulator,
+  scenario,
+  description,
+  onSave,
+  onDelete,
+}: {
+  simulator: string
+  scenario: string
+  description: string
   onSave: (key: string, desc: string) => Promise<void>
   onDelete: (key: string) => Promise<void>
 }) {
@@ -797,8 +1190,12 @@ function ScenarioRow({ simulator, scenario, description, onSave, onDelete }: {
 
   const commit = async () => {
     setSaving(true)
-    try { await onSave(key, val); setEditing(false) }
-    finally { setSaving(false) }
+    try {
+      await onSave(key, val)
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -827,7 +1224,13 @@ function ScenarioRow({ simulator, scenario, description, onSave, onDelete }: {
           <button className="btn-ghost py-1 px-2 text-xs text-emerald-400 mt-1" onClick={commit} disabled={saving}>
             {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
           </button>
-          <button className="btn-ghost py-1 px-2 text-xs text-slate-500 mt-1" onClick={() => { setEditing(false); setVal(description) }}>
+          <button
+            className="btn-ghost py-1 px-2 text-xs text-slate-500 mt-1"
+            onClick={() => {
+              setEditing(false)
+              setVal(description)
+            }}
+          >
             <X size={12} />
           </button>
         </div>
@@ -835,26 +1238,40 @@ function ScenarioRow({ simulator, scenario, description, onSave, onDelete }: {
         <div className="flex-1 flex items-start gap-2 min-w-0">
           <div className="flex-1 min-w-0 pt-0.5">
             {description ? (
-              <p className="text-sm text-slate-400 leading-6 whitespace-pre-wrap break-words">
-                {description}
-              </p>
+              <p className="text-sm text-slate-400 leading-6 whitespace-pre-wrap break-words">{description}</p>
             ) : (
               <span className="text-sm text-slate-600 italic">（无描述）</span>
             )}
           </div>
           <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 self-start mt-0.5">
-            <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
-              onClick={() => { setEditing(true); setVal(description) }}>
+            <button
+              className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
+              onClick={() => {
+                setEditing(true)
+                setVal(description)
+              }}
+            >
               <Pencil size={11} />
             </button>
             {!confirmDelete ? (
-              <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-600 hover:text-red-400"
-                onClick={() => setConfirmDelete(true)}><Trash2 size={11} /></button>
+              <button
+                className="btn-ghost py-0.5 px-1.5 text-xs text-slate-600 hover:text-red-400"
+                onClick={() => setConfirmDelete(true)}
+              >
+                <Trash2 size={11} />
+              </button>
             ) : (
               <div className="flex items-center gap-1">
                 <span className="text-xs text-red-400">删除？</span>
-                <button className="btn-ghost py-0.5 px-1.5 text-xs text-red-400" onClick={() => onDelete(key)}><Check size={11} /></button>
-                <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}><X size={11} /></button>
+                <button className="btn-ghost py-0.5 px-1.5 text-xs text-red-400" onClick={() => onDelete(key)}>
+                  <Check size={11} />
+                </button>
+                <button
+                  className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  <X size={11} />
+                </button>
               </div>
             )}
           </div>
@@ -866,8 +1283,17 @@ function ScenarioRow({ simulator, scenario, description, onSave, onDelete }: {
 
 // ── 主页面 ────────────────────────────────────────────────────────
 
-function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, onDelete }: {
-  simulator: string; scenario: string; description: string
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function ScenarioRowResponsiveOld({
+  simulator,
+  scenario,
+  description,
+  onSave,
+  onDelete,
+}: {
+  simulator: string
+  scenario: string
+  description: string
   onSave: (key: string, desc: string) => Promise<void>
   onDelete: (key: string) => Promise<void>
 }) {
@@ -879,8 +1305,12 @@ function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, on
 
   const commit = async () => {
     setSaving(true)
-    try { await onSave(key, val); setEditing(false) }
-    finally { setSaving(false) }
+    try {
+      await onSave(key, val)
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -896,18 +1326,34 @@ function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, on
           </span>
           {!editing && (
             <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0 self-start">
-              <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
-                onClick={() => { setEditing(true); setVal(description) }}>
+              <button
+                className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
+                onClick={() => {
+                  setEditing(true)
+                  setVal(description)
+                }}
+              >
                 <Pencil size={11} />
               </button>
               {!confirmDelete ? (
-                <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-600 hover:text-red-400"
-                  onClick={() => setConfirmDelete(true)}><Trash2 size={11} /></button>
+                <button
+                  className="btn-ghost py-0.5 px-1.5 text-xs text-slate-600 hover:text-red-400"
+                  onClick={() => setConfirmDelete(true)}
+                >
+                  <Trash2 size={11} />
+                </button>
               ) : (
                 <div className="flex items-center gap-1">
                   <span className="text-xs text-red-400">删除？</span>
-                  <button className="btn-ghost py-0.5 px-1.5 text-xs text-red-400" onClick={() => onDelete(key)}><Check size={11} /></button>
-                  <button className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}><X size={11} /></button>
+                  <button className="btn-ghost py-0.5 px-1.5 text-xs text-red-400" onClick={() => onDelete(key)}>
+                    <Check size={11} />
+                  </button>
+                  <button
+                    className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500"
+                    onClick={() => setConfirmDelete(false)}
+                  >
+                    <X size={11} />
+                  </button>
                 </div>
               )}
             </div>
@@ -933,28 +1379,38 @@ function ScenarioRowResponsiveOld({ simulator, scenario, description, onSave, on
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                 保存
               </button>
-              <button className="btn-ghost py-1 px-2 text-xs text-slate-500" onClick={() => { setEditing(false); setVal(description) }}>
+              <button
+                className="btn-ghost py-1 px-2 text-xs text-slate-500"
+                onClick={() => {
+                  setEditing(false)
+                  setVal(description)
+                }}
+              >
                 <X size={12} />
                 取消
               </button>
             </div>
           </div>
+        ) : description ? (
+          <p className="text-sm text-slate-400 leading-6 whitespace-pre-wrap break-words">{description}</p>
         ) : (
-          description ? (
-            <p className="text-sm text-slate-400 leading-6 whitespace-pre-wrap break-words">
-              {description}
-            </p>
-          ) : (
-            <span className="text-sm text-slate-600 italic">（无描述）</span>
-          )
+          <span className="text-sm text-slate-600 italic">（无描述）</span>
         )}
       </div>
     </div>
   )
 }
 
-function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }: {
-  simulator: string; scenario: string; description: string
+function ScenarioRowGrid({
+  simulator,
+  scenario,
+  description,
+  onSave,
+  onDelete,
+}: {
+  simulator: string
+  scenario: string
+  description: string
   onSave: (key: string, desc: string) => Promise<void>
   onDelete: (key: string) => Promise<void>
 }) {
@@ -966,8 +1422,12 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
 
   const commit = async () => {
     setSaving(true)
-    try { await onSave(key, val); setEditing(false) }
-    finally { setSaving(false) }
+    try {
+      await onSave(key, val)
+      setEditing(false)
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -998,7 +1458,10 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
             <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
-                onClick={() => { setEditing(true); setVal(description) }}
+                onClick={() => {
+                  setEditing(true)
+                  setVal(description)
+                }}
               >
                 <Pencil size={11} />
               </button>
@@ -1015,7 +1478,10 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
                   <button className="btn-ghost py-0.5 px-1 text-xs text-red-400" onClick={() => onDelete(key)}>
                     <Check size={11} />
                   </button>
-                  <button className="btn-ghost py-0.5 px-1 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}>
+                  <button
+                    className="btn-ghost py-0.5 px-1 text-xs text-slate-500"
+                    onClick={() => setConfirmDelete(false)}
+                  >
                     <X size={11} />
                   </button>
                 </div>
@@ -1044,7 +1510,13 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
                 保存
               </button>
-              <button className="btn-ghost py-1 px-2 text-xs text-slate-500" onClick={() => { setEditing(false); setVal(description) }}>
+              <button
+                className="btn-ghost py-1 px-2 text-xs text-slate-500"
+                onClick={() => {
+                  setEditing(false)
+                  setVal(description)
+                }}
+              >
                 <X size={12} />
                 取消
               </button>
@@ -1074,13 +1546,18 @@ function ScenarioRowGrid({ simulator, scenario, description, onSave, onDelete }:
 }
 
 export default function RegistryPage() {
-  const { data: registry, isLoading, mutate } = useSWR('registry', () => api.getRegistry(), { revalidateOnFocus: false })
+  const {
+    data: registry,
+    isLoading,
+    mutate,
+  } = useSWR('registry', () => api.getRegistry(), { revalidateOnFocus: false })
   const [search, setSearch] = useState('')
 
   const handleSave = async (key: string, data: RegistryEntry | string) => {
-    await api.updateRegistryEntry(key, typeof data === 'string'
-      ? { scenario_description: data }
-      : data as Record<string, unknown>)
+    await api.updateRegistryEntry(
+      key,
+      typeof data === 'string' ? { scenario_description: data } : (data as Record<string, unknown>),
+    )
     mutate()
   }
   const handleDelete = async (key: string) => {
@@ -1091,8 +1568,12 @@ export default function RegistryPage() {
   // 新结构：顶层 key 是 simulator，value 含 scenarios 子字段
   const reg = (registry ?? {}) as Record<string, RegistryEntry & { scenarios?: Record<string, string> }>
   const simulators = Object.entries(reg)
-    .filter(([k]) => !search || k.toLowerCase().includes(search.toLowerCase()) ||
-      Object.keys(reg[k]?.scenarios ?? {}).some(s => s.toLowerCase().includes(search.toLowerCase())))
+    .filter(
+      ([k]) =>
+        !search ||
+        k.toLowerCase().includes(search.toLowerCase()) ||
+        Object.keys(reg[k]?.scenarios ?? {}).some(s => s.toLowerCase().includes(search.toLowerCase())),
+    )
     .sort(([a], [b]) => a.localeCompare(b))
 
   const totalSimulators = Object.keys(reg).length
@@ -1110,8 +1591,13 @@ export default function RegistryPage() {
           {totalSimulators} 个仿真器 · {totalScenarios} 个场景
         </span>
         <div className="flex-1" />
-        <input type="text" className="input py-1.5 w-48 text-sm" placeholder="搜索…"
-          value={search} onChange={e => setSearch(e.target.value)} />
+        <input
+          type="text"
+          className="input py-1.5 w-48 text-sm"
+          placeholder="搜索…"
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
         <button className="btn-ghost py-1.5" onClick={() => mutate()}>
           <RefreshCw size={13} className={isLoading ? 'animate-spin' : ''} />
         </button>
@@ -1121,11 +1607,13 @@ export default function RegistryPage() {
       <div className="px-4 pb-4 pt-3 space-y-3">
         {isLoading && (
           <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
-            <RefreshCw size={15} className="animate-spin" /><span>加载注册信息…</span>
+            <RefreshCw size={15} className="animate-spin" />
+            <span>加载注册信息…</span>
           </div>
         )}
         {!isLoading && simulators.length === 0 && (
-          <EmptyState icon={BookOpen}
+          <EmptyState
+            icon={BookOpen}
             title={totalSimulators === 0 ? '尚无注册信息' : `没有匹配 "${search}" 的记录`}
             description={totalSimulators === 0 ? '在「注册数据集」页面完成注册后，条目会显示在这里' : undefined}
           />
@@ -1150,7 +1638,9 @@ export default function RegistryPage() {
                 <div className="border-t border-slate-700/30 bg-slate-900/20 min-h-0">
                   <div className="px-4 py-2 flex items-center gap-2 border-b border-slate-700/30">
                     <span className="label text-xs">场景描述</span>
-                    <span className="badge bg-slate-700/50 text-slate-500 border border-slate-600/30 text-xs">{scenarioCount} 个</span>
+                    <span className="badge bg-slate-700/50 text-slate-500 border border-slate-600/30 text-xs">
+                      {scenarioCount} 个
+                    </span>
                     <span className="text-xs text-slate-600">全部展开显示</span>
                   </div>
                   <div className="pb-2">

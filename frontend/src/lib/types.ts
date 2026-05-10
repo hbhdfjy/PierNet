@@ -1,4 +1,4 @@
-import type { components } from "./generated/openapi"
+import type { components } from './generated/openapi'
 
 // ── Stage 2 JSONL 样本类型（与 Python 端完全对应）──────────────────
 
@@ -41,7 +41,6 @@ export interface SampleRecord {
 }
 
 // ── API 响应类型 ─────────────────────────────────────────────────
-
 
 // Unified file catalog
 export interface FileAsset {
@@ -144,12 +143,12 @@ export interface Text2CompScenario {
   name: string
   simulator: string
   h5_file: string | null
-  sample_count: number           // HDF5 中的样本数（无 HDF5 时为 0）
-  output_shape: number[] | null  // HDF5 timeseries 的输出维度，如 [43, 365]
-  existing_jsonl_count: number   // 已生成的 JSONL 条数
+  sample_count: number // HDF5 中的样本数（无 HDF5 时为 0）
+  output_shape: number[] | null // HDF5 timeseries 的输出维度，如 [43, 365]
+  existing_jsonl_count: number // 已生成的 JSONL 条数
   has_jsonl: boolean
-  has_h5: boolean                // 是否有 HDF5 数据文件
-  registered: boolean            // 是否在 registry.yaml 中有注册信息
+  has_h5: boolean // 是否有 HDF5 数据文件
+  registered: boolean // 是否在 registry.yaml 中有注册信息
 }
 
 export interface Text2CompScenariosConfig {
@@ -210,8 +209,8 @@ export interface GenerationJob {
 }
 
 export interface RegisterRequest {
-  scenarios: string[]          // 空=全部
-  fields: string[]             // 空=全部
+  scenarios: string[] // 空=全部
+  fields: string[] // 空=全部
   overwrite: boolean
   simulator_level: boolean
   config: string
@@ -234,8 +233,8 @@ export interface GenerateTemplatesRequest {
 export interface FillSamplesRequest {
   scenarios: string[]
   n_samples: number
-  templates_dir: string   // 空=默认 data/templates/
-  output_dir: string      // 空=默认 data/text2comp_parquet/
+  templates_dir: string // 空=默认 data/templates/
+  output_dir: string // 空=默认 data/text2comp_parquet/
   output_format?: 'parquet' | 'jsonl' | 'both'
   compression?: 'zstd' | 'snappy' | 'gzip' | 'brotli' | 'none'
   batch_size?: number
@@ -243,7 +242,7 @@ export interface FillSamplesRequest {
   skip_existing: boolean
   config: string
   seed?: number
-  precision?: number      // 数值小数位数，默认4
+  precision?: number // 数值小数位数，默认4
 }
 
 export interface JobStartResponse {
@@ -252,9 +251,12 @@ export interface JobStartResponse {
   scenario_totals: Record<string, number>
 }
 
-type ApiJobStatusResponse = components["schemas"]["JobStatusResponse"]
+type ApiJobStatusResponse = components['schemas']['JobStatusResponse']
 
-export interface JobStatusSnapshot extends Omit<ApiJobStatusResponse, "status" | "scenario_totals" | "progress" | "stats"> {
+export interface JobStatusSnapshot extends Omit<
+  ApiJobStatusResponse,
+  'status' | 'scenario_totals' | 'progress' | 'stats'
+> {
   status: JobStatus
   scenario_totals: Record<string, number>
   progress: Record<string, ScenarioProgress>
@@ -340,12 +342,11 @@ export interface TemplatesResponse {
 
 // ── 数据目录配置 ──────────────────────────────────────────────────
 
-
 export interface LLMConfig {
   provider: string
   model: string
   base_url: string
-  api_key_masked: string   // 脱敏后的 key，仅展示用
+  api_key_masked: string // 脱敏后的 key，仅展示用
   has_api_key: boolean
   temperature: number
   max_tokens: number
@@ -355,7 +356,7 @@ export interface LLMConfig {
 export interface LLMConfigRequest {
   provider: string
   model: string
-  api_key: string          // 空=不修改
+  api_key: string // 空=不修改
   base_url: string
   temperature: number
   max_tokens: number
@@ -365,9 +366,9 @@ export interface LLMConfigRequest {
 // ── 解析后的时序数据 ─────────────────────────────────────────────
 
 export interface ParsedTimeseries {
-  channels: number[][]     // [n_channels][n_timesteps]
-  labels: string[]         // 每个通道的显示名
-  unit: string             // 单位
+  channels: number[][] // [n_channels][n_timesteps]
+  labels: string[] // 每个通道的显示名
+  unit: string // 单位
 }
 
 // ── 多智能体交互式注册 ────────────────────────────────────────────
@@ -495,8 +496,8 @@ export interface RouterSplitInfo {
 export interface RouterScenarioInfo {
   scenario: string
   simulator: string
-  source_count: number          // Stage 3 样本数
-  router_count?: number         // Router 已生成条数（未生成时不存在）
+  source_count: number // Stage 3 样本数
+  router_count?: number // Router 已生成条数（未生成时不存在）
   file_size_bytes?: number
   mtime?: number
 }
@@ -540,7 +541,6 @@ export interface SimulationHistoryRecord {
   elapsed_sec: number | null
   final_sample_count: number | null
 }
-
 
 export interface TrainingDatasetScenario {
   scenario: string

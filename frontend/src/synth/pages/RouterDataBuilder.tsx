@@ -4,10 +4,7 @@ import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { RouterStatus, RouterScenarioInfo } from '../../lib/types'
-import {
-  GitBranch, RefreshCw, Settings, Layers,
-  AlertCircle, Check, Database, FolderOpen,
-} from 'lucide-react'
+import { GitBranch, RefreshCw, Settings, Layers, AlertCircle, Check, Database, FolderOpen } from 'lucide-react'
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
@@ -17,7 +14,9 @@ import { useResizable } from '../hooks/useResizable'
 // ── 场景按钮（对齐 ScenarioButton 风格）────────────────────────────
 
 function RouterScenarioButton({
-  item, active, onClick,
+  item,
+  active,
+  onClick,
 }: {
   item: RouterScenarioInfo
   active: boolean
@@ -29,9 +28,7 @@ function RouterScenarioButton({
   const hasRouter = rc > 0 && rc <= item.source_count * 20
   // 进度背景：以 source_count（1:1 时的正样本数）为基准，
   // 实际生成条数 / source_count 即可感知"至少覆盖了多少源样本"
-  const pct = item.source_count > 0 && hasRouter
-    ? Math.min(100, (rc / item.source_count) * 100)
-    : 0
+  const pct = item.source_count > 0 && hasRouter ? Math.min(100, (rc / item.source_count) * 100) : 0
 
   return (
     <button
@@ -45,30 +42,31 @@ function RouterScenarioButton({
     >
       {/* 已生成进度底色 */}
       {hasRouter && pct > 0 && !active && (
-        <div className="absolute inset-y-0 left-0 bg-rose-500/8 pointer-events-none"
-          style={{ width: `${pct}%` }} />
+        <div className="absolute inset-y-0 left-0 bg-rose-500/8 pointer-events-none" style={{ width: `${pct}%` }} />
       )}
       <div className="relative">
         <div className="flex items-center justify-between gap-1 mb-1">
-          <span className={cn('font-semibold text-sm truncate',
-            active ? 'text-rose-200' : 'text-slate-100')}>
+          <span className={cn('font-semibold text-sm truncate', active ? 'text-rose-200' : 'text-slate-100')}>
             {item.scenario}
           </span>
           {active && <Check size={14} className="text-rose-400 flex-shrink-0" />}
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={cn('text-xs flex items-center gap-1',
-            active ? 'text-rose-400/70' : (c?.text ?? 'text-slate-400'))}>
+          <span
+            className={cn(
+              'text-xs flex items-center gap-1',
+              active ? 'text-rose-400/70' : (c?.text ?? 'text-slate-400'),
+            )}
+          >
             <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', c?.dot ?? 'bg-slate-500')} />
             {SIMULATOR_LABELS[item.simulator] ?? item.simulator}
           </span>
           <span className="text-xs text-slate-600 tabular-nums flex items-center gap-0.5">
-            <Database size={10} />{item.source_count.toLocaleString()}
+            <Database size={10} />
+            {item.source_count.toLocaleString()}
           </span>
           {hasRouter && (
-            <span className="text-xs text-rose-500/70 tabular-nums">
-              ✓{(item.router_count ?? 0).toLocaleString()}
-            </span>
+            <span className="text-xs text-rose-500/70 tabular-nums">✓{(item.router_count ?? 0).toLocaleString()}</span>
           )}
         </div>
       </div>
@@ -88,8 +86,11 @@ export default function RouterDataBuilder() {
     storageKey: 'piern_router_sidebar_width',
   })
 
-  const { data: status, isLoading, mutate: refreshStatus } =
-    useSWR<RouterStatus>('router-status', () => api.getRouterStatus(), { refreshInterval: 10000 })
+  const {
+    data: status,
+    isLoading,
+    mutate: refreshStatus,
+  } = useSWR<RouterStatus>('router-status', () => api.getRouterStatus(), { refreshInterval: 10000 })
 
   // 参数
   const { seed } = useSeed()
@@ -102,11 +103,13 @@ export default function RouterDataBuilder() {
   // 场景多选
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const toggle = (name: string) => setSelected(prev => {
-    const next = new Set(prev)
-    if (next.has(name)) next.delete(name); else next.add(name)
-    return next
-  })
+  const toggle = (name: string) =>
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
 
   // 按 simulator 分组
   const grouped = useMemo(() => {
@@ -129,7 +132,10 @@ export default function RouterDataBuilder() {
   }, [monitor.status, refreshStatus])
 
   async function handleBuild() {
-    if (selected.size === 0) { setError('请至少选择一个场景'); return }
+    if (selected.size === 0) {
+      setError('请至少选择一个场景')
+      return
+    }
     setError(null)
     setLaunching(true)
     try {
@@ -142,17 +148,17 @@ export default function RouterDataBuilder() {
     }
   }
 
-  const canLaunch = !monitor.status || monitor.status === 'idle' || monitor.status === 'done'
-    || monitor.status === 'error' || monitor.status === 'terminated'
+  const canLaunch =
+    !monitor.status ||
+    monitor.status === 'idle' ||
+    monitor.status === 'done' ||
+    monitor.status === 'error' ||
+    monitor.status === 'terminated'
 
   return (
     <div className="workbench-shell">
-
       {/* ── 左栏 ── */}
-      <div
-        className="workbench-sidebar"
-        style={{ width: sidebarWidth }}
-      >
+      <div className="workbench-sidebar" style={{ width: sidebarWidth }}>
         {/* 页头（固定）*/}
         <div className="workbench-sidebar-header">
           <div className="flex items-center justify-between">
@@ -163,11 +169,7 @@ export default function RouterDataBuilder() {
               <h1 className="text-lg font-bold text-white">路由数据生成</h1>
               <span className="badge bg-rose-500/15 text-rose-300 border border-rose-500/20 text-xs">阶段 4</span>
             </div>
-            {hasRouterData && (
-              <div className="text-xs text-slate-500">
-                {status!.total.toLocaleString()} 条
-              </div>
-            )}
+            {hasRouterData && <div className="text-xs text-slate-500">{status!.total.toLocaleString()} 条</div>}
           </div>
           <p className="text-slate-500 text-sm mt-1 ml-9">从阶段 3 样本构建 Token 路由二分类训练数据</p>
         </div>
@@ -187,11 +189,13 @@ export default function RouterDataBuilder() {
             </div>
             <div className="flex items-center gap-0.5">
               {(['全选', '清空'] as const).map((label, i) => (
-                <button key={label} className="btn-ghost py-0.5 px-2 text-sm"
-                  onClick={[
-                    () => setSelected(new Set(allScenarios.map(s => s.scenario))),
-                    () => setSelected(new Set()),
-                  ][i]}>
+                <button
+                  key={label}
+                  className="btn-ghost py-0.5 px-2 text-sm"
+                  onClick={
+                    [() => setSelected(new Set(allScenarios.map(s => s.scenario))), () => setSelected(new Set())][i]
+                  }
+                >
                   {label}
                 </button>
               ))}
@@ -253,15 +257,23 @@ export default function RouterDataBuilder() {
                   </span>
                 </span>
               </div>
-              <input type="range" className="w-full accent-rose-500 h-1"
-                min={1} max={10} value={negRatio}
-                onChange={e => setNegRatio(parseInt(e.target.value))} />
+              <input
+                type="range"
+                className="w-full accent-rose-500 h-1"
+                min={1}
+                max={10}
+                value={negRatio}
+                onChange={e => setNegRatio(parseInt(e.target.value))}
+              />
               <div className="flex justify-between text-xs text-slate-600 mt-0.5">
-                <span>1:1</span><span>1:5</span><span>1:10</span>
+                <span>1:1</span>
+                <span>1:5</span>
+                <span>1:10</span>
               </div>
             </div>
             <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5 text-sm text-slate-400">
-              {'Chat Template \u56fa\u5b9a\u4e3a '}<span className="font-mono text-sky-300">qwen</span>
+              {'Chat Template \u56fa\u5b9a\u4e3a '}
+              <span className="font-mono text-sky-300">qwen</span>
             </div>
             <div className="rounded-xl border border-slate-700/40 bg-slate-900/35 px-3 py-2.5 text-sm text-slate-400">
               {'Embedding Backbone \u56fa\u5b9a\u4e3a '}
@@ -275,7 +287,6 @@ export default function RouterDataBuilder() {
           </div>
 
           {error && (
-
             <div className="mx-4 mb-3 flex items-start gap-2 bg-red-500/8 border border-red-500/20 rounded-xl px-3 py-2 text-red-300">
               <AlertCircle size={13} className="flex-shrink-0 mt-0.5" />
               <span className="text-sm">{error}</span>
@@ -286,14 +297,21 @@ export default function RouterDataBuilder() {
             <div className="px-4 pb-4 space-y-1.5">
               <button
                 className="btn-primary w-full py-2.5 text-sm justify-center shadow-lg"
-                style={{ background: selected.size > 0 && !launching ? 'linear-gradient(135deg, #e11d48, #be123c)' : undefined }}
+                style={{
+                  background: selected.size > 0 && !launching ? 'linear-gradient(135deg, #e11d48, #be123c)' : undefined,
+                }}
                 onClick={handleBuild}
                 disabled={launching || selected.size === 0}
               >
-                {launching
-                  ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
-                  : <><GitBranch size={14} /> 生成路由数据{selected.size > 0 ? `（${selected.size} 个场景）` : ''}</>
-                }
+                {launching ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> 启动中…
+                  </>
+                ) : (
+                  <>
+                    <GitBranch size={14} /> 生成路由数据{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
+                  </>
+                )}
               </button>
               {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
@@ -309,7 +327,6 @@ export default function RouterDataBuilder() {
 
       {/* ── 右栏 ── */}
       <div className="workbench-main-scroll">
-
         {/* Job 监控 */}
         <JobMonitorPanel
           status={monitor.status}
@@ -352,14 +369,15 @@ export default function RouterDataBuilder() {
           <div className="p-4">
             <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
               <div className="font-semibold text-slate-100">Centralized file manager</div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">Router scenario files, train.jsonl, and clear operations now live in the unified file manager.</p>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Router scenario files, train.jsonl, and clear operations now live in the unified file manager.
+              </p>
               <button className="btn-ghost mt-3 text-xs text-rose-300" onClick={() => navigate('/files')}>
                 打开统一文件管理
               </button>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

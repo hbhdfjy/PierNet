@@ -12,16 +12,8 @@ import {
 import { useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts'
+import { ConfirmDialog, MetricTile, StatusBadge, TruncatedText } from '../../shared/ui'
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { api } from '../../lib/api'
 import type {
   TrainingCheckpointInfo,
@@ -35,7 +27,6 @@ import {
   formatDateTime,
   formatDuration,
   formatMetric,
-  shortPath,
   statusBadgeClass,
   statusLabel,
   trainingJobNotice,
@@ -189,15 +180,11 @@ function quantile(sortedValues: number[], ratio: number) {
   return sortedValues[lower] * (1 - weight) + sortedValues[upper] * weight
 }
 
-function buildNumericDomain(values: Array<number | null | undefined>, options: NumericDomainOptions = {}): [number, number] | undefined {
-  const {
-    padRatio = 0.08,
-    minPad = 0.0001,
-    minClamp,
-    maxClamp,
-    lowerQuantile = 0,
-    upperQuantile = 1,
-  } = options
+function buildNumericDomain(
+  values: Array<number | null | undefined>,
+  options: NumericDomainOptions = {},
+): [number, number] | undefined {
+  const { padRatio = 0.08, minPad = 0.0001, minClamp, maxClamp, lowerQuantile = 0, upperQuantile = 1 } = options
 
   const numericValues = values
     .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
@@ -212,9 +199,7 @@ function buildNumericDomain(values: Array<number | null | undefined>, options: N
     ;[minValue, maxValue] = [maxValue, minValue]
   }
   const span = maxValue - minValue
-  const padding = span === 0
-    ? Math.max(Math.abs(maxValue) * padRatio, minPad)
-    : Math.max(span * padRatio, minPad)
+  const padding = span === 0 ? Math.max(Math.abs(maxValue) * padRatio, minPad) : Math.max(span * padRatio, minPad)
 
   minValue -= padding
   maxValue += padding
@@ -342,7 +327,10 @@ function ChartTooltip({ axisLabel }: { axisLabel: string }) {
       wrapperStyle={{ outline: 'none', pointerEvents: 'none', zIndex: 30 }}
       cursor={{ stroke: 'rgba(148,163,184,0.4)', strokeDasharray: '4 4', strokeWidth: 1.2 }}
       content={({ active, label, payload }) => {
-        const entries = (payload as ChartTooltipEntry[] | undefined)?.filter(item => item.value !== null && item.value !== undefined) ?? []
+        const entries =
+          (payload as ChartTooltipEntry[] | undefined)?.filter(
+            item => item.value !== null && item.value !== undefined,
+          ) ?? []
         if (!active || entries.length === 0) {
           return null
         }
@@ -427,7 +415,9 @@ function ChartHoverPanel({
       }`}
       style={panelStyle}
     >
-      <div className={`font-semibold uppercase tracking-[0.16em] ${isEmphasis ? 'text-[10px] text-sky-300/80' : 'text-[11px] text-slate-500'}`}>
+      <div
+        className={`font-semibold uppercase tracking-[0.16em] ${isEmphasis ? 'text-[10px] text-sky-300/80' : 'text-[11px] text-slate-500'}`}
+      >
         {snapshot ? snapshot.label : isEmphasis ? '当前点' : '悬停数值'}
       </div>
       {snapshot ? (
@@ -450,22 +440,44 @@ function ChartHoverPanel({
               }
             >
               <span
-                className={isEmphasis ? 'h-3 w-3 rounded-full shadow-[0_0_0_3px_rgba(15,23,42,0.92)]' : 'h-2.5 w-2.5 rounded-full'}
+                className={
+                  isEmphasis
+                    ? 'h-3 w-3 rounded-full shadow-[0_0_0_3px_rgba(15,23,42,0.92)]'
+                    : 'h-2.5 w-2.5 rounded-full'
+                }
                 style={{ backgroundColor: row.color }}
               />
-              <span className={`truncate ${isEmphasis ? 'text-[12.5px] font-medium text-slate-200' : 'text-[12px] text-slate-300'}`}>{row.label}</span>
-              <span className={`mono font-semibold ${isEmphasis ? 'text-[13px] text-white' : 'text-[12px] text-slate-100'}`}>{row.value}</span>
+              <span
+                className={`truncate ${isEmphasis ? 'text-[12.5px] font-medium text-slate-200' : 'text-[12px] text-slate-300'}`}
+              >
+                {row.label}
+              </span>
+              <span
+                className={`mono font-semibold ${isEmphasis ? 'text-[13px] text-white' : 'text-[12px] text-slate-100'}`}
+              >
+                {row.value}
+              </span>
             </div>
           ))}
         </div>
       ) : (
-        <div className={`mt-2 ${isEmphasis ? 'text-[12.5px] text-slate-300' : 'text-[12px] text-slate-400'}`}>将指针移到图表上查看数值。</div>
+        <div className={`mt-2 ${isEmphasis ? 'text-[12.5px] text-slate-300' : 'text-[12px] text-slate-400'}`}>
+          将指针移到图表上查看数值。
+        </div>
       )}
     </div>
   )
 }
 
-function ChartXAxis({ dataKey, type = 'category', allowDecimals = true }: { dataKey: string; type?: 'category' | 'number'; allowDecimals?: boolean }) {
+function ChartXAxis({
+  dataKey,
+  type = 'category',
+  allowDecimals = true,
+}: {
+  dataKey: string
+  type?: 'category' | 'number'
+  allowDecimals?: boolean
+}) {
   return (
     <XAxis
       dataKey={dataKey}
@@ -491,7 +503,17 @@ function ChartYAxis({
   width?: number
   allowDataOverflow?: boolean
 }) {
-  return <YAxis width={width} domain={domain} tickCount={tickCount} tickFormatter={tickFormatter} allowDataOverflow={allowDataOverflow} tick={AXIS_TICK_STYLE} {...AXIS_STYLE} />
+  return (
+    <YAxis
+      width={width}
+      domain={domain}
+      tickCount={tickCount}
+      tickFormatter={tickFormatter}
+      allowDataOverflow={allowDataOverflow}
+      tick={AXIS_TICK_STYLE}
+      {...AXIS_STYLE}
+    />
+  )
 }
 
 function SectionTitle({ title, copy }: { title: string; copy: string }) {
@@ -499,31 +521,6 @@ function SectionTitle({ title, copy }: { title: string; copy: string }) {
     <div>
       <div className="training-panel-title">{title}</div>
       <div className="training-panel-copy">{copy}</div>
-    </div>
-  )
-}
-
-function KpiCard({
-  label,
-  value,
-  note,
-  icon,
-}: {
-  label: string
-  value: string
-  note: string
-  icon: React.ReactNode
-}) {
-  return (
-    <div className="training-kpi">
-      <div className="flex items-start justify-between gap-3">
-        <span className="training-kpi__label">{label}</span>
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-          {icon}
-        </span>
-      </div>
-      <div className="training-kpi__value">{value}</div>
-      <div className="training-kpi__note">{note}</div>
     </div>
   )
 }
@@ -543,10 +540,7 @@ function MetaField({
   return (
     <div>
       <div className="training-label">{label}</div>
-      <div
-        className="pretty-tooltip mt-1 min-w-0"
-        data-tooltip={valueTitle}
-      >
+      <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={valueTitle}>
         <span className={`block truncate text-[13px] leading-5 ${mono ? 'mono text-slate-200' : 'text-slate-100'}`}>
           {value}
         </span>
@@ -597,11 +591,7 @@ function ChartEmpty({ message }: { message: string }) {
 
 function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[] }) {
   if (checkpoints.length === 0) {
-    return (
-      <div className="training-surface text-[14px] text-slate-400">
-        当前还没有权重文件。
-      </div>
-    )
+    return <div className="training-surface text-[14px] text-slate-400">当前还没有权重文件。</div>
   }
 
   return (
@@ -612,7 +602,7 @@ function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpointInfo[]
             <div className="min-w-0">
               <div className="mono truncate text-[14px] font-semibold text-slate-100">{item.name}</div>
               <div className="pretty-tooltip mt-1 text-[11px] text-slate-500" data-tooltip={item.path}>
-                {shortPath(item.path, 96)}
+                <TruncatedText value={item.path} className="text-[11px] text-slate-500" />
               </div>
             </div>
             <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/8 text-emerald-300">
@@ -647,6 +637,8 @@ export default function TrainingJobDetailPage() {
   const [lossHover, setLossHover] = useState<ChartHoverSnapshot | null>(null)
   const [metricHover, setMetricHover] = useState<ChartHoverSnapshot | null>(null)
   const [scenarioHover, setScenarioHover] = useState<ChartHoverSnapshot | null>(null)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
 
   const { data: job, error: jobError } = useSWR<TrainingJobDetail>(
     jobId ? `training-job-${jobId}` : null,
@@ -699,19 +691,24 @@ export default function TrainingJobDetailPage() {
 
   const lossDomain = useMemo(
     () =>
-      buildNumericDomain(trainingChart.data.map(point => point.avg_loss), {
-        minClamp: 0,
-        minPad: 0.00005,
-        padRatio: 0.06,
-        lowerQuantile: 0.08,
-        upperQuantile: 0.92,
-      }),
+      buildNumericDomain(
+        trainingChart.data.map(point => point.avg_loss),
+        {
+          minClamp: 0,
+          minPad: 0.00005,
+          padRatio: 0.06,
+          lowerQuantile: 0.08,
+          upperQuantile: 0.92,
+        },
+      ),
     [trainingChart.data],
   )
 
   const testMetricDomain = useMemo(
     () =>
-      buildUnitMetricDomain((curves?.test_points ?? []).flatMap(point => [point.precision, point.recall, point.f1, point.pr_auc])),
+      buildUnitMetricDomain(
+        (curves?.test_points ?? []).flatMap(point => [point.precision, point.recall, point.f1, point.pr_auc]),
+      ),
     [curves?.test_points],
   )
   const testMetricPlotData = useMemo(() => {
@@ -793,19 +790,23 @@ export default function TrainingJobDetailPage() {
   }
 
   const deleteJob = async () => {
-    if (!job) return
-    const ok = window.confirm(`删除历史任务 ${job.name} (${job.job_id})？\n\n会彻底删除任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。`)
-    if (!ok) return
-    await api.deleteTrainingJob(job.job_id)
-    await Promise.all([
-      mutate('training-jobs'),
-      mutate('training-overview'),
-      mutate('training-gpus'),
-      mutate(`training-job-${job.job_id}`),
-      mutate(`training-curves-${job.job_id}`),
-      mutate(`training-logs-${job.job_id}`),
-    ])
-    navigate('/training/jobs')
+    if (!job || isDeleting) return
+    setIsDeleting(true)
+    try {
+      await api.deleteTrainingJob(job.job_id)
+      await Promise.all([
+        mutate('training-jobs'),
+        mutate('training-overview'),
+        mutate('training-gpus'),
+        mutate(`training-job-${job.job_id}`),
+        mutate(`training-curves-${job.job_id}`),
+        mutate(`training-logs-${job.job_id}`),
+      ])
+      navigate('/training/jobs')
+    } finally {
+      setIsDeleting(false)
+      setConfirmDeleteOpen(false)
+    }
   }
 
   if (!jobId) {
@@ -826,7 +827,10 @@ export default function TrainingJobDetailPage() {
             <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
               <div>
                 <div className="training-eyebrow">任务详情</div>
-                <h1 className="pretty-tooltip mt-2 max-w-5xl truncate text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]" data-tooltip={job?.name ?? jobId}>
+                <h1
+                  className="pretty-tooltip mt-2 max-w-5xl truncate text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]"
+                  data-tooltip={job?.name ?? jobId}
+                >
                   {job?.name ?? jobId}
                 </h1>
                 <div className="mono mt-1 text-[12px] text-slate-500">{jobId}</div>
@@ -849,12 +853,17 @@ export default function TrainingJobDetailPage() {
                   刷新
                 </button>
                 {job && ['starting', 'running', 'evaluating', 'stopping'].includes(job.status) ? (
-                  <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping || job.status === 'stopping'}>
+                  <button
+                    type="button"
+                    className="btn-danger"
+                    onClick={stopJob}
+                    disabled={isStopping || job.status === 'stopping'}
+                  >
                     <PauseCircle size={14} />
                     {isStopping || job.status === 'stopping' ? '\u7ec8\u6b62\u4e2d...' : '\u7ec8\u6b62\u8bad\u7ec3'}
                   </button>
                 ) : job ? (
-                  <button type="button" className="btn-ghost" onClick={deleteJob}>
+                  <button type="button" className="btn-ghost" onClick={() => setConfirmDeleteOpen(true)}>
                     <Trash2 size={14} />
                     删除任务
                   </button>
@@ -864,31 +873,31 @@ export default function TrainingJobDetailPage() {
 
             {job && (
               <div className="mt-4 training-kpi-grid">
-                <KpiCard
+                <MetricTile
                   label="状态"
                   value={statusLabel(job.status)}
                   note={`GPU ${job.gpu_id} / PID ${job.pid ?? '—'}`}
                   icon={<RadioTower size={16} />}
                 />
-                <KpiCard
+                <MetricTile
                   label="轮次 / 步数"
                   value={`${job.latest_epoch ?? '—'} / ${job.latest_step ?? '—'}`}
                   note={`全局步数 ${job.global_step ?? '—'}`}
                   icon={<BarChart3 size={16} />}
                 />
-                <KpiCard
+                <MetricTile
                   label="损失"
                   value={formatMetric(job.avg_loss, 6)}
                   note={`${formatMetric(job.steps_per_sec, 2)} 步/秒`}
                   icon={<ActivityIcon />}
                 />
-                <KpiCard
+                <MetricTile
                   label="最近 F1"
                   value={formatMetric(job.latest_metrics?.f1, 4)}
                   note={`PR-AUC ${formatMetric(job.latest_metrics?.pr_auc, 4)}`}
                   icon={<Save size={16} />}
                 />
-                <KpiCard
+                <MetricTile
                   label="预计剩余"
                   value={formatDuration(job.eta_seconds)}
                   note={`创建于 ${formatDateTime(job.created_at)}`}
@@ -917,8 +926,18 @@ export default function TrainingJobDetailPage() {
                       <div className="training-surface">
                         <div className="training-meta-grid">
                           <MetaField label="任务名称" value={job.name} />
-                          <MetaField label="状态" value={<span className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</span>} />
-                          <MetaField label="训练数据" value={`${job.simulator.toUpperCase()} / ${job.scenarios.join(', ')}`} />
+                          <MetaField
+                            label="状态"
+                            value={
+                              <StatusBadge className={statusBadgeClass(job.status)}>
+                                {statusLabel(job.status)}
+                              </StatusBadge>
+                            }
+                          />
+                          <MetaField
+                            label="训练数据"
+                            value={`${job.simulator.toUpperCase()} / ${job.scenarios.join(', ')}`}
+                          />
                           <MetaField label="测试比例" value={formatMetric(job.config.test_ratio, 2)} />
                           <MetaField label="评测间隔" value={`${job.config.eval_interval} 轮`} />
                           <MetaField label="总轮数" value={job.config.epochs === 0 ? '∞' : job.config.epochs} />
@@ -930,7 +949,11 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="训练批大小" value={job.config.batch_size} mono />
                           <MetaField label="测试批大小" value={job.config.test_batch_size} mono />
                           <MetaField label="加载线程" value={job.config.num_workers} mono />
-                          <MetaField label="预处理线程" value={job.config.prepare_workers ?? job.config.num_workers} mono />
+                          <MetaField
+                            label="预处理线程"
+                            value={job.config.prepare_workers ?? job.config.num_workers}
+                            mono
+                          />
                           <MetaField label="学习率" value={job.config.learning_rate} mono />
                           <MetaField label="权重衰减" value={job.config.weight_decay} mono />
                           <MetaField label="恢复训练" value={job.config.resume_from ? '是' : '否'} />
@@ -949,11 +972,21 @@ export default function TrainingJobDetailPage() {
                       </div>
                       <div className="training-surface md:col-span-2">
                         <div className="grid gap-3 md:grid-cols-2">
-                          <MetaField label="运行目录" value={shortPath(job.run_dir, 112)} mono title={job.run_dir} />
-                          <MetaField label="日志文件" value={shortPath(job.log_path, 112)} mono title={job.log_path} />
+                          <MetaField
+                            label="运行目录"
+                            value={<TruncatedText value={job.run_dir} className="mono text-[13px] text-slate-200" />}
+                            title={job.run_dir}
+                          />
+                          <MetaField
+                            label="日志文件"
+                            value={<TruncatedText value={job.log_path} className="mono text-[13px] text-slate-200" />}
+                            title={job.log_path}
+                          />
                         </div>
                         {notice && (
-                          <div className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}>
+                          <div
+                            className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}
+                          >
                             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
                             <span>{notice.message}</span>
                           </div>
@@ -998,118 +1031,164 @@ export default function TrainingJobDetailPage() {
                     </div>
                   }
                 >
-                {trainingChart.data.length ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={trainingChart.data}
-                      margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setLossHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? '步骤' : '轮次', state))}
-                      onMouseLeave={() => setLossHover(null)}
-                    >
-                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
-                      <ChartXAxis dataKey={trainingChart.xKey} type={trainingAxisMode === 'step' ? 'number' : 'category'} allowDecimals={trainingAxisMode === 'step'} />
-                      <ChartYAxis
-                        domain={lossDomain}
-                        tickCount={5}
-                        width={52}
-                        tickFormatter={(value: number) => value.toFixed(value >= 1 ? 3 : 4)}
-                        allowDataOverflow
-                      />
-                      <ChartTooltip axisLabel={trainingAxisMode === 'step' ? '步骤' : '轮次'} />
-                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line
-                        type="monotone"
-                        dataKey="avg_loss"
-                        name="平均损失"
-                        stroke="#38bdf8"
-                        dot={false}
-                        activeDot={buildActiveDot('#38bdf8')}
-                        strokeWidth={2.25}
-                        isAnimationActive={false}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <ChartEmpty message="当前还没有训练曲线点。" />
-                )}
+                  {trainingChart.data.length ? (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart
+                        data={trainingChart.data}
+                        margin={CHART_MARGIN}
+                        onMouseMove={(state: ChartMouseState) =>
+                          setLossHover(buildChartHoverSnapshot(trainingAxisMode === 'step' ? '步骤' : '轮次', state))
+                        }
+                        onMouseLeave={() => setLossHover(null)}
+                      >
+                        <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                        <ChartXAxis
+                          dataKey={trainingChart.xKey}
+                          type={trainingAxisMode === 'step' ? 'number' : 'category'}
+                          allowDecimals={trainingAxisMode === 'step'}
+                        />
+                        <ChartYAxis
+                          domain={lossDomain}
+                          tickCount={5}
+                          width={52}
+                          tickFormatter={(value: number) => value.toFixed(value >= 1 ? 3 : 4)}
+                          allowDataOverflow
+                        />
+                        <ChartTooltip axisLabel={trainingAxisMode === 'step' ? '步骤' : '轮次'} />
+                        <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                        <Line
+                          type="monotone"
+                          dataKey="avg_loss"
+                          name="平均损失"
+                          stroke="#38bdf8"
+                          dot={false}
+                          activeDot={buildActiveDot('#38bdf8')}
+                          strokeWidth={2.25}
+                          isAnimationActive={false}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  ) : (
+                    <ChartEmpty message="当前还没有训练曲线点。" />
+                  )}
                 </ChartCard>
               </div>
 
               <div className="grid gap-4 xl:grid-cols-2">
                 <ChartCard title="测试指标" subtitle="精确率 / 召回率 / F1 / PR-AUC">
-                {curves?.test_points?.length ? (
-                  <>
-                    <ChartHoverPanel snapshot={metricHover} />
-                    <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={testMetricPlotData}
-                      margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setMetricHover(buildChartHoverSnapshot('轮次', state))}
-                      onMouseLeave={() => setMetricHover(null)}
-                    >
-                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
-                      <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
-                      <ChartYAxis
-                        domain={[0, 1]}
-                        tickCount={5}
-                        width={56}
-                        tickFormatter={(value: number) => formatUnitDomainTick(value, testMetricDomain ?? [0, 1])}
-                        allowDataOverflow
-                      />
-                      <ChartTooltip axisLabel="轮次" />
-                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      <Line type="monotone" dataKey="precision_plot" name="精确率" stroke="#38bdf8" dot={false} activeDot={buildActiveDot('#38bdf8')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="recall_plot" name="召回率" stroke="#f59e0b" dot={false} activeDot={buildActiveDot('#f59e0b')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="f1_plot" name="F1" stroke="#34d399" dot={false} activeDot={buildActiveDot('#34d399')} strokeWidth={2.1} isAnimationActive={false} />
-                      <Line type="monotone" dataKey="pr_auc_plot" name="PR-AUC" stroke="#a78bfa" dot={false} activeDot={buildActiveDot('#a78bfa')} strokeWidth={2.1} isAnimationActive={false} />
-                    </LineChart>
-                  </ResponsiveContainer>
-                  </>
-                ) : (
-                  <ChartEmpty message="当前还没有测试点，需要等到测试间隔触发。" />
-                )}
+                  {curves?.test_points?.length ? (
+                    <>
+                      <ChartHoverPanel snapshot={metricHover} />
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={testMetricPlotData}
+                          margin={CHART_MARGIN}
+                          onMouseMove={(state: ChartMouseState) =>
+                            setMetricHover(buildChartHoverSnapshot('轮次', state))
+                          }
+                          onMouseLeave={() => setMetricHover(null)}
+                        >
+                          <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                          <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
+                          <ChartYAxis
+                            domain={[0, 1]}
+                            tickCount={5}
+                            width={56}
+                            tickFormatter={(value: number) => formatUnitDomainTick(value, testMetricDomain ?? [0, 1])}
+                            allowDataOverflow
+                          />
+                          <ChartTooltip axisLabel="轮次" />
+                          <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                          <Line
+                            type="monotone"
+                            dataKey="precision_plot"
+                            name="精确率"
+                            stroke="#38bdf8"
+                            dot={false}
+                            activeDot={buildActiveDot('#38bdf8')}
+                            strokeWidth={2.1}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="recall_plot"
+                            name="召回率"
+                            stroke="#f59e0b"
+                            dot={false}
+                            activeDot={buildActiveDot('#f59e0b')}
+                            strokeWidth={2.1}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="f1_plot"
+                            name="F1"
+                            stroke="#34d399"
+                            dot={false}
+                            activeDot={buildActiveDot('#34d399')}
+                            strokeWidth={2.1}
+                            isAnimationActive={false}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="pr_auc_plot"
+                            name="PR-AUC"
+                            stroke="#a78bfa"
+                            dot={false}
+                            activeDot={buildActiveDot('#a78bfa')}
+                            strokeWidth={2.1}
+                            isAnimationActive={false}
+                          />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </>
+                  ) : (
+                    <ChartEmpty message="当前还没有测试点，需要等到测试间隔触发。" />
+                  )}
                 </ChartCard>
 
                 <ChartCard title="分场景 F1" subtitle="每个子场景单独观察">
-                {scenarioMetricData.scenarioNames.length ? (
-                  <>
-                    <ChartHoverPanel snapshot={scenarioHover} variant="emphasis" />
-                    <ResponsiveContainer width="100%" height="100%">
-                    <LineChart
-                      data={scenarioMetricData.data}
-                      margin={CHART_MARGIN}
-                      onMouseMove={(state: ChartMouseState) => setScenarioHover(buildChartHoverSnapshot('轮次', state))}
-                      onMouseLeave={() => setScenarioHover(null)}
-                    >
-                      <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
-                      <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
-                      <ChartYAxis
-                        domain={[0, 1]}
-                        tickCount={5}
-                        width={56}
-                        tickFormatter={(value: number) => formatUnitDomainTick(value, scenarioMetricData.domain)}
-                        allowDataOverflow
-                      />
-                      <ChartTooltip axisLabel="轮次" />
-                      <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
-                      {scenarioMetricData.scenarioNames.map((scenario, index) => {
-                        const colors = ['#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#fb7185']
-                        return (
-                          <Line
-                            key={scenario}
-                            dataKey={`${scenario}__plot`}
-                            name={scenario}
-                            stroke={colors[index % colors.length]}
-                            dot={false}
-                            activeDot={{ ...buildActiveDot(colors[index % colors.length]), r: 6 }}
-                            strokeWidth={2.6}
-                            isAnimationActive={false}
+                  {scenarioMetricData.scenarioNames.length ? (
+                    <>
+                      <ChartHoverPanel snapshot={scenarioHover} variant="emphasis" />
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart
+                          data={scenarioMetricData.data}
+                          margin={CHART_MARGIN}
+                          onMouseMove={(state: ChartMouseState) =>
+                            setScenarioHover(buildChartHoverSnapshot('轮次', state))
+                          }
+                          onMouseLeave={() => setScenarioHover(null)}
+                        >
+                          <CartesianGrid stroke="rgba(51,65,85,0.26)" strokeDasharray="3 4" vertical={false} />
+                          <ChartXAxis dataKey="epoch" type="number" allowDecimals={false} />
+                          <ChartYAxis
+                            domain={[0, 1]}
+                            tickCount={5}
+                            width={56}
+                            tickFormatter={(value: number) => formatUnitDomainTick(value, scenarioMetricData.domain)}
+                            allowDataOverflow
                           />
-                        )
-                      })}
-                    </LineChart>
-                    </ResponsiveContainer>
-                  </>
+                          <ChartTooltip axisLabel="轮次" />
+                          <Legend wrapperStyle={LEGEND_STYLE} iconType="circle" />
+                          {scenarioMetricData.scenarioNames.map((scenario, index) => {
+                            const colors = ['#38bdf8', '#34d399', '#f59e0b', '#f472b6', '#a78bfa', '#fb7185']
+                            return (
+                              <Line
+                                key={scenario}
+                                dataKey={`${scenario}__plot`}
+                                name={scenario}
+                                stroke={colors[index % colors.length]}
+                                dot={false}
+                                activeDot={{ ...buildActiveDot(colors[index % colors.length]), r: 6 }}
+                                strokeWidth={2.6}
+                                isAnimationActive={false}
+                              />
+                            )
+                          })}
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </>
                   ) : (
                     <ChartEmpty message="当前还没有分场景测试曲线。" />
                   )}
@@ -1138,7 +1217,12 @@ export default function TrainingJobDetailPage() {
                           <div className="training-panel-title whitespace-nowrap">终端输出</div>
                           <div className="training-panel-copy">自动刷新最新内容</div>
                         </div>
-                        <div className="mono min-w-0 truncate text-right text-[11px] text-slate-500" title={job.log_path}>{shortPath(job.log_path, 72)}</div>
+                        <div
+                          className="mono min-w-0 truncate text-right text-[11px] text-slate-500"
+                          title={job.log_path}
+                        >
+                          {job.log_path}
+                        </div>
                       </div>
                       <pre className="list-scroll-xl min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
                         {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
@@ -1148,6 +1232,23 @@ export default function TrainingJobDetailPage() {
                 </div>
               </section>
             </>
+          )}
+          {job && (
+            <ConfirmDialog
+              open={confirmDeleteOpen}
+              title="删除训练任务"
+              description={
+                <>
+                  将彻底删除 <span className="font-semibold text-slate-100">{job.name}</span>{' '}
+                  的任务记录、运行目录、权重、曲线和日志。共享预处理缓存会保留。
+                </>
+              }
+              confirmLabel="删除"
+              danger
+              busy={isDeleting}
+              onCancel={() => setConfirmDeleteOpen(false)}
+              onConfirm={deleteJob}
+            />
           )}
         </div>
       </div>

@@ -2,10 +2,7 @@ import { useState, useEffect } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { LLMConfig, LLMConfigRequest } from '../../lib/types'
-import {
-  KeyRound, Eye, EyeOff, Save, Check, RefreshCw,
-  CheckCircle, XCircle, Zap, AlertCircle, Info,
-} from 'lucide-react'
+import { KeyRound, Eye, EyeOff, Save, RefreshCw, CheckCircle, XCircle, Zap, AlertCircle, Info } from 'lucide-react'
 import { cn } from '../../lib/utils'
 
 // 各 provider 的默认模型建议
@@ -17,20 +14,9 @@ const MODEL_SUGGESTIONS: Record<string, string[]> = {
     'Qwen/Qwen2.5-7B-Instruct',
     'meta-llama/Meta-Llama-3.1-8B-Instruct',
   ],
-  openai: [
-    'gpt-4o-mini',
-    'Qwen/Qwen2.5-72B-Instruct',
-  ],
-  deepseek: [
-    'deepseek-v4-flash',
-    'deepseek-v4-pro',
-  ],
-  anthropic: [
-    'claude-opus-4-5',
-    'claude-sonnet-4-5',
-    'claude-haiku-4-5',
-    'claude-3-5-sonnet-20241022',
-  ],
+  openai: ['gpt-4o-mini', 'Qwen/Qwen2.5-72B-Instruct'],
+  deepseek: ['deepseek-v4-flash', 'deepseek-v4-pro'],
+  anthropic: ['claude-opus-4-5', 'claude-sonnet-4-5', 'claude-haiku-4-5', 'claude-3-5-sonnet-20241022'],
 }
 
 const PROVIDER_LABELS: Record<string, { label: string; defaultUrl: string; keyPlaceholder: string }> = {
@@ -59,8 +45,7 @@ const PROVIDER_LABELS: Record<string, { label: string; defaultUrl: string; keyPl
 type TestState = 'idle' | 'testing' | 'ok' | 'fail'
 
 export default function LLMConfig() {
-  const { data: llmCfg, mutate: refreshLLMCfg } =
-    useSWR<LLMConfig>('llm-config', () => api.getLLMConfig())
+  const { data: llmCfg, mutate: refreshLLMCfg } = useSWR<LLMConfig>('llm-config', () => api.getLLMConfig())
 
   const [provider, setProvider] = useState('siliconflow')
   const [model, setModel] = useState('')
@@ -111,7 +96,7 @@ export default function LLMConfig() {
     try {
       // 1. 先保存
       await api.saveLLMConfig(buildReq())
-      setApiKey('')   // 保存后清空输入框
+      setApiKey('') // 保存后清空输入框
       await refreshLLMCfg()
 
       // 2. 再测试（api_key 留空，后端从已保存配置读取）
@@ -148,12 +133,9 @@ export default function LLMConfig() {
 
   return (
     <div className="page-shell flex-row">
-
       {/* ── 左侧：表单 ── */}
-      <div className="page-rail"
-        style={{ width: '440px', minWidth: '360px', flexShrink: 0 }}>
+      <div className="page-rail" style={{ width: '440px', minWidth: '360px', flexShrink: 0 }}>
         <div className="flex-1 overflow-y-auto space-y-4 p-4">
-
           {/* 页头 */}
           <div className="flex items-center gap-3 mb-2">
             <div className="w-9 h-9 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center flex-shrink-0">
@@ -179,7 +161,11 @@ export default function LLMConfig() {
               {Object.entries(PROVIDER_LABELS).map(([key, info]) => (
                 <button
                   key={key}
-                  onClick={() => { setProvider(key); setModel(''); setBaseUrl('') }}
+                  onClick={() => {
+                    setProvider(key)
+                    setModel('')
+                    setBaseUrl('')
+                  }}
                   className={cn(
                     'px-3 py-2.5 rounded-xl border text-sm font-medium transition-all text-left',
                     provider === key
@@ -287,15 +273,31 @@ export default function LLMConfig() {
                   Temperature
                   <span className="ml-1.5 text-slate-500 font-normal">({temperature.toFixed(1)})</span>
                 </label>
-                <input type="range" className="w-full accent-amber-500" min={0} max={2} step={0.1}
-                  value={temperature} onChange={e => setTemperature(parseFloat(e.target.value))} />
-                <div className="flex justify-between text-xs text-slate-600 mt-0.5"><span>0</span><span>2</span></div>
+                <input
+                  type="range"
+                  className="w-full accent-amber-500"
+                  min={0}
+                  max={2}
+                  step={0.1}
+                  value={temperature}
+                  onChange={e => setTemperature(parseFloat(e.target.value))}
+                />
+                <div className="flex justify-between text-xs text-slate-600 mt-0.5">
+                  <span>0</span>
+                  <span>2</span>
+                </div>
               </div>
               <div>
                 <label className="label block mb-2 text-xs">Max Tokens</label>
-                <input type="number" className="input w-full text-sm py-1.5"
-                  min={64} max={8192} step={64}
-                  value={maxTokens} onChange={e => setMaxTokens(parseInt(e.target.value) || 1024)} />
+                <input
+                  type="number"
+                  className="input w-full text-sm py-1.5"
+                  min={64}
+                  max={8192}
+                  step={64}
+                  value={maxTokens}
+                  onChange={e => setMaxTokens(parseInt(e.target.value) || 1024)}
+                />
               </div>
             </div>
 
@@ -305,10 +307,12 @@ export default function LLMConfig() {
                 <span className="text-xs text-slate-600">仅 DeepSeek 官方生效</span>
               </div>
               <div className="grid grid-cols-2 gap-2">
-                {([
-                  { value: 'disabled', label: '关闭 Think', desc: '更快，适合批量模板' },
-                  { value: 'enabled', label: '开启 Think', desc: '更慢，保留推理模式' },
-                ] as const).map(opt => (
+                {(
+                  [
+                    { value: 'disabled', label: '关闭 Think', desc: '更快，适合批量模板' },
+                    { value: 'enabled', label: '开启 Think', desc: '更慢，保留推理模式' },
+                  ] as const
+                ).map(opt => (
                   <button
                     key={opt.value}
                     type="button"
@@ -339,20 +343,23 @@ export default function LLMConfig() {
           {/* 操作按钮 */}
           <div className="flex gap-2">
             <button
-              className={cn(
-                'btn flex-1 py-3 text-sm justify-center',
-                saving ? 'btn-ghost' : 'btn-primary',
-              )}
+              className={cn('btn flex-1 py-3 text-sm justify-center', saving ? 'btn-ghost' : 'btn-primary')}
               style={saving ? {} : { background: 'linear-gradient(135deg, #d97706, #b45309)' }}
               onClick={handleSaveAndTest}
               disabled={saving || testState === 'testing'}
             >
               {saving ? (
-                <><RefreshCw size={15} className="animate-spin" /> 保存中…</>
+                <>
+                  <RefreshCw size={15} className="animate-spin" /> 保存中…
+                </>
               ) : testState === 'testing' ? (
-                <><RefreshCw size={15} className="animate-spin" /> 测试中…</>
+                <>
+                  <RefreshCw size={15} className="animate-spin" /> 测试中…
+                </>
               ) : (
-                <><Save size={15} /> 保存并测试</>
+                <>
+                  <Save size={15} /> 保存并测试
+                </>
               )}
             </button>
             <button
@@ -368,46 +375,45 @@ export default function LLMConfig() {
           <p className="text-xs text-slate-600 text-center -mt-2">
             配置保存到 <span className="font-mono">configs/text2comp/default.yaml</span>
           </p>
-
         </div>
       </div>
 
       {/* ── 右侧：测试结果 + 说明 ── */}
       <div className="page-content overflow-y-auto space-y-4 p-4">
-
         {/* 测试结果卡片 */}
         {testState !== 'idle' && (
-          <div className={cn(
-            'card overflow-hidden',
-            testState === 'ok' ? 'border-emerald-500/30' :
-            testState === 'fail' ? 'border-red-500/30' :
-            'border-slate-700/40',
-          )}>
-            <div className={cn(
-              'flex items-center gap-3 px-4 py-3 border-b border-slate-700/30',
-              testState === 'ok' ? 'bg-emerald-500/5' :
-              testState === 'fail' ? 'bg-red-500/5' :
-              'bg-slate-800/30',
-            )}>
+          <div
+            className={cn(
+              'card overflow-hidden',
+              testState === 'ok'
+                ? 'border-emerald-500/30'
+                : testState === 'fail'
+                  ? 'border-red-500/30'
+                  : 'border-slate-700/40',
+            )}
+          >
+            <div
+              className={cn(
+                'flex items-center gap-3 px-4 py-3 border-b border-slate-700/30',
+                testState === 'ok' ? 'bg-emerald-500/5' : testState === 'fail' ? 'bg-red-500/5' : 'bg-slate-800/30',
+              )}
+            >
               {testState === 'testing' && <RefreshCw size={16} className="animate-spin text-amber-400" />}
-              {testState === 'ok'      && <CheckCircle size={16} className="text-emerald-400" />}
-              {testState === 'fail'    && <XCircle size={16} className="text-red-400" />}
-              <span className={cn(
-                'font-medium text-sm',
-                testState === 'ok' ? 'text-emerald-300' :
-                testState === 'fail' ? 'text-red-300' :
-                'text-amber-300',
-              )}>
-                {testState === 'testing' ? '正在测试连通性…' :
-                 testState === 'ok' ? '连接成功' : '连接失败'}
+              {testState === 'ok' && <CheckCircle size={16} className="text-emerald-400" />}
+              {testState === 'fail' && <XCircle size={16} className="text-red-400" />}
+              <span
+                className={cn(
+                  'font-medium text-sm',
+                  testState === 'ok' ? 'text-emerald-300' : testState === 'fail' ? 'text-red-300' : 'text-amber-300',
+                )}
+              >
+                {testState === 'testing' ? '正在测试连通性…' : testState === 'ok' ? '连接成功' : '连接失败'}
               </span>
             </div>
 
             {testState !== 'testing' && (
               <div className="p-4 space-y-3">
-                <div className="text-sm text-slate-400">
-                  {testMessage}
-                </div>
+                <div className="text-sm text-slate-400">{testMessage}</div>
                 {testPreview && (
                   <div>
                     <div className="label mb-1.5 text-xs">模型响应预览</div>
@@ -422,8 +428,9 @@ export default function LLMConfig() {
             {testState === 'testing' && (
               <div className="p-4">
                 <div className="flex gap-1.5 justify-center py-2">
-                  {[0,1,2,3,4].map(i => (
-                    <div key={i}
+                  {[0, 1, 2, 3, 4].map(i => (
+                    <div
+                      key={i}
                       className="w-2 h-2 rounded-full bg-amber-500 animate-bounce"
                       style={{ animationDelay: `${i * 0.12}s` }}
                     />
@@ -456,7 +463,10 @@ export default function LLMConfig() {
           <div className="space-y-2.5 text-xs text-slate-500 leading-relaxed">
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span>配置保存到 <span className="font-mono text-slate-400">configs/text2comp/default.yaml</span>，模板生成时自动读取</span>
+              <span>
+                配置保存到 <span className="font-mono text-slate-400">configs/text2comp/default.yaml</span>
+                ，模板生成时自动读取
+              </span>
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
@@ -464,23 +474,32 @@ export default function LLMConfig() {
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span><span className="text-slate-400">SiliconFlow</span>：国内高速访问，支持 DeepSeek、Qwen 等主流开源模型，推荐用于大规模生成</span>
+              <span>
+                <span className="text-slate-400">SiliconFlow</span>：国内高速访问，支持 DeepSeek、Qwen
+                等主流开源模型，推荐用于大规模生成
+              </span>
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span><span className="text-slate-400">Base URL</span>：可配置代理地址（如内网 mcli 服务），格式为 <span className="font-mono text-slate-400">https://host/v1</span></span>
+              <span>
+                <span className="text-slate-400">Base URL</span>：可配置代理地址（如内网 mcli 服务），格式为{' '}
+                <span className="font-mono text-slate-400">https://host/v1</span>
+              </span>
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span><span className="text-slate-400">Temperature</span> 建议 0.8–1.2，过低模板多样性差，过高容易出现格式错误</span>
+              <span>
+                <span className="text-slate-400">Temperature</span> 建议 0.8–1.2，过低模板多样性差，过高容易出现格式错误
+              </span>
             </div>
             <div className="flex gap-2">
               <span className="text-amber-500/70 flex-shrink-0 mt-0.5">•</span>
-              <span><span className="text-slate-400">Max Tokens</span> 建议 512–1024，模板生成通常不超过 600 token</span>
+              <span>
+                <span className="text-slate-400">Max Tokens</span> 建议 512–1024，模板生成通常不超过 600 token
+              </span>
             </div>
           </div>
         </div>
-
       </div>
     </div>
   )

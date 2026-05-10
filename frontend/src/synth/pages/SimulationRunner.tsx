@@ -5,11 +5,19 @@ import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { SimulationScenario } from '../../lib/types'
 import {
-  Zap, RefreshCw, AlertCircle, ChevronDown, ChevronUp,
-  CheckCircle2, Database,
-  SkipForward, Layers, Play, BarChart2,
+  Zap,
+  RefreshCw,
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  CheckCircle2,
+  Database,
+  SkipForward,
+  Layers,
+  Play,
+  BarChart2,
 } from 'lucide-react'
-import { cn, formatBytes, formatElapsed } from '../../lib/utils'
+import { cn, formatBytes } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { useJobMonitor } from '../hooks/useJobMonitor'
@@ -17,25 +25,82 @@ import { useResizable } from '../hooks/useResizable'
 
 // ── 模拟器元数据 ──────────────────────────────────────────────────
 
-const SIM_META: Record<string, {
-  label: string; shortLabel: string
-  color: string; bg: string; border: string; dot: string
-}> = {
-  modflow:      { label: 'MODFLOW',      shortLabel: 'MF',  color: 'text-blue-400',   bg: 'bg-blue-500/10',   border: 'border-blue-500/25',   dot: 'bg-blue-500'   },
-  simpeg:       { label: 'SimPEG',       shortLabel: 'SP',  color: 'text-purple-400', bg: 'bg-purple-500/10', border: 'border-purple-500/25', dot: 'bg-purple-500' },
-  power_flow:   { label: 'Power Flow',   shortLabel: 'PF',  color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/25', dot: 'bg-orange-500' },
-  transient:    { label: 'Transient',    shortLabel: 'TR',  color: 'text-red-400',    bg: 'bg-red-500/10',    border: 'border-red-500/25',    dot: 'bg-red-500'    },
-  gcam:         { label: 'PyPSA/GCAM',   shortLabel: 'GC',  color: 'text-teal-400',   bg: 'bg-teal-500/10',   border: 'border-teal-500/25',   dot: 'bg-teal-500'   },
+const SIM_META: Record<
+  string,
+  {
+    label: string
+    shortLabel: string
+    color: string
+    bg: string
+    border: string
+    dot: string
+  }
+> = {
+  modflow: {
+    label: 'MODFLOW',
+    shortLabel: 'MF',
+    color: 'text-blue-400',
+    bg: 'bg-blue-500/10',
+    border: 'border-blue-500/25',
+    dot: 'bg-blue-500',
+  },
+  simpeg: {
+    label: 'SimPEG',
+    shortLabel: 'SP',
+    color: 'text-purple-400',
+    bg: 'bg-purple-500/10',
+    border: 'border-purple-500/25',
+    dot: 'bg-purple-500',
+  },
+  power_flow: {
+    label: 'Power Flow',
+    shortLabel: 'PF',
+    color: 'text-orange-400',
+    bg: 'bg-orange-500/10',
+    border: 'border-orange-500/25',
+    dot: 'bg-orange-500',
+  },
+  transient: {
+    label: 'Transient',
+    shortLabel: 'TR',
+    color: 'text-red-400',
+    bg: 'bg-red-500/10',
+    border: 'border-red-500/25',
+    dot: 'bg-red-500',
+  },
+  gcam: {
+    label: 'PyPSA/GCAM',
+    shortLabel: 'GC',
+    color: 'text-teal-400',
+    bg: 'bg-teal-500/10',
+    border: 'border-teal-500/25',
+    dot: 'bg-teal-500',
+  },
 }
 
-const fallbackMeta = { label: '未知', shortLabel: 'NA', color: 'text-slate-400', bg: 'bg-slate-500/10', border: 'border-slate-500/25', dot: 'bg-slate-500' }
+const fallbackMeta = {
+  label: '未知',
+  shortLabel: 'NA',
+  color: 'text-slate-400',
+  bg: 'bg-slate-500/10',
+  border: 'border-slate-500/25',
+  dot: 'bg-slate-500',
+}
 
 // ── 子组件 ────────────────────────────────────────────────────────
 
 function SimBadge({ simulator, className }: { simulator: string; className?: string }) {
   const m = SIM_META[simulator] ?? fallbackMeta
   return (
-    <span className={cn('inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border', m.bg, m.border, m.color, className)}>
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs font-medium border',
+        m.bg,
+        m.border,
+        m.color,
+        className,
+      )}
+    >
       <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', m.dot)} />
       {m.label}
     </span>
@@ -44,17 +109,17 @@ function SimBadge({ simulator, className }: { simulator: string; className?: str
 
 // 单场景卡片（多选模式）
 function ScenarioRow({
-  s, checked, onToggle, nSamples,
+  s,
+  checked,
+  onToggle,
+  nSamples,
 }: {
   s: SimulationScenario
   checked: boolean
   onToggle: () => void
   nSamples: number
 }) {
-  const m = SIM_META[s.simulator] ?? fallbackMeta
-  const progress = s.sample_count > 0 && nSamples > 0
-    ? Math.min(1, s.sample_count / nSamples)
-    : 0
+  const progress = s.sample_count > 0 && nSamples > 0 ? Math.min(1, s.sample_count / nSamples) : 0
   const isComplete = s.sample_count >= nSamples && nSamples > 0
 
   return (
@@ -79,12 +144,12 @@ function ScenarioRow({
       )}
       <div className="relative flex items-center gap-2">
         {/* 复选框 */}
-        <div className={cn(
-          'w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all',
-          checked
-            ? 'bg-amber-500 border-amber-400'
-            : 'bg-slate-700/60 border-slate-600/60',
-        )}>
+        <div
+          className={cn(
+            'w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border transition-all',
+            checked ? 'bg-amber-500 border-amber-400' : 'bg-slate-700/60 border-slate-600/60',
+          )}
+        >
           {checked && <CheckCircle2 size={10} className="text-white" />}
         </div>
         {/* 场景名 */}
@@ -92,17 +157,14 @@ function ScenarioRow({
         {/* 右侧信息 */}
         <div className="flex items-center gap-1.5 flex-shrink-0">
           {s.sample_count > 0 && (
-            <span className={cn(
-              'text-xs tabular-nums font-medium',
-              isComplete ? 'text-emerald-400' : 'text-slate-400',
-            )}>
+            <span
+              className={cn('text-xs tabular-nums font-medium', isComplete ? 'text-emerald-400' : 'text-slate-400')}
+            >
               {s.sample_count.toLocaleString()}
             </span>
           )}
           {s.output_shape && (
-            <span className="text-xs text-slate-600 font-mono hidden sm:inline">
-              ({s.output_shape.join('×')})
-            </span>
+            <span className="text-xs text-slate-600 font-mono hidden sm:inline">({s.output_shape.join('×')})</span>
           )}
         </div>
       </div>
@@ -122,8 +184,22 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
   }
 
   const cards = [
-    { id: 'total',    label: '总样本数', value: totalSamples.toLocaleString(), sub: `${withData.length} 个文件`, icon: Database, color: 'text-amber-400' },
-    { id: 'size',     label: '总数据量', value: formatBytes(totalSize),        sub: `${scenarios.length} 个场景`, icon: BarChart2, color: 'text-sky-400' },
+    {
+      id: 'total',
+      label: '总样本数',
+      value: totalSamples.toLocaleString(),
+      sub: `${withData.length} 个文件`,
+      icon: Database,
+      color: 'text-amber-400',
+    },
+    {
+      id: 'size',
+      label: '总数据量',
+      value: formatBytes(totalSize),
+      sub: `${scenarios.length} 个场景`,
+      icon: BarChart2,
+      color: 'text-sky-400',
+    },
     ...Object.entries(SIM_META).map(([sim, meta]) => ({
       id: sim,
       label: meta.label,
@@ -162,11 +238,14 @@ export default function SimulationRunner() {
     storageKey: 'piern_simulate_sidebar_width',
   })
 
-  const { data: scenarios, isLoading, mutate: refreshScenarios } =
-    useSWR<SimulationScenario[]>('simulation-scenarios', () => api.getSimulationScenarios(), {
-      refreshInterval: 20000,
-      revalidateOnMount: true,
-    })
+  const {
+    data: scenarios,
+    isLoading,
+    mutate: refreshScenarios,
+  } = useSWR<SimulationScenario[]>('simulation-scenarios', () => api.getSimulationScenarios(), {
+    refreshInterval: 20000,
+    revalidateOnMount: true,
+  })
 
   // ── 状态 ──
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -198,11 +277,13 @@ export default function SimulationRunner() {
     return (scenarios ?? []).filter(s => s.simulator === filterSim).map(s => s.scenario)
   }, [scenarios, filterSim, allNames])
 
-  const toggle = (name: string) => setSelected(prev => {
-    const next = new Set(prev)
-    if (next.has(name)) next.delete(name); else next.add(name)
-    return next
-  })
+  const toggle = (name: string) =>
+    setSelected(prev => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
 
   const selectAll = () => setSelected(new Set(filteredNames))
   const clearAll = () => setSelected(new Set())
@@ -216,7 +297,10 @@ export default function SimulationRunner() {
   const canLaunch = !monitor.status || ['idle', 'done', 'error', 'terminated'].includes(monitor.status)
 
   const handleLaunch = async () => {
-    if (selected.size === 0) { setError('请至少选择一个场景'); return }
+    if (selected.size === 0) {
+      setError('请至少选择一个场景')
+      return
+    }
     setError(null)
     setLaunching(true)
     try {
@@ -273,12 +357,8 @@ export default function SimulationRunner() {
 
   return (
     <div className="workbench-shell">
-
       {/* ── 左栏 ── */}
-      <div
-        className="workbench-sidebar"
-        style={{ width: sidebarWidth }}
-      >
+      <div className="workbench-sidebar" style={{ width: sidebarWidth }}>
         {/* 页头 */}
         <div className="workbench-sidebar-header">
           <div className="flex items-center justify-between">
@@ -346,11 +426,20 @@ export default function SimulationRunner() {
             )}
           </div>
           <div className="flex items-center gap-0.5">
-            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectAll}>全选</button>
-            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectIncomplete} title="选择样本数不足配置数的场景">
-              <SkipForward size={10} className="mr-0.5" />未满
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={selectAll}>
+              全选
             </button>
-            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={clearAll}>清空</button>
+            <button
+              className="btn-ghost py-0.5 px-2 text-sm"
+              onClick={selectIncomplete}
+              title="选择样本数不足配置数的场景"
+            >
+              <SkipForward size={10} className="mr-0.5" />
+              未满
+            </button>
+            <button className="btn-ghost py-0.5 px-2 text-sm" onClick={clearAll}>
+              清空
+            </button>
           </div>
         </div>
 
@@ -396,7 +485,6 @@ export default function SimulationRunner() {
 
         {/* 底部参数 + 按钮 */}
         <div className="flex-shrink-0 border-t border-slate-700/30 bg-slate-900/30">
-
           {/* 参数行 */}
           <div className="px-4 py-3 space-y-3">
             <div>
@@ -405,7 +493,8 @@ export default function SimulationRunner() {
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
                 value={nSamplesInput}
-                min={1} max={100000}
+                min={1}
+                max={100000}
                 onChange={e => {
                   setNSamplesInput(e.target.value)
                   const n = parseInt(e.target.value, 10)
@@ -414,20 +503,20 @@ export default function SimulationRunner() {
                 onBlur={() => {
                   const n = parseInt(nSamplesInput, 10)
                   const v = isNaN(n) ? 1 : Math.max(1, Math.min(100000, n))
-                  setNSamples(v); setNSamplesInput(String(v))
+                  setNSamples(v)
+                  setNSamplesInput(String(v))
                 }}
               />
             </div>
 
             {/* skip-existing 开关 */}
-            <div
-              className="flex items-center gap-2 cursor-pointer"
-              onClick={() => setSkipExisting(v => !v)}
-            >
-              <div className={cn(
-                'relative w-8 h-4 rounded-full transition-all duration-200 flex-shrink-0',
-                skipExisting ? 'bg-amber-500' : 'bg-slate-700',
-              )}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setSkipExisting(v => !v)}>
+              <div
+                className={cn(
+                  'relative w-8 h-4 rounded-full transition-all duration-200 flex-shrink-0',
+                  skipExisting ? 'bg-amber-500' : 'bg-slate-700',
+                )}
+              >
                 <div
                   className="absolute top-0.5 w-3 h-3 rounded-full bg-white shadow transition-all duration-200"
                   style={{ left: skipExisting ? '18px' : '2px' }}
@@ -469,7 +558,8 @@ export default function SimulationRunner() {
                     type="number"
                     className="input w-14 text-xs py-0.5 px-2 text-center"
                     value={maxWorkers}
-                    min={1} max={32}
+                    min={1}
+                    max={32}
                     onClick={e => e.stopPropagation()}
                     onChange={e => {
                       const n = parseInt(e.target.value, 10)
@@ -486,10 +576,15 @@ export default function SimulationRunner() {
                 {selectedScenarios.slice(0, 4).map(s => {
                   const m = SIM_META[s.simulator] ?? fallbackMeta
                   return (
-                    <span key={s.scenario} className={cn(
-                      'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border',
-                      m.bg, m.border, m.color,
-                    )}>
+                    <span
+                      key={s.scenario}
+                      className={cn(
+                        'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border',
+                        m.bg,
+                        m.border,
+                        m.color,
+                      )}
+                    >
                       {s.scenario}
                     </span>
                   )
@@ -520,12 +615,19 @@ export default function SimulationRunner() {
                 onClick={handleLaunch}
                 disabled={launching || selected.size === 0}
               >
-                {launching
-                  ? <><RefreshCw size={14} className="animate-spin" /> 启动中…</>
-                  : selected.size > 1
-                  ? <><Play size={14} /> 批量仿真（{selected.size} 个场景）</>
-                  : <><Zap size={14} /> 开始仿真{selected.size === 1 ? `（${[...selected][0]}）` : ''}</>
-                }
+                {launching ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" /> 启动中…
+                  </>
+                ) : selected.size > 1 ? (
+                  <>
+                    <Play size={14} /> 批量仿真（{selected.size} 个场景）
+                  </>
+                ) : (
+                  <>
+                    <Zap size={14} /> 开始仿真{selected.size === 1 ? `（${[...selected][0]}）` : ''}
+                  </>
+                )}
               </button>
               {(monitor.status === 'done' || monitor.status === 'error' || monitor.status === 'terminated') && (
                 <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
@@ -541,11 +643,8 @@ export default function SimulationRunner() {
 
       {/* ── 右栏 ── */}
       <div className="workbench-main-scroll">
-
         {/* 数据总览卡片 */}
-        {scenarios && scenarios.length > 0 && (
-          <DataOverviewCards scenarios={scenarios} />
-        )}
+        {scenarios && scenarios.length > 0 && <DataOverviewCards scenarios={scenarios} />}
 
         {/* Job 监控面板 */}
         <JobMonitorPanel
@@ -592,7 +691,11 @@ export default function SimulationRunner() {
                 </span>
               )}
             </div>
-            {tableOpen ? <ChevronUp size={13} className="text-slate-500" /> : <ChevronDown size={13} className="text-slate-500" />}
+            {tableOpen ? (
+              <ChevronUp size={13} className="text-slate-500" />
+            ) : (
+              <ChevronDown size={13} className="text-slate-500" />
+            )}
           </button>
 
           {tableOpen && (
@@ -610,18 +713,21 @@ export default function SimulationRunner() {
                 </thead>
                 <tbody>
                   {(scenarios ?? []).map(s => {
-                    const meta = SIM_META[s.simulator] ?? fallbackMeta
                     return (
-                      <tr key={`${s.simulator}/${s.scenario}`} className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors">
+                      <tr
+                        key={`${s.simulator}/${s.scenario}`}
+                        className="border-b border-slate-800/40 hover:bg-slate-700/20 transition-colors"
+                      >
                         <td className="px-3 py-1.5">
                           <SimBadge simulator={s.simulator} />
                         </td>
                         <td className="px-3 py-1.5 font-mono text-slate-300 max-w-[140px] truncate">{s.scenario}</td>
                         <td className="px-3 py-1.5 text-right tabular-nums">
-                          {s.sample_count > 0
-                            ? <span className="text-sky-400">{s.sample_count.toLocaleString()}</span>
-                            : <span className="text-slate-700">—</span>
-                          }
+                          {s.sample_count > 0 ? (
+                            <span className="text-sky-400">{s.sample_count.toLocaleString()}</span>
+                          ) : (
+                            <span className="text-slate-700">—</span>
+                          )}
                         </td>
                         <td className="px-3 py-1.5 font-mono text-slate-600">
                           {s.output_shape ? `(${s.output_shape.join('×')})` : '—'}
@@ -630,10 +736,11 @@ export default function SimulationRunner() {
                           {s.file_size_bytes > 0 ? formatBytes(s.file_size_bytes) : '—'}
                         </td>
                         <td className="px-3 py-1.5 max-w-[160px] truncate">
-                          {s.h5_path
-                            ? <span className="text-emerald-500/60 font-mono">{s.h5_path.split('/').pop()}</span>
-                            : <span className="text-slate-700">未生成</span>
-                          }
+                          {s.h5_path ? (
+                            <span className="text-emerald-500/60 font-mono">{s.h5_path.split('/').pop()}</span>
+                          ) : (
+                            <span className="text-slate-700">未生成</span>
+                          )}
                         </td>
                       </tr>
                     )
@@ -643,7 +750,6 @@ export default function SimulationRunner() {
             </div>
           )}
         </div>
-
       </div>
     </div>
   )

@@ -8,12 +8,15 @@
     "build": "npm run typecheck && node ../scripts/frontend/run-vite.mjs build",
     "preview": "node ../scripts/frontend/run-vite.mjs preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint src/lib/utils.ts src/lib/utils.test.ts --max-warnings 0",
-    "format": "prettier --write eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
-    "format:check": "prettier --check eslint.config.js prettier.config.cjs vitest.config.ts src/lib/utils.test.ts package.json",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" e2e/smoke.spec.ts playwright.config.ts --max-warnings 0",
+    "format": "prettier --write eslint.config.js prettier.config.cjs vitest.config.ts playwright.config.ts \"e2e/**/*.ts\" \"src/**/*.{ts,tsx}\" package.json",
+    "format:check": "prettier --check eslint.config.js prettier.config.cjs vitest.config.ts playwright.config.ts \"e2e/**/*.ts\" \"src/**/*.{ts,tsx}\" package.json",
     "test": "vitest run",
     "openapi:types": "node ../scripts/frontend/generate-openapi-types.mjs",
-    "openapi:check": "npm run openapi:types && git diff --exit-code -- src/lib/generated/openapi.json src/lib/generated/openapi.d.ts"
+    "openapi:check": "npm run openapi:types && git diff --exit-code -- src/lib/generated/openapi.json src/lib/generated/openapi.d.ts",
+    "e2e": "playwright test",
+    "e2e:smoke": "playwright test e2e/smoke.spec.ts",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run e2e:smoke"
   },
   "dependencies": {
     "clsx": "^2.1.1",
@@ -28,6 +31,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
+    "@playwright/test": "^1.59.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^18.3.3",

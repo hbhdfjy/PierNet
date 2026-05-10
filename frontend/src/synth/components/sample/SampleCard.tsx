@@ -1,11 +1,15 @@
 import { useState } from 'react'
 import type { SampleRecord } from '../../../lib/types'
 import {
-  LANGUAGE_LABELS, STYLE_LABELS, SIMULATOR_LABELS,
-  getSimulatorBadgeClass, LANGUAGE_BADGE, STYLE_BADGE,
+  LANGUAGE_LABELS,
+  STYLE_LABELS,
+  SIMULATOR_LABELS,
+  getSimulatorBadgeClass,
+  LANGUAGE_BADGE,
+  STYLE_BADGE,
 } from '../../../lib/utils'
 import TimeseriesChart from './TimeseriesChart'
-import { ChevronDown, Hash, AlignLeft, Target, Info, TrendingUp, AlertCircle } from 'lucide-react'
+import { ChevronDown, Hash, AlignLeft, Target, Info, TrendingUp } from 'lucide-react'
 import { cn } from '../../../lib/utils'
 
 interface Props {
@@ -13,8 +17,16 @@ interface Props {
   index: number
 }
 
-function Section({ icon, title, children, defaultOpen = true }: {
-  icon: React.ReactNode; title: string; children: React.ReactNode; defaultOpen?: boolean
+function Section({
+  icon,
+  title,
+  children,
+  defaultOpen = true,
+}: {
+  icon: React.ReactNode
+  title: string
+  children: React.ReactNode
+  defaultOpen?: boolean
 }) {
   const [open, setOpen] = useState(defaultOpen)
   return (
@@ -42,7 +54,9 @@ function TargetSection({ target }: { target: string }) {
   return (
     <div className="border-b border-slate-700/30 last:border-0">
       <div className="accordion-card-header flex items-center gap-2 px-4 py-2.5">
-        <span className="text-slate-500"><Target size={13} /></span>
+        <span className="text-slate-500">
+          <Target size={13} />
+        </span>
         <span className="text-base font-medium text-slate-300 flex-1">Target</span>
         {isLong && (
           <button
@@ -55,10 +69,12 @@ function TargetSection({ target }: { target: string }) {
         )}
       </div>
       <div className="px-4 pb-4">
-        <div className={cn(
-          'bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-400 leading-relaxed font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] border border-slate-700/30',
-          !expanded && isLong ? 'max-h-24 overflow-hidden' : 'max-h-96 overflow-y-auto',
-        )}>
+        <div
+          className={cn(
+            'bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-400 leading-relaxed font-mono whitespace-pre-wrap break-words [overflow-wrap:anywhere] border border-slate-700/30',
+            !expanded && isLong ? 'max-h-24 overflow-hidden' : 'max-h-96 overflow-y-auto',
+          )}
+        >
           {expanded || !isLong ? target : target.slice(0, PREVIEW_LEN) + '…'}
         </div>
         {!expanded && isLong && (
@@ -92,16 +108,21 @@ export default function SampleCard({ sample, index }: Props) {
       <div className="card-header accordion-card-header justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-slate-600 flex-shrink-0">#{index + 1}</span>
-          <span className={cn('badge border', getSimulatorBadgeClass(meta.simulator))}>
-            {meta.simulator}
-          </span>
+          <span className={cn('badge border', getSimulatorBadgeClass(meta.simulator))}>{meta.simulator}</span>
           <span className="text-sm text-slate-400 truncate">{meta.scenario}</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className={cn('badge border', LANGUAGE_BADGE[meta.language] ?? 'bg-slate-700 text-slate-300 border-slate-600')}>
+          <span
+            className={cn(
+              'badge border',
+              LANGUAGE_BADGE[meta.language] ?? 'bg-slate-700 text-slate-300 border-slate-600',
+            )}
+          >
             {LANGUAGE_LABELS[meta.language] ?? meta.language}
           </span>
-          <span className={cn('badge border', STYLE_BADGE[meta.style] ?? 'bg-slate-700 text-slate-300 border-slate-600')}>
+          <span
+            className={cn('badge border', STYLE_BADGE[meta.style] ?? 'bg-slate-700 text-slate-300 border-slate-600')}
+          >
             {STYLE_LABELS[meta.style] ?? meta.style}
           </span>
           <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/40">
@@ -112,9 +133,11 @@ export default function SampleCard({ sample, index }: Props) {
 
       {/* ── Input ── */}
       <Section icon={<AlignLeft size={13} />} title="Input">
-        <div className="bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-300 leading-relaxed
+        <div
+          className="bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-300 leading-relaxed
                         max-h-44 overflow-y-auto whitespace-pre-wrap border border-slate-700/30
-                        ring-1 ring-inset ring-slate-700/20">
+                        ring-1 ring-inset ring-slate-700/20"
+        >
           {sample.input}
         </div>
       </Section>
@@ -145,18 +168,23 @@ export default function SampleCard({ sample, index }: Props) {
               </thead>
               <tbody>
                 {paramPairs.map(({ name, original, transformed, changed }) => (
-                  <tr key={name} className={cn(
-                    'border-b border-slate-800/40 transition-colors',
-                    changed ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-slate-700/20',
-                  )}>
+                  <tr
+                    key={name}
+                    className={cn(
+                      'border-b border-slate-800/40 transition-colors',
+                      changed ? 'bg-amber-500/5 hover:bg-amber-500/10' : 'hover:bg-slate-700/20',
+                    )}
+                  >
                     <td className="px-3 py-1.5 font-mono text-slate-400">{name}</td>
                     <td className="px-3 py-1.5 text-right font-mono tabular-nums text-slate-500">
                       {original.toPrecision(5)}
                     </td>
-                    <td className={cn(
-                      'px-3 py-1.5 text-right font-mono tabular-nums',
-                      changed ? 'text-amber-300 font-medium' : 'text-slate-500',
-                    )}>
+                    <td
+                      className={cn(
+                        'px-3 py-1.5 text-right font-mono tabular-nums',
+                        changed ? 'text-amber-300 font-medium' : 'text-slate-500',
+                      )}
+                    >
                       {transformed.toPrecision(5)}
                       {changed && <span className="ml-1 text-amber-500/60 text-xs">✎</span>}
                     </td>
@@ -199,7 +227,8 @@ export default function SampleCard({ sample, index }: Props) {
               <div key={label} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
                 <div className="label mb-1.5">{label}</div>
                 <div className="text-slate-400 font-mono text-xs leading-relaxed max-h-16 overflow-y-auto">
-                  {value.slice(0, 300)}{value.length > 300 ? '…' : ''}
+                  {value.slice(0, 300)}
+                  {value.length > 300 ? '…' : ''}
                 </div>
               </div>
             ))}

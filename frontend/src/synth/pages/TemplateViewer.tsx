@@ -31,7 +31,12 @@ import { cn } from '../../lib/utils'
 
 const PAGE_SIZE = 10
 
-function Section({ icon, title, children, defaultOpen = true }: {
+function Section({
+  icon,
+  title,
+  children,
+  defaultOpen = true,
+}: {
   icon: React.ReactNode
   title: string
   children: React.ReactNode
@@ -47,7 +52,10 @@ function Section({ icon, title, children, defaultOpen = true }: {
       >
         <span className="text-slate-500 group-hover:text-slate-400 transition-colors">{icon}</span>
         <span className="text-base font-medium text-slate-300 flex-1">{title}</span>
-        <ChevronDown size={13} className={cn('text-slate-600 transition-transform duration-200', open && 'rotate-180')} />
+        <ChevronDown
+          size={13}
+          className={cn('text-slate-600 transition-transform duration-200', open && 'rotate-180')}
+        />
       </button>
       {open && <div className="px-4 pb-4">{children}</div>}
     </div>
@@ -62,16 +70,21 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
       <div className="card-header accordion-card-header justify-between">
         <div className="flex items-center gap-2 min-w-0">
           <span className="text-xs font-mono text-slate-600 flex-shrink-0">#{index + 1}</span>
-          <span className={cn('badge border', getSimulatorBadgeClass(record.simulator))}>
-            {record.simulator}
-          </span>
+          <span className={cn('badge border', getSimulatorBadgeClass(record.simulator))}>{record.simulator}</span>
           <span className="text-sm text-slate-400 truncate">{record.scenario}</span>
         </div>
         <div className="flex items-center gap-1.5 flex-shrink-0">
-          <span className={cn('badge border', LANGUAGE_BADGE[record.language] ?? 'bg-slate-700 text-slate-300 border-slate-600')}>
+          <span
+            className={cn(
+              'badge border',
+              LANGUAGE_BADGE[record.language] ?? 'bg-slate-700 text-slate-300 border-slate-600',
+            )}
+          >
             {LANGUAGE_LABELS[record.language] ?? record.language}
           </span>
-          <span className={cn('badge border', STYLE_BADGE[record.style] ?? 'bg-slate-700 text-slate-300 border-slate-600')}>
+          <span
+            className={cn('badge border', STYLE_BADGE[record.style] ?? 'bg-slate-700 text-slate-300 border-slate-600')}
+          >
             {STYLE_LABELS[record.style] ?? record.style}
           </span>
           <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/40">
@@ -113,17 +126,22 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
                   const slot = record.placeholder_schema.find(s => s.param_index === td.param_index)
                   const hasTransform = td.transform_type !== null
                   return (
-                    <tr key={i} className={cn(
-                      'border-b border-slate-800/40 transition-colors',
-                      hasTransform ? 'bg-amber-500/5 hover:bg-amber-500/8' : 'hover:bg-slate-700/20',
-                    )}>
+                    <tr
+                      key={i}
+                      className={cn(
+                        'border-b border-slate-800/40 transition-colors',
+                        hasTransform ? 'bg-amber-500/5 hover:bg-amber-500/8' : 'hover:bg-slate-700/20',
+                      )}
+                    >
                       <td className="px-3 py-1.5 font-mono text-slate-400">
                         {td.param_name}
                         {slot && <span className="ml-1.5 text-violet-400/70 text-xs">{`{value_${slot.index}}`}</span>}
                       </td>
                       <td className="px-3 py-1.5">
                         {hasTransform ? (
-                          <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/25">{td.transform_type}</span>
+                          <span className="badge bg-amber-500/15 text-amber-300 border border-amber-500/25">
+                            {td.transform_type}
+                          </span>
                         ) : (
                           <span className="text-slate-600">无</span>
                         )}
@@ -153,7 +171,12 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
             ['Time mode', record.time_mode],
             ['Time points', record.n_time_points],
             ['Observed channels', record.channel_indices?.length ?? record.timeseries_shape_obs[0]],
-            ['Channel indices', record.channel_indices && record.channel_indices.length > 0 ? `[${record.channel_indices.join(', ')}]` : 'All observed'],
+            [
+              'Channel indices',
+              record.channel_indices && record.channel_indices.length > 0
+                ? `[${record.channel_indices.join(', ')}]`
+                : 'All observed',
+            ],
             ['Outputs', record.selected_output_names.join(', ') || '无'],
             ['Original shape', `${record.timeseries_shape_orig[0]} x ${record.timeseries_shape_orig[1]}`],
             ['Observed shape', `${record.timeseries_shape_obs[0]} x ${record.timeseries_shape_obs[1]}`],
@@ -172,7 +195,10 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
       <Section icon={<Layers size={13} />} title={`输出槽位 (${record.output_schema.length})`} defaultOpen={false}>
         <div className="list-scroll-md space-y-1.5">
           {record.output_schema.map(slot => (
-            <div key={slot.index} className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-700/30 text-xs">
+            <div
+              key={slot.index}
+              className="flex items-center gap-3 bg-slate-900/40 rounded-lg px-3 py-2 border border-slate-700/30 text-xs"
+            >
               <span className="text-violet-400 font-mono font-medium flex-shrink-0">{`{output_${slot.index}}`}</span>
               <span className="pretty-tooltip min-w-0 flex-1" data-tooltip={slot.name || undefined}>
                 <span className="block truncate text-slate-400">{slot.name || '未命名输出'}</span>
@@ -217,11 +243,13 @@ export default function TemplateViewer() {
   const [language, setLanguage] = useState('')
   const [style, setStyle] = useState('')
 
-  const { data: templateFiles, isLoading: filesLoading } =
-    useSWR<TemplateFileInfo[]>('template-files-viewer', () => api.listTemplateFiles())
+  const { data: templateFiles, isLoading: filesLoading } = useSWR<TemplateFileInfo[]>('template-files-viewer', () =>
+    api.listTemplateFiles(),
+  )
 
-  const { data: scenariosCfg } =
-    useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () => api.getText2CompScenarios())
+  const { data: scenariosCfg } = useSWR<Text2CompScenariosConfig>('text2comp-scenarios-v2', () =>
+    api.getText2CompScenarios(),
+  )
 
   const scenarioSimMap = useMemo(() => {
     const m: Record<string, string> = {}
@@ -285,7 +313,12 @@ export default function TemplateViewer() {
               const badge = SIMULATOR_BADGE[sim]
               return (
                 <div key={sim}>
-                  <div className={cn('flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30', badge?.text ?? 'text-slate-500')}>
+                  <div
+                    className={cn(
+                      'flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold uppercase tracking-wider border-b border-slate-800/60 bg-slate-900/30',
+                      badge?.text ?? 'text-slate-500',
+                    )}
+                  >
                     <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                     {SIMULATOR_LABELS[sim] ?? sim}
                   </div>
@@ -351,9 +384,7 @@ export default function TemplateViewer() {
             <div className="flex-1" />
 
             {templatesData && (
-              <span className="text-xs text-slate-500 tabular-nums">
-                {templatesData.total.toLocaleString()} total
-              </span>
+              <span className="text-xs text-slate-500 tabular-nums">{templatesData.total.toLocaleString()} total</span>
             )}
 
             {totalPages > 1 && (
@@ -403,13 +434,14 @@ export default function TemplateViewer() {
               </div>
             )}
 
-            {!tLoading && templatesData?.items.map((record, i) => (
-              <TemplateCard
-                key={`${record.scenario}-${page * PAGE_SIZE + i}`}
-                record={record}
-                index={page * PAGE_SIZE + i}
-              />
-            ))}
+            {!tLoading &&
+              templatesData?.items.map((record, i) => (
+                <TemplateCard
+                  key={`${record.scenario}-${page * PAGE_SIZE + i}`}
+                  record={record}
+                  index={page * PAGE_SIZE + i}
+                />
+              ))}
           </div>
         </div>
       </div>
