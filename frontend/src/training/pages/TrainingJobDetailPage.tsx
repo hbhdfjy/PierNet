@@ -38,6 +38,7 @@ import {
   shortPath,
   statusBadgeClass,
   statusLabel,
+  trainingJobNotice,
 } from '../shared'
 
 type TrainingAxisMode = 'step' | 'epoch'
@@ -666,6 +667,8 @@ export default function TrainingJobDetailPage() {
     return ['running', 'evaluating'].includes(job.status) ? 5000 : 0
   }, [job])
 
+  const notice = job ? trainingJobNotice(job) : null
+
   const { data: curves } = useSWR<TrainingCurvesResponse>(
     jobId ? `training-curves-${jobId}` : null,
     () => api.getTrainingCurves(jobId, 2000),
@@ -949,10 +952,10 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="运行目录" value={shortPath(job.run_dir, 112)} mono title={job.run_dir} />
                           <MetaField label="日志文件" value={shortPath(job.log_path, 112)} mono title={job.log_path} />
                         </div>
-                        {job.error_message && (
-                          <div className="mt-3 flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-sm text-rose-300">
+                        {notice && (
+                          <div className={`mt-3 flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}>
                             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
-                            <span>{job.error_message}</span>
+                            <span>{notice.message}</span>
                           </div>
                         )}
                       </div>

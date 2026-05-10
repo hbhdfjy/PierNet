@@ -39,6 +39,14 @@ GPU_AVAILABLE_UTIL_THRESHOLD = 20
 TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}
 TRAINING_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
 TRAINING_STOP_GRACE_SECONDS = 45.0
+PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
+PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
+PLATFORM_STOP_TERMINAL_MESSAGES = {
+    PLATFORM_STOP_PENDING_MESSAGE,
+    PLATFORM_STOP_PENDING_DISPLAY,
+    "Stopped by platform request.",
+}
+PLATFORM_STOP_EXIT_REASONS = {"platform_stop", "platform_stop_requested"}
 
 _REGISTRY_LOCK = RLock()
 LOGGER = logging.getLogger(__name__)
@@ -435,6 +443,22 @@ def _remove_job_stop_file(entry: dict[str, Any]) -> None:
         LOGGER.exception("Failed to delete training stop file %s", stop_file_value)
 
 
+def _sync_platform_stop_message(entry: dict[str, Any], *, alive: bool) -> None:
+    exit_reason = entry.get("exit_reason")
+    is_platform_stop = exit_reason in PLATFORM_STOP_EXIT_REASONS or bool(entry.get("stop_requested"))
+    if not is_platform_stop:
+        return
+
+    if alive and entry.get("status") == "stopping":
+        if entry.get("error_message") in PLATFORM_STOP_TERMINAL_MESSAGES or not entry.get("error_message"):
+            entry["error_message"] = PLATFORM_STOP_PENDING_DISPLAY
+        return
+
+    if entry.get("status") == "terminated" and exit_reason in PLATFORM_STOP_EXIT_REASONS:
+        if entry.get("error_message") in PLATFORM_STOP_TERMINAL_MESSAGES:
+            entry["error_message"] = None
+
+
 def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     entry["name"] = _normalize_job_name(entry.get("name"), fallback=entry["job_id"])
     run_dir_str = entry.get("run_dir")
@@ -503,6 +527,7 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                         )
             entry["ended_at"] = entry.get("ended_at") or time.time()
 
+    _sync_platform_stop_message(entry, alive=alive)
     entry["checkpoints"] = _checkpoint_entries(run_dir)
     return entry
 
@@ -972,7 +997,7 @@ def stop_job(job_id: str) -> dict[str, Any]:
     entry["stop_force_kill_after"] = force_after
     entry["status"] = "stopping"
     entry["exit_reason"] = "platform_stop_requested"
-    entry["error_message"] = "Platform stop requested; waiting for checkpoint save."
+    entry["error_message"] = PLATFORM_STOP_PENDING_DISPLAY
     _save_registry(entries)
     thread = Thread(
         target=_force_kill_after_grace,

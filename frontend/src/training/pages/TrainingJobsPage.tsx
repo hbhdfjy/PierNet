@@ -11,6 +11,7 @@ import {
   formatMetric,
   statusBadgeClass,
   statusLabel,
+  trainingJobNotice,
 } from '../shared'
 
 function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
@@ -44,6 +45,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   const stopping = job.status === 'stopping'
   const deletable = !stoppable && !stopping
   const scenarioText = job.scenarios.join(', ')
+  const notice = trainingJobNotice(job)
 
   const refreshAll = async () => {
     await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
@@ -157,10 +159,10 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
           </div>
         )}
 
-        {job.error_message && (
-          <div className="flex items-start gap-2 rounded-xl border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-sm text-rose-300">
+        {notice && (
+          <div className={`flex items-start gap-2 rounded-xl border px-3 py-2 text-sm ${notice.tone === 'amber' ? 'border-amber-400/25 bg-amber-400/8 text-amber-200' : 'border-rose-500/20 bg-rose-500/8 text-rose-300'}`}>
             <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
-            <span>{job.error_message}</span>
+            <span>{notice.message}</span>
           </div>
         )}
       </div>
