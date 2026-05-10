@@ -126,6 +126,36 @@ def test_prune_epoch_checkpoints_keeps_latest_epochs(tmp_path: Path):
 
 
 
+def test_list_jobs_normalizes_legacy_snapshots(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    run_dir = tmp_path / 'artifacts' / 'modflow' / 'runs' / 'train-legacy'
+    log_path = tmp_path / 'legacy.log'
+    run_dir.mkdir(parents=True, exist_ok=True)
+    log_path.write_text('[done] completed', encoding='utf-8')
+
+    training_job_store.upsert_job(
+        {
+            'job_id': 'train-legacy',
+            'name': 'legacy-job',
+            'status': 'done',
+            'pid': None,
+            'created_at': 1.0,
+            'run_dir': str(run_dir),
+            'log_path': str(log_path),
+        }
+    )
+
+    jobs = training_manager.list_jobs(refresh=True)
+    summary = TrainingJobSummary(**jobs[0])
+
+    assert summary.job_id == 'train-legacy'
+    assert summary.simulator == 'modflow'
+    assert summary.scenarios == []
+    assert summary.gpu_id == -1
+    assert summary.artifact_root == str(tmp_path / 'artifacts' / 'modflow')
+    assert summary.config.keep_last_epochs == 5
+
+
 def test_delete_job_removes_finished_entry(monkeypatch, tmp_path: Path):
     _use_tmp_training_store(monkeypatch, tmp_path)
     run_dir = tmp_path / 'artifacts' / 'modflow' / 'runs' / 'train-done'

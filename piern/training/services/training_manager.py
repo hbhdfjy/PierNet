@@ -63,10 +63,106 @@ def _ensure_dirs() -> None:
         LOGGER.debug("Failed to chmod training control directory %s", CONTROL_ROOT, exc_info=True)
 
 
+def _infer_simulator_from_run_dir(run_dir: str | None) -> str | None:
+    if not run_dir:
+        return None
+    path = Path(run_dir)
+    if path.parent.name == "runs" and path.parent.parent.name:
+        return path.parent.parent.name
+    return None
+
+
+def _infer_artifact_root(run_dir: str | None, simulator: str) -> str:
+    if run_dir:
+        path = Path(run_dir)
+        if path.parent.name == "runs":
+            return str(path.parent.parent)
+        if path.parent != path:
+            return str(path.parent)
+    return str(ARTIFACTS_ROOT / simulator)
+
+
+def _coerce_int(value: Any, fallback: int | None = None) -> int | None:
+    if value is None:
+        return fallback
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _coerce_float(value: Any, fallback: float | None = None) -> float | None:
+    if value is None:
+        return fallback
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return fallback
+
+
+def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
+    job_id = str(entry.get("job_id") or "").strip()
+    if not job_id:
+        LOGGER.warning("Skipping training job snapshot without job_id: %s", entry)
+        return None
+
+    normalized = dict(entry)
+    config = normalized.get("config") if isinstance(normalized.get("config"), dict) else {}
+    config = dict(config)
+    if config.get("input_representation") == "embedding":
+        config["input_representation"] = "pretrained_embeddings"
+
+    run_dir = str(normalized.get("run_dir") or ARTIFACTS_ROOT / "unknown" / "runs" / job_id)
+    log_path = str(normalized.get("log_path") or RUNLOGS_ROOT / f"{job_id}.log")
+    simulator = str(
+        normalized.get("simulator")
+        or config.get("simulator")
+        or _infer_simulator_from_run_dir(run_dir)
+        or "unknown"
+    )
+    scenarios = normalized.get("scenarios")
+    if not isinstance(scenarios, list):
+        scenarios = config.get("scenarios") if isinstance(config.get("scenarios"), list) else []
+
+    normalized.update(
+        {
+            "job_id": job_id,
+            "name": _normalize_job_name(normalized.get("name"), fallback=job_id),
+            "status": str(normalized.get("status") or "external_terminated"),
+            "simulator": simulator,
+            "scenarios": [str(item) for item in scenarios],
+            "gpu_id": _coerce_int(normalized.get("gpu_id"), -1),
+            "created_at": _coerce_float(normalized.get("created_at"), 0.0) or 0.0,
+            "started_at": _coerce_float(normalized.get("started_at")),
+            "ended_at": _coerce_float(normalized.get("ended_at")),
+            "pid": _coerce_int(normalized.get("pid")),
+            "artifact_root": str(normalized.get("artifact_root") or _infer_artifact_root(run_dir, simulator)),
+            "run_dir": run_dir,
+            "log_path": log_path,
+            "config": config,
+            "command": normalized.get("command") if isinstance(normalized.get("command"), list) else [],
+            "checkpoints": normalized.get("checkpoints") if isinstance(normalized.get("checkpoints"), list) else [],
+        }
+    )
+    return normalized
+
+
+def _normalize_job_entries(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized: list[dict[str, Any]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            LOGGER.warning("Skipping non-dict training job snapshot: %s", entry)
+            continue
+        item = _normalize_job_entry(entry)
+        if item is not None:
+            normalized.append(item)
+    return normalized
+
+
 def _load_registry() -> list[dict[str, Any]]:
     _ensure_dirs()
     try:
-        return training_job_store.list_job_snapshots()
+        return _normalize_job_entries(training_job_store.list_job_snapshots())
     except Exception:
         LOGGER.exception("Failed to load training jobs from SQLite")
         return []
@@ -75,7 +171,7 @@ def _load_registry() -> list[dict[str, Any]]:
 def _save_registry(entries: list[dict[str, Any]]) -> None:
     _ensure_dirs()
     try:
-        training_job_store.save_jobs(entries)
+        training_job_store.save_jobs(_normalize_job_entries(entries))
     except Exception:
         LOGGER.exception("Failed to save training jobs to SQLite")
         raise
