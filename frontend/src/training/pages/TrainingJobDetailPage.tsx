@@ -1119,25 +1119,25 @@ export default function TrainingJobDetailPage() {
                   <SectionTitle title="训练日志" copy="最近 400 行输出" />
                 </div>
                 <div className="training-card__body min-h-0">
-                  <div className="grid gap-3 md:grid-cols-[0.22fr_0.78fr]">
-                    <div className="training-surface--dense">
-                      <div className="training-panel-title">日志摘要</div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <div className="grid min-w-0 gap-3 xl:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+                    <div className="training-surface--dense min-w-0">
+                      <div className="training-panel-title whitespace-nowrap">日志摘要</div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
                         <MetaField label="总行数" value={logs?.lines.length ?? 0} mono />
                         <MetaField label="状态" value={statusLabel(job.status)} />
                         <MetaField label="最近 epoch" value={job.latest_epoch ?? '—'} mono />
                         <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
                       </div>
                     </div>
-                    <div className="rounded-xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <div className="training-panel-title">终端输出</div>
+                    <div className="min-w-0 rounded-xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                      <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
+                        <div className="min-w-0 flex-shrink-0">
+                          <div className="training-panel-title whitespace-nowrap">终端输出</div>
                           <div className="training-panel-copy">自动刷新最新内容</div>
                         </div>
-                        <div className="mono text-[11px] text-slate-500">{shortPath(job.log_path, 48)}</div>
+                        <div className="mono min-w-0 truncate text-right text-[11px] text-slate-500" title={job.log_path}>{shortPath(job.log_path, 72)}</div>
                       </div>
-                      <pre className="list-scroll-xl whitespace-pre-wrap break-words rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
+                      <pre className="list-scroll-xl min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
                         {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
                       </pre>
                     </div>
