@@ -220,14 +220,14 @@ export default function TrainingNewJobPage() {
             </div>
           )}
 
-          <div className="grid gap-4 xl:grid-cols-[1.22fr_0.78fr]">
+          <div className="grid items-start gap-4 xl:grid-cols-[1.22fr_0.78fr]">
             <section className="training-stack">
-              <div className="training-card training-card--compact flex-1 min-h-0">
+              <div className="training-card training-card--compact">
                 <div className="card-header">
                   <Database size={16} className="text-sky-300" />
                   <SectionTitle title="训练数据" copy="选择大场景和子场景范围" />
                 </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
+                <div className="training-card__body space-y-3">
                   <div className="grid gap-3 md:grid-cols-2">
                     <Field label="任务名称" note="为空时自动使用任务 ID">
                       <input className="input" value={jobName} onChange={e => setJobName(e.target.value)} placeholder="例如：modflow-router-v1" />
@@ -260,7 +260,7 @@ export default function TrainingNewJobPage() {
                         </div>
                       </div>
 
-                      <div className="grid gap-2 sm:grid-cols-2 2xl:grid-cols-4">
+                      <div className="grid max-h-[24rem] gap-2 overflow-y-auto overflow-x-hidden pr-1 sm:grid-cols-2 2xl:grid-cols-3">
                         {dataset.scenarios.map(scenario => {
                           const checked = selectedScenarios.includes(scenario.scenario)
                           return (
@@ -268,7 +268,8 @@ export default function TrainingNewJobPage() {
                               key={scenario.scenario}
                               type="button"
                               onClick={() => toggleScenario(scenario.scenario)}
-                              className={`training-select-chip ${
+                              title={`${scenario.scenario} · ${formatCount(scenario.router_count)} 条 · ${formatBytes(scenario.file_size_bytes)}`}
+                              className={`training-select-chip min-h-[4.25rem] ${
                                 checked
                                   ? 'training-select-chip--active'
                                   : 'training-select-chip--idle'
