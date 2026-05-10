@@ -12,19 +12,35 @@ import sys
 import subprocess
 import time
 import uuid
-from collections import deque
-from functools import lru_cache
 from pathlib import Path
 from threading import RLock, Thread
 from typing import Any
 
-from piern.training.router.data import (
-    PRETRAINED_EMBEDDINGS,
-    inspect_router_input_representation,
-)
+from piern.training.router.data import inspect_router_input_representation
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.shared.storage import portable
 from piern.training.services import job_store as training_job_store
+from piern.training.services.checkpoint_store import (
+    checkpoint_entries as _checkpoint_entries,
+    clear_checkpoint_metadata_cache as _clear_checkpoint_metadata_cache,
+    validate_resume_checkpoint as _validate_resume_checkpoint,
+)
+from piern.training.services.process_control import (
+    pid_alive as _pid_alive,
+    safe_kill_process_group as _safe_kill_process_group,
+)
+from piern.training.services.training_runtime import (
+    TRAINING_ACTIVE_STATUSES,
+    TRAINING_TERMINAL_STATUSES,
+    coerce_float as _coerce_float,
+    coerce_int as _coerce_int,
+    coerce_status as _coerce_status,
+    coerce_training_curve_point as _coerce_training_curve_point,
+    normalize_per_scenario_metrics as _normalize_per_scenario_metrics,
+    normalize_training_config as _normalize_training_config,
+    read_json as _read_json,
+    tail_lines as _tail_lines,
+)
 
 PYTHON_BIN = Path(os.getenv("PIERN_TRAINING_PYTHON", sys.executable))
 TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
@@ -37,9 +53,6 @@ ROUTER_MANIFEST_PATH = DEFAULT_ROUTER_MANIFEST_PATH
 ROUTER_DATA_DIR = DATA_ROOT / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
-TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}
-TRAINING_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
-TRAINING_ALL_STATUSES = TRAINING_ACTIVE_STATUSES | TRAINING_TERMINAL_STATUSES
 TRAINING_STOP_GRACE_SECONDS = 45.0
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
@@ -83,79 +96,6 @@ def _infer_artifact_root(run_dir: str | None, simulator: str) -> str:
     return str(ARTIFACTS_ROOT / simulator)
 
 
-def _coerce_int(value: Any, fallback: int | None = None) -> int | None:
-    if value is None:
-        return fallback
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return fallback
-
-
-def _coerce_float(value: Any, fallback: float | None = None) -> float | None:
-    if value is None:
-        return fallback
-    try:
-        parsed = float(value)
-    except (TypeError, ValueError):
-        return fallback
-    return parsed if math.isfinite(parsed) else fallback
-
-
-def _coerce_status(value: Any) -> str:
-    status = str(value or "external_terminated")
-    return status if status in TRAINING_ALL_STATUSES else "external_terminated"
-
-
-def _normalize_training_config(config: dict[str, Any]) -> dict[str, Any]:
-    normalized = dict(config)
-    if normalized.get("input_representation") != PRETRAINED_EMBEDDINGS:
-        normalized["input_representation"] = PRETRAINED_EMBEDDINGS
-    return normalized
-
-
-def _normalize_per_scenario_metrics(value: Any) -> dict[str, dict[str, float]]:
-    if not isinstance(value, dict):
-        return {}
-    normalized: dict[str, dict[str, float]] = {}
-    for scenario, metrics in value.items():
-        if not isinstance(metrics, dict):
-            continue
-        clean: dict[str, float] = {}
-        for key, raw_value in metrics.items():
-            parsed = _coerce_float(raw_value)
-            if parsed is not None:
-                clean[str(key)] = parsed
-        if clean:
-            normalized[str(scenario)] = clean
-    return normalized
-
-
-def _coerce_training_curve_point(payload: Any, *, include_steps_per_epoch: bool = False) -> dict[str, Any] | None:
-    if not isinstance(payload, dict):
-        return None
-    epoch = _coerce_int(payload.get("epoch"))
-    step = _coerce_int(payload.get("step"))
-    avg_loss = _coerce_float(payload.get("avg_loss"))
-    steps_per_sec = _coerce_float(payload.get("steps_per_sec"))
-    eta_seconds = _coerce_float(payload.get("eta_seconds"))
-    if epoch is None or step is None or avg_loss is None or steps_per_sec is None or eta_seconds is None:
-        return None
-    point: dict[str, Any] = {
-        "epoch": epoch,
-        "step": step,
-        "global_step": _coerce_int(payload.get("global_step"), 0) or 0,
-        "avg_loss": avg_loss,
-        "steps_per_sec": steps_per_sec,
-        "eta_seconds": eta_seconds,
-    }
-    if include_steps_per_epoch:
-        steps_per_epoch = _coerce_int(payload.get("steps_per_epoch"))
-        if steps_per_epoch is not None:
-            point["steps_per_epoch"] = steps_per_epoch
-    return point
-
-
 def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
     job_id = str(entry.get("job_id") or "").strip()
     if not job_id:
@@ -170,10 +110,7 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
     run_dir = str(normalized.get("run_dir") or ARTIFACTS_ROOT / "unknown" / "runs" / job_id)
     log_path = str(normalized.get("log_path") or RUNLOGS_ROOT / f"{job_id}.log")
     simulator = str(
-        normalized.get("simulator")
-        or config.get("simulator")
-        or _infer_simulator_from_run_dir(run_dir)
-        or "unknown"
+        normalized.get("simulator") or config.get("simulator") or _infer_simulator_from_run_dir(run_dir) or "unknown"
     )
     scenarios = normalized.get("scenarios")
     if not isinstance(scenarios, list):
@@ -243,6 +180,7 @@ def _with_registry_lock(func):
     def wrapper(*args, **kwargs):
         with _REGISTRY_LOCK:
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -297,33 +235,6 @@ def _hash_prepared_name(
     return f"{simulator}-{digest}"
 
 
-def _pid_alive(pid: int | None) -> bool:
-    if not pid:
-        return False
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    stat_path = Path("/proc") / str(pid) / "stat"
-    try:
-        fields = stat_path.read_text(encoding="utf-8", errors="replace").split()
-    except OSError:
-        return True
-    return len(fields) < 3 or fields[2] != "Z"
-
-
-def _safe_kill_process_group(pid: int, sig: signal.Signals) -> None:
-    try:
-        os.killpg(pid, sig)
-    except ProcessLookupError:
-        return
-    except OSError:
-        try:
-            os.kill(pid, sig)
-        except ProcessLookupError:
-            return
-
-
 def _write_stop_request(entry: dict[str, Any]) -> None:
     stop_token = entry.get("stop_token")
     stop_file_value = entry.get("stop_file")
@@ -351,77 +262,6 @@ def _write_stop_request(entry: dict[str, Any]) -> None:
         LOGGER.debug("Failed to chmod stop request %s", stop_file, exc_info=True)
 
 
-def _tail_lines(path: Path, limit: int = 200) -> list[str]:
-    if not path.exists():
-        return []
-    try:
-        with path.open("rb") as handle:
-            handle.seek(0, 2)
-            file_size = handle.tell()
-            if file_size == 0:
-                return []
-            chunk_size = 8192
-            buffers: list[bytes] = []
-            remaining = limit + 1
-            pos = file_size
-            while pos > 0 and len(buffers) < remaining:
-                read_size = min(chunk_size, pos)
-                pos -= read_size
-                handle.seek(pos)
-                chunk = handle.read(read_size)
-                buffers.append(chunk)
-            tail_bytes = b"".join(reversed(buffers))
-            lines = tail_bytes.decode("utf-8", errors="replace").splitlines()
-            return lines[-limit:]
-    except OSError:
-        return []
-
-
-def _read_json(path: Path) -> dict[str, Any] | None:
-    if not path.exists():
-        return None
-    try:
-        payload = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    return payload if isinstance(payload, dict) else None
-
-
-@lru_cache(maxsize=256)
-def _load_checkpoint_metadata(path_str: str, mtime_ns: int, size_bytes: int) -> dict[str, Any] | None:
-    del mtime_ns, size_bytes
-    try:
-        import torch
-
-        checkpoint = torch.load(path_str, map_location="cpu", weights_only=True)
-    except Exception:
-        return None
-    prepared_summary = checkpoint.get("prepared_summary") or {}
-    config = checkpoint.get("config") or {}
-    epoch = checkpoint.get("epoch")
-    try:
-        parsed_epoch = int(epoch) if epoch is not None else None
-    except (TypeError, ValueError):
-        parsed_epoch = None
-
-    return {
-        "epoch": parsed_epoch,
-        "simulator": prepared_summary.get("simulator") or config.get("simulator"),
-        "scenarios": sorted(prepared_summary.get("scenarios") or config.get("scenarios") or []),
-        "test_ratio": prepared_summary.get("test_ratio") if prepared_summary.get("test_ratio") is not None else config.get("test_ratio"),
-        "input_representation": prepared_summary.get("input_representation") or config.get("input_representation"),
-        "embedding_model": prepared_summary.get("embedding_model") or config.get("embedding_model"),
-        "embedding_tokenizer": prepared_summary.get("embedding_tokenizer") or config.get("embedding_tokenizer"),
-    }
-
-
-def _checkpoint_epoch_from_file(path_str: str, mtime_ns: int, size_bytes: int) -> int | None:
-    metadata = _load_checkpoint_metadata(path_str, mtime_ns, size_bytes)
-    if metadata is None:
-        return None
-    return metadata.get("epoch")
-
-
 def _latest_training_point(run_dir: Path) -> dict[str, Any] | None:
     log_path = run_dir / "train_log.jsonl"
     for line in reversed(_tail_lines(log_path, 20)):
@@ -443,92 +283,6 @@ def _latest_test_metrics(run_dir: Path) -> dict[str, Any] | None:
     return _read_json(latest)
 
 
-def _checkpoint_entries(run_dir: Path) -> list[dict[str, Any]]:
-    entries: list[dict[str, Any]] = []
-    if not run_dir.exists():
-        return entries
-    for path in sorted(run_dir.glob("router*.pt")):
-        stat = path.stat()
-        epoch = None
-        stem = path.stem
-        if stem.startswith("router_epoch_"):
-            try:
-                epoch = int(stem.split("_")[-1])
-            except ValueError:
-                epoch = None
-        else:
-            epoch = _checkpoint_epoch_from_file(str(path), stat.st_mtime_ns, stat.st_size)
-        entries.append(
-            {
-                "name": path.name,
-                "path": str(path),
-                "size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-                "epoch": epoch,
-            }
-        )
-    return sorted(entries, key=lambda item: item["mtime"], reverse=True)
-
-
-def _validate_resume_checkpoint(
-    *,
-    resume_from: str,
-    simulator: str,
-    scenarios: list[str],
-    test_ratio: float,
-    input_representation: str,
-    embedding_model: str = "",
-    embedding_tokenizer: str = "",
-) -> None:
-    checkpoint_path = Path(resume_from)
-    if not checkpoint_path.exists():
-        raise ValueError(f"resume checkpoint not found: {resume_from}")
-
-    stat = checkpoint_path.stat()
-    metadata = _load_checkpoint_metadata(str(checkpoint_path), stat.st_mtime_ns, stat.st_size)
-    if metadata is None:
-        raise ValueError(f"resume checkpoint is unreadable: {resume_from}")
-
-    checkpoint_simulator = metadata.get("simulator")
-    checkpoint_scenarios = sorted(metadata.get("scenarios") or [])
-    checkpoint_ratio = metadata.get("test_ratio")
-    checkpoint_input_representation = metadata.get("input_representation")
-    checkpoint_embedding_model = str(metadata.get("embedding_model") or "")
-    checkpoint_embedding_tokenizer = str(metadata.get("embedding_tokenizer") or "")
-
-    if checkpoint_simulator and checkpoint_simulator != simulator:
-        raise ValueError(
-            f"resume checkpoint simulator mismatch: expected {simulator}, got {checkpoint_simulator}"
-        )
-    if checkpoint_scenarios and checkpoint_scenarios != sorted(scenarios):
-        raise ValueError(
-            "resume checkpoint scenario mismatch: "
-            f"expected {sorted(scenarios)}, got {checkpoint_scenarios}"
-        )
-    if checkpoint_ratio is not None and not math.isclose(float(checkpoint_ratio), float(test_ratio), rel_tol=0.0, abs_tol=1e-9):
-        raise ValueError(
-            f"resume checkpoint test_ratio mismatch: expected {test_ratio}, got {checkpoint_ratio}"
-        )
-    if checkpoint_input_representation and checkpoint_input_representation != input_representation:
-        raise ValueError(
-            "resume checkpoint input_representation mismatch: "
-            f"expected {input_representation}, got {checkpoint_input_representation}"
-        )
-    if input_representation == PRETRAINED_EMBEDDINGS:
-        if checkpoint_embedding_model and checkpoint_embedding_model != embedding_model:
-            raise ValueError(
-                "resume checkpoint embedding_model mismatch: "
-                f"expected {embedding_model}, got {checkpoint_embedding_model}"
-            )
-        if checkpoint_embedding_tokenizer and checkpoint_embedding_tokenizer != embedding_tokenizer:
-            raise ValueError(
-                "resume checkpoint embedding_tokenizer mismatch: "
-                f"expected {embedding_tokenizer}, got {checkpoint_embedding_tokenizer}"
-            )
-
-
-
-
 def _stage_job_artifacts_for_delete(entry: dict[str, Any]) -> list[tuple[Path, Path]]:
     staged: list[tuple[Path, Path]] = []
     run_dir_value = entry.get("run_dir")
@@ -548,7 +302,7 @@ def _stage_job_artifacts_for_delete(entry: dict[str, Any]) -> list[tuple[Path, P
 
     run_dir.rename(target)
     staged.append((run_dir, target))
-    _load_checkpoint_metadata.cache_clear()
+    _clear_checkpoint_metadata_cache()
     return staged
 
 
@@ -569,7 +323,7 @@ def _delete_tree(path: Path) -> None:
     except OSError:
         LOGGER.exception("Failed to delete training artifact directory %s", path)
     finally:
-        _load_checkpoint_metadata.cache_clear()
+        _clear_checkpoint_metadata_cache()
 
 
 def _delete_job_artifacts_in_background(paths: list[Path]) -> None:
@@ -754,7 +508,9 @@ def _merge_router_manifests(primary: dict[str, Any], fallback: dict[str, Any] | 
     total = sum(int(item.get("router_count") or 0) for item in scenarios)
     return {
         **primary,
-        "storage": "mixed" if len(scenarios) != len(primary.get("scenarios", [])) else primary.get("storage", "parquet"),
+        "storage": "mixed"
+        if len(scenarios) != len(primary.get("scenarios", []))
+        else primary.get("storage", "parquet"),
         "total": total,
         "scenarios": sorted(scenarios, key=lambda item: item.get("scenario", "")),
     }
@@ -795,11 +551,7 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
 
     rows = [line.strip() for line in raw_output.splitlines() if line.strip()]
     jobs = list_jobs(refresh=True)
-    locked = {
-        int(job["gpu_id"]): job["job_id"]
-        for job in jobs
-        if job["status"] in TRAINING_ACTIVE_STATUSES
-    }
+    locked = {int(job["gpu_id"]): job["job_id"] for job in jobs if job["status"] in TRAINING_ACTIVE_STATUSES}
     gpus: list[dict[str, Any]] = []
     for row in rows:
         parts = [part.strip() for part in row.split(",", maxsplit=4)]
@@ -1101,7 +853,7 @@ def delete_checkpoint(job_id: str, checkpoint_name: str) -> dict[str, Any]:
         raise FileNotFoundError(f"checkpoint does not exist: {checkpoint_name}")
 
     checkpoint_path.unlink()
-    _load_checkpoint_metadata.cache_clear()
+    _clear_checkpoint_metadata_cache()
     entry["checkpoints"] = _checkpoint_entries(run_dir)
     _save_registry(entries)
     return entry
@@ -1139,7 +891,9 @@ def stop_job(job_id: str) -> dict[str, Any]:
     pid = entry.get("pid")
     if not pid or not _pid_alive(pid):
         entry["terminated"] = True
-        entry["status"] = "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else entry.get("status", "terminated")
+        entry["status"] = (
+            "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else entry.get("status", "terminated")
+        )
         entry["ended_at"] = entry.get("ended_at") or time.time()
         _save_registry(entries)
         return entry

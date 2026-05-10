@@ -208,46 +208,30 @@ export interface GenerationJob {
   error_message?: string | null
 }
 
-export interface RegisterRequest {
-  scenarios: string[] // 空=全部
-  fields: string[] // 空=全部
-  overwrite: boolean
-  simulator_level: boolean
-  config: string
-  output: string
+export type RegisterRequest = components['schemas']['RegisterRequest'] & {
+  scenarios: string[]
+  fields: string[]
 }
 
 // ── 两阶段生成请求 ────────────────────────────────────────────────
 
-export interface GenerateTemplatesRequest {
+export type GenerateTemplatesRequest = components['schemas']['GenerateTemplatesRequest'] & {
   scenarios: string[]
-  n_templates: number
-  skip_existing: boolean
-  append_existing: boolean
-  config: string
-  language_mix?: number
-  transform_prob?: number
-  max_workers?: number
 }
 
-export interface FillSamplesRequest {
+export type FillSamplesRequest = Omit<
+  components['schemas']['FillSamplesRequest'],
+  'compression' | 'output_format' | 'scenarios'
+> & {
   scenarios: string[]
-  n_samples: number
-  templates_dir: string // 空=默认 data/templates/
-  output_dir: string // 空=默认 data/text2comp_parquet/
   output_format?: 'parquet' | 'jsonl' | 'both'
   compression?: 'zstd' | 'snappy' | 'gzip' | 'brotli' | 'none'
-  batch_size?: number
-  max_workers?: number
-  skip_existing: boolean
-  config: string
-  seed?: number
-  precision?: number // 数值小数位数，默认4
 }
 
-export interface JobStartResponse {
-  job_id: string
-  status: string
+type GenerationJobStartResponse = components['schemas']['piern__synth__api__schemas__generation__JobStartResponse']
+type SimulationJobStartResponse = components['schemas']['piern__synth__api__routers__simulation__JobStartResponse']
+
+export type JobStartResponse = Omit<GenerationJobStartResponse | SimulationJobStartResponse, 'scenario_totals'> & {
   scenario_totals: Record<string, number>
 }
 
@@ -542,170 +526,40 @@ export interface SimulationHistoryRecord {
   final_sample_count: number | null
 }
 
-export interface TrainingDatasetScenario {
-  scenario: string
-  simulator: string
-  router_count: number
-  file_size_bytes: number
-  mtime: number
-  path: string
-}
+export type TrainingDatasetScenario = components['schemas']['TrainingDatasetScenario']
 
-export interface TrainingDatasetInfo {
-  simulator: string
-  total_count: number
-  scenarios: TrainingDatasetScenario[]
-}
+export type TrainingDatasetInfo = components['schemas']['TrainingDatasetInfo']
 
-export interface TrainingGPUInfo {
-  index: number
-  name: string
-  memory_used_mib: number
-  memory_total_mib: number
-  utilization_gpu: number
-  available: boolean
-  locked_by_job_id: string | null
-  reason: string | null
-}
+export type TrainingGPUInfo = components['schemas']['GPUInfo']
 
-export type TrainingJobStatus =
-  | 'queued'
-  | 'starting'
-  | 'running'
-  | 'evaluating'
-  | 'stopping'
-  | 'done'
-  | 'error'
-  | 'terminated'
-  | 'external_terminated'
+export type TrainingJobStatus = components['schemas']['TrainingJobSummary']['status']
 
-export interface TrainingJobConfig {
-  epochs: number
-  eval_interval: number
-  keep_last_epochs: number
-  batch_size: number
-  test_batch_size: number
-  learning_rate: number
-  weight_decay: number
-  num_workers: number
-  prepare_workers?: number | null
-  test_ratio: number
-  max_train_samples?: number | null
-  max_test_samples?: number | null
-  resume_from: string | null
-  input_representation?: 'pretrained_embeddings'
-  embedding_model?: string
-  embedding_tokenizer?: string
-}
+export type TrainingJobConfig = components['schemas']['TrainingJobConfig']
 
-export interface TrainingMetricsSummary {
-  accuracy?: number | null
-  precision?: number | null
-  recall?: number | null
-  f1?: number | null
-  pr_auc?: number | null
-}
+export type TrainingMetricsSummary = components['schemas']['TrainingMetricsSummary']
 
-export interface TrainingJobSummary {
-  job_id: string
-  name: string
-  status: TrainingJobStatus
-  simulator: string
-  scenarios: string[]
-  gpu_id: number
-  created_at: number
-  started_at?: number | null
-  ended_at?: number | null
-  pid?: number | null
-  artifact_root: string
-  run_dir: string
-  log_path: string
-  config: TrainingJobConfig
-  latest_epoch?: number | null
-  latest_step?: number | null
-  steps_per_epoch?: number | null
-  global_step?: number | null
-  avg_loss?: number | null
-  steps_per_sec?: number | null
-  eta_seconds?: number | null
-  latest_test_epoch?: number | null
-  latest_metrics?: TrainingMetricsSummary | null
-  error_message?: string | null
-  stop_requested?: boolean
-  stop_requested_at?: number | null
-  exit_reason?: string | null
-}
+export type TrainingJobSummary = components['schemas']['TrainingJobSummary']
 
-export interface TrainingCheckpointInfo {
-  name: string
-  path: string
-  size_bytes: number
-  mtime: number
-  epoch?: number | null
-}
+export type TrainingCheckpointInfo = components['schemas']['TrainingCheckpointInfo']
 
-export interface TrainingJobDetail extends TrainingJobSummary {
-  command: string[]
-  checkpoints: TrainingCheckpointInfo[]
-  prepared_name?: string | null
-}
-
-export interface TrainingOverview {
-  datasets: TrainingDatasetInfo[]
-  gpus: TrainingGPUInfo[]
-  jobs: TrainingJobSummary[]
-  running_job_count: number
-  completed_job_count: number
-}
-
-export interface TrainingCreateJobRequest {
-  name?: string | null
-  simulator: string
-  scenarios: string[]
-  gpu_id: number
-  epochs: number
-  eval_interval: number
-  keep_last_epochs: number
-  batch_size: number
-  test_batch_size: number
-  learning_rate: number
-  weight_decay: number
-  num_workers: number
-  prepare_workers?: number | null
-  test_ratio: number
-  max_train_samples?: number | null
-  max_test_samples?: number | null
-  resume_from?: string | null
-}
-
-export interface TrainingPoint {
-  epoch: number
-  step: number
-  global_step: number
-  avg_loss: number
-  steps_per_sec: number
-  eta_seconds: number
-}
-
-export interface TrainingTestPoint {
-  epoch: number
-  accuracy: number
-  precision: number
-  recall: number
-  f1: number
-  pr_auc: number
-  per_scenario: Record<string, Record<string, number>>
-}
-
-export interface TrainingCurvesResponse {
-  job_id: string
-  training_points: TrainingPoint[]
-  training_epoch_points: TrainingPoint[]
-  test_points: TrainingTestPoint[]
+export type TrainingJobDetail = components['schemas']['TrainingJobDetail'] & {
   checkpoints: TrainingCheckpointInfo[]
 }
 
-export interface TrainingLogResponse {
-  job_id: string
-  lines: string[]
+export type TrainingOverview = components['schemas']['TrainingOverviewResponse']
+
+export type TrainingCreateJobRequest = Omit<
+  components['schemas']['TrainingJobCreateRequest'],
+  'input_representation' | 'scenarios'
+> & {
+  scenarios: string[]
+  input_representation?: 'embedding'
 }
+
+export type TrainingPoint = components['schemas']['TrainingPoint']
+
+export type TrainingTestPoint = components['schemas']['TrainingTestPoint']
+
+export type TrainingCurvesResponse = components['schemas']['TrainingCurvesResponse']
+
+export type TrainingLogResponse = components['schemas']['TrainingLogResponse']

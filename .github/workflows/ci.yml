@@ -44,6 +44,19 @@ jobs:
       - name: OpenAPI export
         run: python scripts/ci/export_openapi.py /tmp/piern-openapi.json
 
+      - name: Set up Node for OpenAPI contract
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20.19.0'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install frontend contract dependencies
+        run: npm --prefix frontend ci
+
+      - name: OpenAPI type contract check
+        run: npm --prefix frontend run openapi:check
+
       - name: Pytest
         run: python -m pytest
 
