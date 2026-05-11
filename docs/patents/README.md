@@ -8,7 +8,7 @@
 - `DATA_SYNTHESIS_PATENT_DRAFT.md`：数据合成平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
 - `AUTO_TRAINING_OUTLINE.md`：自动训练平台专利技术大纲。
 - `AUTO_TRAINING_PATENT_DRAFT.md`：自动训练平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
-- `figures/`：两件专利对应的 GPT 生图附图 PNG，共 10 张。
+- `figures/`：两件专利对应的大模型生成中文附图图片文件，共 10 张。
 
 ## 后续建议
 
