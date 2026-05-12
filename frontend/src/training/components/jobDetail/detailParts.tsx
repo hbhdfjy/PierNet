@@ -1,5 +1,5 @@
 import { BarChart3, Save } from 'lucide-react'
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { Tooltip, XAxis, YAxis } from 'recharts'
 import type { TrainingCheckpointInfo } from '../../../lib/types'
 import { TruncatedText } from '../../../shared/ui'
@@ -121,11 +121,11 @@ export function ChartHoverPanel({
   const isEmphasis = variant === 'emphasis'
   const hasPosition = typeof snapshot?.x === 'number' && typeof snapshot?.y === 'number'
   const maxWidth = isEmphasis ? '19rem' : '15rem'
-  const maxHeight = isEmphasis ? '17rem' : '12rem'
-  const panelStyle = hasPosition
+  const positionHeight = isEmphasis ? '24rem' : '14rem'
+  const panelStyle: CSSProperties = hasPosition
     ? {
-        left: `clamp(0.75rem, ${(snapshot?.x ?? 0) + 14}px, calc(100% - ${maxWidth}))`,
-        top: `clamp(0.75rem, ${(snapshot?.y ?? 0) + 14}px, calc(100% - ${maxHeight}))`,
+        left: `clamp(0.75rem, ${(snapshot?.x ?? 0) + 14}px, max(0.75rem, calc(100% - ${maxWidth})))`,
+        top: `clamp(0.75rem, ${(snapshot?.y ?? 0) + 14}px, max(0.75rem, calc(100% - ${positionHeight})))`,
       }
     : {
         right: '1rem',
@@ -134,10 +134,10 @@ export function ChartHoverPanel({
 
   return (
     <div
-      className={`pointer-events-none absolute z-20 rounded-2xl border backdrop-blur transition-[left,top] duration-75 ${
+      className={`pointer-events-none absolute z-50 rounded-2xl border backdrop-blur-xl transition-[left,top] duration-75 ${
         isEmphasis
-          ? 'min-w-[240px] max-w-[300px] border-sky-400/25 bg-slate-950/92 px-4 py-3.5 shadow-[0_24px_44px_rgba(14,165,233,0.16)]'
-          : 'min-w-[180px] max-w-[240px] border-slate-700/50 bg-slate-950/88 px-3.5 py-3 shadow-[0_18px_36px_rgba(2,6,23,0.34)]'
+          ? 'min-w-[240px] max-w-[300px] border-sky-400/35 bg-slate-950/98 px-4 py-3.5 shadow-[0_24px_52px_rgba(2,6,23,0.62)]'
+          : 'min-w-[180px] max-w-[240px] border-slate-700/55 bg-slate-950/96 px-3.5 py-3 shadow-[0_18px_40px_rgba(2,6,23,0.46)]'
       }`}
       style={panelStyle}
     >
@@ -153,7 +153,7 @@ export function ChartHoverPanel({
               key={row.key}
               className={`grid items-center ${
                 isEmphasis
-                  ? 'grid-cols-[12px_minmax(0,1fr)_auto] gap-2.5 rounded-xl border px-3 py-2'
+                  ? 'grid-cols-[12px_minmax(0,1fr)_auto] gap-2 rounded-lg border px-2.5 py-1.5'
                   : 'grid-cols-[10px_minmax(0,1fr)_auto] gap-2'
               }`}
               style={

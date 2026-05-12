@@ -841,7 +841,14 @@
   }
 
   .training-card--chart {
+    position: relative;
+    z-index: 2;
     overflow: visible;
+  }
+
+  .training-card--chart:hover,
+  .training-card--chart:focus-within {
+    z-index: 30;
   }
 
   .training-card__body {
