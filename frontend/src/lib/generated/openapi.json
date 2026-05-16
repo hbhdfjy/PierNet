@@ -928,6 +928,11 @@
             ],
             "title": "Resume From"
           },
+          "seed": {
+            "default": 42,
+            "title": "Seed",
+            "type": "integer"
+          },
           "test_batch_size": {
             "default": 256,
             "title": "Test Batch Size",
@@ -1069,6 +1074,13 @@
             },
             "title": "Scenarios",
             "type": "array"
+          },
+          "seed": {
+            "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
           },
           "simulator": {
             "default": "modflow",

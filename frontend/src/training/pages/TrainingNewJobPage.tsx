@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
+import { useSeed } from '../../lib/seedContext'
 import type {
   TrainingCreateJobRequest,
   TrainingDatasetInfo,
@@ -47,6 +48,7 @@ function UsageBar({ value }: { value: number }) {
 export default function TrainingNewJobPage() {
   const { mutate } = useSWRConfig()
   const navigate = useNavigate()
+  const { seed } = useSeed()
 
   const { data: datasets } = useSWR<TrainingDatasetInfo[]>('training-datasets', api.getTrainingDatasets, {
     refreshInterval: 15000,
@@ -160,6 +162,7 @@ export default function TrainingNewJobPage() {
       epochs: infiniteEpochs ? 0 : Math.max(1, Math.floor(toNumber(epochs, 1))),
       eval_interval: Math.max(1, Math.floor(toNumber(evalInterval, 1))),
       keep_last_epochs: Math.max(0, Math.floor(toNumber(keepLastEpochs, 5))),
+      seed,
       batch_size: Math.max(1, Math.floor(toNumber(batchSize, 256))),
       test_batch_size: Math.max(1, Math.floor(toNumber(testBatchSize, 256))),
       learning_rate: Math.max(1e-8, toNumber(learningRate, 2e-4)),

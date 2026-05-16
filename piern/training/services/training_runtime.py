@@ -38,6 +38,8 @@ def coerce_status(value: Any) -> str:
 
 def normalize_training_config(config: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(config)
+    seed = coerce_int(normalized.get("seed"), 42)
+    normalized["seed"] = max(0, seed if seed is not None else 42)
     if normalized.get("input_representation") != PRETRAINED_EMBEDDINGS:
         normalized["input_representation"] = PRETRAINED_EMBEDDINGS
     return normalized

@@ -1580,6 +1580,11 @@ export interface components {
             /** Resume From */
             resume_from?: string | null;
             /**
+             * Seed
+             * @default 42
+             */
+            seed: number;
+            /**
              * Test Batch Size
              * @default 256
              */
@@ -1647,6 +1652,11 @@ export interface components {
             resume_from?: string | null;
             /** Scenarios */
             scenarios?: string[];
+            /**
+             * Seed
+             * @default 42
+             */
+            seed: number;
             /**
              * Simulator
              * @default modflow

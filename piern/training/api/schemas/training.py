@@ -50,6 +50,7 @@ class TrainingJobConfig(BaseModel):
     epochs: int = 0
     eval_interval: int = 1
     keep_last_epochs: int = 5
+    seed: int = 42
     batch_size: int = 256
     test_batch_size: int = 256
     learning_rate: float = 2e-4
@@ -73,6 +74,7 @@ class TrainingJobCreateRequest(BaseModel):
     epochs: int = Field(default=0, ge=0, le=100000)
     eval_interval: int = Field(default=1, ge=1, le=100000)
     keep_last_epochs: int = Field(default=5, ge=0, le=200)
+    seed: int = Field(default=42, ge=0, le=2_147_483_647)
     batch_size: int = Field(default=256, ge=1, le=8192)
     test_batch_size: int = Field(default=256, ge=1, le=8192)
     learning_rate: float = Field(default=2e-4, gt=0, le=1.0)

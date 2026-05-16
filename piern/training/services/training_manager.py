@@ -640,6 +640,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     stop_token = _make_stop_token()
     stop_file = _stop_file_for_job(job_id)
     keep_last_epochs = max(0, int(payload.get("keep_last_epochs", 5)))
+    seed_value = payload.get("seed", 42)
+    seed = max(0, int(seed_value if seed_value is not None else 42))
     num_workers = max(0, int(payload["num_workers"]))
     prepare_workers = payload.get("prepare_workers")
     prepare_workers = num_workers if prepare_workers is None else max(0, int(prepare_workers))
@@ -683,6 +685,8 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         str(int(payload["eval_interval"])),
         "--keep-last-epochs",
         str(keep_last_epochs),
+        "--seed",
+        str(seed),
         "--batch-size",
         str(int(payload["batch_size"])),
         "--test-batch-size",
@@ -743,7 +747,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             f"[launch] run_dir={run_dir}",
             f"[launch] log_path={log_path}",
             f"[launch] stop_file={stop_file}",
-            f"[launch] keep_last_epochs={keep_last_epochs}",
+            f"[launch] keep_last_epochs={keep_last_epochs} seed={seed}",
             f"[launch] max_train_samples={max_train_samples} max_test_samples={max_test_samples}",
             "[launch] spawning training subprocess...",
         )
@@ -792,6 +796,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "epochs": int(payload["epochs"]),
                 "eval_interval": int(payload["eval_interval"]),
                 "keep_last_epochs": keep_last_epochs,
+                "seed": seed,
                 "batch_size": int(payload["batch_size"]),
                 "test_batch_size": int(payload["test_batch_size"]),
                 "learning_rate": float(payload["learning_rate"]),
