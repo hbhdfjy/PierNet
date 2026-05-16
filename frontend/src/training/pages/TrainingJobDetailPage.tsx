@@ -364,6 +364,7 @@ export default function TrainingJobDetailPage() {
                           <MetaField label="评测间隔" value={`${job.config.eval_interval} 轮`} />
                           <MetaField label="总轮数" value={job.config.epochs === 0 ? '∞' : job.config.epochs} />
                           <MetaField label="保留权重" value={`${job.config.keep_last_epochs ?? 5} 个轮次`} />
+                          <MetaField label="随机种子" value={job.config.seed ?? 42} mono />
                         </div>
                       </div>
                       <div className="training-surface">
