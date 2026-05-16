@@ -1,12 +1,10 @@
 # PiERN 专利文件
 
-本目录集中存放 PiERN 项目的专利规划、大纲和正式文本草案。
+本目录集中存放 PiERN 项目的正式专利文本、附图和 Word 生成说明。
 
 ## 文件清单
 
-- `DATA_SYNTHESIS_OUTLINE.md`：数据合成平台专利技术大纲。
 - `DATA_SYNTHESIS_PATENT_DRAFT.md`：数据合成平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
-- `AUTO_TRAINING_OUTLINE.md`：自动训练平台专利技术大纲。
 - `AUTO_TRAINING_PATENT_DRAFT.md`：自动训练平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
 - `figures/`：两件专利对应的中文审稿附图图片文件，共 10 张，由确定性绘图脚本生成以保证图中文字准确。
 - `figures_patent/`：两件专利对应的黑白线框专利化附图图片文件，共 10 张，适合打印、代理提交前审查和低色彩依赖场景。

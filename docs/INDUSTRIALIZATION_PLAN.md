@@ -81,8 +81,7 @@ frontend/
     training/             # 训练平台前端
     shared/               # 通用组件和主题
 docs/
-  PORTABLE_STORAGE.md
-  MIGRATION_RESTORE.md
+  MIGRATION.md
   INDUSTRIALIZATION_PLAN.md
 scripts/
   services/               # 服务生命周期
@@ -169,7 +168,7 @@ Git 保存：
 
 1. 确认当前主分支可启动。
 2. 记录服务器启动方式、端口、模型路径、数据保存策略。
-3. 保留 `docs/PORTABLE_STORAGE.md` 作为迁移策略源文档。
+3. 保留 `docs/MIGRATION.md` 作为迁移和便携式存储策略源文档。
 4. 执行并记录以下检查：
    - `python scripts/ci/check_consistency.py`
    - `pytest`
@@ -409,7 +408,7 @@ job_events(
 
 ### 5.2 迁移清单
 
-新增 `docs/MIGRATION_CHECKLIST.md` 或扩展现有文档：
+维护 `docs/MIGRATION.md`：
 
 1. Clone repo。
 2. 创建 conda 环境。
