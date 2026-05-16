@@ -1,7 +1,8 @@
 import { lazy, Suspense } from 'react'
-import { Moon, Sun, ArrowLeft, BarChart3, Cpu, PlayCircle, Workflow, FolderOpen } from 'lucide-react'
+import { Moon, Sun, BarChart3, Cpu, PlayCircle, Workflow, FolderOpen } from 'lucide-react'
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
+import { PlatformSwitcher } from '../platform/PlatformSwitcher'
 
 const TrainingOverviewPage = lazy(() => import('./pages/TrainingOverviewPage'))
 const TrainingNewJobPage = lazy(() => import('./pages/TrainingNewJobPage'))
@@ -65,6 +66,8 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
           </div>
         </div>
 
+        <PlatformSwitcher active="training" />
+
         <nav className="app-nav">
           <div>
             <SectionLabel>训练平台</SectionLabel>
@@ -73,13 +76,6 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
               <NavItem to="/training/new" icon={PlayCircle} label="新建训练" />
               <NavItem to="/training/jobs" icon={Workflow} label="任务管理" />
               <NavItem to="/training/files" icon={FolderOpen} label="文件管理" />
-            </div>
-          </div>
-
-          <div>
-            <SectionLabel>平台切换</SectionLabel>
-            <div className="space-y-1">
-              <NavItem to="/synth" icon={ArrowLeft} label="返回数据平台" />
             </div>
           </div>
 

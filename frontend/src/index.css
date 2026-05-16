@@ -380,6 +380,37 @@
     color: hsl(var(--text-faint));
   }
 
+  .platform-switcher {
+    @apply grid grid-cols-2 gap-1.5 mx-2.5 mt-3 p-1 rounded-xl;
+    position: relative;
+    z-index: 1;
+    background: hsl(var(--surface2) / 0.48);
+    border: 1px solid hsl(var(--border) / 0.58);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  .platform-switcher__item {
+    @apply inline-flex min-w-0 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[12px] font-medium transition-all duration-150;
+    color: hsl(var(--text-faint));
+    border: 1px solid transparent;
+  }
+
+  .platform-switcher__item:hover {
+    color: hsl(var(--text));
+    background: hsl(var(--surface3) / 0.52);
+  }
+
+  .platform-switcher__item--active {
+    color: hsl(var(--text));
+    background: linear-gradient(180deg, hsl(var(--brand) / 0.24), hsl(var(--brand) / 0.12));
+    border-color: hsl(var(--brand) / 0.42);
+    box-shadow: 0 8px 20px hsl(var(--brand) / 0.12);
+  }
+
+  .platform-switcher__item span {
+    @apply truncate;
+  }
+
   .app-nav {
     @apply flex-1 overflow-y-auto px-2.5 py-3.5 space-y-3;
     position: relative;
@@ -1418,6 +1449,11 @@
 
     .app-brand {
       padding-block: 0.75rem;
+    }
+
+    .platform-switcher {
+      margin-top: 0.75rem;
+      margin-bottom: 0;
     }
 
     .app-nav {

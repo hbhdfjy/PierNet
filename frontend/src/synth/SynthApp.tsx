@@ -22,6 +22,7 @@ import {
 import { cn } from '../lib/utils'
 import { SeedContext } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
+import { PlatformSwitcher } from '../platform/PlatformSwitcher'
 
 const DatasetStats = lazy(() => import('./pages/DatasetStats'))
 const LLMConfigPage = lazy(() => import('./pages/LLMConfig'))
@@ -148,6 +149,8 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
             </div>
           </div>
 
+          <PlatformSwitcher active="synth" />
+
           <nav className="app-nav">
             <div>
               <SectionLabel>{'\u6570\u636e\u603b\u89c8'}</SectionLabel>
@@ -192,13 +195,6 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
                   label={'\u6587\u4ef6\u7ba1\u7406'}
                   rightIcon={ChevronRight}
                 />
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>平台切换</SectionLabel>
-              <div className="space-y-1">
-                <NavItem to="/training" icon={GitBranch} label="训练平台" rightIcon={ChevronRight} />
               </div>
             </div>
 
