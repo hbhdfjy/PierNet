@@ -57,7 +57,7 @@ function TargetSection({ target }: { target: string }) {
         <span className="text-slate-500">
           <Target size={13} />
         </span>
-        <span className="text-base font-medium text-slate-300 flex-1">Target</span>
+        <span className="text-base font-medium text-slate-300 flex-1">目标文本</span>
         {isLong && (
           <button
             onClick={() => setExpanded(e => !e)}
@@ -105,13 +105,13 @@ export default function SampleCard({ sample, index }: Props) {
   return (
     <div className="card overflow-hidden">
       {/* ── 标题行 ── */}
-      <div className="card-header accordion-card-header justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono text-slate-600 flex-shrink-0">#{index + 1}</span>
+      <div className="card-header accordion-card-header record-card-header">
+        <div className="record-card-main">
+          <span className="record-card-index">#{index + 1}</span>
           <span className={cn('badge border', getSimulatorBadgeClass(meta.simulator))}>{meta.simulator}</span>
-          <span className="text-sm text-slate-400 truncate">{meta.scenario}</span>
+          <span className="record-card-title">{meta.scenario}</span>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="record-card-meta">
           <span
             className={cn(
               'badge border',
@@ -132,7 +132,7 @@ export default function SampleCard({ sample, index }: Props) {
       </div>
 
       {/* ── Input ── */}
-      <Section icon={<AlignLeft size={13} />} title="Input">
+      <Section icon={<AlignLeft size={13} />} title="输入文本">
         <div
           className="bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-300 leading-relaxed
                         max-h-44 overflow-y-auto whitespace-pre-wrap border border-slate-700/30

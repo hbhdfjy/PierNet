@@ -174,11 +174,11 @@ export default function SampleViewer() {
 
           {/* 分页 */}
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-1.5 px-4 py-3 border-t border-slate-700/40 flex-shrink-0 bg-slate-900/20">
+            <div className="pagination-strip flex items-center justify-center gap-1.5 px-4 py-3 border-t border-slate-700/40 flex-shrink-0 bg-slate-900/20">
               <button className="btn-ghost py-1 text-sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
                 <ChevronLeft size={14} /> 上一页
               </button>
-              <div className="flex gap-1">
+              <div className="pagination-pages flex gap-1">
                 {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
                   const p =
                     totalPages <= 7 ? i : page < 4 ? i : page > totalPages - 4 ? totalPages - 7 + i : page - 3 + i

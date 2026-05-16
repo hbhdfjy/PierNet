@@ -67,13 +67,13 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
 
   return (
     <div className="card overflow-hidden">
-      <div className="card-header accordion-card-header justify-between">
-        <div className="flex items-center gap-2 min-w-0">
-          <span className="text-xs font-mono text-slate-600 flex-shrink-0">#{index + 1}</span>
+      <div className="card-header accordion-card-header record-card-header">
+        <div className="record-card-main">
+          <span className="record-card-index">#{index + 1}</span>
           <span className={cn('badge border', getSimulatorBadgeClass(record.simulator))}>{record.simulator}</span>
-          <span className="text-sm text-slate-400 truncate">{record.scenario}</span>
+          <span className="record-card-title">{record.scenario}</span>
         </div>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="record-card-meta">
           <span
             className={cn(
               'badge border',
@@ -88,18 +88,18 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
             {STYLE_LABELS[record.style] ?? record.style}
           </span>
           <span className="badge bg-slate-700/60 text-slate-400 border border-slate-600/40">
-            {record.time_mode} / {record.n_time_points}pt
+            {record.time_mode} · {record.n_time_points}pt
           </span>
         </div>
       </div>
 
-      <Section icon={<AlignLeft size={13} />} title="Input Template">
+      <Section icon={<AlignLeft size={13} />} title="输入模板">
         <div className="bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-300 leading-relaxed max-h-44 overflow-y-auto whitespace-pre-wrap border border-slate-700/30 ring-1 ring-inset ring-slate-700/20">
           {record.input_template}
         </div>
       </Section>
 
-      <Section icon={<Target size={13} />} title="Target Template">
+      <Section icon={<Target size={13} />} title="目标模板">
         <div className="bg-slate-900/50 rounded-lg p-3.5 text-sm text-slate-400 leading-relaxed whitespace-pre-wrap border border-slate-700/30 font-mono">
           {record.target_template}
         </div>
@@ -107,7 +107,7 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
 
       <Section
         icon={<ArrowRightLeft size={13} />}
-        title={`Transforms (${record.param_names.length} params${transformedCount > 0 ? `, ${transformedCount} active` : ', none'})`}
+        title={`参数变换（${record.param_names.length} 个参数${transformedCount > 0 ? `，${transformedCount} 个启用` : '，未启用'}）`}
         defaultOpen={transformedCount > 0}
       >
         <div className="rounded-lg border border-slate-700/30 overflow-hidden">
@@ -168,19 +168,19 @@ function TemplateCard({ record, index }: { record: TemplateRecord; index: number
       <Section icon={<Clock size={13} />} title="观测配置" defaultOpen={false}>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
           {[
-            ['Time mode', record.time_mode],
-            ['Time points', record.n_time_points],
-            ['Observed channels', record.channel_indices?.length ?? record.timeseries_shape_obs[0]],
+            ['时间模式', record.time_mode],
+            ['时间点', record.n_time_points],
+            ['观测通道', record.channel_indices?.length ?? record.timeseries_shape_obs[0]],
             [
-              'Channel indices',
+              '通道索引',
               record.channel_indices && record.channel_indices.length > 0
                 ? `[${record.channel_indices.join(', ')}]`
-                : 'All observed',
+                : '全部观测',
             ],
-            ['Outputs', record.selected_output_names.join(', ') || '无'],
-            ['Original shape', `${record.timeseries_shape_orig[0]} x ${record.timeseries_shape_orig[1]}`],
-            ['Observed shape', `${record.timeseries_shape_obs[0]} x ${record.timeseries_shape_obs[1]}`],
-            ['Time index count', record.time_indices.length],
+            ['输出变量', record.selected_output_names.join(', ') || '无'],
+            ['原始形状', `${record.timeseries_shape_orig[0]} x ${record.timeseries_shape_orig[1]}`],
+            ['观测形状', `${record.timeseries_shape_obs[0]} x ${record.timeseries_shape_obs[1]}`],
+            ['时间索引数', record.time_indices.length],
           ].map(([k, v]) => (
             <div key={String(k)} className="bg-slate-900/40 rounded-lg px-2.5 py-2 border border-slate-700/30">
               <div className="label mb-1 text-xs">{k}</div>
@@ -289,7 +289,7 @@ export default function TemplateViewer() {
             <FileCode size={13} className="text-violet-400" />
           </div>
           <div>
-            <h1 className="text-lg font-bold text-white leading-none">Template Viewer</h1>
+            <h1 className="text-lg font-bold text-white leading-none">模板浏览</h1>
             <p className="text-sm text-slate-500 mt-0.5">阶段 2 语言模板</p>
           </div>
         </div>
@@ -300,13 +300,13 @@ export default function TemplateViewer() {
           <div className="px-4 py-3 border-b border-slate-700/40 flex-shrink-0">
             <div className="flex items-center gap-2">
               <BookTemplate size={13} className="text-violet-400" />
-              <span className="label">Templates</span>
+              <span className="label">模板集</span>
             </div>
           </div>
           <div className="flex-1 overflow-y-auto">
             {filesLoading && (
               <div className="flex items-center gap-2 px-3 py-4 text-slate-500 text-xs">
-                <RefreshCw size={12} className="animate-spin" /> Loading...
+                <RefreshCw size={12} className="animate-spin" /> 加载中...
               </div>
             )}
             {Object.entries(grouped).map(([sim, files]) => {
@@ -337,7 +337,7 @@ export default function TemplateViewer() {
                       )}
                     >
                       <div className="font-medium truncate">{f.scenario}</div>
-                      <div className="text-slate-600 mt-0.5 tabular-nums">{f.template_count.toLocaleString()} rows</div>
+                      <div className="text-slate-600 mt-0.5 tabular-nums">{f.template_count.toLocaleString()} 条</div>
                     </button>
                   ))}
                 </div>
@@ -346,7 +346,7 @@ export default function TemplateViewer() {
             {!filesLoading && (!templateFiles || templateFiles.length === 0) && (
               <div className="px-4 py-8 text-slate-600 text-sm flex flex-col items-center gap-2">
                 <BookTemplate size={22} className="opacity-30" />
-                <span>No template files</span>
+                <span>暂无模板文件</span>
               </div>
             )}
           </div>
@@ -363,7 +363,7 @@ export default function TemplateViewer() {
                 setPage(0)
               }}
             >
-              <option value="">All languages</option>
+              <option value="">全部语言</option>
               <option value="zh">中文</option>
               <option value="en">English</option>
             </select>
@@ -375,16 +375,16 @@ export default function TemplateViewer() {
                 setPage(0)
               }}
             >
-              <option value="">All styles</option>
-              <option value="technical">Technical</option>
-              <option value="popular">Popular</option>
-              <option value="concise">Concise</option>
+              <option value="">全部风格</option>
+              <option value="technical">专业技术</option>
+              <option value="popular">科普</option>
+              <option value="concise">简洁</option>
             </select>
 
             <div className="flex-1" />
 
             {templatesData && (
-              <span className="text-xs text-slate-500 tabular-nums">{templatesData.total.toLocaleString()} total</span>
+              <span className="text-xs text-slate-500 tabular-nums">{templatesData.total.toLocaleString()} 条</span>
             )}
 
             {totalPages > 1 && (
@@ -414,7 +414,7 @@ export default function TemplateViewer() {
             {tLoading && (
               <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
                 <RefreshCw size={15} className="animate-spin" />
-                <span className="text-sm">Loading templates...</span>
+                <span className="text-sm">模板加载中...</span>
               </div>
             )}
 
@@ -423,14 +423,14 @@ export default function TemplateViewer() {
                 <div className="w-14 h-14 rounded-2xl bg-violet-500/10 border border-violet-500/20 flex items-center justify-center">
                   <BookTemplate size={24} className="text-violet-400/60" />
                 </div>
-                <p className="text-slate-400 text-sm">Select a scenario on the left.</p>
+                <p className="text-slate-400 text-sm">请在左侧选择场景</p>
               </div>
             )}
 
             {!tLoading && selectedScenario && templatesData?.items.length === 0 && (
               <div className="flex flex-col items-center justify-center gap-3 py-20 text-center">
                 <BookTemplate size={28} className="text-slate-600 opacity-50" />
-                <p className="text-slate-500 text-sm">No templates matched the current filters.</p>
+                <p className="text-slate-500 text-sm">当前筛选无匹配模板</p>
               </div>
             )}
 

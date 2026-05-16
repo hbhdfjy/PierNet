@@ -760,6 +760,65 @@
     line-height: 1 !important;
   }
 
+  .record-card-header {
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.55rem 0.8rem;
+  }
+
+  .record-card-main {
+    display: flex;
+    min-width: 0;
+    flex: 1 1 16rem;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .record-card-index {
+    flex: 0 0 auto;
+    color: hsl(var(--text-ghost));
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    line-height: 1;
+  }
+
+  .record-card-title {
+    min-width: 0;
+    overflow: hidden;
+    color: hsl(var(--text-muted));
+    font-size: 0.84rem;
+    line-height: 1.35;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .record-card-meta {
+    display: flex;
+    min-width: min(100%, 12rem);
+    flex: 0 1 auto;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+  }
+
+  .record-card-header .badge,
+  .record-card-meta .badge,
+  .list-table-scroll .badge,
+  .list-table-scroll-compact .badge {
+    max-width: none;
+  }
+
+  .page-header {
+    flex-wrap: wrap;
+  }
+
+  .page-header .input,
+  .page-header .select {
+    flex: 0 1 13rem;
+  }
+
   .page-shell,
   .training-page {
     display: flex;
@@ -1833,6 +1892,126 @@
   .accordion-card-header:hover {
     background: hsl(var(--surface2) / 0.86);
   }
+  @media (max-width: 640px) {
+    .page-shell > .flex-1.flex.overflow-hidden {
+      flex-direction: column;
+    }
+
+    .page-rail {
+      width: 100% !important;
+      max-height: 12.5rem;
+      border-right: 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .page-content {
+      width: 100%;
+    }
+
+    .toolbar-strip {
+      flex-wrap: wrap;
+      align-items: center;
+      overflow: visible;
+    }
+
+    .toolbar-strip .select,
+    .toolbar-strip .input {
+      width: auto !important;
+      min-width: min(100%, 7.25rem);
+      flex: 1 1 7.25rem;
+    }
+
+    .toolbar-strip > .flex-1 {
+      display: none;
+    }
+
+    .toolbar-strip > .text-xs,
+    .toolbar-strip > .tabular-nums {
+      flex: 1 0 100%;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .page-header {
+      align-items: flex-start;
+    }
+
+    .page-header > .flex-1 {
+      display: none;
+    }
+
+    .page-header .input,
+    .page-header .select {
+      width: 100% !important;
+      flex: 1 0 100%;
+      order: 20;
+    }
+
+    .page-header .btn,
+    .page-header .btn-primary,
+    .page-header .btn-ghost,
+    .page-header .btn-danger {
+      order: 21;
+    }
+
+    .pagination-strip {
+      justify-content: flex-start;
+      gap: 0.28rem;
+      overflow-x: auto;
+      overflow-y: hidden;
+      padding-inline: 0.65rem;
+      scrollbar-width: none;
+    }
+
+    .pagination-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .pagination-strip .btn-ghost {
+      min-height: 1.85rem;
+      padding: 0.28rem 0.44rem;
+      font-size: 0.75rem;
+    }
+
+    .pagination-pages {
+      gap: 0.22rem;
+    }
+
+    .pagination-pages > button {
+      width: 1.85rem;
+      height: 1.85rem;
+      font-size: 0.75rem;
+    }
+
+    .record-card-header {
+      align-items: stretch;
+      flex-direction: column;
+    }
+
+    .record-card-main,
+    .record-card-meta {
+      width: 100%;
+      flex-basis: auto;
+    }
+
+    .record-card-main {
+      align-items: flex-start;
+    }
+
+    .record-card-title {
+      display: -webkit-box;
+      white-space: normal;
+      -webkit-box-orient: vertical;
+      -webkit-line-clamp: 2;
+    }
+
+    .record-card-meta {
+      justify-content: flex-start;
+    }
+  }
+
   .workbench-empty,
   .empty-state {
     display: flex;
