@@ -109,12 +109,12 @@ function JsonDetails({ value }: { value: unknown }) {
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
     return (
       <span className="pretty-tooltip block min-w-0" data-tooltip={String(value)}>
-        <span className="block truncate font-mono text-slate-300">{String(value)}</span>
+        <span className="file-meta-inline block truncate font-mono text-slate-300">{String(value)}</span>
       </span>
     )
   }
   return (
-    <pre className="max-h-56 overflow-auto rounded-xl border border-slate-700/35 bg-slate-950/35 p-3 text-xs leading-5 text-slate-400">
+    <pre className="file-meta-code max-h-56 overflow-auto rounded-xl border border-slate-700/35 bg-slate-950/35 p-3 text-xs leading-5 text-slate-400">
       {JSON.stringify(value, null, 2)}
     </pre>
   )
@@ -236,7 +236,7 @@ function DetailPanel({
             <div className="mb-2 text-sm font-semibold text-slate-200">元数据</div>
             <div className="space-y-2">
               {detailEntries.map(([key, value]) => (
-                <div key={key} className="rounded-xl border border-slate-700/35 bg-slate-900/25 p-3">
+                <div key={key} className="file-meta-block rounded-xl border border-slate-700/35 bg-slate-900/25 p-3">
                   <div className="label mb-1 text-xs">{key}</div>
                   <JsonDetails value={value} />
                 </div>

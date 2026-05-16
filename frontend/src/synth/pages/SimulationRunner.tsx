@@ -232,10 +232,10 @@ export default function SimulationRunner() {
   const navigate = useNavigate()
   const monitor = useJobMonitor('simulate')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
-    defaultWidth: 520,
-    minWidth: 300,
-    maxWidth: 580,
-    storageKey: 'piern_simulate_sidebar_width',
+    defaultWidth: 720,
+    minWidth: 360,
+    maxWidth: 920,
+    storageKey: 'piern_simulate_sidebar_width_v2',
   })
 
   const {

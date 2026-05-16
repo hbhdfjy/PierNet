@@ -16,10 +16,10 @@ export default function SampleFiller() {
   const navigate = useNavigate()
   const monitor = useJobMonitor('fill')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
-    defaultWidth: 520,
-    minWidth: 300,
-    maxWidth: 640,
-    storageKey: 'piern_fill_sidebar_width',
+    defaultWidth: 720,
+    minWidth: 360,
+    maxWidth: 920,
+    storageKey: 'piern_fill_sidebar_width_v2',
   })
 
   const {
@@ -211,7 +211,7 @@ export default function SampleFiller() {
               Object.entries(scenariosCfg).map(([dirKey, list]) => (
                 <div key={dirKey}>
                   <div className="workbench-group-label">{dirKey}</div>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="scenario-grid grid gap-1.5">
                     {list.map(s => (
                       <ScenarioButton
                         key={s.name}

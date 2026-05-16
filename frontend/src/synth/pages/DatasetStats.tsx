@@ -103,16 +103,16 @@ function OverviewHero({
   loading: boolean
 }) {
   return (
-    <section className="training-hero training-hero--compact">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="max-w-3xl">
+    <section className="training-hero training-hero--compact dataset-overview-hero">
+      <div className="dataset-overview-hero__top">
+        <div className="dataset-overview-hero__copy">
           <div className="training-eyebrow">
             <span>数据平台</span>
             <span className="text-slate-500">/</span>
             <span>数据集</span>
           </div>
-          <h1 className="mt-2 text-[1.55rem] font-semibold tracking-tight text-white xl:text-[1.75rem]">数据总览</h1>
-          <p className="mt-1.5 max-w-2xl training-copy">直接查看样本规模、内容分布、文件结构和 Router 训练数据。</p>
+          <h1 className="dataset-overview-hero__title">数据总览</h1>
+          <p className="training-copy">直接查看样本规模、内容分布、文件结构和 Router 训练数据。</p>
         </div>
         <button className="btn-ghost self-start" onClick={onRefresh}>
           <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
@@ -120,7 +120,7 @@ function OverviewHero({
         </button>
       </div>
 
-      <div className="mt-4 training-kpi-grid">
+      <div className="dataset-overview-hero__kpis training-kpi-grid">
         <KpiCard
           label="样本"
           value={totalSamples.toLocaleString()}

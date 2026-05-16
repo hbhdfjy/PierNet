@@ -382,8 +382,8 @@ export default function TrainingNewJobPage() {
                 </div>
                 <div className="grid gap-3 p-3 md:grid-cols-2 2xl:grid-cols-4">
                   <Field label="训练轮数">
-                    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/40 bg-slate-900/30 px-3 py-2.5">
-                      <label className="flex items-center gap-2 text-[14px] text-slate-300">
+                    <div className="training-epoch-control">
+                      <label className="training-checkbox-label">
                         <input
                           type="checkbox"
                           checked={infiniteEpochs}
@@ -392,7 +392,7 @@ export default function TrainingNewJobPage() {
                         无限训练
                       </label>
                       <input
-                        className="input mono w-24 px-2.5 py-1.5 text-center"
+                        className="input mono training-epoch-input px-2.5 py-1.5 text-center"
                         value={infiniteEpochs ? '∞' : epochs}
                         onChange={e => setEpochs(e.target.value)}
                         disabled={infiniteEpochs}

@@ -123,10 +123,10 @@ export function ScenarioRowGrid({
             </div>
           </div>
         ) : (
-          <div className="mt-2 w-full min-w-0 rounded-xl border border-slate-700/35 bg-slate-950/35 px-3 py-2.5">
+          <div className="registry-description-card mt-2 w-full min-w-0 rounded-xl border px-3 py-2.5">
             {description ? (
               <p
-                className="m-0 block w-full max-w-full text-sm text-slate-300/90 leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+                className="registry-description-text m-0 block w-full max-w-full text-sm leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
                 style={{
                   whiteSpace: 'normal',
                   overflowWrap: 'anywhere',

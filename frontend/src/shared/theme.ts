@@ -13,6 +13,7 @@ export function useTheme(): [Theme, () => void] {
     const root = document.documentElement
     root.classList.toggle('light', theme === 'light')
     root.classList.toggle('dark', theme === 'dark')
+    root.dataset.theme = theme
     localStorage.setItem('piern-theme', theme)
   }, [theme])
 

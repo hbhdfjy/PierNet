@@ -132,9 +132,9 @@ export default function LLMConfig() {
   const suggestions = MODEL_SUGGESTIONS[provider] ?? []
 
   return (
-    <div className="page-shell flex-row">
+    <div className="page-shell flex-row llm-config-page">
       {/* ── 左侧：表单 ── */}
-      <div className="page-rail" style={{ width: '440px', minWidth: '360px', flexShrink: 0 }}>
+      <div className="page-rail llm-config-rail" style={{ width: '440px', minWidth: '360px', flexShrink: 0 }}>
         <div className="flex-1 overflow-y-auto space-y-4 p-4">
           {/* 页头 */}
           <div className="flex items-center gap-3 mb-2">
@@ -157,7 +157,7 @@ export default function LLMConfig() {
             <div className="flex items-center gap-2 mb-1">
               <span className="font-medium text-slate-200 text-base">API 提供商</span>
             </div>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="llm-provider-grid">
               {Object.entries(PROVIDER_LABELS).map(([key, info]) => (
                 <button
                   key={key}

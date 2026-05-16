@@ -199,7 +199,7 @@ export default function DataUploadPage() {
                 合成链路。上传后即时预检；注册场景时会执行强校验，不合规数据不能进入模板生成。
               </p>
             </div>
-            <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full">
+            <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full max-sm:grid-cols-2">
               <Metric label="文件" value={summary.total.toLocaleString()} />
               <Metric label="合规" value={summary.valid.toLocaleString()} />
               <Metric label="样本" value={summary.samples.toLocaleString()} />
@@ -214,7 +214,7 @@ export default function DataUploadPage() {
               <UploadCloud size={17} className="text-amber-400" />
               <div>
                 <div className="training-panel-title">上传与落盘</div>
-                <div className="training-panel-copy">
+                <div className="training-panel-copy path-wrap">
                   目标路径固定为 data/&lt;big_scene&gt;/&lt;big_scene&gt;_&lt;scenario&gt;.h5
                 </div>
               </div>
@@ -275,7 +275,7 @@ export default function DataUploadPage() {
                   <div>
                     <div className="text-sm font-semibold text-slate-100">写入位置</div>
                     <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={targetPath}>
-                      <div className="truncate font-mono text-sm text-sky-300">{targetPath}</div>
+                      <div className="path-wrap font-mono text-sm text-sky-300">{targetPath}</div>
                     </div>
                   </div>
                 </div>

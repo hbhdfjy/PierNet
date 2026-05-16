@@ -1,6 +1,6 @@
 import { Suspense, useEffect, useState, type CSSProperties, type ElementType, type ReactNode } from 'react'
 import { Moon, Shuffle, Sun } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
 import { SeedContext, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
@@ -113,10 +113,19 @@ export function AppShell({
 }) {
   const [seed, setSeed] = useSeedState()
   const [seedInput, setSeedInput] = useState(String(seed))
+  const location = useLocation()
 
   useEffect(() => {
     setSeedInput(String(seed))
   }, [seed])
+
+  useEffect(() => {
+    const active = document.querySelector<HTMLElement>('.app-nav .nav-item--active')
+    const nav = active?.closest<HTMLElement>('.app-nav')
+    if (!active || !nav) return
+    const targetLeft = active.offsetLeft - nav.offsetLeft - 8
+    nav.scrollTo({ left: Math.max(0, targetLeft), behavior: 'auto' })
+  }, [location.pathname])
 
   return (
     <SeedContext.Provider value={{ seed, setSeed }}>

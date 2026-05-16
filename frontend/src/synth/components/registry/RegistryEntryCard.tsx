@@ -67,14 +67,19 @@ export function RegistryEntryCard({
         open ? 'border-sky-500/30 bg-slate-800/60' : 'border-slate-700/40 bg-slate-800/30 hover:border-slate-600/60',
       )}
     >
-      <div className="flex items-center gap-3 px-4 py-3.5">
-        <button onClick={() => setOpen(o => !o)} className="flex items-center gap-3 flex-1 text-left min-w-0">
+      <div className="registry-entry-card-header flex items-center gap-3 px-4 py-3.5">
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="registry-entry-title-button flex items-center gap-3 flex-1 text-left min-w-0"
+        >
           <span className={cn('transition-transform duration-200 text-slate-500 flex-shrink-0', open && 'rotate-90')}>
             <ChevronRight size={15} />
           </span>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-base text-slate-200 font-medium">{scenario || simulator}</span>
+              <span className="registry-entry-title font-mono text-base text-slate-200 font-medium">
+                {scenario || simulator}
+              </span>
               {scenario && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs">
                   {simulator}
@@ -83,7 +88,7 @@ export function RegistryEntryCard({
             </div>
           </div>
         </button>
-        <div className="flex items-center gap-1.5 flex-shrink-0">
+        <div className="registry-entry-badges flex items-center gap-1.5 flex-shrink-0">
           <FieldBadge present={hasDomain} label="domain" />
           <FieldBadge present={hasOutput} label="output" />
           <FieldBadge present={hasObs} label="obs" />

@@ -79,10 +79,10 @@ export default function RouterDataBuilder() {
   const navigate = useNavigate()
   const monitor = useJobMonitor('router')
   const { width: sidebarWidth, onMouseDown: onResizeStart } = useResizable({
-    defaultWidth: 520,
-    minWidth: 320,
-    maxWidth: 640,
-    storageKey: 'piern_router_sidebar_width',
+    defaultWidth: 720,
+    minWidth: 360,
+    maxWidth: 920,
+    storageKey: 'piern_router_sidebar_width_v2',
   })
 
   const {
@@ -218,7 +218,7 @@ export default function RouterDataBuilder() {
             {Object.entries(grouped).map(([sim, items]) => (
               <div key={sim}>
                 <div className="workbench-group-label">{SIMULATOR_LABELS[sim] ?? sim}</div>
-                <div className="grid grid-cols-2 gap-1.5">
+                <div className="scenario-grid grid gap-1.5">
                   {items.map(item => (
                     <RouterScenarioButton
                       key={item.scenario}
