@@ -20,6 +20,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_OUTPUT_DIR = REPO_ROOT / "docs/patents/figures"
+DEFAULT_PATENT_OUTPUT_DIR = REPO_ROOT / "docs/patents/figures_patent"
 
 WIDTH = 1800
 HEIGHT = 1000
@@ -49,6 +50,87 @@ HEADER_WARN = "#fff7e6"
 BLUE = "#2f6ea9"
 GREEN = "#2f7d5a"
 AMBER = "#a66a00"
+PATENT_STYLE = False
+SHADOW = "#d9e1ec"
+HEADER_LINE = "#c8d2df"
+LABEL_OUTLINE = "#d4dde8"
+CAPTION_FILL = "#0f172a"
+CARD_RADIUS = 22
+CANVAS_RADIUS = 18
+CARD_BORDER_WIDTH = 3
+
+
+def apply_render_style(style: str) -> None:
+    """Apply either the polished review style or the black-white filing style."""
+
+    global AMBER
+    global BLUE
+    global BORDER
+    global CANVAS_RADIUS
+    global CAPTION_FILL
+    global CARD
+    global CARD_BORDER_WIDTH
+    global CARD_RADIUS
+    global GREEN
+    global HEADER
+    global HEADER_ALT
+    global HEADER_LINE
+    global HEADER_WARN
+    global INK
+    global LABEL_OUTLINE
+    global MUTED
+    global PATENT_STYLE
+    global RULE
+    global SHADOW
+    global SURFACE
+
+    if style == "polished":
+        INK = "#172033"
+        MUTED = "#5b6476"
+        BORDER = "#9aa6b8"
+        RULE = "#516179"
+        CARD = "#ffffff"
+        SURFACE = "#f7f9fc"
+        HEADER = "#eef4fb"
+        HEADER_ALT = "#f2f7f2"
+        HEADER_WARN = "#fff7e6"
+        BLUE = "#2f6ea9"
+        GREEN = "#2f7d5a"
+        AMBER = "#a66a00"
+        PATENT_STYLE = False
+        SHADOW = "#d9e1ec"
+        HEADER_LINE = "#c8d2df"
+        LABEL_OUTLINE = "#d4dde8"
+        CAPTION_FILL = "#0f172a"
+        CARD_RADIUS = 22
+        CANVAS_RADIUS = 18
+        CARD_BORDER_WIDTH = 3
+        return
+
+    if style == "patent":
+        INK = "#000000"
+        MUTED = "#000000"
+        BORDER = "#000000"
+        RULE = "#000000"
+        CARD = "#ffffff"
+        SURFACE = "#ffffff"
+        HEADER = "#ffffff"
+        HEADER_ALT = "#ffffff"
+        HEADER_WARN = "#ffffff"
+        BLUE = "#000000"
+        GREEN = "#000000"
+        AMBER = "#000000"
+        PATENT_STYLE = True
+        SHADOW = ""
+        HEADER_LINE = "#000000"
+        LABEL_OUTLINE = "#000000"
+        CAPTION_FILL = "#000000"
+        CARD_RADIUS = 0
+        CANVAS_RADIUS = 0
+        CARD_BORDER_WIDTH = 3
+        return
+
+    raise ValueError(f"未知附图样式: {style}")
 
 
 @dataclass(frozen=True)
@@ -183,21 +265,39 @@ def rounded_rect(
 
 
 def draw_card(draw: ImageDraw.ImageDraw, box: Box, *, compact: bool = False) -> None:
-    radius = 22
-    shadow = (box.x + 5, box.y + 6, box.right + 5, box.bottom + 6)
-    rounded_rect(draw, shadow, radius=radius, fill="#d9e1ec")
-    rounded_rect(draw, (box.x, box.y, box.right, box.bottom), radius=radius, fill=box.fill, outline=box.border, width=3)
+    radius = CARD_RADIUS
+    fill = CARD if PATENT_STYLE else box.fill
+    header = HEADER if PATENT_STYLE else box.header
+    border = BORDER if PATENT_STYLE else box.border
+    if SHADOW:
+        shadow = (box.x + 5, box.y + 6, box.right + 5, box.bottom + 6)
+        rounded_rect(draw, shadow, radius=radius, fill=SHADOW)
+    rounded_rect(
+        draw,
+        (box.x, box.y, box.right, box.bottom),
+        radius=radius,
+        fill=fill,
+        outline=border,
+        width=CARD_BORDER_WIDTH,
+    )
 
-    if not box.bullets and box.h <= 95:
-        rounded_rect(draw, (box.x, box.y, box.right, box.bottom), radius=radius, fill=box.header, outline=box.border, width=3)
+    if not box.bullets and box.h <= 130:
+        rounded_rect(
+            draw,
+            (box.x, box.y, box.right, box.bottom),
+            radius=radius,
+            fill=header,
+            outline=border,
+            width=CARD_BORDER_WIDTH,
+        )
         title_font = F["card_title_small"] if len(box.title) > 10 else F["card_title"]
         centered_text(draw, (box.x + 16, box.y + 2, box.right - 16, box.bottom - 2), box.title, title_font)
         return
 
     header_h = 62 if compact else 72
-    rounded_rect(draw, (box.x, box.y, box.right, box.y + header_h + radius), radius=radius, fill=box.header)
-    draw.rectangle((box.x, box.y + header_h, box.right, box.y + header_h + radius), fill=box.fill)
-    draw.line((box.x + 1, box.y + header_h, box.right - 1, box.y + header_h), fill="#c8d2df", width=2)
+    rounded_rect(draw, (box.x, box.y, box.right, box.y + header_h + radius), radius=radius, fill=header)
+    draw.rectangle((box.x, box.y + header_h, box.right, box.y + header_h + radius), fill=fill)
+    draw.line((box.x + 1, box.y + header_h, box.right - 1, box.y + header_h), fill=HEADER_LINE, width=2)
 
     title_font = F["card_title_small"] if compact or len(box.title) > 10 else F["card_title"]
     centered_text(draw, (box.x + 16, box.y + 7, box.right - 16, box.y + header_h - 2), box.title, title_font)
@@ -243,6 +343,8 @@ def draw_arrow(
     label: str | None = None,
     label_offset: tuple[int, int] = (0, -28),
 ) -> None:
+    if PATENT_STYLE:
+        color = RULE
     x1, y1 = start
     x2, y2 = end
     if dashed:
@@ -266,7 +368,7 @@ def draw_arrow(
             (mx - tw / 2 - pad_x, my - th / 2 - pad_y, mx + tw / 2 + pad_x, my + th / 2 + pad_y),
             radius=12,
             fill="#ffffff",
-            outline="#d4dde8",
+            outline=LABEL_OUTLINE,
             width=2,
         )
         draw.text((mx - tw / 2, my - th / 2 - 2), label, font=F["label"], fill=INK)
@@ -292,22 +394,38 @@ def draw_poly_arrow(
     if label and label_at:
         tw, th = text_size(draw, label, F["label"])
         x, y = label_at
-        rounded_rect(draw, (x - 16, y - 9, x + tw + 16, y + th + 10), radius=12, fill="#ffffff", outline="#d4dde8", width=2)
+        rounded_rect(
+            draw,
+            (x - 16, y - 9, x + tw + 16, y + th + 10),
+            radius=0 if PATENT_STYLE else 12,
+            fill="#ffffff",
+            outline=LABEL_OUTLINE,
+            width=2,
+        )
         draw.text((x, y - 2), label, font=F["label"], fill=INK)
 
 
 def make_canvas(caption: str) -> tuple[Image.Image, ImageDraw.ImageDraw]:
     image = Image.new("RGB", (WIDTH, HEIGHT), "#ffffff")
     draw = ImageDraw.Draw(image)
-    rounded_rect(draw, (24, 24, WIDTH - 24, FIGURE_BOTTOM), radius=18, fill=SURFACE, outline="#bcc7d5", width=3)
+    rounded_rect(
+        draw,
+        (24, 24, WIDTH - 24, FIGURE_BOTTOM),
+        radius=CANVAS_RADIUS,
+        fill=SURFACE,
+        outline=BORDER,
+        width=3,
+    )
     draw.rectangle((24, FIGURE_BOTTOM - 12, WIDTH - 24, FIGURE_BOTTOM), fill="#ffffff")
     tw, _ = text_size(draw, caption, F["caption"])
-    draw.text(((WIDTH - tw) / 2, CAPTION_Y - 17), caption, font=F["caption"], fill="#0f172a")
+    draw.text(((WIDTH - tw) / 2, CAPTION_Y - 17), caption, font=F["caption"], fill=CAPTION_FILL)
     return image, draw
 
 
 def save(image: Image.Image, output_dir: Path, name: str) -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
+    if PATENT_STYLE:
+        image = image.convert("L").convert("RGB")
     image.save(output_dir / name, optimize=True)
 
 
@@ -518,12 +636,25 @@ RENDERERS = (
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Render PiERN patent figures.")
-    parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
+    parser.add_argument(
+        "--style",
+        choices=("polished", "patent"),
+        default="polished",
+        help="附图样式：polished 为审稿美观版，patent 为黑白线框专利化版本。",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=None,
+        help="输出目录。默认 polished 输出到 docs/patents/figures，patent 输出到 docs/patents/figures_patent。",
+    )
     args = parser.parse_args()
+    apply_render_style(args.style)
+    output_dir = args.output_dir or (DEFAULT_PATENT_OUTPUT_DIR if args.style == "patent" else DEFAULT_OUTPUT_DIR)
 
     for renderer in RENDERERS:
-        renderer(args.output_dir)
-    print(f"Rendered {len(RENDERERS)} patent figures to {args.output_dir}")
+        renderer(output_dir)
+    print(f"Rendered {len(RENDERERS)} {args.style}-style figures to {output_dir}")
     return 0
 
 

@@ -20,7 +20,7 @@ import re
 import struct
 import sys
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Iterable
 from xml.sax.saxutils import escape
@@ -475,8 +475,17 @@ def resolve_template(path_arg: str | None) -> Path | None:
     return None
 
 
-def default_output_name(draft: PatentDraft) -> str:
-    return f"{draft.title}.docx"
+def with_figure_dir(draft: PatentDraft, figure_dir: Path) -> PatentDraft:
+    figure_dir = figure_dir.resolve()
+    figures = tuple(Figure(figure.caption, figure_dir / figure.path.name) for figure in draft.figures)
+    for figure in figures:
+        if not figure.path.exists():
+            raise PatentFormatError(f"替换后的附图不存在: {figure.path}")
+    return replace(draft, figures=figures)
+
+
+def default_output_name(draft: PatentDraft, suffix: str = "") -> str:
+    return f"{draft.title}{suffix}.docx"
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
@@ -499,6 +508,18 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default=None,
         help="可选 Word 模板路径；也可通过 PIERN_PATENT_TEMPLATE 环境变量指定。",
     )
+    parser.add_argument(
+        "--figure-dir",
+        type=Path,
+        default=None,
+        help="可选附图目录；指定后使用该目录下同名 PNG 替换 Markdown 中引用的附图。",
+    )
+    parser.add_argument(
+        "--output-suffix",
+        type=str,
+        default="",
+        help="追加到中文 Word 文件名末尾的后缀，例如：'（专利化附图版）'。",
+    )
     return parser
 
 
@@ -507,15 +528,20 @@ def main(argv: list[str] | None = None) -> int:
     markdown_files = tuple(path.resolve() for path in args.markdown) if args.markdown else DEFAULT_MARKDOWN_FILES
     template_path = resolve_template(args.template)
     output_dir = args.output_dir.resolve()
+    figure_dir = args.figure_dir.resolve() if args.figure_dir else None
 
     print(f"[patent-docx] output_dir={output_dir}")
     print(f"[patent-docx] template={template_path if template_path else 'internal-minimal-docx'}")
+    if figure_dir:
+        print(f"[patent-docx] figure_dir={figure_dir}")
 
     for md_path in markdown_files:
         if not md_path.exists():
             raise FileNotFoundError(f"Markdown 文件不存在: {md_path}")
         draft = parse_patent_markdown(md_path)
-        output_path = output_dir / default_output_name(draft)
+        if figure_dir:
+            draft = with_figure_dir(draft, figure_dir)
+        output_path = output_dir / default_output_name(draft, args.output_suffix)
         write_docx(draft, output_path, template_path)
         print(f"[patent-docx] wrote {output_path}")
 
