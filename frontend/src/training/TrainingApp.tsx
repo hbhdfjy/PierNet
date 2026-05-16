@@ -1,9 +1,8 @@
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { Moon, Sun, BarChart3, Cpu, PlayCircle, Workflow, FolderOpen, Shuffle } from 'lucide-react'
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom'
+import { lazy } from 'react'
+import { BarChart3, Cpu, FolderOpen, PlayCircle, Workflow } from 'lucide-react'
+import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
-import { PlatformSwitcher } from '../platform/PlatformSwitcher'
-import { SeedContext, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
+import { AppShell, type ShellNavGroup } from '../platform/AppShell'
 
 const TrainingOverviewPage = lazy(() => import('./pages/TrainingOverviewPage'))
 const TrainingNewJobPage = lazy(() => import('./pages/TrainingNewJobPage'))
@@ -13,161 +12,56 @@ const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
 
-function PageFallback() {
-  return <div className="px-6 py-5 text-sm text-slate-400">加载中...</div>
-}
-
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="app-section-label">
-      <span className="label text-[11px] whitespace-nowrap">{children}</span>
-      <div className="app-section-label__line" />
-    </div>
-  )
-}
-
-function NavItem({
-  to,
-  icon: Icon,
-  label,
-  end = false,
-}: {
-  to: string
-  icon: React.ElementType
-  label: string
-  end?: boolean
-}) {
-  return (
-    <NavLink to={to} end={end} className={({ isActive }) => `nav-item ${isActive ? 'nav-item--active' : ''}`}>
-      {({ isActive }) => (
-        <>
-          {isActive && <span className="nav-item__rail" />}
-          <div className="nav-item__icon">
-            <Icon size={14} />
-          </div>
-          <span className="nav-item__label">{label}</span>
-        </>
-      )}
-    </NavLink>
-  )
-}
-
-function useSeedState(): [number, (v: number) => void] {
-  const [seed, setSeedRaw] = useState<number>(() => readStoredSeed())
-
-  const setSeed = (value: number) => {
-    setSeedRaw(writeStoredSeed(value))
-  }
-
-  return [seed, setSeed]
-}
+const navGroups: ShellNavGroup[] = [
+  {
+    label: '训练平台',
+    items: [
+      { to: '/training', end: true, icon: BarChart3, label: '总览', tone: 'sky' },
+      { to: '/training/new', icon: PlayCircle, label: '新建训练', tone: 'emerald' },
+      { to: '/training/jobs', icon: Workflow, label: '任务管理', tone: 'violet' },
+      { to: '/training/files', icon: FolderOpen, label: '文件管理', tone: 'amber' },
+    ],
+  },
+  {
+    label: '当前范围',
+    note: (
+      <div className="flex items-center gap-2 text-[12px] font-medium text-slate-200">
+        <Cpu size={13} />
+        <span>单卡 · Token Router</span>
+      </div>
+    ),
+  },
+]
 
 export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
-  const [seed, setSeed] = useSeedState()
-  const [seedInput, setSeedInput] = useState(String(seed))
-
-  useEffect(() => {
-    setSeedInput(String(seed))
-  }, [seed])
-
   return (
-    <SeedContext.Provider value={{ seed, setSeed }}>
-      <div className="app-shell">
-        <aside className="app-sidebar w-56 flex-shrink-0">
-          <div className="app-brand">
-            <div className="app-brand__mark-wrap">
-              <div className="app-brand__mark">T</div>
-              <span className="app-brand__status" />
-            </div>
-            <div className="min-w-0">
-              <div className="app-brand__title">PiERN 训练</div>
-              <div className="app-brand__subtitle">模型训练工作台</div>
-            </div>
-          </div>
-
-          <PlatformSwitcher active="training" />
-
-          <nav className="app-nav">
-            <div>
-              <SectionLabel>训练平台</SectionLabel>
-              <div className="space-y-1">
-                <NavItem to="/training" end icon={BarChart3} label="总览" />
-                <NavItem to="/training/new" icon={PlayCircle} label="新建训练" />
-                <NavItem to="/training/jobs" icon={Workflow} label="任务管理" />
-                <NavItem to="/training/files" icon={FolderOpen} label="文件管理" />
-              </div>
-            </div>
-
-            <div>
-              <SectionLabel>当前范围</SectionLabel>
-              <div className="rounded-xl border border-slate-700/40 bg-slate-900/30 p-2.5 text-xs text-slate-400">
-                <div className="flex items-center gap-2 text-slate-200">
-                  <Cpu size={13} />
-                  单卡 · Token Router
-                </div>
-              </div>
-            </div>
-          </nav>
-
-          <div className="app-sidebar__footer">
-            <div className="app-seed-card">
-              <div className="app-seed-card__label-row">
-                <div className="app-seed-card__label">
-                  <Shuffle size={11} />
-                  <span>随机种子</span>
-                </div>
-              </div>
-              <input
-                type="number"
-                min={0}
-                value={seedInput}
-                onChange={event => {
-                  setSeedInput(event.target.value)
-                  const parsed = parseInt(event.target.value, 10)
-                  if (!isNaN(parsed) && parsed >= 0) setSeed(parsed)
-                }}
-                onBlur={() => {
-                  const parsed = parseInt(seedInput, 10)
-                  const value = isNaN(parsed) ? 42 : Math.max(0, parsed)
-                  setSeed(value)
-                  setSeedInput(String(value))
-                }}
-                className="input app-seed-input mono"
-              />
-            </div>
-
-            <div className="app-sidebar__footer-row">
-              <button type="button" onClick={toggleTheme} className="theme-toggle">
-                {theme === 'dark' ? <Sun size={13} /> : <Moon size={13} />}
-                <span>{theme === 'dark' ? '日间' : '夜间'}</span>
-              </button>
-            </div>
-          </div>
-        </aside>
-
-        <main className="app-main">
-          <Suspense fallback={<PageFallback />}>
-            <Routes>
-              <Route index element={<TrainingOverviewPage />} />
-              <Route path="new" element={<TrainingNewJobPage />} />
-              <Route path="jobs" element={<TrainingJobsPage />} />
-              <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
-              <Route
-                path="files"
-                element={
-                  <FileManagerContent
-                    initialPlatform="training"
-                    lockPlatform
-                    title="训练文件管理"
-                    copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。"
-                  />
-                }
-              />
-              <Route path="*" element={<Navigate to="/training" replace />} />
-            </Routes>
-          </Suspense>
-        </main>
-      </div>
-    </SeedContext.Provider>
+    <AppShell
+      platform="training"
+      mark="T"
+      title="PiERN 训练"
+      subtitle="模型训练工作台"
+      navGroups={navGroups}
+      theme={theme}
+      toggleTheme={toggleTheme}
+    >
+      <Routes>
+        <Route index element={<TrainingOverviewPage />} />
+        <Route path="new" element={<TrainingNewJobPage />} />
+        <Route path="jobs" element={<TrainingJobsPage />} />
+        <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
+        <Route
+          path="files"
+          element={
+            <FileManagerContent
+              initialPlatform="training"
+              lockPlatform
+              title="训练文件管理"
+              copy="集中查看训练任务、权重文件、曲线、日志和可删除的历史产物。"
+            />
+          }
+        />
+        <Route path="*" element={<Navigate to="/training" replace />} />
+      </Routes>
+    </AppShell>
   )
 }

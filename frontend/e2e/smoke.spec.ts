@@ -128,8 +128,8 @@ test('platform entry and core workbenches render without layout overflow', async
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await page.goto('/')
-  await expect(page.getByText('PiERN 工作台')).toBeVisible()
-  await expect(page.getByRole('link', { name: /进入训练平台/ })).toBeVisible()
+  await expect(page.getByText('PiERN 控制台')).toBeVisible()
+  await expect(page.getByRole('link', { name: /打开训练平台/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
   await page.goto('/training')
@@ -153,7 +153,7 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
 
   await page.goto('/')
-  await expect(page.getByText('PiERN 工作台')).toBeVisible()
+  await expect(page.getByText('PiERN 控制台')).toBeVisible()
   await expect(page.getByRole('link', { name: /打开数据平台/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
