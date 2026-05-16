@@ -8,7 +8,7 @@
 - `DATA_SYNTHESIS_PATENT_DRAFT.md`：数据合成平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
 - `AUTO_TRAINING_OUTLINE.md`：自动训练平台专利技术大纲。
 - `AUTO_TRAINING_PATENT_DRAFT.md`：自动训练平台正式专利文本草案，包含摘要、权利要求书、说明书和附图说明。
-- `figures/`：两件专利对应的大模型生成中文附图图片文件，共 10 张。
+- `figures/`：两件专利对应的中文附图图片文件，共 10 张，由确定性绘图脚本生成以保证图中文字准确。
 
 ## 生成 Word 文件
 
@@ -29,6 +29,16 @@ python3 scripts/patents/patent_md_to_docx.py --template /path/to/专利模板.do
 ```bash
 PIERN_PATENT_TEMPLATE=/path/to/专利模板.docx python3 scripts/patents/patent_md_to_docx.py
 ```
+
+## 生成附图
+
+专利附图包含大量中文术语，默认使用确定性绘图脚本生成，避免大模型图片生成造成文字错误。需要重新生成附图时，在项目根目录运行：
+
+```bash
+python3 scripts/patents/render_patent_figures.py
+```
+
+生成后的 PNG 文件会覆盖 `docs/patents/figures/` 下的同名附图。随后可重新运行 Word 生成命令，把新附图嵌入到 `.docx` 文件中。
 
 ## 后续建议
 
