@@ -114,6 +114,12 @@ async function expectNoHorizontalOverflow(page: Page) {
   expect(overflow).toBeLessThanOrEqual(3)
 }
 
+async function setTheme(page: Page, theme: 'dark' | 'light') {
+  await page.addInitScript(value => {
+    localStorage.setItem('piern-theme', value)
+  }, theme)
+}
+
 test.beforeEach(async ({ page }) => {
   await mockApi(page)
 })
@@ -150,4 +156,40 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
   await expect(page.getByText('PiERN 工作台')).toBeVisible()
   await expect(page.getByRole('link', { name: /打开数据平台/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
+})
+
+test('dark and light themes keep core pages visually stable', async ({ page }) => {
+  const routes = ['/', '/training', '/training/new', '/training/jobs', '/synth/fill', '/synth/router']
+
+  for (const theme of ['dark', 'light'] as const) {
+    await setTheme(page, theme)
+    await page.setViewportSize({ width: 1366, height: 820 })
+
+    for (const route of routes) {
+      await page.goto(route)
+      await expect(page.locator('body')).toBeVisible()
+      await expect
+        .poll(async () => page.locator('body').evaluate(node => node.textContent?.trim().length ?? 0), {
+          message: `${theme} ${route} rendered text`,
+        })
+        .toBeGreaterThan(20)
+      await expectNoHorizontalOverflow(page)
+    }
+  }
+})
+
+test('mobile training and synthesis shells avoid horizontal overflow', async ({ page }) => {
+  await setTheme(page, 'light')
+  await page.setViewportSize({ width: 390, height: 844 })
+
+  for (const route of ['/training', '/training/new', '/synth/fill', '/synth/router']) {
+    await page.goto(route)
+    await expect(page.locator('body')).toBeVisible()
+    await expect
+      .poll(async () => page.locator('body').evaluate(node => node.textContent?.trim().length ?? 0), {
+        message: `${route} rendered text`,
+      })
+      .toBeGreaterThan(20)
+    await expectNoHorizontalOverflow(page)
+  }
 })

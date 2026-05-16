@@ -20,7 +20,7 @@ import {
   FolderOpen,
 } from 'lucide-react'
 import { cn } from '../lib/utils'
-import { SeedContext } from '../lib/seedContext'
+import { SeedContext, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
 import { PlatformSwitcher } from '../platform/PlatformSwitcher'
 
@@ -51,14 +51,10 @@ const STAGE_COLORS = {
 type StageColor = keyof typeof STAGE_COLORS
 
 function useSeedState(): [number, (v: number) => void] {
-  const [seed, setSeedRaw] = useState<number>(() => {
-    const n = parseInt(localStorage.getItem('piern-seed') ?? '42', 10)
-    return isNaN(n) ? 42 : Math.max(0, n)
-  })
+  const [seed, setSeedRaw] = useState<number>(() => readStoredSeed())
 
-  const setSeed = (v: number) => {
-    setSeedRaw(v)
-    localStorage.setItem('piern-seed', String(v))
+  const setSeed = (value: number) => {
+    setSeedRaw(writeStoredSeed(value))
   }
 
   return [seed, setSeed]

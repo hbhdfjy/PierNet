@@ -38,7 +38,6 @@ type InfoItem = {
 function EntryCard({ to, title, route, copy, tone, icon, points, stats }: EntryCardProps) {
   return (
     <Link to={to} className={`platform-entry-card platform-entry-card--${tone} group`}>
-      <div className="platform-entry-card__glow" />
       <div className="platform-entry-card__topline">
         <div className="platform-entry-card__icon">{icon}</div>
         <span className="platform-entry-card__route mono">{route}</span>
@@ -130,10 +129,10 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
                 <Sparkles size={13} />
                 <span>统一工作台</span>
               </div>
-              <h1 className="platform-hero-title">从物理仿真到路由训练的清晰入口</h1>
+              <h1 className="platform-hero-title">从物理仿真到路由训练的统一工作台</h1>
               <p className="platform-hero-copy">
                 `/synth` 负责阶段 1-4 数据合成，`/training` 负责 Token Router
-                单卡训练。两个平台逻辑隔离，共享同一个前后端部署入口。
+                单卡训练。两个平台逻辑隔离，统一使用同一个服务入口、主题系统和数据契约。
               </p>
               <div className="platform-hero-actions">
                 <Link to="/synth" className="btn-primary">
