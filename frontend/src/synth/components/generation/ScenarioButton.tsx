@@ -51,7 +51,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
       disabled={disabled}
       title={noData ? '尚无 HDF5 数据，需先运行 阶段 1 物理仿真' : undefined}
       className={cn(
-        'relative text-left px-3 py-2.5 rounded-xl border transition-all duration-150 overflow-hidden w-full',
+        'scenario-button relative w-full overflow-hidden border text-left transition-all duration-150',
         'focus:outline-none focus-visible:ring-2',
         palette.focus,
         disabled
@@ -69,18 +69,15 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
     >
       {/* 已生成进度底色 */}
       {s.has_jsonl && pct > 0 && !active && !disabled && !noData && (
-        <div
-          className="absolute inset-y-0 left-0 bg-emerald-500/6 pointer-events-none transition-all duration-500"
-          style={{ width: `${pct}%` }}
-        />
+        <div className="scenario-button__progress bg-emerald-500/6" style={{ width: `${pct}%` }} />
       )}
 
-      <div className="relative">
+      <div className="scenario-button__content">
         {/* 场景名 + 状态 */}
-        <div className="flex items-center justify-between gap-1 mb-1.5">
+        <div className="scenario-button__title-row">
           <span
             className={cn(
-              'font-medium text-sm truncate leading-none',
+              'scenario-button__title',
               active ? palette.title : noData ? 'text-slate-500' : 'text-slate-200',
             )}
           >
@@ -91,39 +88,39 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
         </div>
 
         {/* 元数据行 */}
-        <div className="flex items-center gap-1.5 flex-wrap">
+        <div className="scenario-button__meta">
           {/* simulator */}
-          <span
-            className={cn('text-xs flex items-center gap-1', active ? palette.meta : (c?.text ?? 'text-slate-500'))}
-          >
+          <span className={cn('scenario-button__meta-item', active ? palette.meta : (c?.text ?? 'text-slate-500'))}>
             <span className={cn('w-1 h-1 rounded-full flex-shrink-0', c?.dot ?? 'bg-slate-600')} />
             {s.simulator}
           </span>
 
           {/* 样本数 */}
           {s.has_h5 ? (
-            <span className="text-xs text-slate-600 tabular-nums flex items-center gap-0.5">
+            <span className="scenario-button__meta-item tabular-nums text-slate-600">
               <Database size={9} />
               {s.sample_count.toLocaleString()}
             </span>
           ) : (
-            <span className="text-xs text-amber-600/70 flex items-center gap-0.5">
+            <span className="scenario-button__meta-item text-amber-600/70">
               <Database size={9} />
               无数据
             </span>
           )}
 
           {/* 输出形状 */}
-          {s.output_shape && <span className="text-xs text-slate-600 font-mono">{s.output_shape.join('×')}</span>}
+          {s.output_shape && (
+            <span className="scenario-button__meta-item font-mono text-slate-600">{s.output_shape.join('×')}</span>
+          )}
 
           {/* 注册状态 */}
           {s.registered ? (
-            <span className="text-xs text-emerald-600/60 flex items-center gap-0.5">
+            <span className="scenario-button__meta-item text-emerald-600/60">
               <Tag size={9} />
               已注册
             </span>
           ) : (
-            <span className="text-xs text-red-500/50 flex items-center gap-0.5">
+            <span className="scenario-button__meta-item text-red-500/50">
               <Tag size={9} />
               未注册
             </span>
@@ -131,20 +128,24 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
 
           {/* 模板数 */}
           {templateCount !== undefined && templateCount > 0 && (
-            <span className={cn('text-xs tabular-nums flex items-center gap-0.5', palette.count)}>
+            <span className={cn('scenario-button__meta-item tabular-nums', palette.count)}>
               <Sparkles size={9} />
               {templateCount.toLocaleString()}
             </span>
           )}
 
           {/* 已有 JSONL */}
-          {s.has_jsonl && <span className="text-xs text-emerald-500/70 tabular-nums">✓{s.existing_jsonl_count}</span>}
+          {s.has_jsonl && (
+            <span className="scenario-button__meta-item tabular-nums text-emerald-500/70">
+              ✓{s.existing_jsonl_count}
+            </span>
+          )}
         </div>
 
         {/* 提示文字 */}
-        {noData && <p className="text-xs text-slate-600 mt-1 leading-tight">需先运行阶段 1 生成 HDF5</p>}
+        {noData && <p className="scenario-button__note text-slate-600">需先运行阶段 1 生成 HDF5</p>}
         {!noData && unregistered && (
-          <p className="text-xs text-amber-600/60 mt-1 leading-tight">未注册元数据，生成可能失败</p>
+          <p className="scenario-button__note text-amber-600/60">未注册元数据，生成可能失败</p>
         )}
       </div>
     </button>

@@ -34,7 +34,7 @@ function RouterScenarioButton({
     <button
       onClick={onClick}
       className={cn(
-        'relative text-left px-3 py-3 rounded-xl border transition-all duration-150 overflow-hidden w-full',
+        'router-scenario-button scenario-button relative w-full overflow-hidden border text-left transition-all duration-150',
         active
           ? 'bg-rose-500/15 border-rose-500/40 shadow-sm shadow-rose-900/20'
           : `${c?.bg ?? 'bg-slate-800/50'} ${c?.border ?? 'border-slate-700/50'} hover:border-opacity-70 cursor-pointer`,
@@ -42,31 +42,30 @@ function RouterScenarioButton({
     >
       {/* 已生成进度底色 */}
       {hasRouter && pct > 0 && !active && (
-        <div className="absolute inset-y-0 left-0 bg-rose-500/8 pointer-events-none" style={{ width: `${pct}%` }} />
+        <div className="scenario-button__progress bg-rose-500/8" style={{ width: `${pct}%` }} />
       )}
-      <div className="relative">
-        <div className="flex items-center justify-between gap-1 mb-1">
-          <span className={cn('font-semibold text-sm truncate', active ? 'text-rose-200' : 'text-slate-100')}>
+      <div className="scenario-button__content">
+        <div className="scenario-button__title-row">
+          <span className={cn('scenario-button__title', active ? 'text-rose-200' : 'text-slate-100')}>
             {item.scenario}
           </span>
           {active && <Check size={14} className="text-rose-400 flex-shrink-0" />}
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="scenario-button__meta">
           <span
-            className={cn(
-              'text-xs flex items-center gap-1',
-              active ? 'text-rose-400/70' : (c?.text ?? 'text-slate-400'),
-            )}
+            className={cn('scenario-button__meta-item', active ? 'text-rose-400/70' : (c?.text ?? 'text-slate-400'))}
           >
             <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', c?.dot ?? 'bg-slate-500')} />
             {SIMULATOR_LABELS[item.simulator] ?? item.simulator}
           </span>
-          <span className="text-xs text-slate-600 tabular-nums flex items-center gap-0.5">
+          <span className="scenario-button__meta-item tabular-nums text-slate-600">
             <Database size={10} />
             {item.source_count.toLocaleString()}
           </span>
           {hasRouter && (
-            <span className="text-xs text-rose-500/70 tabular-nums">✓{(item.router_count ?? 0).toLocaleString()}</span>
+            <span className="scenario-button__meta-item tabular-nums text-rose-500/70">
+              ✓{(item.router_count ?? 0).toLocaleString()}
+            </span>
           )}
         </div>
       </div>

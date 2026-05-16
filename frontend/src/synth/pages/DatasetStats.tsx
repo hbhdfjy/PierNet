@@ -41,7 +41,7 @@ function formatCompact(value: number): string {
 
 function SectionTitle({ title, copy }: { title: string; copy: string }) {
   return (
-    <div>
+    <div className="section-title">
       <div className="training-panel-title">{title}</div>
       <div className="training-panel-copy">{copy}</div>
     </div>
@@ -53,9 +53,7 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
         <span className="training-kpi__label">{label}</span>
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-          {icon}
-        </span>
+        <span className="metric-icon text-sky-300">{icon}</span>
       </div>
       <div className="training-kpi__value">{value}</div>
       <div className="training-kpi__note">{note}</div>
@@ -75,11 +73,9 @@ function SectionBlock({
   children: React.ReactNode
 }) {
   return (
-    <section className="space-y-3">
-      <div className="flex items-start gap-2.5">
-        <div className="mt-0.5 flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/45 bg-slate-900/45 text-slate-300">
-          {icon}
-        </div>
+    <section className="dashboard-section">
+      <div className="dashboard-section__header">
+        <div className="dashboard-section__icon">{icon}</div>
         <SectionTitle title={title} copy={copy} />
       </div>
       {children}
@@ -162,14 +158,14 @@ function PieCard({
   const chartData = entries.map(([name, value]) => ({ name, value }))
 
   return (
-    <div className={cn('training-card overflow-hidden', className)}>
+    <div className={cn('training-card distribution-card overflow-hidden', className)}>
       <div className="card-header">
         <span className="text-slate-400">{icon}</span>
         <SectionTitle title={title} copy={`${entries.length} 项`} />
       </div>
-      <div className="training-card__body">
-        <div className="flex items-center gap-3.5">
-          <div className="relative flex-shrink-0">
+      <div className="training-card__body distribution-card__body">
+        <div className="distribution-card__layout">
+          <div className="distribution-card__chart">
             <ResponsiveContainer width={108} height={108}>
               <PieChart>
                 <Pie
@@ -196,30 +192,28 @@ function PieCard({
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-              <div className="rounded-full bg-slate-950/75 px-3 py-1 text-center backdrop-blur">
+              <div className="distribution-card__total">
                 <div className="font-mono text-sm font-semibold text-white">{formatCompact(total)}</div>
-                <div className="text-[10px] uppercase tracking-[0.16em] text-slate-500">total</div>
+                <div>总计</div>
               </div>
             </div>
           </div>
-          <div className="min-w-0 flex-1 space-y-2.5">
+          <div className="distribution-card__legend">
             {entries.map(([name, value], index) => {
               const pct = ((value / total) * 100).toFixed(0)
               return (
-                <div key={name}>
-                  <div className="mb-1.5 flex items-center gap-2">
+                <div key={name} className="distribution-card__legend-item">
+                  <div className="distribution-card__legend-row">
                     <span
                       className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                       style={{ background: PALETTE[index % PALETTE.length] }}
                     />
-                    <span className="flex-1 truncate text-sm font-medium text-slate-300">
+                    <span className="distribution-card__legend-name">
                       {LANGUAGE_LABELS[name] ?? STYLE_LABELS[name] ?? SIMULATOR_LABELS[name] ?? name}
                     </span>
-                    <span className="flex-shrink-0 font-mono text-sm tabular-nums text-slate-400">
-                      {value.toLocaleString()}
-                    </span>
+                    <span className="distribution-card__legend-value">{value.toLocaleString()}</span>
                   </div>
-                  <div className="ml-4 h-1.5 overflow-hidden rounded-full bg-slate-800/70">
+                  <div className="distribution-card__mini-bar">
                     <div
                       className="h-full rounded-full transition-all duration-500"
                       style={{ width: `${pct}%`, background: PALETTE[index % PALETTE.length] }}
@@ -246,30 +240,25 @@ function ScenarioBar({ data }: { data: Record<string, number> }) {
   const useLog = maxVal / Math.max(minVal, 1) > 100
 
   return (
-    <div className="training-card overflow-hidden">
+    <div className="training-card scenario-bar-card overflow-hidden">
       <div className="card-header">
         <Layers size={16} className="text-slate-400" />
         <SectionTitle title="按场景分布" copy={`${entries.length} 个场景${useLog ? ' / 对数轴' : ''}`} />
       </div>
       <div className="training-card__body">
-        <div className="list-scroll-lg space-y-3 pr-1">
+        <div className="scenario-bar-list list-scroll-lg">
           {entries.map(([name, count], index) => {
             const pct = useLog
               ? (Math.log10(Math.max(count, 1)) / Math.log10(Math.max(maxVal, 1))) * 100
               : (count / maxVal) * 100
             return (
-              <div
-                key={name}
-                className="group rounded-xl border border-slate-800/50 bg-slate-900/20 px-3 py-2.5 transition-colors hover:border-slate-700/60 hover:bg-slate-900/35"
-              >
-                <div className="mb-2 flex items-center gap-3">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-700/40 bg-slate-900/60 font-mono text-[11px] text-slate-500">
-                    {index + 1}
-                  </span>
-                  <span className="flex-1 truncate font-mono text-sm text-slate-300">{name}</span>
-                  <span className="font-mono text-sm tabular-nums text-sky-300">{count.toLocaleString()}</span>
+              <div key={name} className="scenario-bar-item">
+                <div className="scenario-bar-item__row">
+                  <span className="scenario-bar-item__rank">{index + 1}</span>
+                  <span className="scenario-bar-item__name">{name}</span>
+                  <span className="scenario-bar-item__value">{count.toLocaleString()}</span>
                 </div>
-                <div className="relative h-2.5 overflow-hidden rounded-full bg-slate-800/70">
+                <div className="scenario-bar-item__bar">
                   <div
                     className="h-full rounded-full transition-all duration-500"
                     style={{
