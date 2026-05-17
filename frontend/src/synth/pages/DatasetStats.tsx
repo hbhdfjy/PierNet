@@ -1,7 +1,7 @@
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { DashboardSummary } from '../../lib/types'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   RefreshCw,
   Database,
@@ -19,19 +19,6 @@ import { cn } from '../../lib/utils'
 import { formatBytes, LANGUAGE_LABELS, STYLE_LABELS, SIMULATOR_LABELS, getSimulatorBadgeClass } from '../../lib/utils'
 
 const PALETTE = ['#38bdf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#22d3ee', '#fb923c', '#4ade80']
-
-const TOOLTIP_STYLE = {
-  contentStyle: {
-    background: '#0f172a',
-    border: '1px solid rgba(51,65,85,0.7)',
-    borderRadius: 16,
-    fontSize: 13,
-    boxShadow: '0 14px 40px rgba(0,0,0,0.5)',
-    padding: '10px 14px',
-  },
-  labelStyle: { color: '#e2e8f0', fontWeight: 600, marginBottom: 4 },
-  itemStyle: { color: '#94a3b8' },
-}
 
 function formatCompact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`
@@ -182,13 +169,6 @@ function PieCard({
                     <Cell key={index} fill={PALETTE[index % PALETTE.length]} />
                   ))}
                 </Pie>
-                <Tooltip
-                  {...TOOLTIP_STYLE}
-                  formatter={(value: number) => [
-                    `${value.toLocaleString()} (${((value / total) * 100).toFixed(1)}%)`,
-                    '',
-                  ]}
-                />
               </PieChart>
             </ResponsiveContainer>
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -200,7 +180,9 @@ function PieCard({
           </div>
           <div className="distribution-card__legend">
             {entries.map(([name, value], index) => {
-              const pct = ((value / total) * 100).toFixed(0)
+              const pctValue = (value / total) * 100
+              const pct = pctValue.toFixed(0)
+              const pctLabel = `${pctValue.toFixed(pctValue === 100 ? 0 : 1)}%`
               return (
                 <div key={name} className="distribution-card__legend-item">
                   <div className="distribution-card__legend-row">
@@ -211,7 +193,10 @@ function PieCard({
                     <span className="distribution-card__legend-name">
                       {LANGUAGE_LABELS[name] ?? STYLE_LABELS[name] ?? SIMULATOR_LABELS[name] ?? name}
                     </span>
-                    <span className="distribution-card__legend-value">{value.toLocaleString()}</span>
+                    <span className="distribution-card__legend-value">
+                      <span>{value.toLocaleString()}</span>
+                      <span className="distribution-card__legend-pct">{pctLabel}</span>
+                    </span>
                   </div>
                   <div className="distribution-card__mini-bar">
                     <div

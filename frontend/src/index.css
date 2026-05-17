@@ -1312,11 +1312,21 @@
   }
 
   .distribution-card__legend-value {
+    display: inline-flex;
     flex-shrink: 0;
+    align-items: baseline;
+    gap: 0.45rem;
     color: hsl(var(--text-faint));
     font-family: 'IBM Plex Mono', monospace;
     font-size: 0.78rem;
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .distribution-card__legend-pct {
+    color: hsl(var(--text-ghost));
+    font-size: 0.7rem;
+    font-weight: 700;
   }
 
   .distribution-card__mini-bar {
