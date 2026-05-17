@@ -7,7 +7,7 @@ import torch
 
 from piern.training.api.schemas.training import TrainingJobSummary
 from piern.training.services import job_store as training_job_store
-from piern.training.services import training_manager
+from piern.training.services import gpu_inventory, training_manager
 from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 from piern.training.router.train import _prune_epoch_checkpoints
 
@@ -32,7 +32,7 @@ def test_get_gpu_inventory_returns_empty_when_nvidia_smi_is_unavailable(monkeypa
     def _raise(*args, **kwargs):
         raise FileNotFoundError("nvidia-smi")
 
-    monkeypatch.setattr(training_manager.subprocess, "check_output", _raise)
+    monkeypatch.setattr(gpu_inventory.subprocess, "check_output", _raise)
 
     assert training_manager.get_gpu_inventory() == []
 

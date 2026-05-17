@@ -3,12 +3,11 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import math
 import os
 import secrets
 import signal
-import sys
 import subprocess
+import sys
 import time
 import uuid
 from pathlib import Path
@@ -17,7 +16,6 @@ from typing import Any
 
 from piern.training.router.data import inspect_router_input_representation
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
-from piern.shared.storage import portable
 from piern.shared.tasks import locks as task_locks
 from piern.training.services import job_store as training_job_store
 from piern.training.services.checkpoint_store import (
@@ -36,16 +34,16 @@ from piern.training.services.training_cleanup import (
     restore_staged_job_artifacts as _restore_staged_job_artifacts,
     stage_job_artifacts_for_delete as _stage_job_artifacts_for_delete,
 )
+from piern.training.services import gpu_inventory as training_gpu
+from piern.training.services import training_datasets
+from piern.training.services import training_progress
 from piern.training.services.training_runtime import (
     TRAINING_ACTIVE_STATUSES,
     TRAINING_TERMINAL_STATUSES,
     coerce_float as _coerce_float,
     coerce_int as _coerce_int,
     coerce_status as _coerce_status,
-    coerce_training_curve_point as _coerce_training_curve_point,
-    normalize_per_scenario_metrics as _normalize_per_scenario_metrics,
     normalize_training_config as _normalize_training_config,
-    read_json as _read_json,
     tail_lines as _tail_lines,
 )
 
@@ -271,28 +269,6 @@ def _write_stop_request(entry: dict[str, Any]) -> None:
         LOGGER.debug("Failed to chmod stop request %s", stop_file, exc_info=True)
 
 
-def _latest_training_point(run_dir: Path) -> dict[str, Any] | None:
-    log_path = run_dir / "train_log.jsonl"
-    for line in reversed(_tail_lines(log_path, 20)):
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            payload = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        point = _coerce_training_curve_point(payload, include_steps_per_epoch=True)
-        if point is not None:
-            return point
-    return None
-
-
-def _latest_test_metrics(run_dir: Path) -> dict[str, Any] | None:
-    latest = run_dir / "test_metrics_latest.json"
-    return _read_json(latest)
-
-
-
 def _sync_platform_stop_message(entry: dict[str, Any], *, alive: bool) -> None:
     exit_reason = entry.get("exit_reason")
     is_platform_stop = exit_reason in PLATFORM_STOP_EXIT_REASONS or bool(entry.get("stop_requested"))
@@ -321,7 +297,7 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         return entry
     pid = entry.get("pid")
     alive = _pid_alive(pid)
-    latest_point = _latest_training_point(run_dir)
+    latest_point = training_progress.latest_training_point(run_dir)
     if latest_point:
         entry["latest_epoch"] = _coerce_int(latest_point.get("epoch")) or None
         entry["latest_step"] = _coerce_int(latest_point.get("step")) or None
@@ -331,7 +307,7 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         entry["steps_per_sec"] = _coerce_float(latest_point.get("steps_per_sec"))
         entry["eta_seconds"] = _coerce_float(latest_point.get("eta_seconds"))
 
-    latest_metrics = _latest_test_metrics(run_dir)
+    latest_metrics = training_progress.latest_test_metrics(run_dir)
     if latest_metrics:
         entry["latest_test_epoch"] = _coerce_int(latest_metrics.get("epoch")) or None
         overall = latest_metrics.get("overall", {}) if isinstance(latest_metrics.get("overall"), dict) else {}
@@ -433,120 +409,21 @@ def delete_job(job_id: str) -> dict[str, Any]:
     return entry
 
 
-def _dataset_manifest() -> dict[str, Any] | None:
-    if not ROUTER_MANIFEST_PATH.exists():
-        return None
-    try:
-        return json.loads(ROUTER_MANIFEST_PATH.read_text(encoding="utf-8"))
-    except Exception as exc:
-        LOGGER.warning("Failed to read router manifest at %s: %s", ROUTER_MANIFEST_PATH, exc)
-        return None
-
-
-def _merge_router_manifests(primary: dict[str, Any], fallback: dict[str, Any] | None) -> dict[str, Any]:
-    if not fallback:
-        return primary
-    primary_scenarios = {item.get("scenario") for item in primary.get("scenarios", [])}
-    scenarios = [*primary.get("scenarios", [])]
-    scenarios.extend(item for item in fallback.get("scenarios", []) if item.get("scenario") not in primary_scenarios)
-    total = sum(int(item.get("router_count") or 0) for item in scenarios)
-    return {
-        **primary,
-        "storage": "mixed"
-        if len(scenarios) != len(primary.get("scenarios", []))
-        else primary.get("storage", "parquet"),
-        "total": total,
-        "scenarios": sorted(scenarios, key=lambda item: item.get("scenario", "")),
-    }
-
-
 def list_datasets() -> list[dict[str, Any]]:
-    parquet_manifest = portable.router_manifest_like() if ROUTER_MANIFEST_PATH == DEFAULT_ROUTER_MANIFEST_PATH else None
-    jsonl_manifest = _dataset_manifest()
-    manifest = _merge_router_manifests(parquet_manifest, jsonl_manifest) if parquet_manifest else jsonl_manifest
-    if not manifest:
-        return []
-    grouped: dict[str, dict[str, Any]] = {}
-    for scenario in manifest.get("scenarios", []):
-        simulator = scenario["simulator"]
-        bucket = grouped.setdefault(simulator, {"simulator": simulator, "total_count": 0, "scenarios": []})
-        bucket["total_count"] += int(scenario["router_count"])
-        bucket["scenarios"].append(scenario)
-    for bucket in grouped.values():
-        bucket["scenarios"].sort(key=lambda item: item["scenario"])
-    return sorted(grouped.values(), key=lambda item: item["simulator"])
+    return training_datasets.list_datasets(
+        router_manifest_path=ROUTER_MANIFEST_PATH,
+        default_router_manifest_path=DEFAULT_ROUTER_MANIFEST_PATH,
+    )
 
 
 def get_gpu_inventory() -> list[dict[str, Any]]:
-    try:
-        raw_output = subprocess.check_output(
-            [
-                "nvidia-smi",
-                "--query-gpu=index,name,memory.used,memory.total,utilization.gpu",
-                "--format=csv,noheader,nounits",
-            ],
-            stderr=subprocess.DEVNULL,
-            text=True,
-            timeout=5,
-        )
-    except (FileNotFoundError, OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired) as exc:
-        LOGGER.info("nvidia-smi unavailable; returning no visible GPUs: %s", exc)
-        return []
-
-    rows = [line.strip() for line in raw_output.splitlines() if line.strip()]
-    jobs = list_jobs(refresh=True)
-    locked: dict[int, str] = {}
-    for job in jobs:
-        if job.get("status") == "queued" or job.get("status") not in TRAINING_ACTIVE_STATUSES:
-            continue
-        try:
-            index = int(job.get("gpu_id"))
-        except (TypeError, ValueError):
-            continue
-        if index >= 0:
-            locked[index] = str(job.get("job_id"))
-    for lock in task_locks.list_locks(prefix="gpu:"):
-        try:
-            index = int(str(lock["lock_key"]).split(":", 1)[1])
-        except (IndexError, ValueError):
-            continue
-        locked.setdefault(index, str(lock["owner"]))
-    gpus: list[dict[str, Any]] = []
-    for row in rows:
-        parts = [part.strip() for part in row.split(",", maxsplit=4)]
-        if len(parts) != 5:
-            LOGGER.warning("Skipping malformed nvidia-smi row: %s", row)
-            continue
-        idx_s, name, mem_used_s, mem_total_s, util_s = parts
-        index = int(idx_s)
-        memory_used = int(mem_used_s)
-        memory_total = int(mem_total_s)
-        utilization = int(util_s)
-        available = True
-        reason = None
-        locked_by_job_id = locked.get(index)
-        if locked_by_job_id:
-            available = False
-            reason = f"locked by {locked_by_job_id}"
-        elif (memory_total - memory_used) < GPU_FREE_MEMORY_THRESHOLD_MIB:
-            available = False
-            reason = "memory busy"
-        elif utilization >= GPU_AVAILABLE_UTIL_THRESHOLD:
-            available = False
-            reason = "utilization busy"
-        gpus.append(
-            {
-                "index": index,
-                "name": name,
-                "memory_used_mib": memory_used,
-                "memory_total_mib": memory_total,
-                "utilization_gpu": utilization,
-                "available": available,
-                "locked_by_job_id": locked_by_job_id,
-                "reason": reason,
-            }
-        )
-    return gpus
+    return training_gpu.build_gpu_inventory(
+        jobs=list_jobs(refresh=True),
+        lock_rows=task_locks.list_locks(prefix="gpu:"),
+        active_statuses=TRAINING_ACTIVE_STATUSES,
+        free_memory_threshold_mib=GPU_FREE_MEMORY_THRESHOLD_MIB,
+        utilization_threshold=GPU_AVAILABLE_UTIL_THRESHOLD,
+    )
 
 
 def get_overview() -> dict[str, Any]:
@@ -1087,67 +964,6 @@ def get_job_logs(job_id: str, limit: int = 300) -> list[str]:
     return _tail_lines(Path(entry["log_path"]), limit=limit)
 
 
-def _downsample(points: list[dict[str, Any]], max_points: int) -> list[dict[str, Any]]:
-    if len(points) <= max_points:
-        return points
-    stride = math.ceil(len(points) / max_points)
-    sampled = [points[idx] for idx in range(0, len(points), stride)]
-    if sampled[-1] != points[-1]:
-        sampled.append(points[-1])
-    return sampled
-
-
 def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
     entry = get_job(job_id, refresh=True)
-    run_dir = Path(entry["run_dir"])
-    training_points: list[dict[str, Any]] = []
-    train_log_path = run_dir / "train_log.jsonl"
-    if train_log_path.exists():
-        try:
-            with train_log_path.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    try:
-                        payload = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-                    point = _coerce_training_curve_point(payload)
-                    if point is not None:
-                        training_points.append(point)
-        except OSError:
-            pass
-    epoch_points_map: dict[int, dict[str, Any]] = {}
-    for point in training_points:
-        epoch_points_map[int(point["epoch"])] = point
-    training_epoch_points = [epoch_points_map[epoch] for epoch in sorted(epoch_points_map)]
-
-    test_points: list[dict[str, Any]] = []
-    for path in sorted(run_dir.glob("test_metrics_epoch_*.json")):
-        payload = _read_json(path)
-        if not payload:
-            continue
-        epoch = _coerce_int(payload.get("epoch"))
-        if epoch is None:
-            continue
-        overall = payload.get("overall", {}) if isinstance(payload.get("overall"), dict) else {}
-        test_points.append(
-            {
-                "epoch": epoch,
-                "accuracy": _coerce_float(overall.get("accuracy"), 0.0) or 0.0,
-                "precision": _coerce_float(overall.get("precision"), 0.0) or 0.0,
-                "recall": _coerce_float(overall.get("recall"), 0.0) or 0.0,
-                "f1": _coerce_float(overall.get("f1"), 0.0) or 0.0,
-                "pr_auc": _coerce_float(overall.get("pr_auc"), 0.0) or 0.0,
-                "per_scenario": _normalize_per_scenario_metrics(payload.get("per_scenario")),
-            }
-        )
-
-    return {
-        "job_id": job_id,
-        "training_points": _downsample(training_points, max_points=max_points),
-        "training_epoch_points": _downsample(training_epoch_points, max_points=max_points),
-        "test_points": _downsample(test_points, max_points=max_points),
-        "checkpoints": _checkpoint_entries(run_dir),
-    }
+    return training_progress.build_curves(job_id=job_id, run_dir=Path(entry["run_dir"]), max_points=max_points)

@@ -55,6 +55,18 @@ PiERN 当前已经从科研脚本集合重构为一个准工业化的模块化�
 
 仍需继续推进但不阻塞当前单机工业化使用的事项：PostgreSQL/Redis 级分布式队列、多用户 RBAC、对象存储、模型注册表、完整 Prometheus 指标、训练/合成最小闭环 nightly。
 
+### 1.4 2026-05-17 后端模块化收尾记录
+
+本轮继续收敛训练后端大文件职责：
+
+1. GPU 探测和可用性判断拆分到 `training/services/gpu_inventory.py`。
+2. Router manifest 读取、合并和训练数据集分组拆分到 `training/services/training_datasets.py`。
+3. 训练日志、最新测试指标、曲线降采样和 checkpoint 曲线输出拆分到 `training/services/training_progress.py`。
+4. `training_manager.py` 保留任务编排、队列入口、训练启动、停止和删除协调职责，文件规模从 1153 行降到约 969 行。
+5. 新增对应单元测试，后端测试规模从 67 个增加到 72 个。
+
+剩余模块化工作不再属于阻塞项，后续可按维护需要继续拆分训练启动命令构造、payload 校验和 stop/cleanup 协调逻辑。
+
 ## 2. 当前已完成的工业化基线
 
 ### 2.1 架构分层
