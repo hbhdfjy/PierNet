@@ -419,12 +419,12 @@ export default function TrainingJobDetailPage() {
                   </div>
                 </section>
 
-                <section className="training-card min-h-0">
+                <section className="training-card training-checkpoint-card min-h-0">
                   <div className="card-header">
                     <Save size={16} className="text-emerald-300" />
                     <SectionTitle title="权重文件" copy="已保存的模型权重" />
                   </div>
-                  <div className="training-card__body training-scroll list-scroll-lg">
+                  <div className="training-card__body training-scroll training-checkpoint-scroll">
                     <CheckpointList checkpoints={curves?.checkpoints ?? job.checkpoints} />
                   </div>
                 </section>
@@ -634,7 +634,7 @@ export default function TrainingJobDetailPage() {
                         <MetaField label="最近 step" value={job.latest_step ?? '—'} mono />
                       </div>
                     </div>
-                    <div className="min-w-0 rounded-xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
+                    <div className="training-log-panel min-w-0 rounded-xl border border-slate-700/40 bg-slate-950/72 p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.02)]">
                       <div className="mb-3 flex min-w-0 items-center justify-between gap-3">
                         <div className="min-w-0 flex-shrink-0">
                           <div className="training-panel-title whitespace-nowrap">终端输出</div>
@@ -647,7 +647,7 @@ export default function TrainingJobDetailPage() {
                           {job.log_path}
                         </div>
                       </div>
-                      <pre className="list-scroll-xl min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
+                      <pre className="training-log-pre list-scroll-xl min-w-0 whitespace-pre-wrap break-words [overflow-wrap:anywhere] rounded-xl border border-slate-800/70 bg-slate-950/65 px-3 py-2.5 text-[12px] leading-5 text-slate-300">
                         {(logs?.lines ?? []).join('\n') || '暂无日志输出。'}
                       </pre>
                     </div>

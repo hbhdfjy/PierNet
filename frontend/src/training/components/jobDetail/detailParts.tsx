@@ -321,9 +321,9 @@ export function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpoin
   }
 
   return (
-    <div className="space-y-3">
+    <div className="checkpoint-list">
       {checkpoints.map(item => (
-        <div key={item.path} className="training-surface--dense">
+        <div key={item.path} className="checkpoint-card training-surface--dense">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <div className="mono truncate text-[14px] font-semibold text-slate-100">{item.name}</div>
@@ -335,7 +335,7 @@ export function CheckpointList({ checkpoints }: { checkpoints: TrainingCheckpoin
               <Save size={14} />
             </span>
           </div>
-          <div className="mt-3 grid grid-cols-3 gap-2 text-[12px] text-slate-400">
+          <div className="checkpoint-card__meta mt-2 grid gap-2 text-[12px] text-slate-400">
             <MetaField label="轮次" value={item.epoch ?? '—'} />
             <MetaField label="大小" value={formatBytes(item.size_bytes)} />
             <MetaField label="时间" value={formatDateTime(item.mtime)} />

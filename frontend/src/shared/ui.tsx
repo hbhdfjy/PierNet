@@ -29,11 +29,7 @@ export function MetricTile({
     <div className="training-kpi">
       <div className="flex items-start justify-between gap-3">
         <span className="training-kpi__label">{label}</span>
-        {icon && (
-          <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-            {icon}
-          </span>
-        )}
+        {icon && <span className="training-kpi__icon">{icon}</span>}
       </div>
       <div className="training-kpi__value">{value}</div>
       {note && <div className="training-kpi__note">{note}</div>}

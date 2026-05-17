@@ -21,9 +21,7 @@ function KpiCard({ label, value, note, icon }: { label: string; value: string; n
           <span className="training-kpi__label">{label}</span>
           <div className="training-kpi__value">{value}</div>
         </div>
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-slate-700/40 bg-slate-900/35 text-sky-300">
-          {icon}
-        </span>
+        <span className="training-kpi__icon">{icon}</span>
       </div>
       <div className="training-kpi__note">{note}</div>
     </div>
