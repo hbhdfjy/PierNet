@@ -639,8 +639,8 @@ def main() -> int:
     parser.add_argument(
         "--style",
         choices=("polished", "patent"),
-        default="polished",
-        help="附图样式：polished 为审稿美观版，patent 为黑白线框专利化版本。",
+        default="patent",
+        help="附图样式：patent 为黑白线框专利化版本，polished 为可选审稿美观版。",
     )
     parser.add_argument(
         "--output-dir",

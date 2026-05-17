@@ -147,23 +147,23 @@ S5，根据所述语言样本构造路由训练数据，所述路由训练数据
 
 图 1 为本发明实施例提供的数据合成平台总体架构图。
 
-![图 1 数据合成平台总体架构图](figures/data_synthesis_fig1.png)
+![图 1 数据合成平台总体架构图](figures_patent/data_synthesis_fig1.png)
 
 图 2 为本发明实施例提供的四阶段数据合成流水线流程图。
 
-![图 2 四阶段数据合成流水线流程图](figures/data_synthesis_fig2.png)
+![图 2 四阶段数据合成流水线流程图](figures_patent/data_synthesis_fig2.png)
 
 图 3 为本发明实施例提供的无数值语言模板与本地数值填充之间的映射关系图。
 
-![图 3 无数值语言模板与本地数值填充之间的映射关系图](figures/data_synthesis_fig3.png)
+![图 3 无数值语言模板与本地数值填充之间的映射关系图](figures_patent/data_synthesis_fig3.png)
 
 图 4 为本发明实施例提供的路由正负样本构建示意图。
 
-![图 4 路由正负样本构建示意图](figures/data_synthesis_fig4.png)
+![图 4 路由正负样本构建示意图](figures_patent/data_synthesis_fig4.png)
 
 图 5 为本发明实施例提供的任务进度、文件保护和派生数据存储关系图。
 
-![图 5 任务进度、文件保护和派生数据存储关系图](figures/data_synthesis_fig5.png)
+![图 5 任务进度、文件保护和派生数据存储关系图](figures_patent/data_synthesis_fig5.png)
 
 ### 具体实施方式
 

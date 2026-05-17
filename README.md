@@ -14,8 +14,7 @@ PiERN 是一个面向物理与工程时序数据的双平台系统，当前由�
 - `README.md`：安装、启动、快速命令和运行约定。
 - `PROJECT_OVERVIEW.md`：系统边界、架构和数据契约。
 - `CLAUDE.md`：开发者和编码 Agent 的实现注意事项。
-- `docs/INDUSTRIALIZATION_PLAN.md`：工业化升级总计划。
-- `docs/INDUSTRIALIZATION_EXECUTION_PLAN.md`：工业化事项执行清单。
+- `docs/INDUSTRIALIZATION_PLAN.md`：工业化升级总计划和执行记录。
 - `docs/MIGRATION.md`：服务器迁移、便携式数据边界和恢复流程。
 - `docs/patents/README.md`：专利 Markdown、附图和 Word 生成说明。
 

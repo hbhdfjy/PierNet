@@ -164,23 +164,23 @@ S7，根据所述权重保留数量保存和清理训练检查点，并在恢复
 
 图 1 为本发明实施例提供的自动训练平台总体架构图。
 
-![图 1 自动训练平台总体架构图](figures/auto_training_fig1.png)
+![图 1 自动训练平台总体架构图](figures_patent/auto_training_fig1.png)
 
 图 2 为本发明实施例提供的训练任务创建与图形处理器锁定流程图。
 
-![图 2 训练任务创建与图形处理器锁定流程图](figures/auto_training_fig2.png)
+![图 2 训练任务创建与图形处理器锁定流程图](figures_patent/auto_training_fig2.png)
 
 图 3 为本发明实施例提供的路由训练数据到预处理缓存的构建流程图。
 
-![图 3 路由训练数据到预处理缓存的构建流程图](figures/auto_training_fig3.png)
+![图 3 路由训练数据到预处理缓存的构建流程图](figures_patent/auto_training_fig3.png)
 
 图 4 为本发明实施例提供的训练状态多源推断流程图。
 
-![图 4 训练状态多源推断流程图](figures/auto_training_fig4.png)
+![图 4 训练状态多源推断流程图](figures_patent/auto_training_fig4.png)
 
 图 5 为本发明实施例提供的检查点保存、清理、删除和恢复训练关系图。
 
-![图 5 检查点保存、清理、删除和恢复训练关系图](figures/auto_training_fig5.png)
+![图 5 检查点保存、清理、删除和恢复训练关系图](figures_patent/auto_training_fig5.png)
 
 ### 具体实施方式
 
