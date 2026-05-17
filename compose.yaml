@@ -13,8 +13,10 @@ x-piern-common: &piern-common
     PIERN_TRAINING_JOB_STORE_PATH: /app/.runlogs/training_jobs.sqlite
     PIERN_LOCK_STORE_PATH: /app/.runlogs/job_locks.sqlite
     PIERN_AUDIT_STORE_PATH: /app/.runlogs/audit_events.sqlite
+    PIERN_WORKER_STORE_PATH: /app/.runlogs/worker_heartbeats.sqlite
     PIERN_ROUTER_JSONL_CACHE_DIR: /app/data/router/.parquet_jsonl_cache
     PIERN_WORKER_QUEUE_SYNTH: "${PIERN_WORKER_QUEUE_SYNTH:-1}"
+    PIERN_WORKER_QUEUE_TRAINING: "${PIERN_WORKER_QUEUE_TRAINING:-1}"
     PIERN_WORKER_QUEUE_LOCK_TTL_SECONDS: "${PIERN_WORKER_QUEUE_LOCK_TTL_SECONDS:-60}"
     PIERN_SERVICE_RUN_DIR: /app/.runlogs/services
     PIERN_PYTHON: /usr/local/bin/python

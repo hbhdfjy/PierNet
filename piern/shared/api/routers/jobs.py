@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from piern.shared.audit import store as audit_store
+from piern.shared.tasks import workers as worker_registry
 from piern.shared.tasks.state import normalize_status
 from piern.synth.services import job_manager as synth_jobs
 from piern.synth.services import job_store as synth_job_store
@@ -49,6 +50,27 @@ class UnifiedJobLogResponse(BaseModel):
     job_id: str
     platform: str
     lines: list[str]
+
+
+class WorkerSummary(BaseModel):
+    worker_id: str
+    kind: str
+    host: str
+    pid: int
+    started_at: float
+    heartbeat_at: float
+    heartbeat_age_seconds: float
+    status: str
+    current_job_id: str | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkerListResponse(BaseModel):
+    items: list[WorkerSummary]
+
+
+class AuditEventListResponse(BaseModel):
+    items: list[dict[str, Any]]
 
 
 def _synth_summary(stored: dict[str, Any]) -> UnifiedJobSummary:
@@ -143,7 +165,12 @@ def list_unified_jobs(
     return items[:limit]
 
 
-@router.get("/audit/events")
+@router.get("/workers", response_model=WorkerListResponse)
+def list_workers():
+    return {"items": worker_registry.list_workers()}
+
+
+@router.get("/audit/events", response_model=AuditEventListResponse)
 def list_audit_events(limit: int = Query(200, ge=1, le=1000), action: str | None = None, target: str | None = None):
     return {"items": audit_store.list_events(limit=limit, action=action, target=target)}
 

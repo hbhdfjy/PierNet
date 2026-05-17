@@ -61,6 +61,7 @@ ROUTER_DATA_DIR = DATA_ROOT / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
 GPU_LOCK_TTL_SECONDS = float(os.getenv("PIERN_GPU_LOCK_TTL_SECONDS", str(7 * 24 * 3600)))
+TRAINING_QUEUE_DEFAULT_PRIORITY = int(os.getenv("PIERN_TRAINING_QUEUE_DEFAULT_PRIORITY", "100"))
 TRAINING_STOP_GRACE_SECONDS = 45.0
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
@@ -316,6 +317,8 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         return entry
     run_dir = Path(run_dir_str)
     log_path = Path(log_path_str)
+    if entry.get("status") == "queued":
+        return entry
     pid = entry.get("pid")
     alive = _pid_alive(pid)
     latest_point = _latest_training_point(run_dir)
@@ -494,7 +497,7 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
     jobs = list_jobs(refresh=True)
     locked: dict[int, str] = {}
     for job in jobs:
-        if job.get("status") not in TRAINING_ACTIVE_STATUSES:
+        if job.get("status") == "queued" or job.get("status") not in TRAINING_ACTIVE_STATUSES:
             continue
         try:
             index = int(job.get("gpu_id"))
@@ -572,14 +575,15 @@ def _validate_scenarios(simulator: str, scenarios: list[str]) -> list[str]:
     return sorted(scenarios)
 
 
-def create_job(payload: dict[str, Any]) -> dict[str, Any]:
+def _training_queue_enabled() -> bool:
+    return os.getenv("PIERN_WORKER_QUEUE_TRAINING", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
     gpu_id = int(payload["gpu_id"])
     gpu_map = {gpu["index"]: gpu for gpu in get_gpu_inventory()}
-    gpu = gpu_map.get(gpu_id)
-    if gpu is None:
+    if gpu_id not in gpu_map:
         raise ValueError(f"GPU {gpu_id} not found")
-    if not gpu["available"]:
-        raise ValueError(f"GPU {gpu_id} is not available: {gpu['reason']}")
 
     simulator = str(payload["simulator"])
     scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
@@ -590,8 +594,178 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         scenarios=scenarios,
         input_representation=requested_input_representation,
     )
-    artifact_root = ARTIFACTS_ROOT / simulator
     job_id = _make_job_id()
+    job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
+    created_at = time.time()
+    artifact_root = ARTIFACTS_ROOT / simulator
+    run_dir = artifact_root / "runs" / job_id
+    log_path = RUNLOGS_ROOT / f"{job_id}.log"
+    stop_file = _stop_file_for_job(job_id)
+    keep_last_epochs = max(0, int(payload.get("keep_last_epochs", 5)))
+    seed_value = payload.get("seed", 42)
+    seed = max(0, int(seed_value if seed_value is not None else 42))
+    num_workers = max(0, int(payload["num_workers"]))
+    prepare_workers = payload.get("prepare_workers")
+    prepare_workers = num_workers if prepare_workers is None else max(0, int(prepare_workers))
+    test_ratio = float(payload["test_ratio"])
+    max_train_samples = payload.get("max_train_samples")
+    max_test_samples = payload.get("max_test_samples")
+    max_train_samples = int(max_train_samples) if max_train_samples is not None else None
+    max_test_samples = int(max_test_samples) if max_test_samples is not None else None
+    resume_from = payload.get("resume_from") or None
+    if resume_from:
+        _validate_resume_checkpoint(
+            resume_from=str(resume_from),
+            simulator=simulator,
+            scenarios=scenarios,
+            test_ratio=test_ratio,
+            input_representation=resolved_input_representation,
+            embedding_model=embedding_metadata.embedding_model,
+            embedding_tokenizer=embedding_metadata.tokenizer_name,
+        )
+    prepared_name = _hash_prepared_name(
+        simulator,
+        scenarios,
+        test_ratio,
+        input_representation=resolved_input_representation,
+        embedding_model=embedding_metadata.embedding_model,
+        embedding_tokenizer=embedding_metadata.tokenizer_name,
+    )
+    return {
+        "job_id": job_id,
+        "name": job_name,
+        "status": "queued",
+        "simulator": simulator,
+        "scenarios": scenarios,
+        "gpu_id": gpu_id,
+        "created_at": created_at,
+        "started_at": None,
+        "ended_at": None,
+        "pid": None,
+        "artifact_root": str(artifact_root),
+        "run_dir": str(run_dir),
+        "log_path": str(log_path),
+        "stop_file": str(stop_file),
+        "stop_token": _make_stop_token(),
+        "config": {
+            "epochs": int(payload["epochs"]),
+            "eval_interval": int(payload["eval_interval"]),
+            "keep_last_epochs": keep_last_epochs,
+            "seed": seed,
+            "batch_size": int(payload["batch_size"]),
+            "test_batch_size": int(payload["test_batch_size"]),
+            "learning_rate": float(payload["learning_rate"]),
+            "weight_decay": float(payload["weight_decay"]),
+            "num_workers": num_workers,
+            "prepare_workers": prepare_workers,
+            "test_ratio": test_ratio,
+            "max_train_samples": max_train_samples,
+            "max_test_samples": max_test_samples,
+            "resume_from": resume_from,
+            "input_representation": resolved_input_representation,
+            "embedding_model": embedding_metadata.embedding_model,
+            "embedding_tokenizer": embedding_metadata.tokenizer_name,
+        },
+        "command": [],
+        "prepared_name": prepared_name,
+        "terminated": False,
+        "stop_requested": False,
+        "stop_requested_at": None,
+        "stop_signal_sent_at": None,
+        "stop_force_kill_after": None,
+        "forced_kill": False,
+        "exit_reason": None,
+        "latest_epoch": None,
+        "latest_step": None,
+        "steps_per_epoch": None,
+        "global_step": None,
+        "avg_loss": None,
+        "steps_per_sec": None,
+        "eta_seconds": None,
+        "latest_test_epoch": None,
+        "latest_metrics": None,
+        "error_message": None,
+        "checkpoints": [],
+        "queue_priority": int(payload.get("queue_priority") or TRAINING_QUEUE_DEFAULT_PRIORITY),
+        "queued_at": created_at,
+    }
+
+
+def queue_job(payload: dict[str, Any]) -> dict[str, Any]:
+    entry = _queued_training_entry(payload)
+    _append_launch_log(
+        Path(entry["log_path"]),
+        f"[queue] job_id={entry['job_id']} name={entry['name']} queued_at={entry['queued_at']:.3f}",
+        f"[queue] simulator={entry['simulator']} scenarios={','.join(entry['scenarios'])} gpu={entry['gpu_id']}",
+        "[queue] waiting for piern-worker to launch training subprocess...",
+    )
+    with _REGISTRY_LOCK:
+        entries = _load_registry()
+        entries.append(entry)
+        _save_registry(entries)
+    return entry
+
+
+def create_job(payload: dict[str, Any]) -> dict[str, Any]:
+    if _training_queue_enabled():
+        return queue_job(payload)
+    return _launch_job(payload)
+
+
+def _payload_from_queued_entry(entry: dict[str, Any]) -> dict[str, Any]:
+    config = dict(entry.get("config") or {})
+    payload = {
+        **config,
+        "name": entry.get("name"),
+        "simulator": entry.get("simulator"),
+        "scenarios": entry.get("scenarios") or [],
+        "gpu_id": entry.get("gpu_id"),
+        "_job_id": entry.get("job_id"),
+        "_created_at": entry.get("created_at"),
+    }
+    if config.get("resume_from") is None:
+        payload.pop("resume_from", None)
+    return payload
+
+
+def run_queued_job(job_id: str) -> dict[str, Any] | None:
+    with _REGISTRY_LOCK:
+        entries = _load_registry()
+        entry = _find_job(entries, job_id)
+        if entry.get("status") != "queued":
+            return None
+        payload = _payload_from_queued_entry(entry)
+    return _launch_job(payload)
+
+
+def mark_queued_job_error(job_id: str, message: str) -> None:
+    with _REGISTRY_LOCK:
+        entries = _load_registry()
+        entry = _find_job(entries, job_id)
+        entry["status"] = "error"
+        entry["ended_at"] = time.time()
+        entry["error_message"] = message
+        _append_launch_log(Path(entry["log_path"]), f"[error] queued training launch failed: {message}")
+        _save_registry(entries)
+
+
+def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
+    gpu_id = int(payload["gpu_id"])
+    gpu_map = {gpu["index"]: gpu for gpu in get_gpu_inventory()}
+    gpu = gpu_map.get(gpu_id)
+    if gpu is None:
+        raise ValueError(f"GPU {gpu_id} not found")
+    simulator = str(payload["simulator"])
+    scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
+    requested_input_representation = "embedding"
+    resolved_input_representation, embedding_metadata = inspect_router_input_representation(
+        simulator=simulator,
+        router_dir=ROUTER_DATA_DIR,
+        scenarios=scenarios,
+        input_representation=requested_input_representation,
+    )
+    artifact_root = ARTIFACTS_ROOT / simulator
+    job_id = str(payload.get("_job_id") or _make_job_id())
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
     stop_token = _make_stop_token()
     stop_file = _stop_file_for_job(job_id)
@@ -683,7 +857,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         current_gpu = current_gpu_map.get(gpu_id)
         if current_gpu is None:
             raise ValueError(f"GPU {gpu_id} not found")
-        if not current_gpu["available"]:
+        if not current_gpu["available"] and current_gpu.get("locked_by_job_id") != job_id:
             raise ValueError(f"GPU {gpu_id} is not available: {current_gpu['reason']}")
         gpu_lock_key = f"gpu:{gpu_id}"
         if not task_locks.acquire_lock(
@@ -750,7 +924,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "simulator": simulator,
                 "scenarios": scenarios,
                 "gpu_id": gpu_id,
-                "created_at": time.time(),
+                "created_at": _coerce_float(payload.get("_created_at"), time.time()) or time.time(),
                 "started_at": time.time(),
                 "ended_at": None,
                 "pid": process.pid,
@@ -799,6 +973,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "error_message": None,
                 "checkpoints": [],
             }
+            entries = [item for item in entries if item["job_id"] != job_id]
             entries.append(entry)
             _save_registry(entries)
             lock_committed = True

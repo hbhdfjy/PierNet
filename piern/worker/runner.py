@@ -7,8 +7,9 @@ import logging
 import signal
 import time
 
-from piern.shared.tasks import locks
-from piern.synth.services import worker_queue
+from piern.shared.tasks import locks, workers
+from piern.synth.services import worker_queue as synth_worker_queue
+from piern.training.services import worker_queue as training_worker_queue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -23,15 +24,21 @@ def run(*, interval: float = 10.0, once: bool = False) -> int:
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
-    LOGGER.info("PiERN worker started interval=%s once=%s", interval, once)
+    worker_id = workers.default_worker_id()
+    workers.upsert_worker(worker_id=worker_id, kind="piern-worker", status="running")
+    LOGGER.info("PiERN worker started worker_id=%s interval=%s once=%s", worker_id, interval, once)
     while not stopping:
         expired = locks.cleanup_expired()
         if expired:
             LOGGER.info("expired %s stale task lock(s)", expired)
-        ran_job = worker_queue.run_next_queued_job()
+        workers.upsert_worker(worker_id=worker_id, kind="piern-worker", status="running")
+        ran_job = synth_worker_queue.run_next_queued_job()
+        if not ran_job:
+            ran_job = training_worker_queue.run_next_queued_job(worker_id=worker_id)
         if once:
             break
         time.sleep(1.0 if ran_job else max(1.0, interval))
+    workers.mark_worker_stopped(worker_id)
     LOGGER.info("PiERN worker stopped")
     return 0
 

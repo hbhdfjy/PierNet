@@ -64,6 +64,7 @@ class RuntimeConfig:
     router_jsonl_cache_dir: Path
     lock_store_path: Path
     audit_store_path: Path
+    worker_store_path: Path
     auth_enabled: bool
     host: str
     backend_port: int
@@ -97,6 +98,7 @@ class RuntimeConfig:
             "router_jsonl_cache_dir": str(self.router_jsonl_cache_dir),
             "lock_store_path": str(self.lock_store_path),
             "audit_store_path": str(self.audit_store_path),
+            "worker_store_path": str(self.worker_store_path),
             "auth_enabled": self.auth_enabled,
             "host": self.host,
             "backend_port": self.backend_port,
@@ -173,6 +175,7 @@ def load_runtime_config() -> RuntimeConfig:
         ),
         lock_store_path=_env_path("PIERN_LOCK_STORE_PATH", runlog_root / "job_locks.sqlite"),
         audit_store_path=_env_path("PIERN_AUDIT_STORE_PATH", runlog_root / "audit_events.sqlite"),
+        worker_store_path=_env_path("PIERN_WORKER_STORE_PATH", runlog_root / "worker_heartbeats.sqlite"),
         auth_enabled=bool(_env("PIERN_AUTH_TOKEN")),
         host=_env("PIERN_HOST", _env("PIERN_SERVICE_HOST", "0.0.0.0")) or "0.0.0.0",
         backend_port=backend_port,
@@ -240,6 +243,7 @@ def validate_runtime_config(config: Optional[RuntimeConfig] = None) -> ConfigVal
     _check_parent_writable(errors, cfg.training_job_store_path, "PIERN_TRAINING_JOB_STORE_PATH")
     _check_parent_writable(errors, cfg.lock_store_path, "PIERN_LOCK_STORE_PATH")
     _check_parent_writable(errors, cfg.audit_store_path, "PIERN_AUDIT_STORE_PATH")
+    _check_parent_writable(errors, cfg.worker_store_path, "PIERN_WORKER_STORE_PATH")
     _check_writable_dir(errors, cfg.router_jsonl_cache_dir, "PIERN_ROUTER_JSONL_CACHE_DIR")
     _check_writable_dir(errors, cfg.service_run_dir, "PIERN_SERVICE_RUN_DIR")
     _check_port(errors, cfg.backend_port, "PIERN_BACKEND_PORT")

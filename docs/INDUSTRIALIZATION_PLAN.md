@@ -40,7 +40,20 @@ PiERN 当前已经从科研脚本集合重构为一个准工业化的模块化�
 6. 数据完整性：新增源模板和原始 HDF5 checksum 校验脚本。
 7. 生产部署：新增生产静态启动脚本、Dockerfile、Compose 示例和 Nginx 反代示例。
 
-仍未完成、不能假装完成的事项：完整异步任务队列、统一跨平台 `/api/jobs`、审计事件表、前端截图回归强制门禁、训练管理器继续拆分、mypy 严格化和 secret 扫描。
+仍未完成、不能假装完成的事项：分布式队列、PostgreSQL/Alembic 迁移、模型注册表、对象存储、多用户 RBAC、完整指标告警、mypy 严格化和 nightly 级最小闭环。
+
+### 1.3 2026-05-17 P1/P2 深化落地记录
+
+本轮继续完成了计划中若干原本标记为未完成的事项：
+
+1. 统一跨平台 `/api/jobs` 已落地，并新增 `/api/jobs/workers`、`/api/jobs/audit/events`、`/api/storage/integrity`。
+2. 合成、样本填充、Router 构建已通过 `piern-worker` 执行 queued 任务。
+3. 训练任务默认进入 worker 队列，由 `piern-worker` 领取后启动训练子进程；Web API 不再默认直接拉起训练。
+4. 新增 worker heartbeat registry，用于识别 worker running/stale/stopped 状态。
+5. 审计事件、数据完整性 API、Compose worker 服务和 visual Playwright 回归已接入。
+6. `training_manager.py` 已开始拆分，训练清理逻辑迁移到 `training_cleanup.py`，训练队列执行迁移到 `training/services/worker_queue.py`。
+
+仍需继续推进但不阻塞当前单机工业化使用的事项：PostgreSQL/Redis 级分布式队列、多用户 RBAC、对象存储、模型注册表、完整 Prometheus 指标、训练/合成最小闭环 nightly。
 
 ## 2. 当前已完成的工业化基线
 
@@ -113,7 +126,7 @@ PiERN 当前已经从科研脚本集合重构为一个准工业化的模块化�
 评价：
 
 - 已解决“任务只存在内存里”的核心风险。
-- 仍然不是完整工业 worker 架构，因为 Web API 进程仍直接管理子进程。
+- 单机 worker 架构已经落地；距离分布式 worker 还缺独立队列服务、worker 心跳调度策略和跨机器资源治理。
 
 ### 2.5 数据和迁移策略
 

@@ -110,3 +110,8 @@ jobs:
         env:
           PIERN_E2E_START_SERVER: '1'
         run: npm run e2e:smoke
+
+      - name: Playwright visual
+        env:
+          PIERN_E2E_START_SERVER: '1'
+        run: npm run e2e:visual

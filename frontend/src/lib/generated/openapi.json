@@ -1,6 +1,23 @@
 {
   "components": {
     "schemas": {
+      "AuditEventListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "AuditEventListResponse",
+        "type": "object"
+      },
       "BatchSimulateRequest": {
         "properties": {
           "max_workers": {
@@ -2158,6 +2175,86 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "WorkerListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/WorkerSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "WorkerListResponse",
+        "type": "object"
+      },
+      "WorkerSummary": {
+        "properties": {
+          "current_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Job Id"
+          },
+          "heartbeat_age_seconds": {
+            "title": "Heartbeat Age Seconds",
+            "type": "number"
+          },
+          "heartbeat_at": {
+            "title": "Heartbeat At",
+            "type": "number"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "metadata": {
+            "additionalProperties": true,
+            "title": "Metadata",
+            "type": "object"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          },
+          "started_at": {
+            "title": "Started At",
+            "type": "number"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "worker_id": {
+            "title": "Worker Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "worker_id",
+          "kind",
+          "host",
+          "pid",
+          "started_at",
+          "heartbeat_at",
+          "heartbeat_age_seconds",
+          "status"
+        ],
+        "title": "WorkerSummary",
+        "type": "object"
+      },
       "piern__synth__api__routers__simulation__JobStartResponse": {
         "properties": {
           "job_id": {
@@ -3393,7 +3490,9 @@
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventListResponse"
+                }
               }
             },
             "description": "Successful Response"
@@ -3410,6 +3509,27 @@
           }
         },
         "summary": "List Audit Events",
+        "tags": [
+          "jobs"
+        ]
+      }
+    },
+    "/api/jobs/workers": {
+      "get": {
+        "operationId": "list_workers_api_jobs_workers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkerListResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Workers",
         "tags": [
           "jobs"
         ]
