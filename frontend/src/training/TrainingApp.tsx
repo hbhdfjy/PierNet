@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { BarChart3, Cpu, FolderOpen, PlayCircle, Workflow } from 'lucide-react'
+import { BarChart3, Cpu, FolderOpen, ListChecks, PlayCircle, Workflow } from 'lucide-react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 import { AppShell, type ShellNavGroup } from '../platform/AppShell'
@@ -8,6 +8,7 @@ const TrainingOverviewPage = lazy(() => import('./pages/TrainingOverviewPage'))
 const TrainingNewJobPage = lazy(() => import('./pages/TrainingNewJobPage'))
 const TrainingJobsPage = lazy(() => import('./pages/TrainingJobsPage'))
 const TrainingJobDetailPage = lazy(() => import('./pages/TrainingJobDetailPage'))
+const TaskCenterPage = lazy(() => import('../platform/TaskCenterPage'))
 const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
@@ -20,6 +21,7 @@ const navGroups: ShellNavGroup[] = [
       { to: '/training/new', icon: PlayCircle, label: '新建训练', tone: 'emerald' },
       { to: '/training/jobs', icon: Workflow, label: '任务管理', tone: 'violet' },
       { to: '/training/files', icon: FolderOpen, label: '文件管理', tone: 'amber' },
+      { to: '/training/tasks', icon: ListChecks, label: '任务中心', tone: 'sky' },
     ],
   },
   {
@@ -49,6 +51,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
         <Route path="new" element={<TrainingNewJobPage />} />
         <Route path="jobs" element={<TrainingJobsPage />} />
         <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
+        <Route path="tasks" element={<TaskCenterPage />} />
         <Route
           path="files"
           element={

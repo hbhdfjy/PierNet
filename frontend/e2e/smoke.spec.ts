@@ -71,6 +71,19 @@ function apiPayloadFor(pathname: string): unknown {
   if (pathname === '/api/training/datasets') return trainingDatasets
   if (pathname === '/api/training/gpus') return trainingGpus
   if (pathname === '/api/training/jobs') return []
+  if (pathname === '/api/jobs') return []
+  if (pathname === '/api/jobs/audit/events') return { items: [] }
+  if (pathname === '/api/storage/integrity') {
+    return {
+      ok: true,
+      manifest_exists: true,
+      manifest_path: 'data/.manifests/source_integrity.json',
+      checked_entries: 44,
+      scanned_entries: 44,
+      errors: [],
+      generated_at: now,
+    }
+  }
   if (pathname === '/api/config/text2comp-scenarios') return text2CompScenarios
   if (pathname === '/api/config') {
     return {
@@ -141,6 +154,10 @@ test('platform entry and core workbenches render without layout overflow', async
   await page.goto('/training/jobs')
   await expect(page.getByRole('heading', { name: '训练任务' })).toBeVisible()
   await expect(page.getByText('任务列表')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+
+  await page.goto('/training/tasks')
+  await expect(page.getByRole('heading', { name: '任务、审计与数据完整性' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
   await page.goto('/synth/fill')

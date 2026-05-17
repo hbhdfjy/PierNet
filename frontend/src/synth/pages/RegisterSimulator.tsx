@@ -38,12 +38,40 @@ const FIELD_GROUPS = [
 ]
 
 const STATUS_ICON: Record<JobStatus, React.ReactNode> = {
-  idle: <Play size={14} className="text-slate-400" />,
+  queued: <Loader2 size={14} className="animate-spin text-sky-400" />,
+  starting: <Loader2 size={14} className="animate-spin text-sky-400" />,
   running: <Loader2 size={14} className="animate-spin text-sky-400" />,
+  evaluating: <Loader2 size={14} className="animate-spin text-violet-400" />,
+  stopping: <Loader2 size={14} className="animate-spin text-amber-400" />,
   done: <CheckCircle size={14} className="text-emerald-400" />,
   error: <XCircle size={14} className="text-red-400" />,
   terminated: <XCircle size={14} className="text-amber-400" />,
   external_terminated: <XCircle size={14} className="text-amber-400" />,
+  idle: <Play size={14} className="text-slate-400" />,
+}
+const STATUS_TONE: Record<JobStatus, string> = {
+  queued: 'text-sky-400',
+  starting: 'text-sky-400',
+  running: 'text-sky-400',
+  evaluating: 'text-violet-400',
+  stopping: 'text-amber-400',
+  done: 'text-emerald-400',
+  error: 'text-red-400',
+  terminated: 'text-amber-400',
+  external_terminated: 'text-amber-400',
+  idle: '',
+}
+const STATUS_TEXT: Record<JobStatus, string> = {
+  queued: '排队中',
+  starting: '启动中',
+  running: '注册中...',
+  evaluating: '评估中',
+  stopping: '停止中',
+  done: '已完成',
+  error: '出错',
+  terminated: '已终止',
+  external_terminated: '外部终止',
+  idle: '',
 }
 
 // ── Registry 类型 ─────────────────────────────────────────────────
@@ -775,29 +803,8 @@ function AutoRegisterPanel() {
           {status !== 'idle' && (
             <span className="flex items-center gap-1.5 mr-2">
               {STATUS_ICON[status]}
-              <span
-                className={cn(
-                  'text-xs',
-                  {
-                    running: 'text-sky-400',
-                    done: 'text-emerald-400',
-                    error: 'text-red-400',
-                    terminated: 'text-amber-400',
-                    external_terminated: 'text-amber-400',
-                    idle: '',
-                  }[status],
-                )}
-              >
-                {
-                  {
-                    idle: '',
-                    running: '注册中…',
-                    done: `已完成 ${registeredKeys.length} 条`,
-                    error: '出错',
-                    terminated: '已终止',
-                    external_terminated: '外部终止',
-                  }[status]
-                }
+              <span className={cn('text-xs', STATUS_TONE[status])}>
+                {status === 'done' ? `已完成 ${registeredKeys.length} 条` : STATUS_TEXT[status]}
               </span>
             </span>
           )}

@@ -8,7 +8,7 @@
     "build": "npm run typecheck && node ../scripts/frontend/run-vite.mjs build",
     "preview": "node ../scripts/frontend/run-vite.mjs preview",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint \"src/**/*.{ts,tsx}\" e2e/smoke.spec.ts playwright.config.ts --max-warnings 0",
+    "lint": "eslint \"src/**/*.{ts,tsx}\" \"e2e/**/*.ts\" playwright.config.ts --max-warnings 0",
     "format": "prettier --write eslint.config.js prettier.config.cjs vitest.config.ts playwright.config.ts \"e2e/**/*.ts\" \"src/**/*.{ts,tsx}\" package.json",
     "format:check": "prettier --check eslint.config.js prettier.config.cjs vitest.config.ts playwright.config.ts \"e2e/**/*.ts\" \"src/**/*.{ts,tsx}\" package.json",
     "test": "vitest run",
@@ -16,6 +16,7 @@
     "openapi:check": "npm run openapi:types && git diff --exit-code -- src/lib/generated/openapi.json src/lib/generated/openapi.d.ts",
     "e2e": "playwright test",
     "e2e:smoke": "playwright test e2e/smoke.spec.ts",
+    "e2e:visual": "playwright test e2e/visual.spec.ts",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run e2e:smoke"
   },
   "dependencies": {

@@ -1,10 +1,4 @@
-"""Maintenance worker for shared runtime housekeeping.
-
-The current platform still executes long jobs through existing service managers.
-This worker gives deployments a stable process target and owns shared maintenance
-tasks such as expiring stale cooperative locks until task execution is migrated
-behind a queue.
-"""
+"""Maintenance worker for shared runtime housekeeping and queued synthesis jobs."""
 
 from __future__ import annotations
 
@@ -14,6 +8,7 @@ import signal
 import time
 
 from piern.shared.tasks import locks
+from piern.synth.services import worker_queue
 
 LOGGER = logging.getLogger(__name__)
 
@@ -28,20 +23,21 @@ def run(*, interval: float = 10.0, once: bool = False) -> int:
 
     signal.signal(signal.SIGTERM, _stop)
     signal.signal(signal.SIGINT, _stop)
-    LOGGER.info("PiERN maintenance worker started interval=%s once=%s", interval, once)
+    LOGGER.info("PiERN worker started interval=%s once=%s", interval, once)
     while not stopping:
         expired = locks.cleanup_expired()
         if expired:
             LOGGER.info("expired %s stale task lock(s)", expired)
+        ran_job = worker_queue.run_next_queued_job()
         if once:
             break
-        time.sleep(max(1.0, interval))
-    LOGGER.info("PiERN maintenance worker stopped")
+        time.sleep(1.0 if ran_job else max(1.0, interval))
+    LOGGER.info("PiERN worker stopped")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run PiERN maintenance worker loop.")
+    parser = argparse.ArgumentParser(description="Run PiERN worker loop.")
     parser.add_argument("--interval", type=float, default=10.0)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args(argv)

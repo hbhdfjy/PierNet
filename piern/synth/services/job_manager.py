@@ -59,6 +59,7 @@ def create_job(
     scenario_totals: dict = None,
     request: dict[str, Any] | None = None,
     lock_keys: list[str] | None = None,
+    status: str = "running",
 ) -> JobRecord:
     """创建后台任务，并绑定当前 async loop 供 FastAPI SSE 推送。"""
     loop = asyncio.get_running_loop()
@@ -78,7 +79,7 @@ def create_job(
     record = JobRecord(
         job_id=job_id,
         job_type=job_type,
-        status="running",
+        status=normalize_status(status, fallback="running"),
         loop=loop,
         scenario_totals=scenario_totals or {},
         started_at=time.time(),
@@ -125,6 +126,17 @@ def _record_from_stored(stored: dict[str, Any]) -> JobRecord:
         error_message=stored.get("error_message"),
         persisted=True,
     )
+
+
+def record_from_stored(stored: dict[str, Any]) -> JobRecord:
+    return _record_from_stored(stored)
+
+
+def should_stop(record: JobRecord) -> bool:
+    if record.stop_event.is_set() or record.status in SYNTH_TERMINAL_STATUSES:
+        return True
+    stored = job_store.load_job(record.job_id)
+    return bool(stored and stored.get("status") in {"terminated", "external_terminated", "error"})
 
 
 def _persist_record(record: JobRecord, request: dict[str, Any] | None = None) -> None:

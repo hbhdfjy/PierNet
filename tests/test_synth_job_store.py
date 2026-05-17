@@ -81,3 +81,24 @@ def test_job_manager_rehydrates_finished_job_from_store(monkeypatch, tmp_path):
     assert restored.status == "done"
     assert restored.progress["coastal"] == {"scenario": "coastal", "done": 3, "total": 3}
     assert restored.events[-1]["type"] == "done"
+
+
+
+def test_queued_jobs_survive_api_process_recovery(monkeypatch, tmp_path):
+    _use_tmp_store(monkeypatch, tmp_path)
+    job_store.upsert_job(
+        job_id="fill-queued",
+        job_type="fill_samples",
+        status="queued",
+        started_at=10.0,
+        scenario_totals={"coastal": 2},
+        progress={},
+        stats={},
+    )
+
+    updated = job_store.mark_incomplete_external_terminated()
+    loaded = job_store.load_job("fill-queued")
+
+    assert updated == []
+    assert loaded is not None
+    assert loaded["status"] == "queued"

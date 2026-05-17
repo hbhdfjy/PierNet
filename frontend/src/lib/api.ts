@@ -38,9 +38,48 @@ import type {
   TrainingJobDetail,
   TrainingCurvesResponse,
   TrainingLogResponse,
+  UnifiedJobSummary,
+  UnifiedJobDetail,
+  UnifiedJobEventResponse,
+  UnifiedJobLogResponse,
+  AuditEvent,
+  IntegrityStatus,
 } from './types'
 
 const BASE = '/api'
+
+export const PIERN_AUTH_TOKEN_KEY = 'piern-auth-token'
+
+export function readAuthToken(): string {
+  try {
+    return localStorage.getItem(PIERN_AUTH_TOKEN_KEY) || ''
+  } catch {
+    return ''
+  }
+}
+
+export function writeAuthToken(value: string): string {
+  const token = value.trim()
+  try {
+    if (token) localStorage.setItem(PIERN_AUTH_TOKEN_KEY, token)
+    else localStorage.removeItem(PIERN_AUTH_TOKEN_KEY)
+  } catch {
+    /* ignore */
+  }
+  return token
+}
+
+function withAuthHeaders(init?: RequestInit): RequestInit {
+  const token = readAuthToken()
+  if (!token) return init ?? {}
+  const headers = new Headers(init?.headers)
+  headers.set('Authorization', `Bearer ${token}`)
+  return { ...(init ?? {}), headers }
+}
+
+function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return window.fetch(input, withAuthHeaders(init))
+}
 
 export interface ApiErrorPayload {
   code: string
@@ -119,12 +158,54 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
   if (params) {
     Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, String(v)))
   }
-  const res = await fetch(url.toString())
+  const res = await apiFetch(url.toString())
   await ensureOk(res, `API ${path} 失败`)
   return res.json()
 }
 
 export const api = {
+  // ── 统一任务中心 / 审计 / 数据完整性 ────────────────────────────────
+  listUnifiedJobs: (filters?: {
+    platform?: 'synth' | 'training'
+    status?: string
+    limit?: number
+  }): Promise<UnifiedJobSummary[]> => {
+    const params: Record<string, string | number> = {}
+    if (filters?.platform) params.platform = filters.platform
+    if (filters?.status) params.status = filters.status
+    if (filters?.limit) params.limit = filters.limit
+    return get('/jobs', params)
+  },
+
+  getUnifiedJob: (jobId: string): Promise<UnifiedJobDetail> => get(`/jobs/${encodeURIComponent(jobId)}`),
+
+  getUnifiedJobEvents: (jobId: string): Promise<UnifiedJobEventResponse> =>
+    get(`/jobs/${encodeURIComponent(jobId)}/events`),
+
+  getUnifiedJobLogs: (jobId: string, limit = 300): Promise<UnifiedJobLogResponse> =>
+    get(`/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
+
+  stopUnifiedJob: async (jobId: string): Promise<UnifiedJobSummary> => {
+    const res = await apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/stop`, { method: 'POST' })
+    await ensureOk(res, '停止任务失败')
+    return res.json()
+  },
+
+  listAuditEvents: (limit = 200): Promise<{ items: AuditEvent[] }> => get('/jobs/audit/events', { limit }),
+
+  getIntegrityStatus: (): Promise<IntegrityStatus> => get('/storage/integrity'),
+
+  rebuildIntegrityManifest: async (): Promise<{
+    ok: boolean
+    manifest_path: string
+    entries: number
+    generated_at: number
+  }> => {
+    const res = await apiFetch(`${BASE}/storage/integrity/manifest`, { method: 'POST' })
+    await ensureOk(res, '重建完整性清单失败')
+    return res.json()
+  },
+
   // ── 数据集 ──────────────────────────────────────────────────────
   getDatasets: (): Promise<DatasetInfo[]> => get('/datasets'),
 
@@ -151,7 +232,7 @@ export const api = {
   getLLMConfig: (): Promise<LLMConfig> => get('/llm-config'),
 
   saveLLMConfig: async (req: LLMConfigRequest): Promise<void> => {
-    const res = await fetch(`${BASE}/llm-config`, {
+    const res = await apiFetch(`${BASE}/llm-config`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -160,7 +241,7 @@ export const api = {
   },
 
   testLLMConfig: async (req: LLMConfigRequest): Promise<{ ok: boolean; message: string; response_preview: string }> => {
-    const res = await fetch(`${BASE}/llm-config/test`, {
+    const res = await apiFetch(`${BASE}/llm-config/test`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -175,7 +256,7 @@ export const api = {
 
   // ── 生成任务（SSE 流 + 终止）──────────────────────────────────
   stopGeneration: async (jobId: string): Promise<void> => {
-    const res = await fetch(`${BASE}/generate/${jobId}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/generate/${jobId}`, { method: 'DELETE' })
     if (!res.ok && res.status !== 404) await ensureOk(res, '终止失败')
   },
 
@@ -197,7 +278,7 @@ export const api = {
   getRegistry: (): Promise<Record<string, unknown>> => get('/registry'),
 
   updateRegistryEntry: async (key: string, body: Record<string, unknown>): Promise<void> => {
-    const res = await fetch(`${BASE}/registry/${encodeURIComponent(key)}`, {
+    const res = await apiFetch(`${BASE}/registry/${encodeURIComponent(key)}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -206,13 +287,13 @@ export const api = {
   },
 
   deleteRegistryEntry: async (key: string): Promise<void> => {
-    const res = await fetch(`${BASE}/registry/${encodeURIComponent(key)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/registry/${encodeURIComponent(key)}`, { method: 'DELETE' })
     await ensureOk(res, '删除失败')
   },
 
   // ── 多智能体交互式注册 ─────────────────────────────────────────
   startInterview: async (req: InterviewStartRequest): Promise<AgentTurnResponse & { session_id: string }> => {
-    const res = await fetch(`${BASE}/interview/start`, {
+    const res = await apiFetch(`${BASE}/interview/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -222,7 +303,7 @@ export const api = {
   },
 
   sendInterviewMessage: async (sessionId: string, message: string): Promise<AgentTurnResponse> => {
-    const res = await fetch(`${BASE}/interview/${sessionId}/message`, {
+    const res = await apiFetch(`${BASE}/interview/${sessionId}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
@@ -236,7 +317,7 @@ export const api = {
     confirmed: boolean,
     editedData?: Record<string, unknown>,
   ): Promise<AgentTurnResponse> => {
-    const res = await fetch(`${BASE}/interview/${sessionId}/confirm`, {
+    const res = await apiFetch(`${BASE}/interview/${sessionId}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirmed, edited_data: editedData ?? null }),
@@ -248,14 +329,14 @@ export const api = {
   getInterviewState: (sessionId: string): Promise<InterviewState> => get(`/interview/${sessionId}/state`),
 
   cancelInterview: async (sessionId: string): Promise<void> => {
-    await fetch(`${BASE}/interview/${sessionId}`, { method: 'DELETE' })
+    await apiFetch(`${BASE}/interview/${sessionId}`, { method: 'DELETE' })
   },
 
   // ── 两阶段生成 ──────────────────────────────────────────────────
   getTemplatesStatus: (): Promise<TemplateInfo[]> => get('/templates'),
 
   startGenerateTemplates: async (req: GenerateTemplatesRequest): Promise<JobStartResponse> => {
-    const res = await fetch(`${BASE}/generate-templates`, {
+    const res = await apiFetch(`${BASE}/generate-templates`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -265,7 +346,7 @@ export const api = {
   },
 
   startFillSamples: async (req: FillSamplesRequest): Promise<JobStartResponse> => {
-    const res = await fetch(`${BASE}/fill-samples`, {
+    const res = await apiFetch(`${BASE}/fill-samples`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -293,28 +374,30 @@ export const api = {
   listSampleFiles: (): Promise<SampleFileInfo[]> => get('/files/samples'),
 
   trimTemplateFile: async (scenario: string, n: number): Promise<{ before: number; after: number }> => {
-    const res = await fetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}/trim?n=${n}`, { method: 'POST' })
+    const res = await apiFetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}/trim?n=${n}`, {
+      method: 'POST',
+    })
     await ensureOk(res, '截断失败')
     return res.json()
   },
 
   deleteTemplateFile: async (scenario: string): Promise<void> => {
-    const res = await fetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
     await ensureOk(res, '删除失败')
   },
 
   deleteSampleFile: async (scenario: string): Promise<void> => {
-    const res = await fetch(`${BASE}/files/samples/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/samples/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
     await ensureOk(res, '删除失败')
   },
 
   clearAllTemplates: async (): Promise<void> => {
-    const res = await fetch(`${BASE}/files/templates`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/templates`, { method: 'DELETE' })
     await ensureOk(res, '清空失败')
   },
 
   clearAllSamples: async (): Promise<void> => {
-    const res = await fetch(`${BASE}/files/samples`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/samples`, { method: 'DELETE' })
     await ensureOk(res, '清空失败')
   },
 
@@ -323,13 +406,13 @@ export const api = {
   getFileCatalog: (): Promise<FileCatalogResponse> => get('/files/catalog'),
 
   deleteFileCatalogAsset: async (assetId: string): Promise<FileCatalogMutationResponse> => {
-    const res = await fetch(`${BASE}/files/catalog/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/catalog/assets/${encodeURIComponent(assetId)}`, { method: 'DELETE' })
     await ensureOk(res, '删除文件资产失败')
     return res.json()
   },
 
   clearFileCatalogGroup: async (kind: 'templates' | 'samples' | 'router'): Promise<FileCatalogMutationResponse> => {
-    const res = await fetch(`${BASE}/files/catalog/groups/${encodeURIComponent(kind)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/files/catalog/groups/${encodeURIComponent(kind)}`, { method: 'DELETE' })
     await ensureOk(res, '清空文件分组失败')
     return res.json()
   },
@@ -337,7 +420,7 @@ export const api = {
   rebuildFileCatalogIndexes: async (
     scope: 'all' | 'templates' | 'samples' | 'router' = 'all',
   ): Promise<FileCatalogMutationResponse> => {
-    const res = await fetch(`${BASE}/files/catalog/rebuild?scope=${encodeURIComponent(scope)}`, { method: 'POST' })
+    const res = await apiFetch(`${BASE}/files/catalog/rebuild?scope=${encodeURIComponent(scope)}`, { method: 'POST' })
     await ensureOk(res, '重建文件索引失败')
     return res.json()
   },
@@ -357,7 +440,7 @@ export const api = {
     url.searchParams.set('simulator', args.simulator)
     url.searchParams.set('scenario', args.scenario)
     url.searchParams.set('overwrite', String(args.overwrite))
-    const res = await fetch(url.toString(), {
+    const res = await apiFetch(url.toString(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/octet-stream' },
       body: args.file,
@@ -367,7 +450,7 @@ export const api = {
   },
 
   startSimulation: async (req: SimulateRequest): Promise<JobStartResponse> => {
-    const res = await fetch(`${BASE}/simulate`, {
+    const res = await apiFetch(`${BASE}/simulate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -377,7 +460,7 @@ export const api = {
   },
 
   startBatchSimulation: async (req: BatchSimulateRequest): Promise<JobStartResponse> => {
-    const res = await fetch(`${BASE}/simulate/batch`, {
+    const res = await apiFetch(`${BASE}/simulate/batch`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -389,7 +472,7 @@ export const api = {
   getSimulationHistory: (limit = 50): Promise<SimulationHistoryRecord[]> => get('/simulation/history', { limit }),
 
   clearSimulationHistory: async (): Promise<void> => {
-    const res = await fetch(`${BASE}/simulation/history`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/simulation/history`, { method: 'DELETE' })
     await ensureOk(res, '清空历史失败')
   },
 
@@ -406,18 +489,18 @@ export const api = {
       neg_ratio: String(negRatio),
     })
     if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))
-    const res = await fetch(`${BASE}/router/build?${params}`, { method: 'POST' })
+    const res = await apiFetch(`${BASE}/router/build?${params}`, { method: 'POST' })
     await ensureOk(res, '启动路由数据生成失败')
     return res.json()
   },
 
   deleteRouterScenario: async (scenario: string): Promise<void> => {
-    const res = await fetch(`${BASE}/router/scenario/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/router/scenario/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
     await ensureOk(res, '删除失败')
   },
 
   deleteAllRouterData: async (): Promise<void> => {
-    const res = await fetch(`${BASE}/router/all`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/router/all`, { method: 'DELETE' })
     await ensureOk(res, '清空失败')
   },
 
@@ -434,7 +517,7 @@ export const api = {
   },
 
   startRegister: async (req: RegisterRequest): Promise<{ job_id: string }> => {
-    const res = await fetch(`${BASE}/register`, {
+    const res = await apiFetch(`${BASE}/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -453,7 +536,7 @@ export const api = {
   getTrainingJobs: (): Promise<TrainingJobSummary[]> => get('/training/jobs'),
 
   createTrainingJob: async (req: TrainingCreateJobRequest): Promise<TrainingJobSummary> => {
-    const res = await fetch(`${BASE}/training/jobs`, {
+    const res = await apiFetch(`${BASE}/training/jobs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
@@ -465,7 +548,7 @@ export const api = {
   getTrainingJob: (jobId: string): Promise<TrainingJobDetail> => get(`/training/jobs/${encodeURIComponent(jobId)}`),
 
   stopTrainingJob: async (jobId: string): Promise<TrainingJobSummary> => {
-    const res = await fetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}/stop`, {
+    const res = await apiFetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}/stop`, {
       method: 'POST',
     })
     await ensureOk(res, '终止训练失败')
@@ -473,7 +556,7 @@ export const api = {
   },
 
   deleteTrainingJob: async (jobId: string): Promise<void> => {
-    const res = await fetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}`, {
+    const res = await apiFetch(`${BASE}/training/jobs/${encodeURIComponent(jobId)}`, {
       method: 'DELETE',
     })
     await ensureOk(res, '删除训练任务失败')

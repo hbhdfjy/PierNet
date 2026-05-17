@@ -4,78 +4,26 @@
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
-import time
 from pathlib import Path
-from typing import Any
 
-from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT as DEFAULT_PROJECT_ROOT
+from piern.shared.storage import integrity
 
-DEFAULT_MANIFEST = DATA_ROOT / ".manifests" / "source_integrity.json"
-
-
-def sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        while True:
-            chunk = handle.read(chunk_size)
-            if not chunk:
-                break
-            digest.update(chunk)
-    return digest.hexdigest()
+PROJECT_ROOT = DEFAULT_PROJECT_ROOT
+DEFAULT_MANIFEST = integrity.DEFAULT_MANIFEST
 
 
-def _rel(path: Path) -> str:
-    try:
-        return str(path.relative_to(PROJECT_ROOT))
-    except ValueError:
-        return str(path)
+def build_manifest(data_root: Path = DATA_ROOT) -> dict:
+    return integrity.build_manifest(data_root, project_root=PROJECT_ROOT)
 
 
-def source_files(data_root: Path = DATA_ROOT) -> list[Path]:
-    files = []
-    files.extend(sorted((data_root / "templates").glob("*_templates.jsonl")))
-    files.extend(sorted(data_root.glob("*/*.h5")))
-    return [path for path in files if path.is_file()]
+def verify_manifest(manifest: dict) -> list[str]:
+    return integrity.verify_manifest(manifest, project_root=PROJECT_ROOT)
 
 
-def build_manifest(data_root: Path = DATA_ROOT) -> dict[str, Any]:
-    entries = []
-    for path in source_files(data_root):
-        stat = path.stat()
-        entries.append(
-            {
-                "path": _rel(path),
-                "size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-                "sha256": sha256_file(path),
-            }
-        )
-    return {
-        "schema_version": 1,
-        "generated_at": time.time(),
-        "project_root": str(PROJECT_ROOT),
-        "data_root": str(data_root),
-        "entries": entries,
-    }
-
-
-def verify_manifest(manifest: dict[str, Any]) -> list[str]:
-    errors = []
-    for entry in manifest.get("entries", []):
-        path = PROJECT_ROOT / str(entry.get("path", ""))
-        if not path.exists():
-            errors.append(f"missing: {entry.get('path')}")
-            continue
-        actual_size = path.stat().st_size
-        if actual_size != int(entry.get("size_bytes", -1)):
-            errors.append(f"size mismatch: {entry.get('path')} expected={entry.get('size_bytes')} actual={actual_size}")
-            continue
-        actual_sha = sha256_file(path)
-        if actual_sha != entry.get("sha256"):
-            errors.append(f"sha256 mismatch: {entry.get('path')}")
-    return errors
+def write_manifest(path: Path = DEFAULT_MANIFEST, *, data_root: Path = DATA_ROOT) -> dict:
+    return integrity.write_manifest(path, data_root=data_root, project_root=PROJECT_ROOT)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -86,9 +34,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.write_manifest:
-        manifest = build_manifest(args.data_root)
-        args.manifest.parent.mkdir(parents=True, exist_ok=True)
-        args.manifest.write_text(json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        manifest = write_manifest(args.manifest, data_root=args.data_root)
         print(f"wrote {len(manifest['entries'])} source checksums to {args.manifest}")
         return 0
 

@@ -61,6 +61,32 @@ const ACCENT = {
 } as const
 type AccentKey = keyof typeof ACCENT
 
+const ACTIVE_JOB_STATUSES = new Set<JobStatus>(['queued', 'starting', 'running', 'evaluating', 'stopping'])
+const STATUS_TEXT: Record<JobStatus, string> = {
+  queued: '排队中',
+  starting: '启动中',
+  running: '处理中',
+  evaluating: '评估中',
+  stopping: '停止中',
+  done: '已完成',
+  error: '出错',
+  terminated: '已终止',
+  external_terminated: '外部终止',
+  idle: '',
+}
+const STATUS_TONE: Record<JobStatus, string> = {
+  queued: 'text-sky-400',
+  starting: 'text-sky-400',
+  running: 'text-sky-400',
+  evaluating: 'text-violet-400',
+  stopping: 'text-amber-400',
+  done: 'text-emerald-400',
+  error: 'text-red-400',
+  terminated: 'text-amber-400',
+  external_terminated: 'text-amber-400',
+  idle: 'text-slate-400',
+}
+
 // ── 场景进度卡片 ──────────────────────────────────────────────────
 
 function ScenarioCard({
@@ -195,18 +221,7 @@ function OverallRing({
           {totalDone.toLocaleString()}
           {totalTarget > 0 && <span className="text-slate-600"> / {totalTarget.toLocaleString()}</span>}
         </div>
-        <div className="text-xs text-slate-500 mt-0.5">
-          {
-            {
-              running: '处理中',
-              done: '已完成',
-              error: '出错',
-              terminated: '已终止',
-              external_terminated: '外部终止',
-              idle: '',
-            }[status]
-          }
-        </div>
+        <div className="text-xs text-slate-500 mt-0.5">{STATUS_TEXT[status]}</div>
       </div>
     </div>
   )
@@ -243,7 +258,7 @@ export default function JobMonitorPanel({
 
   const totalDone = Object.values(progress).reduce((s, p) => s + p.done, 0)
   const totalTarget = Object.values(progress).reduce((s, p) => s + p.total, 0)
-  const isRunning = status === 'running'
+  const isRunning = ACTIVE_JOB_STATUSES.has(status)
   const isDone = status === 'done'
   const scenarioList = Object.entries(progress)
 
@@ -264,36 +279,13 @@ export default function JobMonitorPanel({
           style={{ borderBottom: '1px solid hsl(var(--border) / 0.4)' }}
         >
           {/* 状态图标 + 文字 */}
-          <div
-            className={cn(
-              'flex items-center gap-2',
-              {
-                running: 'text-sky-400',
-                done: 'text-emerald-400',
-                error: 'text-red-400',
-                terminated: 'text-amber-400',
-                external_terminated: 'text-amber-400',
-                idle: 'text-slate-400',
-              }[status],
-            )}
-          >
+          <div className={cn('flex items-center gap-2', STATUS_TONE[status])}>
             {isRunning && <Loader2 size={13} className="animate-spin" />}
             {isDone && <CheckCircle size={13} />}
             {(status === 'error' || status === 'terminated' || status === 'external_terminated') && (
               <XCircle size={13} />
             )}
-            <span className="font-medium text-sm">
-              {
-                {
-                  running: '运行中',
-                  done: '已完成',
-                  error: '出错',
-                  terminated: '已终止',
-                  external_terminated: '外部终止',
-                  idle: '',
-                }[status]
-              }
-            </span>
+            <span className="font-medium text-sm">{STATUS_TEXT[status]}</span>
           </div>
 
           {stageLabel && (

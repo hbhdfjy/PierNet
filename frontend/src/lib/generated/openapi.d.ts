@@ -312,7 +312,7 @@ export interface paths {
         put?: never;
         /**
          * Start Fill Samples
-         * @description 阶段二：数值填充（不调 LLM）。
+         * @description 阶段三：数值填充。
          */
         post: operations["start_fill_samples_api_fill_samples_post"];
         delete?: never;
@@ -332,7 +332,7 @@ export interface paths {
         put?: never;
         /**
          * Start Generate Templates
-         * @description 阶段一：生成语言模板库。
+         * @description 阶段二：生成语言模板库。
          */
         post: operations["start_generate_templates_api_generate_templates_post"];
         delete?: never;
@@ -408,7 +408,7 @@ export interface paths {
         /**
          * Stream Job
          * @description 返回指定作业的 SSE 事件流。
-         *     已结束作业会先回放历史事件，再结束连接。
+         *     事件从 SQLite 轮询读取，因此 API 重启或 worker 进程执行任务时也能持续回放。
          */
         get: operations["stream_job_api_generate__job_id__stream_get"];
         put?: never;
@@ -581,6 +581,109 @@ export interface paths {
         get: operations["get_interview_state_api_interview__session_id__state_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Unified Jobs */
+        get: operations["list_unified_jobs_api_jobs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Audit Events */
+        get: operations["list_audit_events_api_jobs_audit_events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Unified Job */
+        get: operations["get_unified_job_api_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Unified Job */
+        delete: operations["delete_unified_job_api_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Unified Job Events */
+        get: operations["get_unified_job_events_api_jobs__job_id__events_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Unified Job Logs */
+        get: operations["get_unified_job_logs_api_jobs__job_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/{job_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Stop Unified Job */
+        post: operations["stop_unified_job_api_jobs__job_id__stop_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -961,6 +1064,40 @@ export interface paths {
         get: operations["get_stats_api_stats_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/storage/integrity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Integrity Status */
+        get: operations["get_integrity_status_api_storage_integrity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/storage/integrity/manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rebuild Integrity Manifest */
+        post: operations["rebuild_integrity_manifest_api_storage_integrity_manifest_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1874,6 +2011,98 @@ export interface components {
             precision: number;
             /** Recall */
             recall: number;
+        };
+        /** UnifiedJobDetail */
+        UnifiedJobDetail: {
+            /** Created At */
+            created_at?: number | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Events */
+            events?: {
+                [key: string]: unknown;
+            }[];
+            /** Finished At */
+            finished_at?: number | null;
+            /** Job Id */
+            job_id: string;
+            /** Job Type */
+            job_type: string;
+            /** Logs */
+            logs?: string[];
+            /** Name */
+            name?: string | null;
+            /** Platform */
+            platform: string;
+            /** Progress */
+            progress?: {
+                [key: string]: unknown;
+            };
+            /** Request */
+            request?: {
+                [key: string]: unknown;
+            };
+            /** Source */
+            source: string;
+            /** Started At */
+            started_at?: number | null;
+            /** Stats */
+            stats?: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
+        };
+        /** UnifiedJobEventResponse */
+        UnifiedJobEventResponse: {
+            /** Events */
+            events: {
+                [key: string]: unknown;
+            }[];
+            /** Job Id */
+            job_id: string;
+            /** Platform */
+            platform: string;
+        };
+        /** UnifiedJobLogResponse */
+        UnifiedJobLogResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Lines */
+            lines: string[];
+            /** Platform */
+            platform: string;
+        };
+        /** UnifiedJobSummary */
+        UnifiedJobSummary: {
+            /** Created At */
+            created_at?: number | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Finished At */
+            finished_at?: number | null;
+            /** Job Id */
+            job_id: string;
+            /** Job Type */
+            job_type: string;
+            /** Name */
+            name?: string | null;
+            /** Platform */
+            platform: string;
+            /** Progress */
+            progress?: {
+                [key: string]: unknown;
+            };
+            /** Source */
+            source: string;
+            /** Started At */
+            started_at?: number | null;
+            /** Stats */
+            stats?: {
+                [key: string]: unknown;
+            };
+            /** Status */
+            status: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -2797,6 +3026,231 @@ export interface operations {
             };
         };
     };
+    list_unified_jobs_api_jobs_get: {
+        parameters: {
+            query?: {
+                platform?: string | null;
+                status?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobSummary"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_audit_events_api_jobs_audit_events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                action?: string | null;
+                target?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unified_job_api_jobs__job_id__get: {
+        parameters: {
+            query?: {
+                log_limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_unified_job_api_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unified_job_events_api_jobs__job_id__events_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobEventResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_unified_job_logs_api_jobs__job_id__logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_unified_job_api_jobs__job_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnifiedJobSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_llm_config_api_llm_config_get: {
         parameters: {
             query?: never;
@@ -3380,6 +3834,46 @@ export interface operations {
         };
     };
     get_stats_api_stats_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_integrity_status_api_storage_integrity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    rebuild_integrity_manifest_api_storage_integrity_manifest_post: {
         parameters: {
             query?: never;
             header?: never;

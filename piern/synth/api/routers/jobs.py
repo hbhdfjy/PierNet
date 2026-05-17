@@ -7,7 +7,7 @@ import time
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from piern.synth.services import job_manager
+from piern.synth.services import job_manager, job_store
 from piern.synth.services.job_manager import subscribe, unsubscribe
 from piern.synth.api.schemas.jobs import JobStatusResponse
 
@@ -37,33 +37,33 @@ def _sse(event: dict) -> str:
 async def stream_job(job_id: str):
     """
     返回指定作业的 SSE 事件流。
-    已结束作业会先回放历史事件，再结束连接。
+    事件从 SQLite 轮询读取，因此 API 重启或 worker 进程执行任务时也能持续回放。
     """
-    job = job_manager.get_job(job_id)
-    if not job:
+    if not job_store.load_job(job_id):
         raise HTTPException(404, f"任务 {job_id} 不存在")
 
     async def _generator():
-        snapshot, q = subscribe(job)
-        try:
-            for event in snapshot:
+        emitted = 0
+        last_heartbeat = time.time()
+        while True:
+            stored = job_store.load_job(job_id)
+            if not stored:
+                yield _sse({"type": "error", "ts": time.time(), "message": f"任务 {job_id} 不存在"})
+                return
+            events = stored.get("events") or []
+            for event in events[emitted:]:
                 yield _sse(event)
-                if event.get("type") in _TERMINAL:
-                    return
-
-            while True:
-                try:
-                    event = await asyncio.wait_for(q.get(), timeout=30.0)
-                    yield _sse(event)
-                    if event.get("type") in _TERMINAL:
-                        break
-                except asyncio.TimeoutError:
-                    yield _sse({"type": "heartbeat", "ts": time.time()})
-                    if job.status in _TERMINAL and q.empty():
-                        yield _sse({"type": job.status, "ts": time.time()})
-                        break
-        finally:
-            unsubscribe(job, q)
+            emitted = len(events)
+            status = stored.get("status")
+            if status in _TERMINAL:
+                if not events or events[-1].get("type") not in _TERMINAL:
+                    yield _sse({"type": status, "ts": time.time(), "message": stored.get("error_message")})
+                return
+            now = time.time()
+            if now - last_heartbeat >= 30:
+                yield _sse({"type": "heartbeat", "ts": now})
+                last_heartbeat = now
+            await asyncio.sleep(1.0)
 
     return StreamingResponse(
         _generator(),

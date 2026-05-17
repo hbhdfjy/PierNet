@@ -238,7 +238,7 @@ def mark_incomplete_external_terminated(active_job_ids: Iterable[str] = ()) -> l
     updated: list[str] = []
     with _LOCK, _connect() as conn:
         rows = conn.execute(
-            "SELECT job_id FROM jobs WHERE status IN ('running', 'queued', 'starting', 'stopping')"
+            "SELECT job_id FROM jobs WHERE status IN ('running', 'starting', 'stopping')"
         ).fetchall()
         for row in rows:
             job_id = str(row["job_id"])

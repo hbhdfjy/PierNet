@@ -15,7 +15,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
 from piern.shared.storage import portable
-from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store
+from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store, router_executor, worker_queue
 from piern.training.services import training_manager
 from piern.synth.services.job_manager import publish
 
@@ -358,6 +358,10 @@ def _router_total_from_manifest(split: str, scenario: str) -> int | None:
     return int(split_info.get("count", 0))
 
 
+def _use_worker_queue() -> bool:
+    return worker_queue.queue_enabled() and os.getenv("PIERN_WORKER_QUEUE_SYNTH", "1").strip().lower() not in {"0", "false", "no", "off"}
+
+
 @router.get("/router/status")
 def get_router_status():
     """Return router dataset status and per-scenario stats."""
@@ -388,193 +392,22 @@ async def build_router_data(
         )
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
     router_lock_scenarios = scenario_list or ["all"]
+    queued = _use_worker_queue()
+    payload = {"seed": seed, "neg_ratio": neg_ratio, "scenarios": scenario_list}
     record = job_manager.create_job(
         "router",
-        request={"seed": seed, "neg_ratio": neg_ratio, "scenarios": scenario_list},
+        request=payload,
         lock_keys=[
             *(f"router:{scenario}" for scenario in router_lock_scenarios),
             *(f"dataset:{scenario}" for scenario in router_lock_scenarios),
         ],
+        status="queued" if queued else "running",
     )
-
-    def _run():
-        try:
-            sc_desc = f"scenarios: {', '.join(scenario_list)}" if scenario_list else "all scenarios"
-            publish(
-                record,
-                {
-                    "type": "log",
-                    "line": f"[Stage 4] start building Token Router data: {sc_desc}, chat_template=qwen",
-                    "ts": time.time(),
-                },
-            )
-            publish(
-                record,
-                {
-                    "type": "log",
-                    "line": (
-                        "[Stage 4] embedding backbone: "
-                        f"model={DEFAULT_QWEN_EMBEDDING_MODEL} "
-                        f"tokenizer={DEFAULT_QWEN_EMBEDDING_TOKENIZER}"
-                    ),
-                    "ts": time.time(),
-                },
-            )
-
-            script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
-            cmd = [
-                sys.executable,
-                str(script),
-                "--data-dir",
-                "data/text2comp_parquet",
-                "--output-dir",
-                "data/router_parquet",
-                "--input-format",
-                "parquet",
-                "--output-format",
-                "parquet",
-                "--seed",
-                str(seed),
-                "--neg-ratio",
-                str(neg_ratio),
-                "--chat-template",
-                "qwen",
-            ]
-            if scenario_list:
-                cmd += ["--scenarios", *scenario_list]
-
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-                cwd=str(PROJECT_ROOT),
-                start_new_session=True,
-            )
-            record.proc = proc
-            record.proc_uses_process_group = True
-
-            scenario_totals: dict[str, int] = {}
-
-            if proc.stdout is None:
-                raise RuntimeError("router build subprocess did not provide stdout")
-
-            for line in proc.stdout:
-                line = line.rstrip()
-                if not line:
-                    continue
-
-                if line.startswith("PROGRESS_INIT:"):
-                    parts = line.split(":", 2)
-                    if len(parts) == 3:
-                        sc_name, total_str = parts[1], parts[2]
-                        try:
-                            total = int(total_str)
-                        except ValueError:
-                            total = 0
-                        scenario_totals[sc_name] = total
-                        record.scenario_totals[sc_name] = total
-                        publish(
-                            record,
-                            {
-                                "type": "init",
-                                "scenario_totals": dict(record.scenario_totals),
-                                "ts": time.time(),
-                            },
-                        )
-                        publish(
-                            record,
-                            {
-                                "type": "log",
-                                "line": f"[init] {sc_name} expected {total} rows",
-                                "ts": time.time(),
-                            },
-                        )
-                    continue
-
-                if line.startswith("PROGRESS_UPDATE:"):
-                    parts = line.split(":", 3)
-                    if len(parts) == 4:
-                        sc_name = parts[1]
-                        try:
-                            done = int(parts[2])
-                            total = int(parts[3])
-                        except ValueError:
-                            done, total = 0, 0
-                        publish(
-                            record,
-                            {
-                                "type": "log",
-                                "line": f"  {sc_name}: {done}/{total}",
-                                "ts": time.time(),
-                                "progress": {"scenario": sc_name, "done": done, "total": total},
-                            },
-                        )
-                    continue
-
-                if line.startswith("PROGRESS_DONE:"):
-                    parts = line.split(":", 3)
-                    if len(parts) >= 3:
-                        sc_name = parts[1]
-                        try:
-                            done = int(parts[2])
-                            total = int(parts[3]) if len(parts) == 4 else scenario_totals.get(sc_name, done)
-                        except ValueError:
-                            done, total = 0, 0
-                        publish(
-                            record,
-                            {
-                                "type": "log",
-                                "line": f"  {sc_name}: {done}/{total}",
-                                "ts": time.time(),
-                                "progress": {"scenario": sc_name, "done": done, "total": total},
-                            },
-                        )
-                    continue
-
-                publish(record, {"type": "log", "line": line, "ts": time.time()})
-
-            proc.wait()
-        except Exception as exc:
-            if not record.stop_event.is_set():
-                record.status = "error"
-                publish(record, {"type": "error", "ts": time.time(), "message": str(exc)})
-            return
-        finally:
-            record.proc = None
-            record.proc_uses_process_group = False
-
-        if record.stop_event.is_set():
-            return
-
-        if proc.returncode == 0:
-            try:
-                manifest_store.rebuild_router_manifest()
-            except Exception as exc:
-                publish(
-                    record,
-                    {
-                        "type": "log",
-                        "line": f"[warn] Router manifest rebuild failed: {exc}",
-                        "ts": time.time(),
-                    },
-                )
-            record.status = "done"
-            publish(record, {"type": "done", "ts": time.time(), "message": "Router build completed"})
-        else:
-            record.status = "error"
-            publish(
-                record,
-                {
-                    "type": "error",
-                    "ts": time.time(),
-                    "message": f"Router build failed with exit code {proc.returncode}",
-                },
-            )
-
-    threading.Thread(target=_run, daemon=True).start()
-    return {"job_id": record.job_id, "status": "running"}
+    if queued:
+        publish(record, {"type": "queued", "ts": time.time(), "message": "任务已进入 worker 队列"})
+    else:
+        threading.Thread(target=router_executor.run_router_build_job, args=(record, payload), daemon=True).start()
+    return {"job_id": record.job_id, "status": record.status}
 
 
 @router.delete("/router/scenario/{scenario}")

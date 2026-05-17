@@ -1,7 +1,8 @@
 import { Suspense, useEffect, useState, type CSSProperties, type ElementType, type ReactNode } from 'react'
-import { Moon, Shuffle, Sun } from 'lucide-react'
+import { KeyRound, Moon, Shuffle, Sun } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
+import { readAuthToken, writeAuthToken } from '../lib/api'
 import { SeedContext, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
 import { PlatformSwitcher } from './PlatformSwitcher'
@@ -89,6 +90,45 @@ function ShellNavLink({ item }: { item: ShellNavItem }) {
         </>
       )}
     </NavLink>
+  )
+}
+
+function AuthTokenControl() {
+  const [token, setToken] = useState(() => readAuthToken())
+  const [editing, setEditing] = useState(false)
+  const save = (value: string) => {
+    const next = writeAuthToken(value)
+    setToken(next)
+    setEditing(false)
+  }
+  return (
+    <div className="app-auth-card">
+      <div className="app-seed-card__label-row">
+        <div className="app-seed-card__label">
+          <KeyRound size={11} />
+          <span>访问令牌</span>
+        </div>
+        {token && <span className="text-[11px] text-emerald-300">已保存</span>}
+      </div>
+      {editing ? (
+        <div className="mt-2 flex gap-2">
+          <input
+            className="input app-seed-input mono"
+            value={token}
+            onChange={event => setToken(event.target.value)}
+            placeholder="PIERN_AUTH_TOKEN"
+          />
+          <button type="button" className="btn-primary px-3" onClick={() => save(token)}>
+            保存
+          </button>
+        </div>
+      ) : (
+        <button type="button" className="theme-toggle w-full justify-center" onClick={() => setEditing(true)}>
+          <KeyRound size={13} />
+          <span>{token ? '更新令牌' : '设置令牌'}</span>
+        </button>
+      )}
+    </div>
   )
 }
 
@@ -186,6 +226,8 @@ export function AppShell({
                 className="input app-seed-input mono"
               />
             </div>
+
+            <AuthTokenControl />
 
             <div className="app-sidebar__footer-row">
               <button type="button" onClick={toggleTheme} className="theme-toggle">

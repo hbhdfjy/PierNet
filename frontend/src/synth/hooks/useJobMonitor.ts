@@ -112,7 +112,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   const status: JobStatus = (() => {
     const statuses = Object.values(jobStatuses)
     if (statuses.length === 0) return 'idle'
-    if (statuses.some(s => s === 'running')) return 'running'
+    if (statuses.some(s => s === 'running' || s === 'queued' || s === 'starting')) return 'running'
     if (statuses.some(s => s === 'error')) return 'error'
     if (statuses.some(s => s === 'external_terminated')) return 'external_terminated'
     if (statuses.some(s => s === 'terminated')) return 'terminated'
@@ -167,6 +167,12 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
                 return next.length > 5000 ? next.slice(-5000) : next
               })
             }
+          } else if (event.type === 'queued' || event.type === 'started') {
+            setLogs(prev => [
+              ...prev,
+              { line: event.message ?? (event.type === 'queued' ? '任务已进入队列' : '任务已开始执行'), ts: event.ts },
+            ])
+            setJobStatuses(prev => ({ ...prev, [id]: event.type === 'queued' ? 'queued' : 'running' }))
           } else if (event.type === 'done') {
             terminatedRef.current.add(id) // 先标记，再 setState，防止 onerror 竞态
             setJobStatuses(prev => ({ ...prev, [id]: 'done' }))
@@ -235,7 +241,9 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
       const expected = expectedJobTypesForStage(stageKey)
       if (!expected) return []
       try {
-        const jobs = await api.listGenerationJobs({ status: 'running' })
+        const running = await api.listGenerationJobs({ status: 'running' })
+        const queued = await api.listGenerationJobs({ status: 'queued' })
+        const jobs = [...running, ...queued]
         return jobs
           .filter(job => isExpectedJobForStage(stageKey, job.job_type))
           .sort((a, b) => Number(b.started_at ?? 0) - Number(a.started_at ?? 0))
@@ -265,7 +273,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             }
             applyBackendSnapshot(data)
             const snapshotStatus = data.status as JobStatus
-            if (snapshotStatus === 'running') {
+            if (snapshotStatus === 'running' || snapshotStatus === 'queued' || snapshotStatus === 'starting') {
               toConnect.push(id)
             } else if (isTerminalJobStatus(snapshotStatus)) {
               toRestore.push({ id, status: snapshotStatus })
@@ -343,7 +351,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
   const stop = useCallback(async () => {
     const runningIds = Object.entries(jobStatuses)
-      .filter(([, s]) => s === 'running')
+      .filter(([, s]) => s === 'running' || s === 'queued' || s === 'starting')
       .map(([id]) => id)
     await Promise.all(runningIds.map(id => api.stopGeneration(id)))
     setJobStatuses(prev => {

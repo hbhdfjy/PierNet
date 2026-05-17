@@ -5,6 +5,7 @@ import { useTheme } from '../shared/theme'
 const LandingPage = lazy(() => import('./LandingPage'))
 const SynthApp = lazy(() => import('../synth/SynthApp'))
 const TrainingApp = lazy(() => import('../training/TrainingApp'))
+const TaskCenterPage = lazy(() => import('./TaskCenterPage'))
 
 function PlatformFallback() {
   return <div className="min-h-screen bg-slate-950 text-sm text-slate-400" />
@@ -33,6 +34,7 @@ export default function PlatformRouter() {
       <Routes>
         <Route path="/" element={<LandingPage theme={theme} toggleTheme={toggleTheme} />} />
         <Route path="/training/*" element={<TrainingApp theme={theme} toggleTheme={toggleTheme} />} />
+        <Route path="/tasks" element={<TaskCenterPage />} />
         <Route path="/files" element={<Navigate to="/synth/files" replace />} />
         <Route path="/synth/*" element={<SynthApp theme={theme} toggleTheme={toggleTheme} />} />
         {SYNTH_LEGACY_ROUTES.map(path => (

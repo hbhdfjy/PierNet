@@ -5,8 +5,10 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from piern.shared.api.audit import install_audit
 from piern.shared.api.errors import install_error_handlers
 from piern.shared.api.health import router as health_router
+from piern.shared.api.routers import integrity, jobs as shared_jobs
 from piern.shared.api.security import install_security
 from piern.shared.api.static import SPAStaticFiles
 from piern.shared.runtime.config import load_runtime_config, log_runtime_config
@@ -36,20 +38,23 @@ def _cors_origins() -> list[str]:
     return list(load_runtime_config().cors_origins)
 
 
-app = FastAPI(title='PiERN Unified API', version='3.0', lifespan=_lifespan)
+app = FastAPI(title="PiERN Unified API", version="3.0", lifespan=_lifespan)
 install_security(app)
 install_error_handlers(app)
+install_audit(app)
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_cors_origins(),
     allow_credentials=True,
-    allow_methods=['*'],
-    allow_headers=['*'],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 for _router in [
     health_router,
+    shared_jobs.router,
+    integrity.router,
     datasets.router,
     config.router,
     registry.router,
@@ -62,8 +67,8 @@ for _router in [
     router_data.router,
     training.router,
 ]:
-    app.include_router(_router, prefix='/api')
+    app.include_router(_router, prefix="/api")
 
-_dist = PROJECT_ROOT / 'frontend' / 'dist'
+_dist = PROJECT_ROOT / "frontend" / "dist"
 if _dist.exists():
-    app.mount('/', SPAStaticFiles(directory=str(_dist), html=True), name='static')
+    app.mount("/", SPAStaticFiles(directory=str(_dist), html=True), name="static")
