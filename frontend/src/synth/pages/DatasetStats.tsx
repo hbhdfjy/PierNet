@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { DashboardSummary } from '../../lib/types'
@@ -214,7 +215,7 @@ function PieCard({
   )
 }
 
-function ScenarioBar({ data }: { data: Record<string, number> }) {
+function ScenarioBar({ data, targetHeight }: { data: Record<string, number>; targetHeight?: number | null }) {
   const entries = Object.entries(data)
     .sort((a, b) => b[1] - a[1])
     .slice(0, 22)
@@ -225,7 +226,10 @@ function ScenarioBar({ data }: { data: Record<string, number> }) {
   const useLog = maxVal / Math.max(minVal, 1) > 100
 
   return (
-    <div className="training-card scenario-bar-card overflow-hidden">
+    <div
+      className={cn('training-card scenario-bar-card overflow-hidden', targetHeight && 'scenario-bar-card--matched')}
+      style={targetHeight ? { height: targetHeight } : undefined}
+    >
       <div className="card-header">
         <Layers size={16} className="text-slate-400" />
         <SectionTitle title="按场景分布" copy={`${entries.length} 个场景${useLog ? ' / 对数轴' : ''}`} />
@@ -367,6 +371,36 @@ export default function DatasetStats() {
   const routerNegative = routerStatus?.label_counts['0'] ?? 0
   const routerPositiveRate = routerTotal > 0 ? ((routerPositive / routerTotal) * 100).toFixed(1) : '0.0'
   const routerNegativeRate = routerTotal > 0 ? ((routerNegative / routerTotal) * 100).toFixed(1) : '0.0'
+  const distributionSideRef = useRef<HTMLDivElement | null>(null)
+  const [scenarioCardHeight, setScenarioCardHeight] = useState<number | null>(null)
+
+  useEffect(() => {
+    const side = distributionSideRef.current
+    if (!stats || !side) {
+      setScenarioCardHeight(null)
+      return
+    }
+
+    let frame = 0
+    const updateHeight = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const desktop = window.matchMedia('(min-width: 1280px)').matches
+        setScenarioCardHeight(desktop ? Math.ceil(side.getBoundingClientRect().height) : null)
+      })
+    }
+
+    const observer = new ResizeObserver(updateHeight)
+    observer.observe(side)
+    window.addEventListener('resize', updateHeight)
+    updateHeight()
+
+    return () => {
+      cancelAnimationFrame(frame)
+      observer.disconnect()
+      window.removeEventListener('resize', updateHeight)
+    }
+  }, [stats])
 
   return (
     <div className="page-shell">
@@ -395,8 +429,8 @@ export default function DatasetStats() {
 
             <SectionBlock icon={<Globe size={17} />} title="内容分布" copy="场景规模、语言、风格和时间采样。">
               <div className="dataset-distribution-grid grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,25rem)]">
-                <ScenarioBar data={stats.by_scenario} />
-                <div className="dataset-distribution-side grid grid-cols-1 gap-4">
+                <ScenarioBar data={stats.by_scenario} targetHeight={scenarioCardHeight} />
+                <div ref={distributionSideRef} className="dataset-distribution-side grid grid-cols-1 gap-4">
                   <PieCard title="语言分布" icon={<Globe size={15} />} data={stats.by_language} />
                   <PieCard title="写作风格" icon={<FileText size={15} />} data={stats.by_style} />
                   <PieCard title="时间采样" icon={<TrendingUp size={15} />} data={stats.by_time_mode} />

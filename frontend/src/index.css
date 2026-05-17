@@ -2631,6 +2631,22 @@
     flex: 0 0 auto;
   }
 
+  .scenario-bar-card--matched {
+    min-height: 0;
+  }
+
+  .scenario-bar-card--matched .training-card__body {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  .scenario-bar-card--matched .scenario-bar-list {
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+  }
+
   .scenario-bar-list {
     max-height: clamp(18rem, 52dvh, 34rem);
     overflow-y: auto;
