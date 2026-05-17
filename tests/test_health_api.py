@@ -25,3 +25,4 @@ def test_health_ready_reports_core_paths():
     assert payload["status"] in {"ok", "degraded"}
     assert "project_root" in payload["checks"]
     assert "runlog_root" in payload["checks"]
+    assert "runtime_config" in payload["checks"]

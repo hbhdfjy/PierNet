@@ -1,6 +1,6 @@
 """Unified FastAPI 入口，挂载 synth / training API 与前端静态资源。"""
 
-import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from piern.shared.api.errors import install_error_handlers
 from piern.shared.api.health import router as health_router
 from piern.shared.api.static import SPAStaticFiles
+from piern.shared.runtime.config import load_runtime_config, log_runtime_config
 from piern.shared.runtime.paths import PROJECT_ROOT
 from piern.synth.api.routers import (
     config,
@@ -24,19 +25,17 @@ from piern.synth.api.routers import (
 from piern.training.api.routers import training
 
 
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    log_runtime_config()
+    yield
+
+
 def _cors_origins() -> list[str]:
-    configured = os.getenv('PIERN_CORS_ORIGINS', '').strip()
-    if configured:
-        return [item.strip() for item in configured.split(',') if item.strip()]
-    frontend_port = os.getenv('PIERN_FRONTEND_PORT', '5173')
-    return [
-        f'http://localhost:{frontend_port}',
-        'http://localhost:4173',
-        f'http://127.0.0.1:{frontend_port}',
-    ]
+    return list(load_runtime_config().cors_origins)
 
 
-app = FastAPI(title='PiERN Unified API', version='3.0')
+app = FastAPI(title='PiERN Unified API', version='3.0', lifespan=_lifespan)
 install_error_handlers(app)
 
 app.add_middleware(

@@ -66,9 +66,10 @@ cp .env.example .env
 ```bash
 python scripts/ci/check_repo_hygiene.py
 python scripts/ci/check_migration_ready.py
+python -m piern.shared.runtime.config
 ```
 
-这两个检查只做静态和轻量文件检查，不生成样本、不下载模型、不启动 GPU 训练。模型目录缺失会给出警告和下载提示，不阻止 CI。
+这些检查只做静态和轻量文件检查，不生成样本、不下载模型、不启动 GPU 训练。模型目录缺失会给出警告和下载提示，不阻止 CI。
 
 ## 启动服务
 
@@ -95,6 +96,7 @@ scripts/services/install-systemd.sh --dry-run
 scripts/services/install-systemd.sh --enable --now
 systemctl --user status piern-backend
 systemctl --user status piern-frontend
+curl -fsS http://127.0.0.1:8000/api/health/ready
 ```
 
 如果服务器未启用用户 linger，重启后用户级服务可能不会自动恢复，需要管理员执行：

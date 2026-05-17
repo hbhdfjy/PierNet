@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fastapi import APIRouter
 
+from piern.shared.runtime.config import validate_runtime_config
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.training.services import training_manager
 
@@ -41,13 +42,21 @@ def live() -> dict:
 
 @router.get("/health/ready")
 def ready() -> dict:
+    validation = validate_runtime_config()
     checks = {
         "project_root": _path_status(PROJECT_ROOT),
         "data_root": _path_status(DATA_ROOT),
         "artifact_root": _path_status(ARTIFACT_ROOT, writable=True),
         "runlog_root": _path_status(RUNLOG_ROOT, writable=True),
+        "runtime_config": {
+            "ok": validation.ok,
+            "errors": list(validation.errors),
+            "warnings": list(validation.warnings),
+            "summary": validation.config.safe_summary(),
+        },
     }
-    ok = all(item.get("exists") for item in checks.values()) and checks["runlog_root"].get("writable")
+    path_checks = [value for key, value in checks.items() if key != "runtime_config"]
+    ok = all(item.get("exists") for item in path_checks) and checks["runlog_root"].get("writable") and validation.ok
     return {"status": "ok" if ok else "degraded", "checks": checks}
 
 

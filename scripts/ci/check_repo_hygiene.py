@@ -54,9 +54,9 @@ GENERIC_SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(?:api[_-]?key|secret|token)\b\s*[:=]\s*['\"]([A-Za-z0-9][A-Za-z0-9_:+/-]{23,})['\"]"
 )
 PRIVATE_PATH_PATTERNS = [
-    re.compile(r"/home/(?:tpx|fjy)(?:/|\b)"),
-    re.compile(r"/Users/fanjingyuan(?:/|\b)"),
-    re.compile(r"/data/fjy(?:/|\b)"),
+    re.compile(r"/home/" + r"(?:tpx|fjy)(?:/|\b)"),
+    re.compile(r"/Users/" + r"fanjingyuan(?:/|\b)"),
+    re.compile(r"/data/" + r"fjy(?:/|\b)"),
 ]
 TEXT_SUFFIXES = {".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".sh", ".md", ".yml", ".yaml", ".json", ".toml", ".txt", ".css", ".html", ".example", ""}
 

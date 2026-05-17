@@ -1,6 +1,10 @@
 import os
 from pathlib import Path
 
+from piern.shared.runtime.env import load_env_file
+
+load_env_file()
+
 
 def _env_path(name: str, default: Path) -> Path:
     value = os.getenv(name, '').strip()

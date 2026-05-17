@@ -49,11 +49,11 @@
 | 7 | 前端结构升级 | 已完成多轮 UI 修复，仍需系统性组件化 |
 | 8 | 后端模块化与观测 | 已完成错误模型、request id、健康检查基础版 |
 
-## 4. 本轮执行批次（2026-05-17）
+## 4. 已完成批次（2026-05-17）
 
-本轮先修正文档，再落地 P0 基线。worker 化、统一任务状态机和数据库迁移暂不进入本轮实现，避免在服务守护和迁移验收尚未固化前扩大任务执行层改动面。
+本轮已修正文档并落地 P0 基线。worker 化、统一任务状态机和数据库迁移暂不进入本轮实现，避免在服务守护和迁移验收尚未固化前扩大任务执行层改动面。
 
-本轮交付范围：
+已交付范围：
 
 1. 服务守护：用户级 systemd 模板、前台 runner、安装脚本。
 2. `.env` 覆盖：扩展 `.env.example`，补齐服务、存储、模型、训练和审计检查相关变量。
@@ -71,9 +71,9 @@ scripts/services/install-systemd.sh --dry-run
 scripts/services/status.sh
 ```
 
-## 5. 下一批 P0 任务
+## 5. 已完成 P0 基线和本轮收尾
 
-### 4.1 正式服务守护
+### 5.1 正式服务守护
 
 任务：
 
@@ -97,7 +97,7 @@ systemctl --user status piern-backend
 systemctl --user status piern-frontend
 ```
 
-### 4.2 `.env` 全覆盖审计
+### 5.2 `.env` 全覆盖审计
 
 任务：
 
@@ -112,7 +112,7 @@ systemctl --user status piern-frontend
 python scripts/ci/check_consistency.py
 ```
 
-### 4.3 迁移验收脚本
+### 5.3 迁移验收脚本
 
 任务：
 
@@ -127,7 +127,7 @@ python scripts/ci/check_consistency.py
 python scripts/ci/check_migration_ready.py
 ```
 
-### 4.4 仓库卫生检查
+### 5.4 仓库卫生检查
 
 任务：
 
@@ -141,9 +141,27 @@ python scripts/ci/check_migration_ready.py
 python scripts/ci/check_repo_hygiene.py
 ```
 
+### 5.5 本轮收尾：配置校验和 systemd 接管
+
+任务：
+
+1. 新增统一配置加载和校验模块。
+2. API 启动时输出脱敏配置摘要。
+3. `/api/health/ready` 暴露配置校验结果。
+4. 后端 systemd runner 启动前先执行配置校验。
+5. 将当前手动前后端进程切换为 user-level systemd 接管。
+
+验收：
+
+```bash
+python -m piern.shared.runtime.config
+curl -fsS http://127.0.0.1:8000/api/health/ready
+systemctl --user status piern-backend piern-frontend
+```
+
 ## 6. 下一批 P1 任务
 
-### 5.1 统一任务状态机
+### 6.1 统一任务状态机
 
 任务：
 
@@ -158,7 +176,7 @@ python scripts/ci/check_repo_hygiene.py
 python -m pytest tests/test_synth_job_store.py tests/test_training_job_store.py
 ```
 
-### 5.2 统一任务锁
+### 6.2 统一任务锁
 
 任务：
 
@@ -173,7 +191,7 @@ python -m pytest tests/test_synth_job_store.py tests/test_training_job_store.py
 python -m pytest tests/test_training_manager_fallbacks.py
 ```
 
-### 5.3 独立 worker 骨架
+### 6.3 独立 worker 骨架
 
 任务：
 
@@ -190,7 +208,7 @@ python -m pytest
 scripts/services/status.sh
 ```
 
-### 5.4 数据库迁移机制
+### 6.4 数据库迁移机制
 
 任务：
 
@@ -312,11 +330,11 @@ npm run openapi:check
 
 ## 9. 当前最推荐的下一步
 
-优先做本轮 P0 基线：
+P0 基线已进入 CI，服务守护和配置校验已完成基础接入。下一步优先进入 P1 任务执行器工业化：
 
-1. systemd 服务守护。
-2. `.env` 全覆盖审计。
-3. 迁移验收脚本。
-4. 仓库卫生检查。
+1. 统一任务状态机。
+2. 统一任务锁和资源引用。
+3. 独立 `piern/worker` 骨架。
+4. 数据库迁移机制。
 
-完成并进入 CI 后，再做 P1 的 worker 化、统一状态机和数据库迁移。这样顺序最稳，因为先把服务器运行和迁移风险压低，再重构任务执行层。
+完成这些后，再推进生产静态前端、Nginx、Docker Compose、安全认证和截图回归。
