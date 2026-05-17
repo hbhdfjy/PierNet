@@ -38,12 +38,6 @@ import type {
   TrainingJobDetail,
   TrainingCurvesResponse,
   TrainingLogResponse,
-  UnifiedJobSummary,
-  UnifiedJobDetail,
-  UnifiedJobEventResponse,
-  UnifiedJobLogResponse,
-  AuditEvent,
-  IntegrityStatus,
 } from './types'
 
 const BASE = '/api'
@@ -164,48 +158,6 @@ async function get<T>(path: string, params?: Record<string, string | number>): P
 }
 
 export const api = {
-  // ── 统一任务中心 / 审计 / 数据完整性 ────────────────────────────────
-  listUnifiedJobs: (filters?: {
-    platform?: 'synth' | 'training'
-    status?: string
-    limit?: number
-  }): Promise<UnifiedJobSummary[]> => {
-    const params: Record<string, string | number> = {}
-    if (filters?.platform) params.platform = filters.platform
-    if (filters?.status) params.status = filters.status
-    if (filters?.limit) params.limit = filters.limit
-    return get('/jobs', params)
-  },
-
-  getUnifiedJob: (jobId: string): Promise<UnifiedJobDetail> => get(`/jobs/${encodeURIComponent(jobId)}`),
-
-  getUnifiedJobEvents: (jobId: string): Promise<UnifiedJobEventResponse> =>
-    get(`/jobs/${encodeURIComponent(jobId)}/events`),
-
-  getUnifiedJobLogs: (jobId: string, limit = 300): Promise<UnifiedJobLogResponse> =>
-    get(`/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
-
-  stopUnifiedJob: async (jobId: string): Promise<UnifiedJobSummary> => {
-    const res = await apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/stop`, { method: 'POST' })
-    await ensureOk(res, '停止任务失败')
-    return res.json()
-  },
-
-  listAuditEvents: (limit = 200): Promise<{ items: AuditEvent[] }> => get('/jobs/audit/events', { limit }),
-
-  getIntegrityStatus: (): Promise<IntegrityStatus> => get('/storage/integrity'),
-
-  rebuildIntegrityManifest: async (): Promise<{
-    ok: boolean
-    manifest_path: string
-    entries: number
-    generated_at: number
-  }> => {
-    const res = await apiFetch(`${BASE}/storage/integrity/manifest`, { method: 'POST' })
-    await ensureOk(res, '重建完整性清单失败')
-    return res.json()
-  },
-
   // ── 数据集 ──────────────────────────────────────────────────────
   getDatasets: (): Promise<DatasetInfo[]> => get('/datasets'),
 

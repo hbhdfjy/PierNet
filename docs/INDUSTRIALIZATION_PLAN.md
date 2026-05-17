@@ -46,11 +46,11 @@ PiERN 当前已经从科研脚本集合重构为一个准工业化的模块化�
 
 本轮继续完成了计划中若干原本标记为未完成的事项：
 
-1. 统一跨平台 `/api/jobs` 已落地，并新增 `/api/jobs/workers`、`/api/jobs/audit/events`、`/api/storage/integrity`。
+1. 合成和训练任务均已接入 worker 执行；跨平台任务聚合页面及其配套聚合接口已按当前产品范围移除。
 2. 合成、样本填充、Router 构建已通过 `piern-worker` 执行 queued 任务。
 3. 训练任务默认进入 worker 队列，由 `piern-worker` 领取后启动训练子进程；Web API 不再默认直接拉起训练。
 4. 新增 worker heartbeat registry，用于识别 worker running/stale/stopped 状态。
-5. 审计事件、数据完整性 API、Compose worker 服务和 visual Playwright 回归已接入。
+5. 审计存储、源数据完整性脚本、Compose worker 服务和 visual Playwright 回归已接入。
 6. `training_manager.py` 已开始拆分，训练清理逻辑迁移到 `training_cleanup.py`，训练队列执行迁移到 `training/services/worker_queue.py`。
 
 仍需继续推进但不阻塞当前单机工业化使用的事项：PostgreSQL/Redis 级分布式队列、多用户 RBAC、对象存储、模型注册表、完整 Prometheus 指标、训练/合成最小闭环 nightly。
@@ -430,25 +430,24 @@ PiERN 当前已经从科研脚本集合重构为一个准工业化的模块化�
 - 删除操作不会删除运行任务依赖的数据。
 - GPU 不会被两个训练任务同时占用。
 
-### 6.4 增加任务事件和日志统一接口
+### 6.4 保持平台内任务接口清晰
 
 现状：
 
-- 前端能看日志和进度。
-- 合成和训练的事件结构不完全统一。
+- 训练平台已有 `/api/training/jobs`、详情、日志、曲线和停止接口。
+- 合成平台已有 `/api/generate/jobs`、任务状态、SSE 流和终止接口。
+- 独立的跨平台任务聚合页不是当前单机产品刚需，已移除其页面和聚合 API。
 
 需要做：
 
-1. 统一 `/api/jobs/{job_id}`。
-2. 统一 `/api/jobs/{job_id}/events`。
-3. 统一 `/api/jobs/{job_id}/logs`。
-4. 训练和合成保留各自详情接口，但底层事件模型一致。
-5. 支持分页查询事件，避免长任务事件过多。
+1. 保持训练和合成各自任务接口稳定。
+2. 继续统一底层任务状态枚举和事件存储约束。
+3. 如后续确实需要跨平台运维页，再基于明确需求恢复聚合查询，不默认暴露额外入口。
 
 验收标准：
 
-- 前端任务列表可以跨平台展示任务。
-- 调试任务不需要手动翻 `.runlogs`。
+- 训练和合成页面内任务状态、日志、停止操作正常。
+- 移除跨平台任务聚合页后，不影响 worker 队列、训练任务和合成任务执行。
 
 ## 7. P1：数据库和存储治理
 

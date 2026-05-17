@@ -10,7 +10,6 @@ import {
   FileText,
   FlaskConical,
   FolderOpen,
-  ListChecks,
   GitBranch,
   KeyRound,
   Network,
@@ -32,7 +31,6 @@ const SimulationRunner = lazy(() => import('./pages/SimulationRunner'))
 const TemplateGenerator = lazy(() => import('./pages/TemplateGenerator'))
 const TemplateViewer = lazy(() => import('./pages/TemplateViewer'))
 const DataUploadPage = lazy(() => import('./pages/DataUploadPage'))
-const TaskCenterPage = lazy(() => import('../platform/TaskCenterPage'))
 const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
@@ -71,7 +69,6 @@ const navGroups: ShellNavGroup[] = [
       { to: '/synth/samples', icon: Database, label: '样本浏览', rightIcon: ChevronRight },
       { to: '/synth/router-viewer', icon: Network, label: '路由浏览', rightIcon: ChevronRight },
       { to: '/synth/files', icon: FolderOpen, label: '文件管理', rightIcon: ChevronRight },
-      { to: '/synth/tasks', icon: ListChecks, label: '任务中心', rightIcon: ChevronRight },
     ],
   },
   {
@@ -106,7 +103,6 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
         <Route path="samples" element={<SampleViewer />} />
         <Route path="router-viewer" element={<RouterViewer />} />
         <Route path="files" element={<FileManagerContent />} />
-        <Route path="tasks" element={<TaskCenterPage />} />
         <Route path="stats" element={<Navigate to="/synth" replace />} />
         <Route path="registry" element={<RegistryPage />} />
         <Route path="llm-config" element={<LLMConfigPage />} />
