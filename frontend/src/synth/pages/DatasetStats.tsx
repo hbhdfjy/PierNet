@@ -409,17 +409,12 @@ export default function DatasetStats() {
             />
 
             <SectionBlock icon={<Globe size={17} />} title="内容分布" copy="场景规模、语言、风格和时间采样。">
-              <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.22fr_0.78fr]">
+              <div className="dataset-distribution-grid grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,25rem)]">
                 <ScenarioBar data={stats.by_scenario} />
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="dataset-distribution-side grid grid-cols-1 gap-4">
                   <PieCard title="语言分布" icon={<Globe size={15} />} data={stats.by_language} />
                   <PieCard title="写作风格" icon={<FileText size={15} />} data={stats.by_style} />
-                  <PieCard
-                    title="时间采样"
-                    icon={<TrendingUp size={15} />}
-                    data={stats.by_time_mode}
-                    className="md:col-span-2"
-                  />
+                  <PieCard title="时间采样" icon={<TrendingUp size={15} />} data={stats.by_time_mode} />
                 </div>
               </div>
             </SectionBlock>

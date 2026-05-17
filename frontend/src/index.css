@@ -2592,4 +2592,87 @@
       min-height: auto;
     }
   }
+
+  .dataset-distribution-grid,
+  .dataset-distribution-side,
+  .training-new-layout,
+  .training-new-primary,
+  .training-new-aside {
+    min-width: 0;
+  }
+
+  .dataset-distribution-grid > *,
+  .dataset-distribution-side > *,
+  .training-new-layout > * {
+    min-width: 0;
+  }
+
+  .dataset-distribution-grid {
+    align-items: start;
+  }
+
+  .dataset-distribution-side .distribution-card,
+  .training-new-aside .training-card,
+  .training-new-primary .training-card {
+    align-self: start;
+  }
+
+  .scenario-bar-card .training-card__body {
+    flex: 0 0 auto;
+  }
+
+  .scenario-bar-list {
+    max-height: clamp(18rem, 52dvh, 34rem);
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-gutter: stable;
+  }
+
+  .training-gpu-grid {
+    grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 901px) {
+    .app-sidebar {
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+    }
+
+    .app-nav {
+      min-height: auto;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+  }
+
+  @media (min-width: 641px) {
+    .workbench-sidebar {
+      height: 100%;
+      max-height: 100dvh;
+      align-self: stretch;
+      overflow-y: auto;
+      overflow-x: hidden;
+      scrollbar-gutter: stable;
+    }
+
+    .workbench-sidebar > .flex-1.min-h-0 {
+      min-height: auto;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+
+    .workbench-sidebar > .flex-1.min-h-0 > .flex-1 {
+      min-height: auto;
+      flex: 0 0 auto;
+      overflow: visible;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .training-new-aside {
+      position: sticky;
+      top: 0.85rem;
+    }
+  }
 }

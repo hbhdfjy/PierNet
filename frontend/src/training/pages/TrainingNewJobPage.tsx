@@ -221,8 +221,8 @@ export default function TrainingNewJobPage() {
             <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">{error}</div>
           )}
 
-          <div className="grid items-start gap-4 xl:grid-cols-[1.22fr_0.78fr]">
-            <section className="training-stack">
+          <div className="training-new-layout grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(23rem,0.72fr)]">
+            <section className="training-stack training-new-primary">
               <div className="training-card training-card--compact">
                 <div className="card-header">
                   <Database size={16} className="text-sky-300" />
@@ -313,68 +313,6 @@ export default function TrainingNewJobPage() {
                 </div>
               </div>
 
-              <div className="training-card training-card--compact min-h-0">
-                <div className="card-header">
-                  <Cpu size={16} className="text-emerald-300" />
-                  <SectionTitle title="GPU 分配" copy="选择一张空闲 GPU" />
-                </div>
-                <div className="training-card__body training-scroll list-scroll-lg">
-                  <div className="grid gap-2 md:grid-cols-2">
-                    {(gpus ?? []).map(gpu => {
-                      const memoryRatio =
-                        gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
-                      return (
-                        <label
-                          key={gpu.index}
-                          className={`block rounded-xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex min-w-0 items-center gap-2.5">
-                              <input
-                                type="radio"
-                                className="mt-1"
-                                checked={gpuId === gpu.index}
-                                disabled={!gpu.available}
-                                onChange={() => setGpuId(gpu.index)}
-                              />
-                              <div className="min-w-0">
-                                <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
-                                <div className="mt-0.5 truncate text-[12px] text-slate-400">{gpu.name}</div>
-                              </div>
-                            </div>
-                            <span
-                              className={
-                                gpu.available
-                                  ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
-                                  : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'
-                              }
-                            >
-                              {gpu.available ? '可用' : (gpu.reason ?? '占用中')}
-                            </span>
-                          </div>
-                          <div className="mt-2 training-stat-grid">
-                            <div>
-                              <div className="training-label">显存</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">
-                                {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
-                              </div>
-                              <UsageBar value={memoryRatio} />
-                            </div>
-                            <div>
-                              <div className="training-label">利用率</div>
-                              <div className="mt-0.5 text-[13px] text-slate-200">{gpu.utilization_gpu}%</div>
-                              <UsageBar value={gpu.utilization_gpu} />
-                            </div>
-                          </div>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="training-stack">
               <div className="training-card training-card--compact">
                 <div className="card-header">
                   <Sparkles size={16} className="text-violet-300" />
@@ -454,6 +392,68 @@ export default function TrainingNewJobPage() {
                         ))}
                       </select>
                     </Field>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="training-stack training-new-aside">
+              <div className="training-card training-card--compact min-h-0">
+                <div className="card-header">
+                  <Cpu size={16} className="text-emerald-300" />
+                  <SectionTitle title="GPU 分配" copy="选择一张空闲 GPU" />
+                </div>
+                <div className="training-card__body training-scroll list-scroll-lg">
+                  <div className="training-gpu-grid grid gap-2">
+                    {(gpus ?? []).map(gpu => {
+                      const memoryRatio =
+                        gpu.memory_total_mib > 0 ? (gpu.memory_used_mib / gpu.memory_total_mib) * 100 : 0
+                      return (
+                        <label
+                          key={gpu.index}
+                          className={`block rounded-xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                              <input
+                                type="radio"
+                                className="mt-1"
+                                checked={gpuId === gpu.index}
+                                disabled={!gpu.available}
+                                onChange={() => setGpuId(gpu.index)}
+                              />
+                              <div className="min-w-0">
+                                <div className="text-[15px] font-semibold text-slate-100">GPU {gpu.index}</div>
+                                <div className="mt-0.5 truncate text-[12px] text-slate-400">{gpu.name}</div>
+                              </div>
+                            </div>
+                            <span
+                              className={
+                                gpu.available
+                                  ? 'badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300'
+                                  : 'badge border border-amber-500/20 bg-amber-500/12 text-amber-300'
+                              }
+                            >
+                              {gpu.available ? '可用' : (gpu.reason ?? '占用中')}
+                            </span>
+                          </div>
+                          <div className="mt-2 training-stat-grid">
+                            <div>
+                              <div className="training-label">显存</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">
+                                {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
+                              </div>
+                              <UsageBar value={memoryRatio} />
+                            </div>
+                            <div>
+                              <div className="training-label">利用率</div>
+                              <div className="mt-0.5 text-[13px] text-slate-200">{gpu.utilization_gpu}%</div>
+                              <UsageBar value={gpu.utilization_gpu} />
+                            </div>
+                          </div>
+                        </label>
+                      )
+                    })}
                   </div>
                 </div>
               </div>
