@@ -493,6 +493,79 @@
         "title": "LLMConfigRequest",
         "type": "object"
       },
+      "MetricsSummary": {
+        "properties": {
+          "generated_at": {
+            "title": "Generated At",
+            "type": "number"
+          },
+          "jobs": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/StatusSummary"
+            },
+            "title": "Jobs",
+            "type": "object"
+          },
+          "queues": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/QueueSummary"
+            },
+            "title": "Queues",
+            "type": "object"
+          },
+          "resources": {
+            "$ref": "#/components/schemas/ResourceMetrics"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          },
+          "workers": {
+            "$ref": "#/components/schemas/WorkerMetrics"
+          }
+        },
+        "required": [
+          "status",
+          "generated_at",
+          "jobs",
+          "queues",
+          "workers",
+          "resources"
+        ],
+        "title": "MetricsSummary",
+        "type": "object"
+      },
+      "QueueSummary": {
+        "properties": {
+          "oldest_queued_age_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oldest Queued Age Seconds"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "QueueSummary",
+        "type": "object"
+      },
       "RegisterRequest": {
         "properties": {
           "config": {
@@ -531,6 +604,25 @@
           }
         },
         "title": "RegisterRequest",
+        "type": "object"
+      },
+      "ResourceMetrics": {
+        "properties": {
+          "disk": {
+            "additionalProperties": true,
+            "title": "Disk",
+            "type": "object"
+          },
+          "gpus": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Gpus",
+            "type": "array"
+          }
+        },
+        "title": "ResourceMetrics",
         "type": "object"
       },
       "SampleFileInfo": {
@@ -670,6 +762,41 @@
           "config_path"
         ],
         "title": "SimulationScenario",
+        "type": "object"
+      },
+      "StatusSummary": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "integer"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Counts",
+            "type": "object"
+          },
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          },
+          "terminal": {
+            "title": "Terminal",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "queued",
+          "active",
+          "terminal"
+        ],
+        "title": "StatusSummary",
         "type": "object"
       },
       "TemplateFileInfo": {
@@ -2189,6 +2316,47 @@
           "items"
         ],
         "title": "WorkerListResponse",
+        "type": "object"
+      },
+      "WorkerMetrics": {
+        "properties": {
+          "busy": {
+            "title": "Busy",
+            "type": "integer"
+          },
+          "items": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "integer"
+          },
+          "stopped": {
+            "title": "Stopped",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "total",
+          "running",
+          "stale",
+          "stopped",
+          "busy"
+        ],
+        "title": "WorkerMetrics",
         "type": "object"
       },
       "WorkerSummary": {
@@ -3859,6 +4027,27 @@
           }
         },
         "summary": "Test Llm Config"
+      }
+    },
+    "/api/metrics/summary": {
+      "get": {
+        "operationId": "metrics_summary_api_metrics_summary_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MetricsSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Metrics Summary",
+        "tags": [
+          "metrics"
+        ]
       }
     },
     "/api/register": {

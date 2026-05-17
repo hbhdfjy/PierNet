@@ -753,6 +753,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/metrics/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Metrics Summary */
+        get: operations["metrics_summary_api_metrics_summary_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/register": {
         parameters: {
             query?: never;
@@ -1524,6 +1541,32 @@ export interface components {
              */
             thinking: string;
         };
+        /** MetricsSummary */
+        MetricsSummary: {
+            /** Generated At */
+            generated_at: number;
+            /** Jobs */
+            jobs: {
+                [key: string]: components["schemas"]["StatusSummary"];
+            };
+            /** Queues */
+            queues: {
+                [key: string]: components["schemas"]["QueueSummary"];
+            };
+            resources: components["schemas"]["ResourceMetrics"];
+            /** Status */
+            status: string;
+            /** Warnings */
+            warnings?: string[];
+            workers: components["schemas"]["WorkerMetrics"];
+        };
+        /** QueueSummary */
+        QueueSummary: {
+            /** Oldest Queued Age Seconds */
+            oldest_queued_age_seconds?: number | null;
+            /** Queued */
+            queued: number;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /**
@@ -1550,6 +1593,17 @@ export interface components {
              * @default false
              */
             simulator_level: boolean;
+        };
+        /** ResourceMetrics */
+        ResourceMetrics: {
+            /** Disk */
+            disk?: {
+                [key: string]: unknown;
+            };
+            /** Gpus */
+            gpus?: {
+                [key: string]: unknown;
+            }[];
         };
         /** SampleFileInfo */
         SampleFileInfo: {
@@ -1620,6 +1674,21 @@ export interface components {
             scenario: string;
             /** Simulator */
             simulator: string;
+        };
+        /** StatusSummary */
+        StatusSummary: {
+            /** Active */
+            active: number;
+            /** Counts */
+            counts?: {
+                [key: string]: number;
+            };
+            /** Queued */
+            queued: number;
+            /** Terminal */
+            terminal: number;
+            /** Total */
+            total: number;
         };
         /** TemplateFileInfo */
         TemplateFileInfo: {
@@ -2145,6 +2214,23 @@ export interface components {
         WorkerListResponse: {
             /** Items */
             items: components["schemas"]["WorkerSummary"][];
+        };
+        /** WorkerMetrics */
+        WorkerMetrics: {
+            /** Busy */
+            busy: number;
+            /** Items */
+            items?: {
+                [key: string]: unknown;
+            }[];
+            /** Running */
+            running: number;
+            /** Stale */
+            stale: number;
+            /** Stopped */
+            stopped: number;
+            /** Total */
+            total: number;
         };
         /** WorkerSummary */
         WorkerSummary: {
@@ -3407,6 +3493,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    metrics_summary_api_metrics_summary_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MetricsSummary"];
                 };
             };
         };

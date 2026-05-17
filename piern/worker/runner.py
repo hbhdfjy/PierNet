@@ -32,7 +32,7 @@ def run(*, interval: float = 10.0, once: bool = False) -> int:
         if expired:
             LOGGER.info("expired %s stale task lock(s)", expired)
         workers.upsert_worker(worker_id=worker_id, kind="piern-worker", status="running")
-        ran_job = synth_worker_queue.run_next_queued_job()
+        ran_job = synth_worker_queue.run_next_queued_job(worker_id=worker_id)
         if not ran_job:
             ran_job = training_worker_queue.run_next_queued_job(worker_id=worker_id)
         if once:

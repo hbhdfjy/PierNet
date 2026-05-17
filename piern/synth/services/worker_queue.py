@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import logging
 import os
-import socket
 import time
 from collections.abc import Callable
 
-from piern.shared.tasks import locks as task_locks
+from piern.shared.tasks import locks as task_locks, workers
 from piern.synth.services import generation_executor, job_manager, job_store, router_executor
 from piern.synth.services.job_manager import JobRecord, publish
 
@@ -16,8 +15,6 @@ LOGGER = logging.getLogger(__name__)
 
 QUEUE_LOCK_KEY = "worker:synth-queue"
 QUEUE_LOCK_TTL_SECONDS = float(os.getenv("PIERN_WORKER_QUEUE_LOCK_TTL_SECONDS", "60"))
-WORKER_OWNER = f"{socket.gethostname()}:{os.getpid()}"
-
 DISPATCH: dict[str, Callable[[JobRecord, dict], None]] = {
     "generate_templates": generation_executor.run_generate_templates_job,
     "fill_samples": generation_executor.run_fill_samples_job,
@@ -34,10 +31,11 @@ def _queued_jobs() -> list[dict]:
     return sorted(jobs, key=lambda item: float(item.get("created_at") or item.get("started_at") or 0))
 
 
-def run_next_queued_job() -> bool:
+def run_next_queued_job(*, worker_id: str | None = None) -> bool:
     if not queue_enabled():
         return False
-    if not task_locks.acquire_lock(QUEUE_LOCK_KEY, WORKER_OWNER, ttl_seconds=QUEUE_LOCK_TTL_SECONDS):
+    owner = worker_id or workers.default_worker_id()
+    if not task_locks.acquire_lock(QUEUE_LOCK_KEY, owner, ttl_seconds=QUEUE_LOCK_TTL_SECONDS):
         return False
     try:
         for stored in _queued_jobs():
@@ -51,13 +49,14 @@ def run_next_queued_job() -> bool:
                 {
                     "type": "started",
                     "ts": time.time(),
-                    "message": f"Worker {WORKER_OWNER} started {record.job_type}",
+                    "message": f"Worker {owner} started {record.job_type}",
                 },
             )
             dispatcher = DISPATCH[record.job_type]
-            LOGGER.info("running queued synthesis job job_id=%s type=%s", record.job_id, record.job_type)
-            dispatcher(record, latest.get("request_json") or {})
+            LOGGER.info("running queued synthesis job job_id=%s type=%s worker_id=%s", record.job_id, record.job_type, owner)
+            with workers.heartbeat_while(worker_id=owner, kind="piern-worker", current_job_id=record.job_id):
+                dispatcher(record, latest.get("request_json") or {})
             return True
     finally:
-        task_locks.release_lock(QUEUE_LOCK_KEY, WORKER_OWNER)
+        task_locks.release_lock(QUEUE_LOCK_KEY, owner)
     return False

@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from piern.shared.api.audit import install_audit
 from piern.shared.api.errors import install_error_handlers
 from piern.shared.api.health import router as health_router
-from piern.shared.api.routers import integrity, jobs as shared_jobs
+from piern.shared.api.routers import integrity, jobs as shared_jobs, metrics
 from piern.shared.api.security import install_security
 from piern.shared.api.static import SPAStaticFiles
 from piern.shared.runtime.config import load_runtime_config, log_runtime_config
@@ -55,6 +55,7 @@ for _router in [
     health_router,
     shared_jobs.router,
     integrity.router,
+    metrics.router,
     datasets.router,
     config.router,
     registry.router,

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import socket
 import sqlite3
 import time
 from pathlib import Path
-from threading import RLock
+from contextlib import contextmanager
+from collections.abc import Iterator
+from threading import Event, RLock, Thread
 from typing import Any
 
 from piern.shared.db.migrations import Migration, ensure_sqlite_schema
@@ -17,12 +20,63 @@ from piern.shared.runtime.paths import RUNLOG_ROOT
 WORKER_STORE_PATH = Path(os.getenv("PIERN_WORKER_STORE_PATH", RUNLOG_ROOT / "worker_heartbeats.sqlite"))
 DEFAULT_STALE_AFTER_SECONDS = float(os.getenv("PIERN_WORKER_STALE_AFTER_SECONDS", "90"))
 
+LOGGER = logging.getLogger(__name__)
+
 _LOCK = RLock()
 _INITIALIZED = False
 
 
 def default_worker_id() -> str:
     return f"{socket.gethostname()}:{os.getpid()}"
+
+
+@contextmanager
+def heartbeat_while(
+    *,
+    worker_id: str | None = None,
+    kind: str = "piern-worker",
+    status: str = "running",
+    current_job_id: str | None = None,
+    metadata: dict[str, Any] | None = None,
+    interval: float = 10.0,
+) -> Iterator[str]:
+    """Refresh worker heartbeat while a blocking job is running."""
+
+    wid = worker_id or default_worker_id()
+    refresh_interval = max(0.5, float(interval))
+    stop_event = Event()
+    upsert_worker(
+        worker_id=wid,
+        kind=kind,
+        status=status,
+        current_job_id=current_job_id,
+        metadata=metadata,
+    )
+
+    def _refresh_loop() -> None:
+        while not stop_event.wait(refresh_interval):
+            try:
+                upsert_worker(
+                    worker_id=wid,
+                    kind=kind,
+                    status=status,
+                    current_job_id=current_job_id,
+                    metadata=metadata,
+                )
+            except Exception:
+                LOGGER.exception("worker heartbeat refresh failed worker_id=%s", wid)
+
+    thread = Thread(target=_refresh_loop, name=f"piern-heartbeat-{wid}", daemon=True)
+    thread.start()
+    try:
+        yield wid
+    finally:
+        stop_event.set()
+        thread.join(timeout=min(2.0, refresh_interval))
+        try:
+            upsert_worker(worker_id=wid, kind=kind, status=status, current_job_id=None, metadata=metadata)
+        except Exception:
+            LOGGER.exception("worker heartbeat clear failed worker_id=%s", wid)
 
 
 def _connect() -> sqlite3.Connection:

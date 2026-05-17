@@ -62,7 +62,10 @@ test('key workbench pages produce non-empty screenshots without overflow', async
     await expect(page.locator('body')).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(3)
+    const visibleTextLength = await page.evaluate(() => document.body.innerText.trim().length)
+    expect(visibleTextLength).toBeGreaterThan(20)
     const screenshot = await page.screenshot({ fullPage: true })
-    expect(screenshot.length).toBeGreaterThan(20_000)
+    expect(screenshot.readUInt32BE(16)).toBeGreaterThanOrEqual(1200)
+    expect(screenshot.readUInt32BE(20)).toBeGreaterThanOrEqual(700)
   }
 })

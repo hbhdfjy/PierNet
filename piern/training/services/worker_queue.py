@@ -36,8 +36,9 @@ def run_next_queued_job(*, worker_id: str | None = None) -> bool:
             job_id = str(job["job_id"])
             try:
                 workers.upsert_worker(worker_id=owner, kind="piern-worker", status="running", current_job_id=job_id)
-                LOGGER.info("starting queued training job job_id=%s", job_id)
-                training_manager.run_queued_job(job_id)
+                LOGGER.info("starting queued training job job_id=%s worker_id=%s", job_id, owner)
+                with workers.heartbeat_while(worker_id=owner, kind="piern-worker", current_job_id=job_id, interval=5.0):
+                    training_manager.run_queued_job(job_id)
                 return True
             except ValueError as exc:
                 LOGGER.info("queued training job not ready job_id=%s reason=%s", job_id, exc)
