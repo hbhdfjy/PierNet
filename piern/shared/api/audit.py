@@ -14,12 +14,7 @@ def _client_host(request: Request) -> str | None:
     return request.client.host if request.client else None
 
 
-def _actor(request: Request) -> str:
-    header = request.headers.get("authorization", "").strip()
-    if header.lower().startswith("bearer "):
-        return "token-user"
-    if request.headers.get("x-piern-token"):
-        return "token-user"
+def _actor(_: Request) -> str:
     return "anonymous"
 
 

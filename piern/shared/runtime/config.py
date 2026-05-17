@@ -65,7 +65,6 @@ class RuntimeConfig:
     lock_store_path: Path
     audit_store_path: Path
     worker_store_path: Path
-    auth_enabled: bool
     host: str
     backend_port: int
     frontend_port: int
@@ -99,7 +98,6 @@ class RuntimeConfig:
             "lock_store_path": str(self.lock_store_path),
             "audit_store_path": str(self.audit_store_path),
             "worker_store_path": str(self.worker_store_path),
-            "auth_enabled": self.auth_enabled,
             "host": self.host,
             "backend_port": self.backend_port,
             "frontend_port": self.frontend_port,
@@ -176,7 +174,6 @@ def load_runtime_config() -> RuntimeConfig:
         lock_store_path=_env_path("PIERN_LOCK_STORE_PATH", runlog_root / "job_locks.sqlite"),
         audit_store_path=_env_path("PIERN_AUDIT_STORE_PATH", runlog_root / "audit_events.sqlite"),
         worker_store_path=_env_path("PIERN_WORKER_STORE_PATH", runlog_root / "worker_heartbeats.sqlite"),
-        auth_enabled=bool(_env("PIERN_AUTH_TOKEN")),
         host=_env("PIERN_HOST", _env("PIERN_SERVICE_HOST", "0.0.0.0")) or "0.0.0.0",
         backend_port=backend_port,
         frontend_port=frontend_port,

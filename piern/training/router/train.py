@@ -63,12 +63,11 @@ class RouterTrainingConfig:
 class PlatformStopController:
     def __init__(self, stop_file: str | None) -> None:
         self.stop_file = Path(stop_file) if stop_file else None
-        self.stop_token = os.environ.get("PIERN_TRAIN_STOP_TOKEN", "")
         self._requested = False
 
     @property
     def enabled(self) -> bool:
-        return self.stop_file is not None and bool(self.stop_token)
+        return self.stop_file is not None
 
     def install(self) -> None:
         if not self.enabled:
@@ -77,27 +76,27 @@ class PlatformStopController:
         signal.signal(signal.SIGINT, self._handle_signal)
         print(f"[control] platform stop enabled stop_file={self.stop_file}")
 
-    def _authorized_request_exists(self) -> bool:
+    def _stop_request_exists(self) -> bool:
         if not self.enabled or self.stop_file is None or not self.stop_file.exists():
             return False
         try:
             payload = json.loads(self.stop_file.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             return False
-        return payload.get("token") == self.stop_token
+        return payload.get("reason") == "platform_stop"
 
     def _handle_signal(self, signum: int, _frame) -> None:
         signal_name = signal.Signals(signum).name
-        if self._authorized_request_exists():
+        if self._stop_request_exists():
             self._requested = True
-            print(f"[stop] authorized platform signal received signal={signal_name}")
+            print(f"[stop] platform stop signal received signal={signal_name}")
             return
-        print(f"[signal] ignored unauthorized signal={signal_name}; platform stop token missing or invalid")
+        print(f"[signal] ignored signal={signal_name}; platform stop file is missing")
 
     def requested(self) -> bool:
         if self._requested:
             return True
-        if self._authorized_request_exists():
+        if self._stop_request_exists():
             self._requested = True
         return self._requested
 

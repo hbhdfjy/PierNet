@@ -21,12 +21,12 @@ def test_audit_middleware_records_mutating_api_calls(monkeypatch, tmp_path):
         return {"ok": True}
 
     client = TestClient(app)
-    response = client.post("/api/demo", headers={"authorization": "Bearer secret"})
+    response = client.post("/api/demo")
 
     events = audit_store.list_events(limit=10)
     assert response.status_code == 200
     assert len(events) == 1
-    assert events[0]["actor"] == "token-user"
+    assert events[0]["actor"] == "anonymous"
     assert events[0]["action"] == "POST /api/demo"
     assert events[0]["target"] == "demo"
     assert events[0]["status_code"] == 200

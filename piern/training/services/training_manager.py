@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 import os
-import secrets
 import signal
 import subprocess
 import sys
@@ -202,10 +201,6 @@ def _make_job_id() -> str:
     return f"train-{uuid.uuid4().hex[:8]}"
 
 
-def _make_stop_token() -> str:
-    return secrets.token_urlsafe(32)
-
-
 def _stop_file_for_job(job_id: str) -> Path:
     return CONTROL_ROOT / f"{job_id}.stop.json"
 
@@ -243,16 +238,14 @@ def _hash_prepared_name(
 
 
 def _write_stop_request(entry: dict[str, Any]) -> None:
-    stop_token = entry.get("stop_token")
     stop_file_value = entry.get("stop_file")
-    if not stop_token or not stop_file_value:
-        raise ValueError("training job has no platform stop token; cannot request authorized stop")
+    if not stop_file_value:
+        raise ValueError("training job has no stop file; cannot request stop")
 
     stop_file = Path(stop_file_value)
     stop_file.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "job_id": entry["job_id"],
-        "token": stop_token,
         "requested_at": time.time(),
         "reason": "platform_stop",
     }
@@ -523,7 +516,6 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
         "run_dir": str(run_dir),
         "log_path": str(log_path),
         "stop_file": str(stop_file),
-        "stop_token": _make_stop_token(),
         "config": {
             "epochs": int(payload["epochs"]),
             "eval_interval": int(payload["eval_interval"]),
@@ -644,7 +636,6 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
     artifact_root = ARTIFACTS_ROOT / simulator
     job_id = str(payload.get("_job_id") or _make_job_id())
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
-    stop_token = _make_stop_token()
     stop_file = _stop_file_for_job(job_id)
     keep_last_epochs = max(0, int(payload.get("keep_last_epochs", 5)))
     seed_value = payload.get("seed", 42)
@@ -772,7 +763,6 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
             log_handle = log_path.open("a", encoding="utf-8")
             env = os.environ.copy()
             env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-            env["PIERN_TRAIN_STOP_TOKEN"] = stop_token
             env.setdefault("TOKENIZERS_PARALLELISM", "false")
             try:
                 process = subprocess.Popen(
@@ -809,7 +799,6 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
                 "run_dir": str(run_dir),
                 "log_path": str(log_path),
                 "stop_file": str(stop_file),
-                "stop_token": stop_token,
                 "config": {
                     "epochs": int(payload["epochs"]),
                     "eval_interval": int(payload["eval_interval"]),

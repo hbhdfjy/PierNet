@@ -9,7 +9,6 @@ from piern.shared.api.audit import install_audit
 from piern.shared.api.errors import install_error_handlers
 from piern.shared.api.health import router as health_router
 from piern.shared.api.routers import metrics
-from piern.shared.api.security import install_security
 from piern.shared.api.static import SPAStaticFiles
 from piern.shared.runtime.config import load_runtime_config, log_runtime_config
 from piern.shared.runtime.paths import PROJECT_ROOT
@@ -39,7 +38,6 @@ def _cors_origins() -> list[str]:
 
 
 app = FastAPI(title="PiERN Unified API", version="3.0", lifespan=_lifespan)
-install_security(app)
 install_error_handlers(app)
 install_audit(app)
 

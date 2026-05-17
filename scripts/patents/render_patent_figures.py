@@ -583,7 +583,7 @@ def auto_training_fig4(output_dir: Path) -> None:
         Box(80, 120, 250, 230, "进程状态", ("进程是否存活",), header=HEADER),
         Box(410, 120, 250, 230, "训练日志", ("最近阶段信息",), header=HEADER),
         Box(740, 120, 250, 230, "指标文件", ("训练与测试曲线",), header=HEADER),
-        Box(1070, 120, 250, 230, "停止文件", ("停止令牌与结果",), header=HEADER_WARN),
+        Box(1070, 120, 250, 230, "停止文件", ("停止请求与结果",), header=HEADER_WARN),
         Box(1400, 120, 250, 230, "检查点目录", ("最新与最终权重",), header="#eef7f3"),
     ]
     infer = Box(

@@ -42,37 +42,8 @@ import type {
 
 const BASE = '/api'
 
-export const PIERN_AUTH_TOKEN_KEY = 'piern-auth-token'
-
-export function readAuthToken(): string {
-  try {
-    return localStorage.getItem(PIERN_AUTH_TOKEN_KEY) || ''
-  } catch {
-    return ''
-  }
-}
-
-export function writeAuthToken(value: string): string {
-  const token = value.trim()
-  try {
-    if (token) localStorage.setItem(PIERN_AUTH_TOKEN_KEY, token)
-    else localStorage.removeItem(PIERN_AUTH_TOKEN_KEY)
-  } catch {
-    /* ignore */
-  }
-  return token
-}
-
-function withAuthHeaders(init?: RequestInit): RequestInit {
-  const token = readAuthToken()
-  if (!token) return init ?? {}
-  const headers = new Headers(init?.headers)
-  headers.set('Authorization', `Bearer ${token}`)
-  return { ...(init ?? {}), headers }
-}
-
 function apiFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
-  return window.fetch(input, withAuthHeaders(init))
+  return window.fetch(input, init)
 }
 
 export interface ApiErrorPayload {
