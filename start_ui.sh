@@ -7,13 +7,21 @@
 set -e
 cd "$(dirname "$0")"
 
+ENV_FILE=${PIERN_ENV_FILE:-"$PWD/.env"}
+if [[ -f "$ENV_FILE" ]]; then
+    set -a
+    # shellcheck disable=SC1090
+    source "$ENV_FILE"
+    set +a
+fi
+
 DEV_MODE=false
-if [[ "$1" == "--dev" ]]; then
+if [[ "${1:-}" == "--dev" ]]; then
     DEV_MODE=true
 fi
 
 CONDA_BASE="${PIERN_CONDA_BASE:-/usr/local/miniconda3}"
-CONDA_ENV_PATH="${PIERN_CONDA_ENV:-/home/tpx/.conda/envs/piern}"
+CONDA_ENV_PATH="${PIERN_CONDA_ENV:-$HOME/.conda/envs/piern}"
 if [[ -f "$CONDA_BASE/bin/activate" && -d "$CONDA_ENV_PATH" ]]; then
     # shellcheck disable=SC1090
     source "$CONDA_BASE/bin/activate" "$CONDA_ENV_PATH"
@@ -60,10 +68,10 @@ fi
 if [ "$DEV_MODE" = true ]; then
     echo "启动 FastAPI 后端 (port 8000, --reload 已开启)..."
     echo "后端代码改动后会自动重载，前端仍保持 Vite 热更新"
-    python -m uvicorn api_server:app --host 0.0.0.0 --port 8000 --reload &
+    python -m uvicorn api_server:app --host "${PIERN_HOST:-0.0.0.0}" --port "${PIERN_BACKEND_PORT:-8000}" --reload &
 else
     echo "启动 FastAPI 后端 (port 8000)..."
-    python -m uvicorn api_server:app --host 0.0.0.0 --port 8000 &
+    python -m uvicorn api_server:app --host "${PIERN_HOST:-0.0.0.0}" --port "${PIERN_BACKEND_PORT:-8000}" &
 fi
 BACKEND_PID=$!
 echo "   PID: $BACKEND_PID"
@@ -73,17 +81,17 @@ sleep 1.5
 echo ""
 echo "启动 Vite 前端 (port 5173)..."
 cd frontend
-npm run dev -- --host 0.0.0.0 --strictPort &
+npm run dev -- --host "${PIERN_HOST:-0.0.0.0}" --port "${PIERN_FRONTEND_PORT:-5173}" --strictPort &
 FRONTEND_PID=$!
 
 echo ""
 echo "访问地址："
-echo "   前端：http://localhost:5173"
-echo "   后端 API：http://localhost:8000"
-echo "   API 文档：http://localhost:8000/docs"
+echo "   前端：http://localhost:${PIERN_FRONTEND_PORT:-5173}"
+echo "   后端 API：http://localhost:${PIERN_BACKEND_PORT:-8000}"
+echo "   API 文档：http://localhost:${PIERN_BACKEND_PORT:-8000}/docs"
 if [[ -n "$HOST_IP" ]]; then
-    echo "   局域网前端：http://$HOST_IP:5173"
-    echo "   局域网后端：http://$HOST_IP:8000"
+    echo "   局域网前端：http://$HOST_IP:${PIERN_FRONTEND_PORT:-5173}"
+    echo "   局域网后端：http://$HOST_IP:${PIERN_BACKEND_PORT:-8000}"
 fi
 echo ""
 echo "按 Ctrl+C 可同时停止前后端"

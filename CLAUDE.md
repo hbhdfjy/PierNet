@@ -224,7 +224,7 @@ Primary files:
 Current assumptions:
 
 - default chat template: Qwen
-- default embedding/tokenizer path: `/home/tpx/Qwen/Qwen2.5-0.5B-Instruct`
+- default embedding/tokenizer path: `$HOME/Qwen/Qwen2.5-0.5B-Instruct`
 - input representation: `embedding` / `pretrained_embeddings`
 - prepared data stores source file ids, byte offsets, lengths, labels, scenario ids, and metadata
 - training dynamically reopens JSONL, tokenizes context, and applies frozen pretrained embedding lookup
@@ -312,7 +312,7 @@ python scripts/ci/check_consistency.py
 
 ## Current Sharp Edges
 
-- `start_ui.sh` defaults to `/home/tpx/.conda/envs/piern`; use `PIERN_CONDA_ENV` when the environment is named differently.
+- `start_ui.sh` defaults to `$HOME/.conda/envs/piern`; use `PIERN_CONDA_ENV` when the environment is named differently.
 - `piern/training/services/training_manager.py` launches UI-created training jobs with the backend process Python by default; override `PIERN_TRAINING_PYTHON` if a different interpreter is needed.
 - `piern/core/llm_client.py` has provider-specific paths; test the provider branch you change instead of assuming OpenAI-compatible behavior covers all providers.
 - Simulator-local requirement files can be stale relative to root dependency constraints.

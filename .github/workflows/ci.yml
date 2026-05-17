@@ -41,6 +41,12 @@ jobs:
       - name: Consistency check
         run: python scripts/ci/check_consistency.py
 
+      - name: Repository hygiene check
+        run: python scripts/ci/check_repo_hygiene.py
+
+      - name: Migration readiness check
+        run: python scripts/ci/check_migration_ready.py
+
       - name: OpenAPI export
         run: python scripts/ci/export_openapi.py /tmp/piern-openapi.json
 

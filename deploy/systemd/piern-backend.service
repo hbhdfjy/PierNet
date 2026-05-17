@@ -1,0 +1,17 @@
+[Unit]
+Description=PiERN FastAPI backend
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+Environment=PIERN_ENV_FILE=__ROOT__/.env
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=45
+ExecStart=__ROOT__/scripts/services/run-backend.sh
+
+[Install]
+WantedBy=default.target

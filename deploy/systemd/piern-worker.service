@@ -1,0 +1,15 @@
+[Unit]
+Description=PiERN worker placeholder
+After=piern-backend.service
+Wants=piern-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+Environment=PIERN_ENV_FILE=__ROOT__/.env
+Restart=on-failure
+RestartSec=10
+ExecStart=__ROOT__/scripts/services/run-worker.sh
+
+[Install]
+WantedBy=default.target

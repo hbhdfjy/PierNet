@@ -49,7 +49,29 @@
 | 7 | 前端结构升级 | 已完成多轮 UI 修复，仍需系统性组件化 |
 | 8 | 后端模块化与观测 | 已完成错误模型、request id、健康检查基础版 |
 
-## 4. 下一批 P0 任务
+## 4. 本轮执行批次（2026-05-17）
+
+本轮先修正文档，再落地 P0 基线。worker 化、统一任务状态机和数据库迁移暂不进入本轮实现，避免在服务守护和迁移验收尚未固化前扩大任务执行层改动面。
+
+本轮交付范围：
+
+1. 服务守护：用户级 systemd 模板、前台 runner、安装脚本。
+2. `.env` 覆盖：扩展 `.env.example`，补齐服务、存储、模型、训练和审计检查相关变量。
+3. 迁移验收：新增 `scripts/ci/check_migration_ready.py`。
+4. 仓库卫生：新增 `scripts/ci/check_repo_hygiene.py` 并接入 CI。
+5. 文档：更新 `docs/MIGRATION.md` 和工业化计划优先级。
+
+验收命令：
+
+```bash
+python scripts/ci/check_repo_hygiene.py
+python scripts/ci/check_migration_ready.py
+python scripts/ci/check_consistency.py
+scripts/services/install-systemd.sh --dry-run
+scripts/services/status.sh
+```
+
+## 5. 下一批 P0 任务
 
 ### 4.1 正式服务守护
 
@@ -119,7 +141,7 @@ python scripts/ci/check_migration_ready.py
 python scripts/ci/check_repo_hygiene.py
 ```
 
-## 5. 下一批 P1 任务
+## 6. 下一批 P1 任务
 
 ### 5.1 统一任务状态机
 
@@ -183,7 +205,7 @@ scripts/services/status.sh
 python -m pytest tests/test_synth_job_store.py tests/test_training_job_store.py
 ```
 
-## 6. 后续批次
+## 7. 后续批次
 
 ### 6.1 前端组件化和布局回归
 
@@ -257,7 +279,7 @@ scripts/services/restart.sh
 scripts/services/status.sh
 ```
 
-## 7. 默认验收命令
+## 8. 默认验收命令
 
 每次完成工业化改造后运行：
 
@@ -288,13 +310,13 @@ cd frontend
 npm run openapi:check
 ```
 
-## 8. 当前最推荐的下一步
+## 9. 当前最推荐的下一步
 
-优先做 P0 第一批：
+优先做本轮 P0 基线：
 
 1. systemd 服务守护。
 2. `.env` 全覆盖审计。
 3. 迁移验收脚本。
 4. 仓库卫生检查。
 
-完成后再做 P1 的 worker 化。这样顺序最稳，因为先把服务器运行和迁移风险压低，再重构任务执行层。
+完成并进入 CI 后，再做 P1 的 worker 化、统一状态机和数据库迁移。这样顺序最稳，因为先把服务器运行和迁移风险压低，再重构任务执行层。

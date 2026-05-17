@@ -59,7 +59,20 @@ cp .env.example .env
 - `PIERN_QWEN_EMBEDDING_TOKENIZER`
 - `PIERN_MODFLOW_EXE`
 
+## 迁移前验收
+
+在旧服务器提交或迁移前运行：
+
+```bash
+python scripts/ci/check_repo_hygiene.py
+python scripts/ci/check_migration_ready.py
+```
+
+这两个检查只做静态和轻量文件检查，不生成样本、不下载模型、不启动 GPU 训练。模型目录缺失会给出警告和下载提示，不阻止 CI。
+
 ## 启动服务
+
+开发模式继续使用：
 
 ```bash
 scripts/services/start.sh
@@ -72,6 +85,25 @@ scripts/services/status.sh
 - Vite：`0.0.0.0:5173`
 
 端口、CORS 来源、数据目录和模型路径都可以通过 `.env` 修改。
+
+## 用户级 systemd 守护
+
+无需管理员权限时，可以安装用户级 systemd 单元：
+
+```bash
+scripts/services/install-systemd.sh --dry-run
+scripts/services/install-systemd.sh --enable --now
+systemctl --user status piern-backend
+systemctl --user status piern-frontend
+```
+
+如果服务器未启用用户 linger，重启后用户级服务可能不会自动恢复，需要管理员执行：
+
+```bash
+loginctl enable-linger $USER
+```
+
+当前 worker 单元只是预留模板，默认不会启用。
 
 ## 重建派生数据
 
