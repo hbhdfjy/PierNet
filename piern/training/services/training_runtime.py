@@ -5,10 +5,11 @@ import math
 from pathlib import Path
 from typing import Any
 
+from piern.shared.tasks.state import ACTIVE_STATUSES, TERMINAL_STATUSES, normalize_status
 from piern.training.router.data import PRETRAINED_EMBEDDINGS
 
-TRAINING_ACTIVE_STATUSES = {"queued", "starting", "running", "evaluating", "stopping"}
-TRAINING_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
+TRAINING_ACTIVE_STATUSES = set(ACTIVE_STATUSES)
+TRAINING_TERMINAL_STATUSES = set(TERMINAL_STATUSES - {"deleted"})
 TRAINING_ALL_STATUSES = TRAINING_ACTIVE_STATUSES | TRAINING_TERMINAL_STATUSES
 
 
@@ -32,7 +33,7 @@ def coerce_float(value: Any, fallback: float | None = None) -> float | None:
 
 
 def coerce_status(value: Any) -> str:
-    status = str(value or "external_terminated")
+    status = normalize_status(value)
     return status if status in TRAINING_ALL_STATUSES else "external_terminated"
 
 

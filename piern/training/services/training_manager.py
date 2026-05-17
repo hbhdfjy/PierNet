@@ -19,6 +19,7 @@ from typing import Any
 from piern.training.router.data import inspect_router_input_representation
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.shared.storage import portable
+from piern.shared.tasks import locks as task_locks
 from piern.training.services import job_store as training_job_store
 from piern.training.services.checkpoint_store import (
     checkpoint_entries as _checkpoint_entries,
@@ -53,6 +54,7 @@ ROUTER_MANIFEST_PATH = DEFAULT_ROUTER_MANIFEST_PATH
 ROUTER_DATA_DIR = DATA_ROOT / "router"
 GPU_FREE_MEMORY_THRESHOLD_MIB = 2048
 GPU_AVAILABLE_UTIL_THRESHOLD = 20
+GPU_LOCK_TTL_SECONDS = float(os.getenv("PIERN_GPU_LOCK_TTL_SECONDS", str(7 * 24 * 3600)))
 TRAINING_STOP_GRACE_SECONDS = 45.0
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
@@ -438,6 +440,8 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                         )
             entry["ended_at"] = entry.get("ended_at") or time.time()
 
+    if entry.get("status") in TRAINING_TERMINAL_STATUSES:
+        task_locks.release_lock(f"gpu:{entry.get('gpu_id')}", str(entry.get("job_id")))
     _sync_platform_stop_message(entry, alive=alive)
     entry["checkpoints"] = _checkpoint_entries(run_dir)
     return entry
@@ -480,6 +484,7 @@ def delete_job(job_id: str) -> dict[str, Any]:
         raise
 
     _remove_job_log(entry)
+    task_locks.release_lock(f"gpu:{entry.get('gpu_id')}", job_id)
     _remove_job_stop_file(entry)
     try:
         training_job_store.mark_deleted(job_id)
@@ -551,7 +556,22 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
 
     rows = [line.strip() for line in raw_output.splitlines() if line.strip()]
     jobs = list_jobs(refresh=True)
-    locked = {int(job["gpu_id"]): job["job_id"] for job in jobs if job["status"] in TRAINING_ACTIVE_STATUSES}
+    locked: dict[int, str] = {}
+    for job in jobs:
+        if job.get("status") not in TRAINING_ACTIVE_STATUSES:
+            continue
+        try:
+            index = int(job.get("gpu_id"))
+        except (TypeError, ValueError):
+            continue
+        if index >= 0:
+            locked[index] = str(job.get("job_id"))
+    for lock in task_locks.list_locks(prefix="gpu:"):
+        try:
+            index = int(str(lock["lock_key"]).split(":", 1)[1])
+        except (IndexError, ValueError):
+            continue
+        locked.setdefault(index, str(lock["owner"]))
     gpus: list[dict[str, Any]] = []
     for row in rows:
         parts = [part.strip() for part in row.split(",", maxsplit=4)]
@@ -729,112 +749,134 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             raise ValueError(f"GPU {gpu_id} not found")
         if not current_gpu["available"]:
             raise ValueError(f"GPU {gpu_id} is not available: {current_gpu['reason']}")
+        gpu_lock_key = f"gpu:{gpu_id}"
+        if not task_locks.acquire_lock(
+            gpu_lock_key,
+            job_id,
+            ttl_seconds=GPU_LOCK_TTL_SECONDS,
+            metadata={"job_type": "training", "simulator": simulator, "scenarios": scenarios},
+        ):
+            raise ValueError(f"GPU {gpu_id} is locked by another task")
 
-        launch_started_at = time.time()
-        _append_launch_log(
-            log_path,
-            f"[launch] job_id={job_id} name={job_name} created_at={launch_started_at:.3f}",
-            f"[launch] status=starting simulator={simulator} scenarios={','.join(scenarios)} gpu={gpu_id}",
-            (
-                f"[launch] prepared_name={prepared_name} "
-                f"requested_input_representation={requested_input_representation} "
-                f"prepared_input_representation={resolved_input_representation}"
-            ),
-            (
-                f"[launch] embedding_model={embedding_metadata.embedding_model} "
-                f"tokenizer={embedding_metadata.tokenizer_name or embedding_metadata.embedding_model}"
-            ),
-            f"[launch] run_dir={run_dir}",
-            f"[launch] log_path={log_path}",
-            f"[launch] stop_file={stop_file}",
-            f"[launch] keep_last_epochs={keep_last_epochs} seed={seed}",
-            f"[launch] max_train_samples={max_train_samples} max_test_samples={max_test_samples}",
-            "[launch] spawning training subprocess...",
-        )
-
-        log_handle = log_path.open("a", encoding="utf-8")
-        env = os.environ.copy()
-        env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-        env["PIERN_TRAIN_STOP_TOKEN"] = stop_token
-        env.setdefault("TOKENIZERS_PARALLELISM", "false")
+        lock_committed = False
         try:
-            process = subprocess.Popen(
-                command,
-                cwd=PROJECT_ROOT,
-                stdout=log_handle,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                env=env,
-                text=True,
+            launch_started_at = time.time()
+            _append_launch_log(
+                log_path,
+                f"[launch] job_id={job_id} name={job_name} created_at={launch_started_at:.3f}",
+                f"[launch] status=starting simulator={simulator} scenarios={','.join(scenarios)} gpu={gpu_id}",
+                (
+                    f"[launch] prepared_name={prepared_name} "
+                    f"requested_input_representation={requested_input_representation} "
+                    f"prepared_input_representation={resolved_input_representation}"
+                ),
+                (
+                    f"[launch] embedding_model={embedding_metadata.embedding_model} "
+                    f"tokenizer={embedding_metadata.tokenizer_name or embedding_metadata.embedding_model}"
+                ),
+                f"[launch] run_dir={run_dir}",
+                f"[launch] log_path={log_path}",
+                f"[launch] stop_file={stop_file}",
+                f"[launch] keep_last_epochs={keep_last_epochs} seed={seed}",
+                f"[launch] max_train_samples={max_train_samples} max_test_samples={max_test_samples}",
+                "[launch] spawning training subprocess...",
             )
-        except Exception as exc:
-            log_handle.write(f"[error] failed to spawn training subprocess: {exc}\n")
+
+            log_handle = log_path.open("a", encoding="utf-8")
+            env = os.environ.copy()
+            env["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
+            env["PIERN_TRAIN_STOP_TOKEN"] = stop_token
+            env.setdefault("TOKENIZERS_PARALLELISM", "false")
+            try:
+                process = subprocess.Popen(
+                    command,
+                    cwd=PROJECT_ROOT,
+                    stdout=log_handle,
+                    stderr=subprocess.STDOUT,
+                    start_new_session=True,
+                    env=env,
+                    text=True,
+                )
+            except Exception as exc:
+                task_locks.release_lock(gpu_lock_key, job_id)
+                log_handle.write(f"[error] failed to spawn training subprocess: {exc}\n")
+                log_handle.flush()
+                log_handle.close()
+                raise
+            log_handle.write(f"[launch] subprocess pid={process.pid} cwd={PROJECT_ROOT}\n")
             log_handle.flush()
             log_handle.close()
-            raise
-        log_handle.write(f"[launch] subprocess pid={process.pid} cwd={PROJECT_ROOT}\n")
-        log_handle.flush()
-        log_handle.close()
 
-        entry = {
-            "job_id": job_id,
-            "name": job_name,
-            "status": "starting",
-            "simulator": simulator,
-            "scenarios": scenarios,
-            "gpu_id": gpu_id,
-            "created_at": time.time(),
-            "started_at": time.time(),
-            "ended_at": None,
-            "pid": process.pid,
-            "artifact_root": str(artifact_root),
-            "run_dir": str(run_dir),
-            "log_path": str(log_path),
-            "stop_file": str(stop_file),
-            "stop_token": stop_token,
-            "config": {
-                "epochs": int(payload["epochs"]),
-                "eval_interval": int(payload["eval_interval"]),
-                "keep_last_epochs": keep_last_epochs,
-                "seed": seed,
-                "batch_size": int(payload["batch_size"]),
-                "test_batch_size": int(payload["test_batch_size"]),
-                "learning_rate": float(payload["learning_rate"]),
-                "weight_decay": float(payload["weight_decay"]),
-                "num_workers": num_workers,
-                "prepare_workers": prepare_workers,
-                "test_ratio": test_ratio,
-                "max_train_samples": max_train_samples,
-                "max_test_samples": max_test_samples,
-                "resume_from": resume_from,
-                "input_representation": resolved_input_representation,
-                "embedding_model": embedding_metadata.embedding_model,
-                "embedding_tokenizer": embedding_metadata.tokenizer_name,
-            },
-            "command": command,
-            "prepared_name": prepared_name,
-            "terminated": False,
-            "stop_requested": False,
-            "stop_requested_at": None,
-            "stop_signal_sent_at": None,
-            "stop_force_kill_after": None,
-            "forced_kill": False,
-            "exit_reason": None,
-            "latest_epoch": None,
-            "latest_step": None,
-            "steps_per_epoch": None,
-            "global_step": None,
-            "avg_loss": None,
-            "steps_per_sec": None,
-            "eta_seconds": None,
-            "latest_test_epoch": None,
-            "latest_metrics": None,
-            "error_message": None,
-            "checkpoints": [],
-        }
-        entries.append(entry)
-        _save_registry(entries)
-        return _refresh_entry(entry)
+            entry = {
+                "job_id": job_id,
+                "name": job_name,
+                "status": "starting",
+                "simulator": simulator,
+                "scenarios": scenarios,
+                "gpu_id": gpu_id,
+                "created_at": time.time(),
+                "started_at": time.time(),
+                "ended_at": None,
+                "pid": process.pid,
+                "artifact_root": str(artifact_root),
+                "run_dir": str(run_dir),
+                "log_path": str(log_path),
+                "stop_file": str(stop_file),
+                "stop_token": stop_token,
+                "config": {
+                    "epochs": int(payload["epochs"]),
+                    "eval_interval": int(payload["eval_interval"]),
+                    "keep_last_epochs": keep_last_epochs,
+                    "seed": seed,
+                    "batch_size": int(payload["batch_size"]),
+                    "test_batch_size": int(payload["test_batch_size"]),
+                    "learning_rate": float(payload["learning_rate"]),
+                    "weight_decay": float(payload["weight_decay"]),
+                    "num_workers": num_workers,
+                    "prepare_workers": prepare_workers,
+                    "test_ratio": test_ratio,
+                    "max_train_samples": max_train_samples,
+                    "max_test_samples": max_test_samples,
+                    "resume_from": resume_from,
+                    "input_representation": resolved_input_representation,
+                    "embedding_model": embedding_metadata.embedding_model,
+                    "embedding_tokenizer": embedding_metadata.tokenizer_name,
+                },
+                "command": command,
+                "prepared_name": prepared_name,
+                "terminated": False,
+                "stop_requested": False,
+                "stop_requested_at": None,
+                "stop_signal_sent_at": None,
+                "stop_force_kill_after": None,
+                "forced_kill": False,
+                "exit_reason": None,
+                "latest_epoch": None,
+                "latest_step": None,
+                "steps_per_epoch": None,
+                "global_step": None,
+                "avg_loss": None,
+                "steps_per_sec": None,
+                "eta_seconds": None,
+                "latest_test_epoch": None,
+                "latest_metrics": None,
+                "error_message": None,
+                "checkpoints": [],
+            }
+            entries.append(entry)
+            _save_registry(entries)
+            lock_committed = True
+            return _refresh_entry(entry)
+        except Exception:
+            if not lock_committed:
+                process_obj = locals().get("process")
+                if process_obj is not None and getattr(process_obj, "poll", lambda: None)() is None:
+                    try:
+                        _safe_kill_process_group(int(process_obj.pid), signal.SIGKILL)
+                    except Exception:
+                        LOGGER.exception("Failed to kill unregistered training process for job=%s", job_id)
+                task_locks.release_lock(gpu_lock_key, job_id)
+            raise
 
 
 @_with_registry_lock

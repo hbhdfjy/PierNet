@@ -1,157 +1,126 @@
 # PiERN 工业化执行计划
 
-本文件是 `INDUSTRIALIZATION_PLAN.md` 的执行版，用于后续按批次推进升级。主计划负责说明全量目标和剩余事项，本文件负责记录当前状态、下一批任务和验收命令。
+本文件是 `INDUSTRIALIZATION_PLAN.md` 的执行版，用于记录已完成批次、剩余事项和验收命令。主计划说明长期目标，本文件约束近期执行。
 
-## 1. 当前工业化状态
+## 1. 当前状态
 
-当前项目已经完成准工业化基线：
+截至 2026-05-17，PiERN 已完成准工业化单机平台基线：
 
-- 后端已经按 `api`、`synth`、`training`、`shared` 分层。
-- 前端已经按平台拆分为 `platform`、`synth`、`training`、`shared`。
-- 已有 Python/前端工程配置。
-- 已有 GitHub Actions 后端和前端质量门禁。
-- 已有 OpenAPI 生成类型和契约检查。
-- 合成任务和训练任务都已使用 SQLite 持久化任务快照和事件。
-- 已有服务启动、停止、重启、状态检查脚本。
-- 已有健康检查接口。
-- 已有迁移文档和便携式数据存储策略。
-- GitHub 数据边界已明确：保留代码、配置、文档、语言模板和原始 HDF5，派生数据默认不入库。
+- 后端按 `api`、`synth`、`training`、`shared` 分层。
+- 前端按 `platform`、`synth`、`training`、`shared` 分层。
+- 合成任务和训练任务均使用 SQLite 持久化快照和事件。
+- 服务已支持 `.env`、健康检查、用户级 systemd 和 user linger。
+- CI 已覆盖后端、前端、OpenAPI、迁移检查和仓库卫生检查。
+- GitHub 数据边界已明确：只保留代码、配置、文档、语言模板和原始 HDF5；派生数据、训练权重、日志、缓存默认不入库。
 
 当前定位：
 
-- 适合单机科研生产。
-- 适合持续开发。
+- 适合单机科研生产和远程服务器长期运行。
 - 适合迁移到新服务器。
-- 尚未达到多用户生产系统或分布式任务系统标准。
+- 尚不是多用户生产系统，也不是分布式任务系统。
 
-## 2. 执行原则
+## 2. 已完成批次
 
-- 不一次性重写系统。
-- 每批升级都必须保持服务可启动、可测试、可回滚。
-- 默认 CI 不跑百万样本生成、不下载模型、不跑真实 GPU 训练。
-- GitHub 只保存代码、配置、文档、语言模板和原始 HDF5。
-- 服务器私有路径只允许出现在 `.env` 或部署配置中。
-- 所有长任务必须能被查询、停止、审计。
-- 前后端 API 字段必须以 OpenAPI 为契约源。
-- 每次大改前先确认服务状态，每次大改后跑验收命令。
+### 2.1 P0 运行和迁移基线
 
-## 3. 已交付阶段
+已完成：
 
-| 阶段 | 目标 | 当前状态 |
-| --- | --- | --- |
-| 0 | 基线冻结 | 已完成 |
-| 1 | 工程配置标准化 | 已完成 |
-| 2 | CI 质量门禁 | 已完成 |
-| 3 | 迁移配置标准化 | 已完成基础版 |
-| 4 | 后端删除保护和任务互斥 | 已完成基础版 |
-| 5 | API 契约 | 已完成基础版，仍需扩大覆盖和清理手写类型 |
-| 6 | 任务持久化 | 合成和训练均已接入 SQLite |
-| 7 | 前端结构升级 | 已完成多轮 UI 修复，仍需系统性组件化 |
-| 8 | 后端模块化与观测 | 已完成错误模型、request id、健康检查基础版 |
+1. 用户级 systemd 模板：backend、frontend、maintenance worker。
+2. 服务脚本：启动、停止、重启、状态、前台 runner、生产静态启动。
+3. `.env.example` 覆盖路径、端口、模型、GPU、并发、安全和日志变量。
+4. `/api/health/ready` 返回配置校验摘要。
+5. `scripts/ci/check_migration_ready.py`。
+6. `scripts/ci/check_repo_hygiene.py`。
+7. `docs/MIGRATION.md` 迁移说明。
 
-## 4. 已完成批次（2026-05-17）
+### 2.2 P1 任务基础设施
 
-本轮已修正文档并落地 P0 基线。worker 化、统一任务状态机和数据库迁移暂不进入本轮实现，避免在服务守护和迁移验收尚未固化前扩大任务执行层改动面。
+已完成基础版：
 
-已交付范围：
+1. `piern/shared/tasks/state.py`：统一任务状态、别名归一化和合法转换校验。
+2. `piern/shared/tasks/locks.py`：SQLite 协作锁、TTL、释放和过期清理。
+3. 合成任务接入资源锁：模板、样本数据、Router 构建。
+4. 训练任务接入 GPU 锁，并在启动失败、任务结束、删除时释放。
+5. `piern/worker`：维护型 worker，负责过期锁清理。
 
-1. 服务守护：用户级 systemd 模板、前台 runner、安装脚本。
-2. `.env` 覆盖：扩展 `.env.example`，补齐服务、存储、模型、训练和审计检查相关变量。
-3. 迁移验收：新增 `scripts/ci/check_migration_ready.py`。
-4. 仓库卫生：新增 `scripts/ci/check_repo_hygiene.py` 并接入 CI。
-5. 文档：更新 `docs/MIGRATION.md` 和工业化计划优先级。
+未完成：
 
-验收命令：
+1. API 创建任务只写队列。
+2. Worker 领取并执行全部合成、Router 和训练任务。
+3. Worker 心跳、租约续期、任务重投递。
+
+### 2.3 P1 数据库和完整性
+
+已完成基础版：
+
+1. `piern/shared/db/migrations.py`：轻量 SQLite schema migration。
+2. 合成任务 store 接入 `schema_migrations`。
+3. 训练任务 store 接入 `schema_migrations`。
+4. `scripts/storage/verify_data_integrity.py`：源模板和原始 HDF5 checksum 扫描/校验。
+
+未完成：
+
+1. catalog SQLite 和各类 manifest 的统一 schema migration。
+2. Parquet 分区 schema hash、row count、file count 的统一校验。
+3. 前端文件管理展示完整性状态。
+
+### 2.4 P1 安全和生产部署
+
+已完成基础版：
+
+1. 可选 `PIERN_AUTH_TOKEN`。
+2. 写操作支持 Bearer token 或 `X-PIERN-Token`。
+3. `Dockerfile` 多阶段构建，包含前端静态产物。
+4. `compose.yaml` 可选部署示例。
+5. `deploy/nginx/piern.conf` 生产反代示例。
+
+未完成：
+
+1. 登录页和前端 token 管理。
+2. 角色权限。
+3. 审计事件表。
+4. secret 扫描。
+5. Docker GPU 训练镜像的完整验证。
+
+## 3. 下一批必须做的事情
+
+优先级按实际收益排序：
+
+1. 统一跨平台任务 API：`/api/jobs`、`/api/jobs/{id}`、`/api/jobs/{id}/events`、`/api/jobs/{id}/logs`。
+2. 真正 worker 队列化：先接 Router 构建，再接样本填充，最后接训练。
+3. 审计事件：记录删除、停止、启动训练、修改配置等危险操作。
+4. 前端截图回归：把关键页面截图审查加入 Playwright，避免 UI 回退。
+5. 拆分 `training_manager.py`：GPU、launcher、status、stop、artifacts 分模块。
+6. 数据治理增强：catalog/manifest 版本化、派生数据可追溯、完整性状态上屏。
+7. 严格类型质量：扩大 Ruff 规则，逐步引入 mypy 强制区。
+8. 安全增强：前端登录态、secret 扫描、日志脱敏。
+
+## 4. 默认验收命令
+
+后端和仓库：
 
 ```bash
+python -m ruff check .
 python scripts/ci/check_repo_hygiene.py
 python scripts/ci/check_migration_ready.py
 python scripts/ci/check_consistency.py
-scripts/services/install-systemd.sh --dry-run
-scripts/services/status.sh
+python -m pytest
+python scripts/storage/verify_data_integrity.py
 ```
 
-## 5. 已完成 P0 基线和本轮收尾
-
-### 5.1 正式服务守护
-
-任务：
-
-1. 新增 `deploy/systemd/piern-backend.service`。
-2. 新增 `deploy/systemd/piern-frontend.service` 或生产前端服务方案。
-3. 新增 `deploy/systemd/piern-worker.service` 占位。
-4. 新增安装或生成 systemd 用户服务的脚本。
-5. 更新 `docs/MIGRATION.md`。
-
-验收：
+前端：
 
 ```bash
-scripts/services/restart.sh
-scripts/services/status.sh
+cd frontend
+npm run typecheck
+npm run lint
+npm run format:check
+npm run test
+npm run build
+npm run e2e:smoke
 ```
 
-后续 systemd 完成后增加：
-
-```bash
-systemctl --user status piern-backend
-systemctl --user status piern-frontend
-```
-
-### 5.2 `.env` 全覆盖审计
-
-任务：
-
-1. 审计所有服务器路径和端口。
-2. 将模型路径、tokenizer 路径、并发参数、GPU 阈值加入 `.env.example`。
-3. 启动时校验关键配置。
-4. 文档解释每个变量。
-
-验收：
-
-```bash
-python scripts/ci/check_consistency.py
-```
-
-### 5.3 迁移验收脚本
-
-任务：
-
-1. 新增 `scripts/ci/check_migration_ready.py`。
-2. 检查 Git 跟踪数据边界。
-3. 检查原始 HDF5、模板、配置、模型路径。
-4. 检查派生数据没有误入 Git。
-
-验收：
-
-```bash
-python scripts/ci/check_migration_ready.py
-```
-
-### 5.4 仓库卫生检查
-
-任务：
-
-1. 新增 `scripts/ci/check_repo_hygiene.py`。
-2. 阻止提交缓存、SQLite runtime、训练日志、权重、Parquet 派生物。
-3. 将检查接入 CI。
-
-验收：
-
-```bash
-python scripts/ci/check_repo_hygiene.py
-```
-
-### 5.5 本轮收尾：配置校验和 systemd 接管
-
-任务：
-
-1. 新增统一配置加载和校验模块。
-2. API 启动时输出脱敏配置摘要。
-3. `/api/health/ready` 暴露配置校验结果。
-4. 后端 systemd runner 启动前先执行配置校验。
-5. 将当前手动前后端进程切换为 user-level systemd 接管。
-
-验收：
+服务：
 
 ```bash
 python -m piern.shared.runtime.config
@@ -159,182 +128,9 @@ curl -fsS http://127.0.0.1:8000/api/health/ready
 systemctl --user status piern-backend piern-frontend
 ```
 
-## 6. 下一批 P1 任务
-
-### 6.1 统一任务状态机
-
-任务：
-
-1. 定义统一状态枚举。
-2. 定义合法状态转换表。
-3. 合成任务和训练任务共享状态转换逻辑。
-4. 前端状态展示使用统一映射。
-
-验收：
+生产部署：
 
 ```bash
-python -m pytest tests/test_synth_job_store.py tests/test_training_job_store.py
+scripts/services/start-prod.sh
+docker compose config
 ```
-
-### 6.2 统一任务锁
-
-任务：
-
-1. 新增任务锁表。
-2. 定义 dataset、router、gpu、checkpoint 锁。
-3. 文件删除、样本填充、Router 构建、训练启动统一申请锁。
-4. 处理 worker 或进程消失后的锁回收。
-
-验收：
-
-```bash
-python -m pytest tests/test_training_manager_fallbacks.py
-```
-
-### 6.3 独立 worker 骨架
-
-任务：
-
-1. 新增 `piern/worker`。
-2. API 只写任务队列。
-3. Worker 领取任务并写事件。
-4. 先接入样本填充或 Router 构建。
-5. 再接入训练任务。
-
-验收：
-
-```bash
-python -m pytest
-scripts/services/status.sh
-```
-
-### 6.4 数据库迁移机制
-
-任务：
-
-1. 新增 `schema_migrations`。
-2. 给合成任务、训练任务、catalog 建立 schema version。
-3. 服务启动时检查并执行迁移。
-4. 迁移失败时给出明确错误。
-
-验收：
-
-```bash
-python -m pytest tests/test_synth_job_store.py tests/test_training_job_store.py
-```
-
-## 7. 后续批次
-
-### 6.1 前端组件化和布局回归
-
-任务：
-
-1. 抽象 `PageShell`、`Panel`、`DataTable`、`StatusBadge`、`TruncatedText`、`ConfirmDialog`。
-2. 拆分 `TrainingJobDetailPage.tsx`。
-3. 拆分 `RegistryPage.tsx`。
-4. 增加 Playwright 截图检查。
-
-验收：
-
-```bash
-cd frontend
-npm run typecheck
-npm run lint
-npm run format:check
-npm run test
-npm run build
-npm run e2e:smoke
-```
-
-### 6.2 可观测性
-
-任务：
-
-1. 统一任务 JSONL event schema。
-2. 增加任务耗时、吞吐、GPU、磁盘指标。
-3. 增加 `/api/metrics/summary`。
-4. 前端增加运维视图。
-5. 增加磁盘不足、任务卡住、GPU 锁异常告警。
-
-验收：
-
-```bash
-curl -fsS http://127.0.0.1:8000/api/health/live
-curl -fsS http://127.0.0.1:8000/api/health/ready
-```
-
-### 6.3 安全和审计
-
-任务：
-
-1. 增加基础认证。
-2. 保护删除、训练启动、任务停止、配置修改接口。
-3. 增加 secret 扫描。
-4. 增加 `audit_events`。
-5. 日志脱敏。
-
-验收：
-
-```bash
-python scripts/ci/check_consistency.py
-python -m pytest
-```
-
-### 6.4 生产部署
-
-任务：
-
-1. 增加生产静态前端启动方式。
-2. 增加 Nginx 配置。
-3. 增加 Docker Compose 可选部署。
-4. 文档说明开发模式和生产模式区别。
-
-验收：
-
-```bash
-npm --prefix frontend run build
-scripts/services/restart.sh
-scripts/services/status.sh
-```
-
-## 8. 默认验收命令
-
-每次完成工业化改造后运行：
-
-```bash
-python -m ruff check .
-python scripts/ci/check_consistency.py
-python -m pytest
-cd frontend
-npm run typecheck
-npm run lint
-npm run format:check
-npm run test
-npm run build
-npm run e2e:smoke
-```
-
-服务相关改造额外运行：
-
-```bash
-scripts/services/restart.sh
-scripts/services/status.sh
-```
-
-OpenAPI 相关改造额外运行：
-
-```bash
-cd frontend
-npm run openapi:check
-```
-
-## 9. 当前最推荐的下一步
-
-P0 基线已进入 CI，服务守护和配置校验已完成基础接入。下一步优先进入 P1 任务执行器工业化：
-
-1. 统一任务状态机。
-2. 统一任务锁和资源引用。
-3. 独立 `piern/worker` 骨架。
-4. 数据库迁移机制。
-
-完成这些后，再推进生产静态前端、Nginx、Docker Compose、安全认证和截图回归。

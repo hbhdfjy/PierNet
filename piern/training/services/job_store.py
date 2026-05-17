@@ -14,7 +14,9 @@ from pathlib import Path
 from threading import RLock
 from typing import Any
 
+from piern.shared.db.migrations import Migration, ensure_sqlite_schema
 from piern.shared.runtime.paths import RUNLOG_ROOT
+from piern.shared.tasks.state import normalize_status
 
 TRAINING_JOB_STORE_PATH = Path(os.getenv("PIERN_TRAINING_JOB_STORE_PATH", RUNLOG_ROOT / "training_jobs.sqlite"))
 
@@ -31,45 +33,49 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+def _create_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS training_jobs(
+            job_id TEXT PRIMARY KEY,
+            status TEXT NOT NULL,
+            simulator TEXT,
+            gpu_id INTEGER,
+            pid INTEGER,
+            created_at REAL,
+            started_at REAL,
+            ended_at REAL,
+            request_json TEXT,
+            snapshot_json TEXT NOT NULL,
+            error_message TEXT,
+            deleted INTEGER NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS training_job_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            ts REAL NOT NULL,
+            payload_json TEXT NOT NULL,
+            FOREIGN KEY(job_id) REFERENCES training_jobs(job_id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_training_jobs_status ON training_jobs(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_training_jobs_created ON training_jobs(created_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_training_events_job_id_id ON training_job_events(job_id, id)")
+
+
 def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
     with _LOCK, _connect() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS training_jobs(
-                job_id TEXT PRIMARY KEY,
-                status TEXT NOT NULL,
-                simulator TEXT,
-                gpu_id INTEGER,
-                pid INTEGER,
-                created_at REAL,
-                started_at REAL,
-                ended_at REAL,
-                request_json TEXT,
-                snapshot_json TEXT NOT NULL,
-                error_message TEXT,
-                deleted INTEGER NOT NULL DEFAULT 0,
-                updated_at REAL NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS training_job_events(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                ts REAL NOT NULL,
-                payload_json TEXT NOT NULL,
-                FOREIGN KEY(job_id) REFERENCES training_jobs(job_id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_training_jobs_status ON training_jobs(status)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_training_jobs_created ON training_jobs(created_at)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_training_events_job_id_id ON training_job_events(job_id, id)")
+        ensure_sqlite_schema(conn, "training_jobs", [Migration(1, "initial training jobs", _create_schema)])
         _INITIALIZED = True
 
 
@@ -100,7 +106,7 @@ def _append_event_locked(conn: sqlite3.Connection, job_id: str, event_type: str,
 def upsert_job(entry: dict[str, Any]) -> None:
     init_store()
     job_id = str(entry["job_id"])
-    status = str(entry.get("status") or "unknown")
+    status = normalize_status(entry.get("status"), fallback="external_terminated")
     now = time.time()
     request_json = {
         "config": entry.get("config") or {},

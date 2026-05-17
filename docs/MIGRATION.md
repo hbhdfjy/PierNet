@@ -105,7 +105,7 @@ curl -fsS http://127.0.0.1:8000/api/health/ready
 loginctl enable-linger $USER
 ```
 
-当前 worker 单元只是预留模板，默认不会启用。
+当前 worker 单元负责共享维护任务，例如过期任务锁清理；默认不启用，可使用 `scripts/services/install-systemd.sh --enable --now --worker` 安装。
 
 ## 重建派生数据
 

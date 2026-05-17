@@ -10,11 +10,17 @@ from pathlib import Path
 from threading import RLock
 from typing import Any, Iterable
 
+from piern.shared.db.migrations import Migration, ensure_sqlite_schema
 from piern.shared.runtime.paths import RUNLOG_ROOT
+from piern.shared.tasks.state import (
+    ACTIVE_STATUSES as SHARED_ACTIVE_STATUSES,
+    TERMINAL_STATUSES as SHARED_TERMINAL_STATUSES,
+    normalize_status,
+)
 
 JOB_STORE_PATH = Path(os.getenv("PIERN_JOB_STORE_PATH", RUNLOG_ROOT / "jobs.sqlite"))
-ACTIVE_STATUSES = {"running", "queued", "starting", "stopping"}
-TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
+ACTIVE_STATUSES = set(SHARED_ACTIVE_STATUSES)
+TERMINAL_STATUSES = set(SHARED_TERMINAL_STATUSES)
 
 _LOCK = RLock()
 _INITIALIZED = False
@@ -42,45 +48,49 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+def _create_schema(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS jobs(
+            job_id TEXT PRIMARY KEY,
+            job_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            started_at REAL,
+            finished_at REAL,
+            pid INTEGER,
+            request_json TEXT,
+            scenario_totals_json TEXT NOT NULL DEFAULT '{}',
+            progress_json TEXT NOT NULL DEFAULT '{}',
+            stats_json TEXT NOT NULL DEFAULT '{}',
+            error_message TEXT,
+            created_at REAL NOT NULL,
+            updated_at REAL NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS job_events(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            ts REAL NOT NULL,
+            payload_json TEXT NOT NULL,
+            FOREIGN KEY(job_id) REFERENCES jobs(job_id) ON DELETE CASCADE
+        )
+        """
+    )
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_started_at ON jobs(started_at)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_job_events_job_id_id ON job_events(job_id, id)")
+
+
 def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
     with _LOCK, _connect() as conn:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS jobs(
-                job_id TEXT PRIMARY KEY,
-                job_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                started_at REAL,
-                finished_at REAL,
-                pid INTEGER,
-                request_json TEXT,
-                scenario_totals_json TEXT NOT NULL DEFAULT '{}',
-                progress_json TEXT NOT NULL DEFAULT '{}',
-                stats_json TEXT NOT NULL DEFAULT '{}',
-                error_message TEXT,
-                created_at REAL NOT NULL,
-                updated_at REAL NOT NULL
-            )
-            """
-        )
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS job_events(
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                job_id TEXT NOT NULL,
-                event_type TEXT NOT NULL,
-                ts REAL NOT NULL,
-                payload_json TEXT NOT NULL,
-                FOREIGN KEY(job_id) REFERENCES jobs(job_id) ON DELETE CASCADE
-            )
-            """
-        )
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_jobs_started_at ON jobs(started_at)")
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_job_events_job_id_id ON job_events(job_id, id)")
+        ensure_sqlite_schema(conn, "synth_jobs", [Migration(1, "initial synth jobs", _create_schema)])
         _INITIALIZED = True
 
 
@@ -99,6 +109,7 @@ def upsert_job(
     error_message: str | None = None,
 ) -> None:
     init_store()
+    status = normalize_status(status)
     now = time.time()
     request_payload = json.dumps(request_json, ensure_ascii=False, sort_keys=True) if request_json is not None else None
     with _LOCK, _connect() as conn:

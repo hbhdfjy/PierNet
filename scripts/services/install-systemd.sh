@@ -12,7 +12,7 @@ usage() {
 Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--worker]
 
 Installs user-level systemd units for PiERN backend and frontend.
-The worker unit is a reserved placeholder and is installed only with --worker.
+The worker unit runs shared maintenance tasks and is installed only with --worker.
 USAGE
 }
 

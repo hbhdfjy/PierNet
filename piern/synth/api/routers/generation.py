@@ -27,6 +27,11 @@ def _request_payload(req) -> dict:
     return req.dict()
 
 
+def _resource_lock_keys(kind: str, scenarios: list[str]) -> list[str]:
+    selected = scenarios or ["all"]
+    return [f"{kind}:{scenario}" for scenario in selected]
+
+
 def _reject_active_jobs(job_types: set[str], message: str) -> None:
     try:
         job_manager.assert_no_running_jobs(job_types, message=message)
@@ -166,7 +171,12 @@ async def start_generate_templates(req: GenerateTemplatesRequest):
     """阶段一：生成语言模板库。"""
     _reject_active_jobs({"generate_templates"}, "已有模板生成任务正在运行")
     scenario_totals = {sc: req.n_templates for sc in req.scenarios} if req.scenarios else {}
-    record = job_manager.create_job("generate_templates", scenario_totals, request=_request_payload(req))
+    record = job_manager.create_job(
+        "generate_templates",
+        scenario_totals,
+        request=_request_payload(req),
+        lock_keys=_resource_lock_keys("template", req.scenarios),
+    )
     if scenario_totals:
         publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_generate_templates, record, req)
@@ -178,7 +188,12 @@ async def start_fill_samples(req: FillSamplesRequest):
     """阶段二：数值填充（不调 LLM）。"""
     _reject_active_jobs({"fill_samples", "router"}, "样本填充或路由构建任务正在运行")
     scenario_totals = {sc: req.n_samples for sc in req.scenarios} if req.scenarios else {}
-    record = job_manager.create_job("fill_samples", scenario_totals, request=_request_payload(req))
+    record = job_manager.create_job(
+        "fill_samples",
+        scenario_totals,
+        request=_request_payload(req),
+        lock_keys=_resource_lock_keys("dataset", req.scenarios),
+    )
     if scenario_totals:
         publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     _executor.submit(_run_fill_samples, record, req)

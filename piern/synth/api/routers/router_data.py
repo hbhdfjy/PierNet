@@ -387,9 +387,14 @@ async def build_router_data(
             ),
         )
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
+    router_lock_scenarios = scenario_list or ["all"]
     record = job_manager.create_job(
         "router",
         request={"seed": seed, "neg_ratio": neg_ratio, "scenarios": scenario_list},
+        lock_keys=[
+            *(f"router:{scenario}" for scenario in router_lock_scenarios),
+            *(f"dataset:{scenario}" for scenario in router_lock_scenarios),
+        ],
     )
 
     def _run():

@@ -17,12 +17,15 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
+from piern.shared.tasks import locks as task_locks
+from piern.shared.tasks.state import ACTIVE_STATUSES, TERMINAL_STATUSES, normalize_status
 from piern.synth.services import job_store
 
 logger = logging.getLogger(__name__)
 
-SYNTH_ACTIVE_STATUSES = {"running"}
-SYNTH_TERMINAL_STATUSES = {"done", "error", "terminated", "external_terminated"}
+SYNTH_ACTIVE_STATUSES = set(ACTIVE_STATUSES)
+SYNTH_TERMINAL_STATUSES = set(TERMINAL_STATUSES - {"deleted"})
+SYNTH_LOCK_TTL_SECONDS = float(os.getenv("PIERN_SYNTH_LOCK_TTL_SECONDS", str(24 * 3600)))
 
 
 @dataclass
@@ -45,15 +48,33 @@ class JobRecord:
     proc: Optional[subprocess.Popen] = None
     proc_uses_process_group: bool = False
     stop_event: threading.Event = field(default_factory=threading.Event)
+    lock_keys: list[str] = field(default_factory=list)
 
 
 _jobs: dict[str, JobRecord] = {}
 
 
-def create_job(job_type: str, scenario_totals: dict = None, request: dict[str, Any] | None = None) -> JobRecord:
+def create_job(
+    job_type: str,
+    scenario_totals: dict = None,
+    request: dict[str, Any] | None = None,
+    lock_keys: list[str] | None = None,
+) -> JobRecord:
     """创建后台任务，并绑定当前 async loop 供 FastAPI SSE 推送。"""
     loop = asyncio.get_running_loop()
     job_id = _make_prefix(job_type) + str(uuid.uuid4())[:6]
+    acquired_locks: list[str] = []
+    for lock_key in lock_keys or []:
+        if not task_locks.acquire_lock(
+            lock_key,
+            job_id,
+            ttl_seconds=SYNTH_LOCK_TTL_SECONDS,
+            metadata={"job_type": job_type},
+        ):
+            for acquired in acquired_locks:
+                task_locks.release_lock(acquired, job_id)
+            raise RuntimeError(f"资源已被其他任务占用: {lock_key}")
+        acquired_locks.append(lock_key)
     record = JobRecord(
         job_id=job_id,
         job_type=job_type,
@@ -61,6 +82,7 @@ def create_job(job_type: str, scenario_totals: dict = None, request: dict[str, A
         loop=loop,
         scenario_totals=scenario_totals or {},
         started_at=time.time(),
+        lock_keys=acquired_locks,
     )
     _jobs[job_id] = record
     _persist_record(record, request=request)
@@ -92,7 +114,7 @@ def _record_from_stored(stored: dict[str, Any]) -> JobRecord:
     return JobRecord(
         job_id=str(stored["job_id"]),
         job_type=str(stored.get("job_type") or "job"),
-        status=str(stored.get("status") or "external_terminated"),
+        status=normalize_status(stored.get("status")),
         loop=None,
         scenario_totals=stored.get("scenario_totals") or {},
         started_at=float(stored.get("started_at") or stored.get("created_at") or time.time()),
@@ -167,7 +189,7 @@ def _progress_stats(record: JobRecord) -> dict:
 def _apply_event_state(record: JobRecord, event: dict) -> None:
     event_type = event.get("type")
     if event_type in SYNTH_TERMINAL_STATUSES:
-        record.status = event_type
+        record.status = normalize_status(event_type)
         record.finished_at = record.finished_at or float(event.get("ts") or time.time())
         if event_type in {"error", "terminated", "external_terminated"}:
             message = event.get("message")
@@ -223,6 +245,9 @@ def publish(record: JobRecord, event: dict) -> None:
         for item in events:
             _apply_event_state(record, item)
             record.events.append(item)
+            if record.status in SYNTH_TERMINAL_STATUSES and record.lock_keys:
+                task_locks.release_owner(record.job_id)
+                record.lock_keys = []
             _persist_event(record, item)
             if record.loop is None:
                 continue
@@ -271,9 +296,12 @@ def terminate_job(job_id: str) -> bool:
                 synthetic.job_id,
                 {"type": "terminated", "ts": synthetic.finished_at, "message": synthetic.error_message},
             )
+            task_locks.release_owner(synthetic.job_id)
         return True
 
     record.status = "terminated"
+    task_locks.release_owner(record.job_id)
+    record.lock_keys = []
     record.stop_event.set()
     publish(record, {"type": "terminated", "ts": time.time(), "message": "任务已由平台终止。"})
 

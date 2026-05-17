@@ -1,5 +1,5 @@
 [Unit]
-Description=PiERN worker placeholder
+Description=PiERN maintenance worker
 After=piern-backend.service
 Wants=piern-backend.service
 
