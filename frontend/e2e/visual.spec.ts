@@ -59,6 +59,22 @@ async function mockApi(page: Page) {
       })
       return
     }
+    if (url.pathname === '/api/templates') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            scenario: 'coastal_seawater',
+            template_count: 1000,
+            file_size_bytes: 1024,
+            mtime: Date.now() / 1000,
+            path: 'data/templates/coastal_seawater_templates.jsonl',
+          },
+        ]),
+      })
+      return
+    }
     if (url.pathname === '/api/generate/jobs') {
       await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify([]) })
       return
