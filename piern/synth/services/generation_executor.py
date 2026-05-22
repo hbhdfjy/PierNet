@@ -116,8 +116,8 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
         total = scenario_totals.get(scenario, 0)
         now = time.time()
         last_done, last_ts = last_progress_publish.get(scenario, (0, 0.0))
-        min_rows = max(100, int(total) // 1000) if total else 100
-        if done < total and done - last_done < min_rows and now - last_ts < 0.75:
+        min_rows = max(10000, int(total) // 100) if total else 10000
+        if done < total and done - last_done < min_rows and now - last_ts < 2.0:
             return
         last_progress_publish[scenario] = (done, now)
         publish(

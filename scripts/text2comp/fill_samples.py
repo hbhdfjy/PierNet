@@ -10,11 +10,15 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+import shutil
 import sys
 import threading
+import time
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from contextlib import ExitStack
+from multiprocessing import get_context
 from pathlib import Path
 from typing import Iterable
 
@@ -34,6 +38,162 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 logger = logging.getLogger(__name__)
+
+_PARALLEL_FILL_CONTEXT: dict[str, object] = {}
+
+
+def _init_parallel_fill_worker(
+    timeseries,
+    params,
+    template_specs,
+    t_order,
+    d_order,
+    output_info_list,
+    precision: int,
+    simulator: str,
+    scenario: str,
+    compression: str,
+    batch_size: int,
+):
+    global _PARALLEL_FILL_CONTEXT
+    _PARALLEL_FILL_CONTEXT = {
+        "timeseries": timeseries,
+        "params": params,
+        "template_specs": template_specs,
+        "t_order": t_order,
+        "d_order": d_order,
+        "output_info_list": output_info_list,
+        "precision": precision,
+        "simulator": simulator,
+        "scenario": scenario,
+        "compression": compression,
+        "batch_size": batch_size,
+    }
+
+
+def _parallel_fill_part_worker(args: tuple[int, int, int, str]) -> dict[str, object]:
+    part_index, start, stop, part_path_raw = args
+    ctx = _PARALLEL_FILL_CONTEXT
+    timeseries = ctx["timeseries"]
+    params = ctx["params"]
+    template_specs = ctx["template_specs"]
+    t_order = ctx["t_order"]
+    d_order = ctx["d_order"]
+    output_info_list = ctx["output_info_list"]
+    precision = int(ctx["precision"])
+    simulator = str(ctx["simulator"])
+    scenario = str(ctx["scenario"])
+    compression = str(ctx["compression"])
+    batch_size = int(ctx["batch_size"])
+
+    pa, pq = portable.require_parquet_modules()
+    schema = portable.parquet_schema()
+    part_path = Path(part_path_raw)
+    writer = None
+    rows: list[dict[str, object]] = []
+    counters = {
+        "by_language": Counter(),
+        "by_style": Counter(),
+        "by_time_mode": Counter(),
+        "by_label": Counter(),
+    }
+    row_count = 0
+    skipped = 0
+    nan_skipped = 0
+    timeseries_shape_obs = None
+    n_avail_t = len(t_order)
+    n_avail_d = len(d_order)
+
+    def flush() -> None:
+        nonlocal writer, rows
+        if not rows:
+            return
+        table = pa.Table.from_pylist(rows, schema=schema)
+        if writer is None:
+            writer = pq.ParquetWriter(
+                part_path,
+                schema,
+                compression=None if compression == "none" else compression,
+                use_dictionary=True,
+            )
+        writer.write_table(table)
+        rows = []
+
+    try:
+        for i in range(start, stop):
+            t_idx = t_order[i % n_avail_t]
+            d_idx = d_order[i % n_avail_d]
+            template, valid_time_idx, valid_ch = template_specs[t_idx]
+            ts = timeseries[d_idx]
+            p = params[d_idx]
+
+            if len(valid_time_idx) == 0:
+                skipped += 1
+                continue
+
+            ts_obs = ts[:, valid_time_idx]
+            if valid_ch is not None:
+                if len(valid_ch) == 0:
+                    skipped += 1
+                    continue
+                ts_obs = ts_obs[valid_ch, :]
+
+            if not np.isfinite(ts_obs).all():
+                nan_skipped += 1
+                skipped += 1
+                continue
+
+            try:
+                sample = fill_sample(
+                    template,
+                    p,
+                    ts_obs,
+                    sample_idx=d_idx,
+                    output_info=output_info_list,
+                    precision=precision,
+                )
+            except Exception:
+                skipped += 1
+                continue
+
+            metadata = sample.get("metadata", {})
+            if isinstance(metadata, dict) and timeseries_shape_obs is None:
+                shape = metadata.get("timeseries_shape_obs")
+                if isinstance(shape, (list, tuple)):
+                    timeseries_shape_obs = list(shape)
+            row = portable.record_to_parquet_row(
+                "text2comp",
+                scenario,
+                row_count + start,
+                sample,
+                simulator_hint=simulator,
+            )
+            rows.append(row)
+            row_count += 1
+            if row["language"]:
+                counters["by_language"][row["language"]] += 1
+            if row["style"]:
+                counters["by_style"][row["style"]] += 1
+            if row["time_mode"]:
+                counters["by_time_mode"][row["time_mode"]] += 1
+            if row["label"] is not None:
+                counters["by_label"][str(row["label"])] += 1
+            if len(rows) >= batch_size:
+                flush()
+        flush()
+    finally:
+        if writer is not None:
+            writer.close()
+
+    return {
+        "part_index": part_index,
+        "path": str(part_path),
+        "row_count": row_count,
+        "skipped": skipped,
+        "nan_skipped": nan_skipped,
+        "counters": {key: dict(value) for key, value in counters.items()},
+        "timeseries_shape_obs": timeseries_shape_obs,
+    }
 
 
 def _has_nonempty_jsonl(path: Path) -> bool:
@@ -139,7 +299,10 @@ def run_fill_samples(
 
     _log(f"\n找到 {len(h5_files)} 个场景，每场景生成 {n_per_scenario} 条样本")
     _log(f"输出格式: {output_format}")
-    _log(f"场景并行: {min(scenario_workers, max(len(h5_files), 1))}")
+    if output_format == "parquet" and scenario_workers > 1:
+        _log(f"场景内样本并行: {scenario_workers}")
+    else:
+        _log(f"场景并行: {min(scenario_workers, max(len(h5_files), 1))}")
     if parquet_dir is not None:
         _log(f"Parquet目录: {parquet_dir}")
     if jsonl_dir is not None:
@@ -225,7 +388,7 @@ def run_fill_samples(
         skipped = 0
         nan_skipped = 0
         last_reported = -1
-        progress_every = max(100, min(2000, max(1, n // 500)))
+        progress_every = max(10000, min(50000, max(1, n // 100)))
 
         def iter_samples(jsonl_handle=None) -> Iterable[dict[str, object]]:
             nonlocal written, skipped, nan_skipped, last_reported
@@ -275,6 +438,119 @@ def run_fill_samples(
             "precision": precision,
             "max_workers": scenario_workers,
         }
+
+        def write_parallel_partition(sample_workers: int) -> dict[str, object]:
+            nonlocal written, skipped, nan_skipped, last_reported
+            _, pq = portable.require_parquet_modules()
+            schema = portable.parquet_schema()
+            root = Path(parquet_dir)
+            partition_dir = portable.partition_dir_for("text2comp", simulator, scenario_name, root)
+            tmp_dir = root / (
+                f".tmp-text2comp-{portable.safe_partition_value(simulator)}-"
+                f"{portable.safe_partition_value(scenario_name)}-{os.getpid()}-{time.time_ns()}"
+            )
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir)
+            tmp_dir.mkdir(parents=True, exist_ok=True)
+
+            target_parts = max(1, min(sample_workers, n))
+            chunk_size = max(10000, min(50000, (n + target_parts - 1) // target_parts))
+            chunks = [
+                (part_index, start, min(start + chunk_size, n), str(tmp_dir / f"part-{part_index:05d}.parquet"))
+                for part_index, start in enumerate(range(0, n, chunk_size))
+            ]
+            counters = {
+                "by_language": Counter(),
+                "by_style": Counter(),
+                "by_time_mode": Counter(),
+                "by_label": Counter(),
+            }
+            timeseries_shape_obs = None
+            part_paths: list[str] = []
+            try:
+                with ProcessPoolExecutor(
+                    max_workers=min(sample_workers, len(chunks)),
+                    mp_context=get_context("fork"),
+                    initializer=_init_parallel_fill_worker,
+                    initargs=(
+                        timeseries,
+                        params,
+                        template_specs,
+                        t_order,
+                        d_order,
+                        output_info_list,
+                        precision,
+                        simulator,
+                        scenario_name,
+                        compression,
+                        batch_size,
+                    ),
+                ) as executor:
+                    futures = {executor.submit(_parallel_fill_part_worker, chunk): chunk for chunk in chunks}
+                    for future in as_completed(futures):
+                        result_part = future.result()
+                        rows = int(result_part.get("row_count") or 0)
+                        written += rows
+                        skipped += int(result_part.get("skipped") or 0)
+                        nan_skipped += int(result_part.get("nan_skipped") or 0)
+                        if result_part.get("timeseries_shape_obs") is not None:
+                            timeseries_shape_obs = result_part["timeseries_shape_obs"]
+                        if rows > 0:
+                            part_paths.append(str(result_part["path"]))
+                        for key, values in (result_part.get("counters") or {}).items():
+                            if key in counters and isinstance(values, dict):
+                                counters[key].update({str(k): int(v) for k, v in values.items()})
+                        if on_progress and written - last_reported >= progress_every:
+                            on_progress(scenario_name, min(written, n))
+                            last_reported = written
+
+                if written == 0:
+                    shutil.rmtree(tmp_dir, ignore_errors=True)
+                    return {"kind": "text2comp", "scenario": scenario_name, "simulator": simulator, "status": "empty", "rows": 0}
+
+                actual = 0
+                for part_path in sorted(Path(path) for path in part_paths):
+                    actual += int(pq.ParquetFile(part_path).metadata.num_rows)
+                if actual != written:
+                    raise RuntimeError(f"row count mismatch for text2comp/{scenario_name}: generated={written}, parquet={actual}")
+
+                if partition_dir.exists():
+                    shutil.rmtree(partition_dir)
+                partition_dir.parent.mkdir(parents=True, exist_ok=True)
+                tmp_dir.replace(partition_dir)
+
+                manifest = {
+                    "version": portable.PARQUET_SCHEMA_VERSION,
+                    "kind": "text2comp",
+                    "storage": "parquet",
+                    "generated_at": time.time(),
+                    "source": {**source, "sample_workers": sample_workers, "part_chunk_size": chunk_size},
+                    "simulator": simulator,
+                    "scenario": scenario_name,
+                    "row_count": written,
+                    "by_language": dict(counters["by_language"]),
+                    "by_style": dict(counters["by_style"]),
+                    "by_time_mode": dict(counters["by_time_mode"]),
+                    "by_label": dict(counters["by_label"]),
+                    "timeseries_shape_obs": timeseries_shape_obs,
+                    "schema": [field.name for field in schema],
+                }
+                (partition_dir / "_manifest.json").write_text(
+                    json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True),
+                    encoding="utf-8",
+                )
+                return {
+                    "kind": "text2comp",
+                    "scenario": scenario_name,
+                    "simulator": simulator,
+                    "status": "written",
+                    "rows": written,
+                    "path": str(partition_dir),
+                }
+            except Exception:
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+                raise
+
         result = None
         with ExitStack() as stack:
             jsonl_handle = None
@@ -283,17 +559,20 @@ def run_fill_samples(
                 jsonl_handle = stack.enter_context(jsonl_out_path.open("w", encoding="utf-8"))
             records = iter_samples(jsonl_handle=jsonl_handle)
             if parquet_dir is not None:
-                result = portable.write_records_partition(
-                    "text2comp",
-                    records,
-                    simulator=simulator,
-                    scenario=scenario_name,
-                    source=source,
-                    output_root=parquet_dir,
-                    batch_size=batch_size,
-                    compression=compression,
-                    overwrite=True,
-                )
+                if jsonl_handle is None and scenario_workers > 1:
+                    result = write_parallel_partition(scenario_workers)
+                else:
+                    result = portable.write_records_partition(
+                        "text2comp",
+                        records,
+                        simulator=simulator,
+                        scenario=scenario_name,
+                        source=source,
+                        output_root=parquet_dir,
+                        batch_size=batch_size,
+                        compression=compression,
+                        overwrite=True,
+                    )
                 if result.get("status") == "written":
                     local_outputs.append(Path(str(result["path"])))
             else:
@@ -321,7 +600,10 @@ def run_fill_samples(
             stats["total"] += written
             stats[simulator] += written
 
-    if scenario_workers <= 1 or len(h5_files) <= 1:
+    if output_format == "parquet" and scenario_workers > 1:
+        for item in h5_files:
+            _process_scenario(item)
+    elif scenario_workers <= 1 or len(h5_files) <= 1:
         for item in h5_files:
             _process_scenario(item)
     else:

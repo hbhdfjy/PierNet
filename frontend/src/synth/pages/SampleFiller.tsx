@@ -107,7 +107,7 @@ export default function SampleFiller() {
         output_dir: '',
         output_format: 'parquet',
         compression: 'zstd',
-        batch_size: 8192,
+        batch_size: 32768,
         max_workers: maxWorkers,
         skip_existing: skipExisting,
         config: 'configs/text2comp/default.yaml',
