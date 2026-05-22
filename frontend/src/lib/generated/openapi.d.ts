@@ -3135,6 +3135,7 @@ export interface operations {
             query?: {
                 seed?: number;
                 neg_ratio?: number;
+                max_workers?: number;
                 scenarios?: string;
             };
             header?: never;

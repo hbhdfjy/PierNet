@@ -3453,6 +3453,18 @@
           },
           {
             "in": "query",
+            "name": "max_workers",
+            "required": false,
+            "schema": {
+              "default": 8,
+              "maximum": 64,
+              "minimum": 1,
+              "title": "Max Workers",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
             "name": "scenarios",
             "required": false,
             "schema": {
