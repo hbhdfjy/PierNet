@@ -258,6 +258,7 @@ export default function JobMonitorPanel({
 
   const totalDone = Object.values(progress).reduce((s, p) => s + p.done, 0)
   const totalTarget = Object.values(progress).reduce((s, p) => s + p.total, 0)
+  const overallPct = totalTarget > 0 ? Math.min(100, (totalDone / totalTarget) * 100) : 0
   const isRunning = ACTIVE_JOB_STATUSES.has(status)
   const isDone = status === 'done'
   const scenarioList = Object.entries(progress)
@@ -347,6 +348,28 @@ export default function JobMonitorPanel({
 
         {/* 进度内容 */}
         <div className="p-4">
+          {totalTarget > 0 && (
+            <div className="mb-4 rounded-xl border border-slate-700/35 bg-slate-900/35 p-3">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className={cn('h-2 w-2 rounded-full', a.dot)} />
+                  <span className="text-sm font-semibold text-slate-200">总体进度</span>
+                </div>
+                <div className="font-mono text-sm tabular-nums text-slate-300">
+                  {totalDone.toLocaleString()}
+                  <span className="text-slate-600"> / {totalTarget.toLocaleString()}</span>
+                  <span className="ml-2 text-slate-400">{overallPct.toFixed(1)}%</span>
+                </div>
+              </div>
+              <div className="h-2 rounded-full bg-slate-800/80 overflow-hidden">
+                <div
+                  className={cn('h-full rounded-full bg-gradient-to-r transition-all duration-700 ease-out', a.bar)}
+                  style={{ width: `${overallPct}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           {scenarioList.length === 0 && isRunning && (
             <div className="flex flex-col items-center gap-3 py-5">
               <div className="flex gap-1">
@@ -464,7 +487,9 @@ export default function JobMonitorPanel({
             <span className="text-xs">详细日志</span>
             <span className="text-xs text-slate-600 tabular-nums">{logs.length} 行</span>
             <div className="flex-1" />
-            <button
+            <span
+              role="button"
+              tabIndex={0}
               className={cn(
                 'p-1 rounded transition-colors',
                 autoScroll ? 'text-sky-400' : 'text-slate-600 hover:text-slate-400',
@@ -473,10 +498,16 @@ export default function JobMonitorPanel({
                 e.stopPropagation()
                 onAutoScrollChange(!autoScroll)
               }}
+              onKeyDown={e => {
+                if (e.key !== 'Enter' && e.key !== ' ') return
+                e.preventDefault()
+                e.stopPropagation()
+                onAutoScrollChange(!autoScroll)
+              }}
               title="自动滚动"
             >
               <ArrowDownToLine size={11} />
-            </button>
+            </span>
             {logsOpen ? (
               <ChevronUp size={12} className="text-slate-600" />
             ) : (
