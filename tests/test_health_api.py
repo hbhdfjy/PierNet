@@ -24,5 +24,7 @@ def test_health_ready_reports_core_paths():
     assert response.status_code == 200
     assert payload["status"] in {"ok", "degraded"}
     assert "project_root" in payload["checks"]
+    assert payload["checks"]["project_root"]["writable_checked"] is False
+    assert payload["checks"]["data_root"]["writable_checked"] is True
     assert "runlog_root" in payload["checks"]
     assert "runtime_config" in payload["checks"]

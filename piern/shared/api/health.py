@@ -22,6 +22,7 @@ def _path_status(path: Path, *, writable: bool = False) -> dict:
         "exists": exists,
         "is_dir": path.is_dir() if exists else False,
         "writable": False,
+        "writable_checked": writable,
     }
     if writable:
         try:
@@ -45,7 +46,7 @@ def ready() -> dict:
     validation = validate_runtime_config()
     checks = {
         "project_root": _path_status(PROJECT_ROOT),
-        "data_root": _path_status(DATA_ROOT),
+        "data_root": _path_status(DATA_ROOT, writable=True),
         "artifact_root": _path_status(ARTIFACT_ROOT, writable=True),
         "runlog_root": _path_status(RUNLOG_ROOT, writable=True),
         "runtime_config": {
@@ -56,7 +57,12 @@ def ready() -> dict:
         },
     }
     path_checks = [value for key, value in checks.items() if key != "runtime_config"]
-    ok = all(item.get("exists") for item in path_checks) and checks["runlog_root"].get("writable") and validation.ok
+    writable_checks = [item for item in path_checks if item.get("writable_checked")]
+    ok = (
+        all(item.get("exists") for item in path_checks)
+        and all(item.get("writable") for item in writable_checks)
+        and validation.ok
+    )
     return {"status": "ok" if ok else "degraded", "checks": checks}
 
 
