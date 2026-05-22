@@ -92,7 +92,7 @@ def run_fill_samples(
 
     n_per_scenario = n_samples if n_samples is not None else gen_cfg.get("n_samples_per_scenario", 1000)
     _seed = seed if seed is not None else cfg.get("seed", 42)
-    scenario_workers = max(1, int(max_workers if max_workers is not None else 1))
+    scenario_workers = max(1, int(max_workers if max_workers is not None else (gen_cfg.get("max_workers") or 1)))
 
     base_dir = cfg_path.parent.parent.parent
     if not (base_dir / "data").exists():
@@ -225,6 +225,7 @@ def run_fill_samples(
         skipped = 0
         nan_skipped = 0
         last_reported = -1
+        progress_every = max(100, min(2000, max(1, n // 500)))
 
         def iter_samples(jsonl_handle=None) -> Iterable[dict[str, object]]:
             nonlocal written, skipped, nan_skipped, last_reported
@@ -261,7 +262,7 @@ def run_fill_samples(
                 if jsonl_handle is not None:
                     jsonl_handle.write(json.dumps(sample, ensure_ascii=False) + "\n")
                 written += 1
-                if on_progress and written % 50 == 0 and written != last_reported:
+                if on_progress and written % progress_every == 0 and written != last_reported:
                     on_progress(scenario_name, written)
                     last_reported = written
                 yield sample

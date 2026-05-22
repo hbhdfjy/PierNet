@@ -3,7 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, JobStatus } from '../../lib/types'
+import type {
+  Text2CompScenariosConfig,
+  Text2CompScenario,
+  GenerationConfig,
+  TemplateInfo,
+  JobStatus,
+} from '../../lib/types'
 import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, FolderOpen } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
@@ -54,6 +60,7 @@ export default function SampleFiller() {
 
   useEffect(() => {
     if (genCfg?.generation?.n_samples_per_scenario) setNSamples(genCfg.generation.n_samples_per_scenario)
+    if (genCfg?.generation?.max_workers) setMaxWorkers(genCfg.generation.max_workers)
   }, [genCfg])
 
   useEffect(() => {
@@ -325,45 +332,45 @@ export default function SampleFiller() {
           )}
 
           <div className="px-4 pb-4 space-y-1.5">
-          {canLaunch ? (
-            <>
-              <button
-                className={cn(
-                  'w-full py-2.5 text-sm justify-center shadow-lg btn',
-                  selected.size > 0 && !launching
-                    ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                    : 'bg-slate-700/60 text-slate-500 cursor-not-allowed',
-                )}
-                onClick={handleLaunch}
-                disabled={launching || selected.size === 0}
-              >
-                {launching ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" /> 启动中…
-                  </>
-                ) : (
-                  <>
-                    <FlaskConical size={14} /> 开始填充{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
-                  </>
-                )}
-              </button>
-              {isTerminalJobStatus(monitor.status) && (
-                <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
-                  重新配置
+            {canLaunch ? (
+              <>
+                <button
+                  className={cn(
+                    'w-full py-2.5 text-sm justify-center shadow-lg btn',
+                    selected.size > 0 && !launching
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                      : 'bg-slate-700/60 text-slate-500 cursor-not-allowed',
+                  )}
+                  onClick={handleLaunch}
+                  disabled={launching || selected.size === 0}
+                >
+                  {launching ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" /> 启动中…
+                    </>
+                  ) : (
+                    <>
+                      <FlaskConical size={14} /> 开始填充{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
+                    </>
+                  )}
                 </button>
-              )}
-            </>
-          ) : (
-            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2.5">
-              <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
-                <RefreshCw size={13} className="animate-spin" />
-                {ACTIVE_STATUS_LABEL[monitor.status] ?? '任务进行中'}
+                {isTerminalJobStatus(monitor.status) && (
+                  <button className="btn-ghost w-full py-1.5 justify-center text-xs" onClick={monitor.reset}>
+                    重新配置
+                  </button>
+                )}
+              </>
+            ) : (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2.5">
+                <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+                  <RefreshCw size={13} className="animate-spin" />
+                  {ACTIVE_STATUS_LABEL[monitor.status] ?? '任务进行中'}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  进度已固定显示在右侧任务面板；如需重新配置，请先终止当前任务。
+                </p>
               </div>
-              <p className="mt-1 text-xs leading-5 text-slate-500">
-                进度已固定显示在右侧任务面板；如需重新配置，请先终止当前任务。
-              </p>
-            </div>
-          )}
+            )}
           </div>
         </div>
       </div>

@@ -135,7 +135,7 @@ def record_from_stored(stored: dict[str, Any]) -> JobRecord:
 def should_stop(record: JobRecord) -> bool:
     if record.stop_event.is_set() or record.status in SYNTH_TERMINAL_STATUSES:
         return True
-    stored = job_store.load_job(record.job_id)
+    stored = job_store.load_job(record.job_id, include_events=False)
     return bool(stored and stored.get("status") in {"terminated", "external_terminated", "error"})
 
 
@@ -336,7 +336,7 @@ def terminate_job(job_id: str) -> bool:
 
 def all_jobs(max_recent: int = 200) -> dict[str, JobRecord]:
     jobs = dict(_jobs)
-    for stored in job_store.list_jobs(limit=max_recent):
+    for stored in job_store.list_jobs(limit=max_recent, include_events=False):
         job_id = str(stored["job_id"])
         if job_id not in jobs:
             jobs[job_id] = _record_from_stored(stored)

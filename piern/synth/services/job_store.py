@@ -177,6 +177,32 @@ def _event_rows(conn: sqlite3.Connection, job_id: str) -> list[dict[str, Any]]:
     return events
 
 
+def _event_rows_after(
+    conn: sqlite3.Connection,
+    job_id: str,
+    after_id: int = 0,
+    limit: int = 1000,
+) -> tuple[int, list[dict[str, Any]]]:
+    rows = conn.execute(
+        """
+        SELECT id, payload_json
+        FROM job_events
+        WHERE job_id=? AND id>?
+        ORDER BY id ASC
+        LIMIT ?
+        """,
+        (job_id, max(0, int(after_id)), max(1, int(limit))),
+    ).fetchall()
+    last_id = max(0, int(after_id))
+    events: list[dict[str, Any]] = []
+    for row in rows:
+        last_id = int(row["id"])
+        payload = _json_loads(row["payload_json"], None)
+        if isinstance(payload, dict):
+            events.append(payload)
+    return last_id, events
+
+
 def _row_to_job(row: sqlite3.Row, *, events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
     return {
         "job_id": row["job_id"],
@@ -196,13 +222,20 @@ def _row_to_job(row: sqlite3.Row, *, events: list[dict[str, Any]] | None = None)
     }
 
 
-def load_job(job_id: str) -> dict[str, Any] | None:
+def load_job(job_id: str, *, include_events: bool = True) -> dict[str, Any] | None:
     init_store()
     with _LOCK, _connect() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
         if row is None:
             return None
-        return _row_to_job(row, events=_event_rows(conn, job_id))
+        events = _event_rows(conn, job_id) if include_events else []
+        return _row_to_job(row, events=events)
+
+
+def load_events_after(job_id: str, after_id: int = 0, *, limit: int = 1000) -> tuple[int, list[dict[str, Any]]]:
+    init_store()
+    with _LOCK, _connect() as conn:
+        return _event_rows_after(conn, job_id, after_id=after_id, limit=limit)
 
 
 def list_jobs(
@@ -210,6 +243,7 @@ def list_jobs(
     job_type: str | None = None,
     status: str | None = None,
     limit: int = 200,
+    include_events: bool = True,
 ) -> list[dict[str, Any]]:
     init_store()
     clauses: list[str] = []
@@ -227,7 +261,10 @@ def list_jobs(
             f"SELECT * FROM jobs {where} ORDER BY started_at DESC, created_at DESC LIMIT ?",
             params,
         ).fetchall()
-        return [_row_to_job(row, events=_event_rows(conn, row["job_id"])) for row in rows]
+        return [
+            _row_to_job(row, events=_event_rows(conn, row["job_id"]) if include_events else [])
+            for row in rows
+        ]
 
 
 def mark_incomplete_external_terminated(active_job_ids: Iterable[str] = ()) -> list[str]:

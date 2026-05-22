@@ -32,6 +32,32 @@ def test_job_store_persists_job_events(monkeypatch, tmp_path):
     assert loaded["events"] == [{"type": "log", "ts": 11.0, "line": "hello"}]
 
 
+def test_job_store_can_load_status_without_full_event_history(monkeypatch, tmp_path):
+    _use_tmp_store(monkeypatch, tmp_path)
+
+    job_store.upsert_job(
+        job_id="fill-test",
+        job_type="fill_samples",
+        status="running",
+        started_at=10.0,
+        scenario_totals={"a": 3},
+        progress={},
+        stats={"elapsed_sec": 0.0, "samples_per_sec": 0.0},
+    )
+    for idx in range(3):
+        job_store.append_event("fill-test", {"type": "log", "ts": 11.0 + idx, "line": f"line-{idx}"})
+
+    status_only = job_store.load_job("fill-test", include_events=False)
+    last_id, first_batch = job_store.load_events_after("fill-test", 0, limit=2)
+    last_id, second_batch = job_store.load_events_after("fill-test", last_id, limit=2)
+
+    assert status_only is not None
+    assert status_only["events"] == []
+    assert [event["line"] for event in first_batch] == ["line-0", "line-1"]
+    assert [event["line"] for event in second_batch] == ["line-2"]
+    assert last_id > 0
+
+
 def test_incomplete_jobs_recover_as_external_terminated(monkeypatch, tmp_path):
     _use_tmp_store(monkeypatch, tmp_path)
     job_store.upsert_job(

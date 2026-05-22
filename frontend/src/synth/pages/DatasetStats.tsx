@@ -371,8 +371,10 @@ export default function DatasetStats() {
   const routerTotal = routerGeneratedTotal > 0 ? routerGeneratedTotal : routerSourceTotal
   const routerPositive = routerStatus?.label_counts['1'] ?? 0
   const routerNegative = routerStatus?.label_counts['0'] ?? 0
-  const routerPositiveRate = routerGeneratedTotal > 0 ? ((routerPositive / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
-  const routerNegativeRate = routerGeneratedTotal > 0 ? ((routerNegative / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
+  const routerPositiveRate =
+    routerGeneratedTotal > 0 ? ((routerPositive / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
+  const routerNegativeRate =
+    routerGeneratedTotal > 0 ? ((routerNegative / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
   const distributionSideRef = useRef<HTMLDivElement | null>(null)
   const [scenarioCardHeight, setScenarioCardHeight] = useState<number | null>(null)
 

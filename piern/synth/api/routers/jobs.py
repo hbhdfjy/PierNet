@@ -39,24 +39,28 @@ async def stream_job(job_id: str):
     返回指定作业的 SSE 事件流。
     事件从 SQLite 轮询读取，因此 API 重启或 worker 进程执行任务时也能持续回放。
     """
-    if not job_store.load_job(job_id):
+    if not job_store.load_job(job_id, include_events=False):
         raise HTTPException(404, f"任务 {job_id} 不存在")
 
     async def _generator():
-        emitted = 0
+        last_event_id = 0
+        last_event_type = ""
         last_heartbeat = time.time()
         while True:
-            stored = job_store.load_job(job_id)
+            stored = job_store.load_job(job_id, include_events=False)
             if not stored:
                 yield _sse({"type": "error", "ts": time.time(), "message": f"任务 {job_id} 不存在"})
                 return
-            events = stored.get("events") or []
-            for event in events[emitted:]:
-                yield _sse(event)
-            emitted = len(events)
+            while True:
+                last_event_id, events = job_store.load_events_after(job_id, last_event_id, limit=1000)
+                for event in events:
+                    last_event_type = str(event.get("type") or "")
+                    yield _sse(event)
+                if len(events) < 1000:
+                    break
             status = stored.get("status")
             if status in _TERMINAL:
-                if not events or events[-1].get("type") not in _TERMINAL:
+                if last_event_type not in _TERMINAL:
                     yield _sse({"type": status, "ts": time.time(), "message": stored.get("error_message")})
                 return
             now = time.time()

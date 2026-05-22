@@ -96,6 +96,7 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
     req = _model_validate(FillSamplesRequest, payload)
     scenario_totals = record.scenario_totals
     current_scenario: list[str] = [""]
+    last_progress_publish: dict[str, tuple[int, float]] = {}
 
     def _check_stop() -> None:
         if job_manager.should_stop(record):
@@ -113,12 +114,18 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
     def on_progress(scenario: str, done: int) -> None:
         _check_stop()
         total = scenario_totals.get(scenario, 0)
+        now = time.time()
+        last_done, last_ts = last_progress_publish.get(scenario, (0, 0.0))
+        min_rows = max(100, int(total) // 1000) if total else 100
+        if done < total and done - last_done < min_rows and now - last_ts < 0.75:
+            return
+        last_progress_publish[scenario] = (done, now)
         publish(
             record,
             {
                 "type": "log",
                 "line": f"  {scenario}: {done}/{total}",
-                "ts": time.time(),
+                "ts": now,
                 "progress": {"scenario": scenario, "done": done, "total": total},
             },
         )
