@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo } from '../../lib/types'
+import type { Text2CompScenariosConfig, Text2CompScenario, GenerationConfig, TemplateInfo, JobStatus } from '../../lib/types'
 import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, FolderOpen } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
@@ -11,6 +11,14 @@ import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
+
+const ACTIVE_STATUS_LABEL: Partial<Record<JobStatus, string>> = {
+  queued: '任务排队中',
+  starting: '任务启动中',
+  running: '任务运行中',
+  evaluating: '任务评估中',
+  stopping: '任务停止中',
+}
 
 export default function SampleFiller() {
   const navigate = useNavigate()
@@ -99,7 +107,7 @@ export default function SampleFiller() {
         seed,
         precision,
       })
-      monitor.start(result.job_id, result.scenario_totals)
+      monitor.start(result.job_id, result.scenario_totals, result.status as JobStatus)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {
@@ -316,8 +324,9 @@ export default function SampleFiller() {
             </div>
           )}
 
-          {canLaunch && (
-            <div className="px-4 pb-4 space-y-1.5">
+          <div className="px-4 pb-4 space-y-1.5">
+          {canLaunch ? (
+            <>
               <button
                 className={cn(
                   'w-full py-2.5 text-sm justify-center shadow-lg btn',
@@ -343,8 +352,19 @@ export default function SampleFiller() {
                   重新配置
                 </button>
               )}
+            </>
+          ) : (
+            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-3 py-2.5">
+              <div className="flex items-center gap-2 text-sm font-medium text-emerald-300">
+                <RefreshCw size={13} className="animate-spin" />
+                {ACTIVE_STATUS_LABEL[monitor.status] ?? '任务进行中'}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-slate-500">
+                进度已固定显示在右侧任务面板；如需重新配置，请先终止当前任务。
+              </p>
             </div>
           )}
+          </div>
         </div>
       </div>
 

@@ -14,8 +14,10 @@ fi
 RUN_DIR=${PIERN_SERVICE_RUN_DIR:-"$ROOT/.runlogs/services"}
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
+WORKER_PID_FILE="$RUN_DIR/worker.pid"
 BACKEND_LOG="$RUN_DIR/backend.log"
 FRONTEND_LOG="$RUN_DIR/frontend.log"
+WORKER_LOG="$RUN_DIR/worker.log"
 HOST=${PIERN_HOST:-${PIERN_SERVICE_HOST:-0.0.0.0}}
 BACKEND_PORT=${PIERN_BACKEND_PORT:-8000}
 FRONTEND_PORT=${PIERN_FRONTEND_PORT:-5173}
@@ -65,6 +67,27 @@ find_backend_pid() {
 
 find_frontend_pid() {
   first_matching_pid "vite.*--port[ =]*$FRONTEND_PORT" || true
+}
+
+find_worker_pid() {
+  first_matching_pid "python.*-m piern.worker" || true
+}
+
+worker_should_start() {
+  local setting=${PIERN_SERVICE_WORKER:-auto}
+  case "${setting,,}" in
+    1|true|yes|on) return 0 ;;
+    0|false|no|off) return 1 ;;
+  esac
+  local synth=${PIERN_WORKER_QUEUE_SYNTH:-0}
+  local training=${PIERN_WORKER_QUEUE_TRAINING:-0}
+  case "${synth,,}" in
+    1|true|yes|on) return 0 ;;
+  esac
+  case "${training,,}" in
+    1|true|yes|on) return 0 ;;
+  esac
+  return 1
 }
 
 service_pid() {

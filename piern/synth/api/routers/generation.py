@@ -88,7 +88,7 @@ async def start_generate_templates(req: GenerateTemplatesRequest):
         lock_keys=_resource_lock_keys("template", req.scenarios),
         direct_runner=generation_executor.run_generate_templates_job,
     )
-    return JobStartResponse(job_id=record.job_id, scenario_totals=scenario_totals)
+    return JobStartResponse(job_id=record.job_id, status=record.status, scenario_totals=scenario_totals)
 
 
 @router.post("/fill-samples", response_model=JobStartResponse)
@@ -104,7 +104,7 @@ async def start_fill_samples(req: FillSamplesRequest):
         lock_keys=_resource_lock_keys("dataset", req.scenarios),
         direct_runner=generation_executor.run_fill_samples_job,
     )
-    return JobStartResponse(job_id=record.job_id, scenario_totals=scenario_totals)
+    return JobStartResponse(job_id=record.job_id, status=record.status, scenario_totals=scenario_totals)
 
 
 @router.get("/templates")

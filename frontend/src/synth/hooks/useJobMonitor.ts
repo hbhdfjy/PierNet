@@ -11,7 +11,7 @@ export interface JobMonitorState {
   stats: LiveStats
   autoScroll: boolean
   setAutoScroll: (v: boolean) => void
-  start: (jobId: string, scenarioTotals?: Record<string, number>) => void
+  start: (jobId: string, scenarioTotals?: Record<string, number>, initialStatus?: JobStatus) => void
   stop: () => Promise<void>
   reset: () => void
   scenarioDoneCount: number // 每完成一个场景递增，用于触发外部刷新
@@ -112,7 +112,11 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   const status: JobStatus = (() => {
     const statuses = Object.values(jobStatuses)
     if (statuses.length === 0) return 'idle'
-    if (statuses.some(s => s === 'running' || s === 'queued' || s === 'starting')) return 'running'
+    if (statuses.some(s => s === 'stopping')) return 'stopping'
+    if (statuses.some(s => s === 'evaluating')) return 'evaluating'
+    if (statuses.some(s => s === 'running')) return 'running'
+    if (statuses.some(s => s === 'starting')) return 'starting'
+    if (statuses.some(s => s === 'queued')) return 'queued'
     if (statuses.some(s => s === 'error')) return 'error'
     if (statuses.some(s => s === 'external_terminated')) return 'external_terminated'
     if (statuses.some(s => s === 'terminated')) return 'terminated'
@@ -323,7 +327,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
   }, [])
 
   const start = useCallback(
-    (id: string, scenarioTotals?: Record<string, number>) => {
+    (id: string, scenarioTotals?: Record<string, number>, initialStatus: JobStatus = 'running') => {
       // 清理旧的已完成/出错任务，只保留 running 的
       const toClose: string[] = []
       esMap.current.forEach((_, oldId) => {
@@ -333,8 +337,10 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
         esMap.current.get(oldId)?.close()
         esMap.current.delete(oldId)
       })
+      terminatedRef.current.delete(id)
+      errorCheckInFlightRef.current.delete(id)
       setJobIds([id])
-      setJobStatuses({ [id]: 'running' })
+      setJobStatuses({ [id]: initialStatus })
       setLogs([])
       setProgress(
         Object.fromEntries(

@@ -25,6 +25,21 @@ else
   write_pid "$FRONTEND_PID_FILE" "$!"
 fi
 
+if worker_should_start; then
+  if worker_pid=$(service_pid "$WORKER_PID_FILE" find_worker_pid); then
+    echo "worker: already running pid=$worker_pid"
+  else
+    rm -f "$WORKER_PID_FILE"
+    : > "$WORKER_LOG"
+    echo "worker: starting"
+    nohup env PATH="$SERVICE_PATH" "$PYTHON" -m piern.worker --interval 2 \
+      > "$WORKER_LOG" 2>&1 < /dev/null &
+    write_pid "$WORKER_PID_FILE" "$!"
+  fi
+else
+  echo "worker: disabled"
+fi
+
 sleep 1
 if ! service_alive "$BACKEND_PID_FILE" find_backend_pid; then
   echo "backend process exited before health check"
@@ -34,6 +49,11 @@ fi
 if ! service_alive "$FRONTEND_PID_FILE" find_frontend_pid; then
   echo "frontend process exited before health check"
   tail -n 80 "$FRONTEND_LOG" || true
+  exit 1
+fi
+if worker_should_start && ! service_alive "$WORKER_PID_FILE" find_worker_pid; then
+  echo "worker process exited before health check"
+  tail -n 80 "$WORKER_LOG" || true
   exit 1
 fi
 

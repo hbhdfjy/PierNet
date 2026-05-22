@@ -91,6 +91,11 @@ tail_log() {
 section "processes"
 print_status backend "$BACKEND_PID_FILE" find_backend_pid
 print_status frontend "$FRONTEND_PID_FILE" find_frontend_pid
+if worker_should_start; then
+  print_status worker "$WORKER_PID_FILE" find_worker_pid
+else
+  echo "worker: disabled"
+fi
 
 backend_base="http://127.0.0.1:$BACKEND_PORT/api"
 frontend_url="http://127.0.0.1:$FRONTEND_PORT/"
@@ -111,3 +116,4 @@ print_gpu_cli | indent
 section "recent logs"
 tail_log backend "$BACKEND_LOG"
 tail_log frontend "$FRONTEND_LOG"
+tail_log worker "$WORKER_LOG"
