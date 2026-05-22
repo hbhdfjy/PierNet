@@ -1,0 +1,9 @@
+.workbench-shell {
+  flex-direction: row;
+}
+
+@media (max-width: 640px) {
+  .workbench-shell {
+    flex-direction: column;
+  }
+}

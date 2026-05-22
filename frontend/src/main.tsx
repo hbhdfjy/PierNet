@@ -5,6 +5,7 @@ import App from './App'
 import { installWheelScrollAssist } from './lib/scrollAssist'
 import PrettyTooltipLayer from './shared/PrettyTooltipLayer'
 import './index.css'
+import './workbench-layout.css'
 
 installWheelScrollAssist()
 
