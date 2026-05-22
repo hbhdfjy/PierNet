@@ -406,10 +406,12 @@ export const api = {
     seed = 42,
     scenarios: string[] = [],
     negRatio = 1,
+    maxWorkers = 8,
   ): Promise<{ job_id: string; status: string }> => {
     const params = new URLSearchParams({
       seed: String(seed),
       neg_ratio: String(negRatio),
+      max_workers: String(maxWorkers),
     })
     if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))
     const res = await apiFetch(`${BASE}/router/build?${params}`, { method: 'POST' })

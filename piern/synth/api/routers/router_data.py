@@ -377,6 +377,7 @@ def get_router_status():
 async def build_router_data(
     seed: int = Query(42),
     neg_ratio: int = Query(1, ge=1, le=10),
+    max_workers: int = Query(8, ge=1, le=64),
     scenarios: str = Query(""),
 ):
     """Start Stage 4 router build and return a job id for SSE."""
@@ -393,7 +394,7 @@ async def build_router_data(
     scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
     router_lock_scenarios = scenario_list or ["all"]
     queued = _use_worker_queue()
-    payload = {"seed": seed, "neg_ratio": neg_ratio, "scenarios": scenario_list}
+    payload = {"seed": seed, "neg_ratio": neg_ratio, "max_workers": max_workers, "scenarios": scenario_list}
     record = job_manager.create_job(
         "router",
         request=payload,

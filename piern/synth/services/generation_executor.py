@@ -150,6 +150,7 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
             on_scenario_start=on_scenario_start,
             on_progress=on_progress,
             on_log=on_log,
+            should_stop=lambda: job_manager.should_stop(record),
         )
         if not job_manager.should_stop(record):
             record.status = "done"

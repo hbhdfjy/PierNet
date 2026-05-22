@@ -94,6 +94,7 @@ export default function RouterDataBuilder() {
   // 参数
   const { seed } = useSeed()
   const [negRatio, setNegRatio] = useState(1)
+  const [maxWorkers, setMaxWorkers] = useState(8)
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -138,7 +139,7 @@ export default function RouterDataBuilder() {
     setError(null)
     setLaunching(true)
     try {
-      const res = await api.buildRouterData(seed, Array.from(selected), negRatio)
+      const res = await api.buildRouterData(seed, Array.from(selected), negRatio, maxWorkers)
       monitor.start(res.job_id)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
@@ -277,6 +278,20 @@ export default function RouterDataBuilder() {
               >
                 <span className="block truncate font-mono text-sky-300">PIERN_QWEN_EMBEDDING_MODEL</span>
               </span>
+            </div>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="label text-xs">并行进程</span>
+                <span className="text-xs text-slate-500 tabular-nums">{maxWorkers}</span>
+              </div>
+              <input
+                type="range"
+                className="w-full accent-rose-500 h-1"
+                min={1}
+                max={16}
+                value={maxWorkers}
+                onChange={e => setMaxWorkers(parseInt(e.target.value))}
+              />
             </div>
           </div>
 

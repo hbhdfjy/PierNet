@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import select
 import signal
 import subprocess
 import sys
@@ -32,6 +33,7 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
 def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
     seed = int(payload.get("seed", 42))
     neg_ratio = int(payload.get("neg_ratio", 1))
+    max_workers = max(1, int(payload.get("max_workers") or os.getenv("PIERN_ROUTER_BUILD_WORKERS", "8")))
     scenario_list = [str(item) for item in payload.get("scenarios", []) if str(item)]
     proc: subprocess.Popen[str] | None = None
     try:
@@ -75,6 +77,10 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
             str(neg_ratio),
             "--chat-template",
             "qwen",
+            "--batch-size",
+            "32768",
+            "--max-workers",
+            str(max_workers),
         ]
         if scenario_list:
             cmd += ["--scenarios", *scenario_list]
@@ -95,15 +101,11 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
             raise RuntimeError("router build subprocess did not provide stdout")
 
         scenario_totals: dict[str, int] = {}
-        for line in proc.stdout:
-            if job_manager.should_stop(record):
-                _kill_process_group(proc)
-                record.status = "terminated"
-                publish(record, {"type": "terminated", "ts": time.time(), "message": "任务已由平台终止。"})
-                return
+
+        def _handle_line(line: str) -> None:
             line = line.rstrip()
             if not line:
-                continue
+                return
             if line.startswith("PROGRESS_INIT:"):
                 parts = line.split(":", 2)
                 if len(parts) == 3:
@@ -116,7 +118,7 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
                     record.scenario_totals[sc_name] = total
                     publish(record, {"type": "init", "scenario_totals": dict(record.scenario_totals), "ts": time.time()})
                     publish(record, {"type": "log", "line": f"[init] {sc_name} expected {total} rows", "ts": time.time()})
-                continue
+                return
             if line.startswith("PROGRESS_UPDATE:"):
                 parts = line.split(":", 3)
                 if len(parts) == 4:
@@ -135,7 +137,7 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
                             "progress": {"scenario": sc_name, "done": done, "total": total},
                         },
                     )
-                continue
+                return
             if line.startswith("PROGRESS_DONE:"):
                 parts = line.split(":", 3)
                 if len(parts) >= 3:
@@ -154,8 +156,27 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
                             "progress": {"scenario": sc_name, "done": done, "total": total},
                         },
                     )
-                continue
+                return
             publish(record, {"type": "log", "line": line, "ts": time.time()})
+
+        while True:
+            if job_manager.should_stop(record):
+                _kill_process_group(proc)
+                record.status = "terminated"
+                publish(record, {"type": "terminated", "ts": time.time(), "message": "任务已由平台终止。"})
+                return
+            if proc.poll() is not None:
+                while True:
+                    line = proc.stdout.readline()
+                    if not line:
+                        break
+                    _handle_line(line)
+                break
+            ready, _, _ = select.select([proc.stdout], [], [], 0.5)
+            if ready:
+                line = proc.stdout.readline()
+                if line:
+                    _handle_line(line)
 
         proc.wait()
         if job_manager.should_stop(record):

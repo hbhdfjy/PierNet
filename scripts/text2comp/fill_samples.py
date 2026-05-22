@@ -16,7 +16,7 @@ import sys
 import threading
 import time
 from collections import Counter
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+from concurrent.futures import FIRST_COMPLETED, ProcessPoolExecutor, ThreadPoolExecutor, as_completed, wait
 from contextlib import ExitStack
 from multiprocessing import get_context
 from pathlib import Path
@@ -40,6 +40,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 _PARALLEL_FILL_CONTEXT: dict[str, object] = {}
+_PARALLEL_FILL_STOP_EVENT = None
 
 
 def _init_parallel_fill_worker(
@@ -54,8 +55,9 @@ def _init_parallel_fill_worker(
     scenario: str,
     compression: str,
     batch_size: int,
+    stop_event=None,
 ):
-    global _PARALLEL_FILL_CONTEXT
+    global _PARALLEL_FILL_CONTEXT, _PARALLEL_FILL_STOP_EVENT
     _PARALLEL_FILL_CONTEXT = {
         "timeseries": timeseries,
         "params": params,
@@ -69,6 +71,7 @@ def _init_parallel_fill_worker(
         "compression": compression,
         "batch_size": batch_size,
     }
+    _PARALLEL_FILL_STOP_EVENT = stop_event
 
 
 def _parallel_fill_part_worker(args: tuple[int, int, int, str]) -> dict[str, object]:
@@ -121,6 +124,8 @@ def _parallel_fill_part_worker(args: tuple[int, int, int, str]) -> dict[str, obj
 
     try:
         for i in range(start, stop):
+            if _PARALLEL_FILL_STOP_EVENT is not None and (i - start) % 256 == 0 and _PARALLEL_FILL_STOP_EVENT.is_set():
+                raise InterruptedError("任务已终止")
             t_idx = t_order[i % n_avail_t]
             d_idx = d_order[i % n_avail_d]
             template, valid_time_idx, valid_ch = template_specs[t_idx]
@@ -241,6 +246,7 @@ def run_fill_samples(
     on_scenario_start=None,  # (scenario: str, total: int) -> None
     on_progress=None,        # (scenario: str, done: int) -> None
     on_log=None,             # (line: str) -> None
+    should_stop=None,        # () -> bool
 ) -> None:
     output_format = (output_format or "parquet").lower()
     if output_format not in {"parquet", "jsonl", "both"}:
@@ -297,6 +303,10 @@ def run_fill_samples(
             if on_log:
                 on_log(line)
 
+    def _raise_if_stopped() -> None:
+        if should_stop is not None and should_stop():
+            raise InterruptedError("任务已终止")
+
     _log(f"\n找到 {len(h5_files)} 个场景，每场景生成 {n_per_scenario} 条样本")
     _log(f"输出格式: {output_format}")
     if output_format == "parquet" and scenario_workers > 1:
@@ -315,6 +325,7 @@ def run_fill_samples(
     stats_lock = threading.Lock()
 
     def _process_scenario(item: tuple[Path, str, str]) -> None:
+        _raise_if_stopped()
         h5_path, simulator, file_suffix = item
         scenario_name = _scenario_name_from_path(h5_path, file_suffix)
         tmpl_path = tmpl_dir / f"{scenario_name}_templates.jsonl"
@@ -393,6 +404,8 @@ def run_fill_samples(
         def iter_samples(jsonl_handle=None) -> Iterable[dict[str, object]]:
             nonlocal written, skipped, nan_skipped, last_reported
             for i in range(n):
+                if i % 256 == 0:
+                    _raise_if_stopped()
                 t_idx = t_order[i % n_avail_t]
                 d_idx = d_order[i % n_avail_d]
                 template, valid_time_idx, valid_ch = template_specs[t_idx]
@@ -468,9 +481,11 @@ def run_fill_samples(
             timeseries_shape_obs = None
             part_paths: list[str] = []
             try:
+                mp_context = get_context("fork")
+                stop_event = mp_context.Event()
                 with ProcessPoolExecutor(
                     max_workers=min(sample_workers, len(chunks)),
-                    mp_context=get_context("fork"),
+                    mp_context=mp_context,
                     initializer=_init_parallel_fill_worker,
                     initargs=(
                         timeseries,
@@ -484,25 +499,38 @@ def run_fill_samples(
                         scenario_name,
                         compression,
                         batch_size,
+                        stop_event,
                     ),
                 ) as executor:
-                    futures = {executor.submit(_parallel_fill_part_worker, chunk): chunk for chunk in chunks}
-                    for future in as_completed(futures):
-                        result_part = future.result()
-                        rows = int(result_part.get("row_count") or 0)
-                        written += rows
-                        skipped += int(result_part.get("skipped") or 0)
-                        nan_skipped += int(result_part.get("nan_skipped") or 0)
-                        if result_part.get("timeseries_shape_obs") is not None:
-                            timeseries_shape_obs = result_part["timeseries_shape_obs"]
-                        if rows > 0:
-                            part_paths.append(str(result_part["path"]))
-                        for key, values in (result_part.get("counters") or {}).items():
-                            if key in counters and isinstance(values, dict):
-                                counters[key].update({str(k): int(v) for k, v in values.items()})
-                        if on_progress and written - last_reported >= progress_every:
-                            on_progress(scenario_name, min(written, n))
-                            last_reported = written
+                    pending = {executor.submit(_parallel_fill_part_worker, chunk) for chunk in chunks}
+                    while pending:
+                        if should_stop is not None and should_stop():
+                            stop_event.set()
+                            for future in pending:
+                                future.cancel()
+                            raise InterruptedError("任务已终止")
+                        done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
+                        if not done:
+                            continue
+                        for future in done:
+                            if stop_event.is_set():
+                                raise InterruptedError("任务已终止")
+                            result_part = future.result()
+                            rows = int(result_part.get("row_count") or 0)
+                            written += rows
+                            skipped += int(result_part.get("skipped") or 0)
+                            nan_skipped += int(result_part.get("nan_skipped") or 0)
+                            if result_part.get("timeseries_shape_obs") is not None:
+                                timeseries_shape_obs = result_part["timeseries_shape_obs"]
+                            if rows > 0:
+                                part_paths.append(str(result_part["path"]))
+                            for key, values in (result_part.get("counters") or {}).items():
+                                if key in counters and isinstance(values, dict):
+                                    counters[key].update({str(k): int(v) for k, v in values.items()})
+                            if on_progress and written - last_reported >= progress_every:
+                                on_progress(scenario_name, min(written, n))
+                                last_reported = written
+                    _raise_if_stopped()
 
                 if written == 0:
                     shutil.rmtree(tmp_dir, ignore_errors=True)
