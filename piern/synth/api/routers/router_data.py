@@ -395,15 +395,18 @@ async def build_router_data(
     router_lock_scenarios = scenario_list or ["all"]
     queued = _use_worker_queue()
     payload = {"seed": seed, "neg_ratio": neg_ratio, "max_workers": max_workers, "scenarios": scenario_list}
-    record = job_manager.create_job(
-        "router",
-        request=payload,
-        lock_keys=[
-            *(f"router:{scenario}" for scenario in router_lock_scenarios),
-            *(f"dataset:{scenario}" for scenario in router_lock_scenarios),
-        ],
-        status="queued" if queued else "running",
-    )
+    try:
+        record = job_manager.create_job(
+            "router",
+            request=payload,
+            lock_keys=[
+                *(f"router:{scenario}" for scenario in router_lock_scenarios),
+                *(f"dataset:{scenario}" for scenario in router_lock_scenarios),
+            ],
+            status="queued" if queued else "running",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if queued:
         publish(record, {"type": "queued", "ts": time.time(), "message": "任务已进入 worker 队列"})
     else:

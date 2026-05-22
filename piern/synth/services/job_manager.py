@@ -257,7 +257,7 @@ def publish(record: JobRecord, event: dict) -> None:
         for item in events:
             _apply_event_state(record, item)
             record.events.append(item)
-            if record.status in SYNTH_TERMINAL_STATUSES and record.lock_keys:
+            if record.status in SYNTH_TERMINAL_STATUSES:
                 task_locks.release_owner(record.job_id)
                 record.lock_keys = []
             _persist_event(record, item)
@@ -365,6 +365,8 @@ def _recover_orphaned_jobs() -> None:
         logger.exception("Failed to recover orphaned synthesis jobs")
         return
     if recovered:
+        for job_id in recovered:
+            task_locks.release_owner(job_id)
         logger.info("Recovered orphaned synthesis jobs as external_terminated: %s", ", ".join(recovered))
 
 

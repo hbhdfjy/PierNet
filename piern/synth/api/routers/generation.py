@@ -59,13 +59,16 @@ def _start_job(
     direct_runner,
 ) -> JobRecord:
     queued = _use_worker_queue()
-    record = job_manager.create_job(
-        job_type,
-        scenario_totals,
-        request=payload,
-        lock_keys=lock_keys,
-        status="queued" if queued else "running",
-    )
+    try:
+        record = job_manager.create_job(
+            job_type,
+            scenario_totals,
+            request=payload,
+            lock_keys=lock_keys,
+            status="queued" if queued else "running",
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     if scenario_totals:
         publish(record, {"type": "init", "scenario_totals": dict(scenario_totals), "ts": time.time()})
     if queued:

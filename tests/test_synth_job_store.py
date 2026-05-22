@@ -1,13 +1,17 @@
 import asyncio
 
+from piern.shared.tasks import locks as task_locks
 from piern.synth.services import job_manager, job_store
 
 
 def _use_tmp_store(monkeypatch, tmp_path):
     monkeypatch.setattr(job_store, "JOB_STORE_PATH", tmp_path / "jobs.sqlite")
     monkeypatch.setattr(job_store, "_INITIALIZED", False)
+    monkeypatch.setattr(task_locks, "LOCK_STORE_PATH", tmp_path / "job_locks.sqlite")
+    monkeypatch.setattr(task_locks, "_INITIALIZED", False)
     job_manager._jobs.clear()
     job_store.init_store()
+    task_locks.init_store()
 
 
 def test_job_store_persists_job_events(monkeypatch, tmp_path):
@@ -107,6 +111,30 @@ def test_job_manager_rehydrates_finished_job_from_store(monkeypatch, tmp_path):
     assert restored.status == "done"
     assert restored.progress["coastal"] == {"scenario": "coastal", "done": 3, "total": 3}
     assert restored.events[-1]["type"] == "done"
+
+
+def test_rehydrated_terminal_job_releases_locks(monkeypatch, tmp_path):
+    _use_tmp_store(monkeypatch, tmp_path)
+
+    async def run_job():
+        record = job_manager.create_job("fill_samples", {"coastal": 1}, lock_keys=["dataset:coastal"])
+        return record.job_id
+
+    job_id = asyncio.run(run_job())
+    locks = task_locks.list_locks()
+    assert len(locks) == 1
+    assert locks[0]["lock_key"] == "dataset:coastal"
+    assert locks[0]["owner"] == job_id
+    assert locks[0]["metadata"] == {"job_type": "fill_samples"}
+    job_manager._jobs.clear()
+
+    restored = job_manager.get_job(job_id)
+    assert restored is not None
+    assert restored.lock_keys == []
+
+    job_manager.publish(restored, {"type": "done", "ts": 12.0, "message": "ok"})
+
+    assert task_locks.list_locks() == []
 
 
 
