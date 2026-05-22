@@ -112,7 +112,7 @@ function OverviewHero({
         <KpiCard
           label="样本"
           value={totalSamples.toLocaleString()}
-          note={`${datasetCount} 个 JSONL`}
+          note={`${datasetCount} 个数据文件`}
           icon={<Database size={16} />}
         />
         <KpiCard
@@ -438,13 +438,13 @@ export default function DatasetStats() {
               </div>
             </SectionBlock>
 
-            <SectionBlock icon={<FolderOpen size={17} />} title="文件与结构" copy="时序形状和 JSONL 落盘状态。">
+            <SectionBlock icon={<FolderOpen size={17} />} title="文件与结构" copy="时序形状和数据落盘状态。">
               <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.92fr_1.08fr]">
                 <ShapeTable shapes={stats.timeseries_shapes} />
                 <div className="training-card overflow-hidden">
                   <div className="card-header">
                     <Database size={16} className="text-slate-400" />
-                    <SectionTitle title="JSONL 文件" copy={`${datasets.length} 个文件`} />
+                    <SectionTitle title="数据文件" copy={`${datasets.length} 个文件`} />
                   </div>
                   <div className="list-table-scroll">
                     <table className="w-full text-sm">
