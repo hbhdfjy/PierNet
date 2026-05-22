@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from collections import Counter
 from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from piern.shared.runtime.paths import DATA_DIR
+from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT
 from piern.shared.storage import portable
 from piern.synth.api.routers import router_data as router_data_router
 from piern.synth.services import jsonl_filter_index, jsonl_index, manifest_store
@@ -24,6 +25,8 @@ def get_datasets():
     """返回 Stage 3 数据集列表，优先走 manifest。"""
     try:
         manifest = _combined_sample_manifest()
+        if not manifest.get("items"):
+            manifest = _raw_data_manifest_like()
         return [
             {
                 "name": item["scenario"],
@@ -131,6 +134,8 @@ def get_stats():
     """返回 Stage 3 聚合统计，优先走 manifest。"""
     try:
         manifest = _combined_sample_manifest()
+        if not manifest.get("items"):
+            manifest = _raw_data_manifest_like()
         return manifest.get(
             "summary",
             {
@@ -153,6 +158,8 @@ def get_dashboard_summary():
     """返回统计页所需的聚合摘要，优先复用 manifest。"""
     try:
         sample_manifest = _combined_sample_manifest()
+        if not sample_manifest.get("items"):
+            sample_manifest = _raw_data_manifest_like()
         router_manifest = router_data_router._combined_router_manifest()
         datasets = [
             {
@@ -217,6 +224,138 @@ def _combined_sample_manifest() -> dict:
         "generated_at": max(float(jsonl_manifest.get("generated_at") or 0), float(parquet_manifest.get("generated_at") or 0)),
         "items": items,
         "summary": _summary_from_sample_items(items),
+    }
+
+
+def _raw_data_manifest_like() -> dict:
+    """Build a dashboard-compatible manifest from Stage 1 HDF5 and Stage 2 templates.
+
+    A portable deployment may intentionally contain only raw scientific HDF5
+    files plus language templates. The dashboard should still describe that
+    source corpus instead of showing an empty Stage 3 view.
+    """
+    template_manifest = manifest_store.ensure_template_manifest()
+    templates_by_scenario = {
+        str(item.get("scenario")): item
+        for item in template_manifest.get("items", [])
+        if item.get("scenario")
+    }
+
+    items = [_raw_hdf5_item(path, templates_by_scenario) for path in _iter_raw_hdf5_files()]
+    if not items:
+        items = [_template_item_like(item) for item in template_manifest.get("items", [])]
+
+    items = sorted(items, key=lambda item: (item.get("simulator", ""), item.get("scenario", "")))
+    return {
+        "version": 2,
+        "kind": "raw_data_manifest",
+        "storage": "hdf5" if any(item.get("storage") == "hdf5" for item in items) else "template",
+        "generated_at": time.time(),
+        "items": items,
+        "summary": _summary_from_sample_items(items),
+    }
+
+
+def _iter_raw_hdf5_files() -> list[Path]:
+    if not DATA_ROOT.exists():
+        return []
+
+    ignored_dirs = {
+        ".manifests",
+        ".parquet_jsonl_cache",
+        "router",
+        "templates",
+        "text2comp",
+    }
+    paths: list[Path] = []
+    for path in DATA_ROOT.rglob("*.h5"):
+        try:
+            relative = path.relative_to(DATA_ROOT)
+        except ValueError:
+            continue
+        if not relative.parts or relative.parts[0] in ignored_dirs:
+            continue
+        paths.append(path)
+    return sorted(paths)
+
+
+def _raw_hdf5_item(path: Path, templates_by_scenario: dict[str, dict]) -> dict:
+    stat = path.stat()
+    simulator = path.parent.name
+    scenario = path.stem
+    prefix = f"{simulator}_"
+    if scenario.startswith(prefix):
+        scenario = scenario[len(prefix):]
+
+    template_item = templates_by_scenario.get(scenario, {})
+    sample_count, timeseries_shape = _read_hdf5_stats(path)
+    return {
+        "scenario": scenario,
+        "simulator": simulator,
+        "sample_count": sample_count,
+        "file_size_bytes": stat.st_size,
+        "mtime": stat.st_mtime,
+        "path": str(path),
+        "storage": "hdf5",
+        "by_language": template_item.get("by_language", {}),
+        "by_style": template_item.get("by_style", {}),
+        "by_time_mode": {},
+        "timeseries_shape_obs": timeseries_shape,
+    }
+
+
+def _read_hdf5_stats(path: Path) -> tuple[int, list[int] | None]:
+    try:
+        import h5py
+    except Exception:
+        return 0, None
+
+    try:
+        with h5py.File(path, "r") as h5_file:
+            sample_count = _coerce_int(h5_file.attrs.get("n_samples"))
+            timeseries_shape = None
+            if "timeseries" in h5_file:
+                shape = tuple(int(dim) for dim in h5_file["timeseries"].shape)
+                if sample_count is None and shape:
+                    sample_count = shape[0]
+                if len(shape) >= 3:
+                    timeseries_shape = list(shape[1:])
+
+            if timeseries_shape is None:
+                channels = _coerce_int(h5_file.attrs.get("n_channels"))
+                timesteps = _coerce_int(h5_file.attrs.get("n_timesteps"))
+                if channels is not None and timesteps is not None:
+                    timeseries_shape = [channels, timesteps]
+
+            return int(sample_count or 0), timeseries_shape
+    except Exception:
+        LOGGER.exception("Failed to inspect raw HDF5 file %s", path)
+        return 0, None
+
+
+def _coerce_int(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        return int(value.item() if hasattr(value, "item") else value)
+    except Exception:
+        return None
+
+
+def _template_item_like(item: dict) -> dict:
+    scenario = str(item.get("scenario") or "unknown")
+    return {
+        "scenario": scenario,
+        "simulator": "template",
+        "sample_count": int(item.get("template_count") or 0),
+        "file_size_bytes": int(item.get("file_size_bytes") or 0),
+        "mtime": float(item.get("mtime") or 0),
+        "path": str(item.get("path") or ""),
+        "storage": "template",
+        "by_language": item.get("by_language", {}),
+        "by_style": item.get("by_style", {}),
+        "by_time_mode": {},
+        "timeseries_shape_obs": None,
     }
 
 
