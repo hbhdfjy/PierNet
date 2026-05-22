@@ -366,11 +366,13 @@ export default function DatasetStats() {
   const simulatorCount = stats ? Object.keys(stats.by_simulator).length : 0
   const shapeCount = stats ? Object.keys(stats.timeseries_shapes).length : 0
 
-  const routerTotal = routerStatus?.total ?? 0
+  const routerGeneratedTotal = routerStatus?.total ?? 0
+  const routerSourceTotal = routerStatus?.source_count ?? 0
+  const routerTotal = routerGeneratedTotal > 0 ? routerGeneratedTotal : routerSourceTotal
   const routerPositive = routerStatus?.label_counts['1'] ?? 0
   const routerNegative = routerStatus?.label_counts['0'] ?? 0
-  const routerPositiveRate = routerTotal > 0 ? ((routerPositive / routerTotal) * 100).toFixed(1) : '0.0'
-  const routerNegativeRate = routerTotal > 0 ? ((routerNegative / routerTotal) * 100).toFixed(1) : '0.0'
+  const routerPositiveRate = routerGeneratedTotal > 0 ? ((routerPositive / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
+  const routerNegativeRate = routerGeneratedTotal > 0 ? ((routerNegative / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
   const distributionSideRef = useRef<HTMLDivElement | null>(null)
   const [scenarioCardHeight, setScenarioCardHeight] = useState<number | null>(null)
 
