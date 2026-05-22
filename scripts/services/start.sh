@@ -9,9 +9,9 @@ else
   rm -f "$BACKEND_PID_FILE"
   : > "$BACKEND_LOG"
   echo "backend: starting on $HOST:$BACKEND_PORT"
-  nohup env PATH="$SERVICE_PATH" "$PYTHON" -m uvicorn api_server:app --host "$HOST" --port "$BACKEND_PORT" \
-    > "$BACKEND_LOG" 2>&1 < /dev/null &
-  write_pid "$BACKEND_PID_FILE" "$!"
+  start_detached backend_pid "$BACKEND_LOG" \
+    env PATH="$SERVICE_PATH" "$PYTHON" -m uvicorn api_server:app --host "$HOST" --port "$BACKEND_PORT"
+  write_pid "$BACKEND_PID_FILE" "$backend_pid"
 fi
 
 if frontend_pid=$(service_pid "$FRONTEND_PID_FILE" find_frontend_pid); then
@@ -20,9 +20,9 @@ else
   rm -f "$FRONTEND_PID_FILE"
   : > "$FRONTEND_LOG"
   echo "frontend: starting on $HOST:$FRONTEND_PORT"
-  nohup env PATH="$SERVICE_PATH" "$NPM" --prefix frontend run dev -- --host "$HOST" --port "$FRONTEND_PORT" --strictPort \
-    > "$FRONTEND_LOG" 2>&1 < /dev/null &
-  write_pid "$FRONTEND_PID_FILE" "$!"
+  start_detached frontend_pid "$FRONTEND_LOG" \
+    env PATH="$SERVICE_PATH" "$NPM" --prefix frontend run dev -- --host "$HOST" --port "$FRONTEND_PORT" --strictPort
+  write_pid "$FRONTEND_PID_FILE" "$frontend_pid"
 fi
 
 if worker_should_start; then
@@ -32,9 +32,9 @@ if worker_should_start; then
     rm -f "$WORKER_PID_FILE"
     : > "$WORKER_LOG"
     echo "worker: starting"
-    nohup env PATH="$SERVICE_PATH" "$PYTHON" -m piern.worker --interval 2 \
-      > "$WORKER_LOG" 2>&1 < /dev/null &
-    write_pid "$WORKER_PID_FILE" "$!"
+    start_detached worker_pid "$WORKER_LOG" \
+      env PATH="$SERVICE_PATH" "$PYTHON" -m piern.worker --interval 2
+    write_pid "$WORKER_PID_FILE" "$worker_pid"
   fi
 else
   echo "worker: disabled"
