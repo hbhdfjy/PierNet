@@ -3,9 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { RouterStatus, RouterScenarioInfo } from '../../lib/types'
+import type { JobStatus, RouterStatus, RouterScenarioInfo } from '../../lib/types'
 import { GitBranch, RefreshCw, Settings, Layers, AlertCircle, Check, Database, FolderOpen } from 'lucide-react'
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
+import {
+  buildableRouterScenarios,
+  filterRouterScenarioSelection,
+  hasUsableRouterData,
+  routerProgressPercent,
+  routerScenarioKey,
+} from '../routerData'
+import { SYNTH_WORKERS_MAX, SYNTH_WORKERS_MIN, normalizeSynthWorkers } from '../generationLimits'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
@@ -23,12 +31,8 @@ function RouterScenarioButton({
   onClick: () => void
 }) {
   const c = SIMULATOR_BADGE[item.simulator]
-  // router_count 合法范围：(0, source_count * 20]，超出视为脏数据
-  const rc = item.router_count ?? 0
-  const hasRouter = rc > 0 && rc <= item.source_count * 20
-  // 进度背景：以 source_count（1:1 时的正样本数）为基准，
-  // 实际生成条数 / source_count 即可感知"至少覆盖了多少源样本"
-  const pct = item.source_count > 0 && hasRouter ? Math.min(100, (rc / item.source_count) * 100) : 0
+  const hasRouter = hasUsableRouterData(item)
+  const pct = routerProgressPercent(item)
 
   return (
     <button
@@ -103,25 +107,35 @@ export default function RouterDataBuilder() {
   // 场景多选
   const [selected, setSelected] = useState<Set<string>>(new Set())
 
-  const toggle = (name: string) =>
+  const toggle = (selector: string) =>
     setSelected(prev => {
       const next = new Set(prev)
-      if (next.has(name)) next.delete(name)
-      else next.add(name)
+      if (next.has(selector)) next.delete(selector)
+      else next.add(selector)
       return next
     })
+
+  const buildableScenarios = useMemo(() => buildableRouterScenarios(status?.scenarios ?? []), [status?.scenarios])
 
   // 按 simulator 分组
   const grouped = useMemo(() => {
     const g: Record<string, RouterScenarioInfo[]> = {}
-    for (const s of status?.scenarios ?? []) {
+    for (const s of buildableScenarios) {
       if (!g[s.simulator]) g[s.simulator] = []
       g[s.simulator].push(s)
     }
     return g
-  }, [status?.scenarios])
+  }, [buildableScenarios])
 
-  const allScenarios = status?.scenarios ?? []
+  useEffect(() => {
+    if (!status?.scenarios) return
+    setSelected(prev => {
+      const next = filterRouterScenarioSelection(prev, buildableScenarios)
+      return next.size === prev.size ? prev : next
+    })
+  }, [buildableScenarios, status?.scenarios])
+
+  const allScenarios = buildableScenarios
   const hasScenarios = allScenarios.length > 0
   const hasRouterData = status && status.total > 0
 
@@ -140,7 +154,7 @@ export default function RouterDataBuilder() {
     setLaunching(true)
     try {
       const res = await api.buildRouterData(seed, Array.from(selected), negRatio, maxWorkers)
-      monitor.start(res.job_id)
+      monitor.start(res.job_id, undefined, res.status as JobStatus)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
@@ -188,7 +202,10 @@ export default function RouterDataBuilder() {
                   key={label}
                   className="btn-ghost py-0.5 px-2 text-sm"
                   onClick={
-                    [() => setSelected(new Set(allScenarios.map(s => s.scenario))), () => setSelected(new Set())][i]
+                    [
+                      () => setSelected(new Set(allScenarios.map(item => routerScenarioKey(item)))),
+                      () => setSelected(new Set()),
+                    ][i]
                   }
                 >
                   {label}
@@ -220,14 +237,17 @@ export default function RouterDataBuilder() {
               <div key={sim}>
                 <div className="workbench-group-label">{SIMULATOR_LABELS[sim] ?? sim}</div>
                 <div className="scenario-grid grid gap-1.5">
-                  {items.map(item => (
-                    <RouterScenarioButton
-                      key={item.scenario}
-                      item={item}
-                      active={selected.has(item.scenario)}
-                      onClick={() => toggle(item.scenario)}
-                    />
-                  ))}
+                  {items.map(item => {
+                    const itemKey = routerScenarioKey(item)
+                    return (
+                      <RouterScenarioButton
+                        key={itemKey}
+                        item={item}
+                        active={selected.has(itemKey)}
+                        onClick={() => toggle(itemKey)}
+                      />
+                    )
+                  })}
                 </div>
               </div>
             ))}
@@ -258,7 +278,7 @@ export default function RouterDataBuilder() {
                 min={1}
                 max={10}
                 value={negRatio}
-                onChange={e => setNegRatio(parseInt(e.target.value))}
+                onChange={e => setNegRatio(Number(e.target.value))}
               />
               <div className="flex justify-between text-xs text-slate-600 mt-0.5">
                 <span>1:1</span>
@@ -287,10 +307,10 @@ export default function RouterDataBuilder() {
               <input
                 type="range"
                 className="w-full accent-rose-500 h-1"
-                min={1}
-                max={16}
+                min={SYNTH_WORKERS_MIN}
+                max={SYNTH_WORKERS_MAX}
                 value={maxWorkers}
-                onChange={e => setMaxWorkers(parseInt(e.target.value))}
+                onChange={e => setMaxWorkers(normalizeSynthWorkers(Number(e.target.value), 8))}
               />
             </div>
           </div>
@@ -348,7 +368,7 @@ export default function RouterDataBuilder() {
           stageLabel="路由数据生成"
           stageColor="text-rose-400"
           accentColor="rose"
-          onDone={() => navigate('/router-viewer')}
+          onDone={() => navigate('/synth/router-viewer')}
           doneLabel="查看路由样本"
         />
 
@@ -364,14 +384,14 @@ export default function RouterDataBuilder() {
           </div>
         )}
 
-        {/* File management moved to /files */}
+        {/* File management lives in /synth/files */}
         <div className="card overflow-hidden">
           <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
               <span className="font-medium text-slate-200 text-base">Router files</span>
             </div>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
               打开文件管理
             </button>
           </div>
@@ -381,7 +401,7 @@ export default function RouterDataBuilder() {
               <p className="mt-1 text-sm leading-6 text-slate-400">
                 Router scenario files, train.jsonl, and clear operations now live in the unified file manager.
               </p>
-              <button className="btn-ghost mt-3 text-xs text-rose-300" onClick={() => navigate('/files')}>
+              <button className="btn-ghost mt-3 text-xs text-rose-300" onClick={() => navigate('/synth/files')}>
                 打开统一文件管理
               </button>
             </div>

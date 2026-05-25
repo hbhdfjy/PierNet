@@ -1,5 +1,5 @@
 import { Check, Cpu, Database, PlayCircle, Sparkles } from 'lucide-react'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
@@ -10,7 +10,38 @@ import type {
   TrainingGPUInfo,
   TrainingJobSummary,
 } from '../../lib/types'
-import { formatBytes, formatCount, gpuUsageLabel } from '../shared'
+import {
+  TRAINING_BATCH_SIZE_MAX,
+  TRAINING_BATCH_SIZE_MIN,
+  TRAINING_EPOCHS_MAX,
+  TRAINING_EVAL_INTERVAL_MAX,
+  TRAINING_EVAL_INTERVAL_MIN,
+  TRAINING_FINITE_EPOCHS_MIN,
+  TRAINING_KEEP_LAST_EPOCHS_MAX,
+  TRAINING_KEEP_LAST_EPOCHS_MIN,
+  TRAINING_LEARNING_RATE_MAX,
+  TRAINING_LEARNING_RATE_MIN,
+  TRAINING_NUM_WORKERS_MAX,
+  TRAINING_NUM_WORKERS_MIN,
+  TRAINING_TEST_RATIO_MAX,
+  TRAINING_TEST_RATIO_MIN,
+  TRAINING_WEIGHT_DECAY_MAX,
+  TRAINING_WEIGHT_DECAY_MIN,
+  formatBytes,
+  formatCount,
+  gpuUsageLabel,
+  normalizeTrainingBatchSize,
+  normalizeTrainingEvalInterval,
+  normalizeTrainingFiniteEpochs,
+  normalizeTrainingKeepLastEpochs,
+  normalizeTrainingLearningRate,
+  normalizeTrainingNumWorkers,
+  normalizeTrainingSeed,
+  normalizeTrainingTestBatchSize,
+  normalizeTrainingTestRatio,
+  normalizeTrainingWeightDecay,
+  trainingJobDetailPath,
+} from '../shared'
 
 function toNumber(value: string, fallback: number): number {
   const parsed = Number(value)
@@ -49,6 +80,7 @@ export default function TrainingNewJobPage() {
   const { mutate } = useSWRConfig()
   const navigate = useNavigate()
   const { seed } = useSeed()
+  const selectedSimulatorRef = useRef<string | null>(null)
 
   const { data: datasets } = useSWR<TrainingDatasetInfo[]>('training-datasets', api.getTrainingDatasets, {
     refreshInterval: 15000,
@@ -85,7 +117,8 @@ export default function TrainingNewJobPage() {
     () => datasets?.find(item => item.simulator === simulator) ?? datasets?.[0] ?? null,
     [datasets, simulator],
   )
-  const availableGpus = useMemo(() => (gpus ?? []).filter(gpu => gpu.available), [gpus])
+  const visibleGpus = useMemo(() => gpus ?? [], [gpus])
+  const availableGpus = useMemo(() => visibleGpus.filter(gpu => gpu.available), [visibleGpus])
   const checkpointCandidates = useMemo(
     () =>
       (jobs ?? [])
@@ -115,24 +148,42 @@ export default function TrainingNewJobPage() {
   const selectedGpu = useMemo(() => (gpus ?? []).find(gpu => gpu.index === gpuId) ?? null, [gpus, gpuId])
 
   useEffect(() => {
-    if (!dataset) return
-    setSimulator(dataset.simulator)
-    setSelectedScenarios(dataset.scenarios.map(item => item.scenario))
-  }, [dataset])
+    if (!datasets) return
+    if (datasets.length === 0) {
+      selectedSimulatorRef.current = null
+      setSelectedScenarios([])
+      return
+    }
+    if (!datasets.some(item => item.simulator === simulator)) {
+      setSimulator(datasets[0].simulator)
+    }
+  }, [datasets, simulator])
 
   useEffect(() => {
-    if (!dataset) return
+    if (!dataset) {
+      selectedSimulatorRef.current = null
+      setSelectedScenarios([])
+      return
+    }
+    const previousSimulator = selectedSimulatorRef.current
+    selectedSimulatorRef.current = dataset.simulator
+    const nextScenarios = dataset.scenarios.map(item => item.scenario)
     setSelectedScenarios(prev => {
-      const available = new Set(dataset.scenarios.map(item => item.scenario))
+      const available = new Set(nextScenarios)
       const kept = prev.filter(item => available.has(item))
-      return kept.length > 0 ? kept : dataset.scenarios.map(item => item.scenario)
+      return previousSimulator === dataset.simulator ? kept : nextScenarios
     })
   }, [dataset])
 
   useEffect(() => {
-    if (gpuId != null && (gpus ?? []).some(gpu => gpu.index === gpuId && gpu.available)) return
-    setGpuId(availableGpus[0]?.index ?? null)
-  }, [availableGpus, gpus, gpuId])
+    if (!resumeFrom) return
+    if (!checkpointCandidates.some(option => option.value === resumeFrom)) setResumeFrom('')
+  }, [checkpointCandidates, resumeFrom])
+
+  useEffect(() => {
+    if (gpuId != null && visibleGpus.some(gpu => gpu.index === gpuId)) return
+    setGpuId(availableGpus[0]?.index ?? visibleGpus[0]?.index ?? null)
+  }, [availableGpus, gpuId, visibleGpus])
 
   const toggleScenario = (scenario: string) => {
     setSelectedScenarios(current =>
@@ -150,7 +201,7 @@ export default function TrainingNewJobPage() {
       return
     }
     if (gpuId == null) {
-      setError('当前没有可用 GPU。')
+      setError('当前没有可见 GPU。')
       return
     }
 
@@ -159,16 +210,16 @@ export default function TrainingNewJobPage() {
       simulator: dataset.simulator,
       scenarios: selectedScenarios,
       gpu_id: gpuId,
-      epochs: infiniteEpochs ? 0 : Math.max(1, Math.floor(toNumber(epochs, 1))),
-      eval_interval: Math.max(1, Math.floor(toNumber(evalInterval, 1))),
-      keep_last_epochs: Math.max(0, Math.floor(toNumber(keepLastEpochs, 5))),
-      seed,
-      batch_size: Math.max(1, Math.floor(toNumber(batchSize, 256))),
-      test_batch_size: Math.max(1, Math.floor(toNumber(testBatchSize, 256))),
-      learning_rate: Math.max(1e-8, toNumber(learningRate, 2e-4)),
-      weight_decay: Math.max(0, toNumber(weightDecay, 0.01)),
-      num_workers: Math.max(0, Math.floor(toNumber(numWorkers, 8))),
-      test_ratio: Math.min(0.5, Math.max(0.01, toNumber(testRatio, 0.1))),
+      epochs: infiniteEpochs ? 0 : normalizeTrainingFiniteEpochs(toNumber(epochs, 1)),
+      eval_interval: normalizeTrainingEvalInterval(toNumber(evalInterval, 1)),
+      keep_last_epochs: normalizeTrainingKeepLastEpochs(toNumber(keepLastEpochs, 5)),
+      seed: normalizeTrainingSeed(seed),
+      batch_size: normalizeTrainingBatchSize(toNumber(batchSize, 256)),
+      test_batch_size: normalizeTrainingTestBatchSize(toNumber(testBatchSize, 256)),
+      learning_rate: normalizeTrainingLearningRate(toNumber(learningRate, 2e-4)),
+      weight_decay: normalizeTrainingWeightDecay(toNumber(weightDecay, 0.01)),
+      num_workers: normalizeTrainingNumWorkers(toNumber(numWorkers, 8)),
+      test_ratio: normalizeTrainingTestRatio(toNumber(testRatio, 0.1)),
       resume_from: resumeFrom.trim() || null,
     }
 
@@ -182,7 +233,7 @@ export default function TrainingNewJobPage() {
         mutate('training-gpus'),
         mutate('training-jobs'),
       ])
-      navigate(`/training/jobs/${job.job_id}`)
+      navigate(trainingJobDetailPath(job.job_id))
       return
     } catch (err) {
       setError(err instanceof Error ? err.message : '启动训练失败')
@@ -330,6 +381,11 @@ export default function TrainingNewJobPage() {
                         无限训练
                       </label>
                       <input
+                        type={infiniteEpochs ? 'text' : 'number'}
+                        min={TRAINING_FINITE_EPOCHS_MIN}
+                        max={TRAINING_EPOCHS_MAX}
+                        step={1}
+                        aria-label="训练轮数"
                         className="input mono training-epoch-input px-2.5 py-1.5 text-center"
                         value={infiniteEpochs ? '∞' : epochs}
                         onChange={e => setEpochs(e.target.value)}
@@ -340,6 +396,11 @@ export default function TrainingNewJobPage() {
                   </Field>
                   <Field label="测试间隔">
                     <input
+                      type="number"
+                      min={TRAINING_EVAL_INTERVAL_MIN}
+                      max={TRAINING_EVAL_INTERVAL_MAX}
+                      step={1}
+                      aria-label="测试间隔"
                       className="input mono"
                       value={evalInterval}
                       onChange={e => setEvalInterval(e.target.value)}
@@ -350,16 +411,35 @@ export default function TrainingNewJobPage() {
                     note="每个 epoch 保存一份权重，仅保留最近 N 份；0 表示只保留 latest/final 权重。"
                   >
                     <input
+                      type="number"
+                      min={TRAINING_KEEP_LAST_EPOCHS_MIN}
+                      max={TRAINING_KEEP_LAST_EPOCHS_MAX}
+                      step={1}
+                      aria-label="保留最近权重"
                       className="input mono"
                       value={keepLastEpochs}
                       onChange={e => setKeepLastEpochs(e.target.value)}
                     />
                   </Field>
                   <Field label="训练批大小">
-                    <input className="input mono" value={batchSize} onChange={e => setBatchSize(e.target.value)} />
+                    <input
+                      type="number"
+                      min={TRAINING_BATCH_SIZE_MIN}
+                      max={TRAINING_BATCH_SIZE_MAX}
+                      step={1}
+                      aria-label="训练批大小"
+                      className="input mono"
+                      value={batchSize}
+                      onChange={e => setBatchSize(e.target.value)}
+                    />
                   </Field>
                   <Field label="测试批大小">
                     <input
+                      type="number"
+                      min={TRAINING_BATCH_SIZE_MIN}
+                      max={TRAINING_BATCH_SIZE_MAX}
+                      step={1}
+                      aria-label="测试批大小"
                       className="input mono"
                       value={testBatchSize}
                       onChange={e => setTestBatchSize(e.target.value)}
@@ -367,19 +447,51 @@ export default function TrainingNewJobPage() {
                   </Field>
                   <Field label="学习率">
                     <input
+                      type="number"
+                      min={TRAINING_LEARNING_RATE_MIN}
+                      max={TRAINING_LEARNING_RATE_MAX}
+                      step="any"
+                      aria-label="学习率"
                       className="input mono"
                       value={learningRate}
                       onChange={e => setLearningRate(e.target.value)}
                     />
                   </Field>
                   <Field label="权重衰减">
-                    <input className="input mono" value={weightDecay} onChange={e => setWeightDecay(e.target.value)} />
+                    <input
+                      type="number"
+                      min={TRAINING_WEIGHT_DECAY_MIN}
+                      max={TRAINING_WEIGHT_DECAY_MAX}
+                      step="any"
+                      aria-label="权重衰减"
+                      className="input mono"
+                      value={weightDecay}
+                      onChange={e => setWeightDecay(e.target.value)}
+                    />
                   </Field>
                   <Field label="数据加载线程">
-                    <input className="input mono" value={numWorkers} onChange={e => setNumWorkers(e.target.value)} />
+                    <input
+                      type="number"
+                      min={TRAINING_NUM_WORKERS_MIN}
+                      max={TRAINING_NUM_WORKERS_MAX}
+                      step={1}
+                      aria-label="数据加载线程"
+                      className="input mono"
+                      value={numWorkers}
+                      onChange={e => setNumWorkers(e.target.value)}
+                    />
                   </Field>
                   <Field label="测试集比例">
-                    <input className="input mono" value={testRatio} onChange={e => setTestRatio(e.target.value)} />
+                    <input
+                      type="number"
+                      className="input mono"
+                      value={testRatio}
+                      min={TRAINING_TEST_RATIO_MIN}
+                      max={TRAINING_TEST_RATIO_MAX}
+                      step={0.01}
+                      aria-label="测试集比例"
+                      onChange={e => setTestRatio(e.target.value)}
+                    />
                   </Field>
                   <div className="md:col-span-2 2xl:col-span-4">
                     <Field label="恢复权重" note="只列出与当前大场景和子场景集合匹配的已完成任务。">
@@ -401,7 +513,7 @@ export default function TrainingNewJobPage() {
               <div className="training-card training-card--compact min-h-0">
                 <div className="card-header">
                   <Cpu size={16} className="text-emerald-300" />
-                  <SectionTitle title="GPU 分配" copy="选择一张空闲 GPU" />
+                  <SectionTitle title="GPU 分配" copy="选择一张 GPU；占用中会排队" />
                 </div>
                 <div className="training-card__body training-scroll list-scroll-lg">
                   <div className="training-gpu-grid grid gap-2">
@@ -411,7 +523,7 @@ export default function TrainingNewJobPage() {
                       return (
                         <label
                           key={gpu.index}
-                          className={`block rounded-xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? 'cursor-pointer' : 'cursor-not-allowed opacity-70'}`}
+                          className={`block cursor-pointer rounded-xl border p-3 transition-all ${gpuId === gpu.index ? 'border-emerald-500/40 bg-emerald-500/8' : 'border-slate-700/40 bg-slate-900/30'} ${gpu.available ? '' : 'opacity-80'}`}
                         >
                           <div className="flex items-center justify-between gap-3">
                             <div className="flex min-w-0 items-center gap-2.5">
@@ -419,7 +531,6 @@ export default function TrainingNewJobPage() {
                                 type="radio"
                                 className="mt-1"
                                 checked={gpuId === gpu.index}
-                                disabled={!gpu.available}
                                 onChange={() => setGpuId(gpu.index)}
                               />
                               <div className="min-w-0">

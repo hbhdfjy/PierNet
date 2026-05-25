@@ -31,7 +31,7 @@ Routes are assembled by `frontend/src/platform/PlatformRouter.tsx`.
 - `/`: `frontend/src/platform/LandingPage.tsx`
 - `/synth/*`: `frontend/src/synth/SynthApp.tsx`
 - `/training/*`: `frontend/src/training/TrainingApp.tsx`
-- `/files`: standalone file manager
+- `/files`: legacy redirect to `/synth/files`
 
 Legacy synth routes still redirect into `/synth/...`. If changing top-level routing, inspect:
 
@@ -39,6 +39,8 @@ Legacy synth routes still redirect into `/synth/...`. If changing top-level rout
 - `frontend/src/synth/SynthApp.tsx`
 - `frontend/src/training/TrainingApp.tsx`
 - `piern/shared/api/static.py`
+
+`SPAStaticFiles` must preserve API 404 behavior for both `/api` and `/api/*` while falling back to `index.html` for browser routes.
 
 ## Backend Assembly
 
@@ -95,10 +97,10 @@ Synthesis routers in `piern/synth/api/routers/`:
 
 - `config.py`: config, LLM config, scenario scans
 - `datasets.py`: Stage 3 datasets, samples, dashboard summary
-- `simulation.py`: Stage 1 simulation, batch runs, HDF5 upload/list/history
-- `registry.py`: registry CRUD and automatic registration jobs
+- `simulation.py`: Stage 1 simulation, batch runs, HDF5 upload/list
+- `registry.py`: registry CRUD
 - `generation.py`: template generation and sample filling jobs
-- `router_data.py`: Stage 4 router data status/build/view/delete
+- `router_data.py`: Stage 4 router data status/build/view
 - `files.py`: template/sample file operations
 - `file_catalog.py`: unified file catalog operations
 - `interview.py`: interactive registry assistant
@@ -141,23 +143,25 @@ configs/text2comp/default.yaml
 Stage 3:
 
 ```text
-data/text2comp/{scenario}.jsonl
-data/text2comp/all_training_data.jsonl
+data/text2comp_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
 ```
+
+Legacy JSONL remains readable at `data/text2comp/{scenario}.jsonl` and `data/text2comp/all_training_data.jsonl`.
 
 Stage 4:
 
 ```text
-data/router/by_scenario/{scenario}.jsonl
-data/router/train.jsonl
+data/router_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
 ```
+
+Legacy JSONL remains readable at `data/router/by_scenario/{scenario}.jsonl` and `data/router/train.jsonl`.
 
 Training:
 
 ```text
 artifacts/token_router/{simulator}/prepared/{prepared_name}/
 artifacts/token_router/{simulator}/runs/{run_name}/
-artifacts/token_router/training_jobs.json
+.runlogs/training_jobs.sqlite
 .runlogs/
 ```
 
@@ -188,6 +192,7 @@ Important assumptions:
 - `/training/new`: `TrainingNewJobPage.tsx`
 - `/training/jobs`: `TrainingJobsPage.tsx`
 - `/training/jobs/:jobId`: `TrainingJobDetailPage.tsx`
+- `/training/files`: training-scoped `FileManagerContent`
 
 Training API implementation:
 
@@ -227,7 +232,7 @@ Current assumptions:
 - default embedding/tokenizer path: `$HOME/Qwen/Qwen2.5-0.5B-Instruct`
 - input representation: `embedding` / `pretrained_embeddings`
 - prepared data stores source file ids, byte offsets, lengths, labels, scenario ids, and metadata
-- training dynamically reopens JSONL, tokenizes context, and applies frozen pretrained embedding lookup
+- training prepares token caches from router Parquet partitions; legacy JSONL and materialized Parquet-to-JSONL caches are compatibility paths
 - model is `FullSeqDilatedConvRouter`, not a Transformer
 - split is stable by `build_group_key(context, scenario)`
 - only train/test splits exist
@@ -242,11 +247,11 @@ Current assumptions:
 | `piern/simulators/transient/` | ANDES transient stability DAE runs, `(5,1000)` output |
 | `piern/simulators/gcam/` | PyPSA/HiGHS simplified energy-climate LP, `(5,16)` output |
 
-Root `requirements.txt` and `setup.py` are more authoritative than simulator-local `requirements.txt` files.
+Root `requirements.txt` and `pyproject.toml` are the dependency sources of truth; simulator directories do not carry separate dependency lock-ins. Do not reintroduce `setup.py`; editable installs and console scripts are defined by `pyproject.toml`.
 
 ## Read Path And File Catalog
 
-Stage 2-4 UI reads should prefer manifests/indexes and avoid returning to full JSONL scans unless necessary.
+Stage 2 and legacy JSONL reads should prefer manifests/indexes and avoid full scans unless necessary. Stage 3/4 primary Parquet reads should go through `piern.shared.storage.portable`, partition manifests, and the file catalog.
 
 Check these together when changing formats, deletion, trimming, or clearing:
 
@@ -257,7 +262,6 @@ Check these together when changing formats, deletion, trimming, or clearing:
 - `piern/synth/services/file_catalog.py`
 - `scripts/utils/rebuild_manifests.py`
 - `scripts/utils/rebuild_indexes.py`
-- `scripts/utils/rebuild_filter_indexes.py`
 
 ## Frontend Scroll Contract
 
@@ -286,21 +290,25 @@ Backend syntax:
 python -m compileall piern scripts api_server.py
 ```
 
-Frontend build:
+Frontend checks:
 
 ```bash
 cd frontend
+npm run typecheck
+npm run lint
+npm run test
 npm run build
 ```
 
-Python tests currently present:
+Focused Python tests for data-format, API, and training changes:
 
 ```bash
 pytest tests/test_build_router_data_script.py \
-  tests/test_check_garbled_text.py \
+  tests/test_data_browsing_mixed_storage.py \
+  tests/test_file_catalog.py \
   tests/test_hdf5_data_validation.py \
-  tests/test_registry_observation_config.py \
   tests/test_router_prepared_inputs.py \
+  tests/test_storage_scripts.py \
   tests/test_training_manager_fallbacks.py
 ```
 
@@ -312,11 +320,11 @@ python scripts/ci/check_consistency.py
 
 ## Current Sharp Edges
 
-- `start_ui.sh` defaults to `$HOME/.conda/envs/piern`; use `PIERN_CONDA_ENV` when the environment is named differently.
+- Service scripts and `start_ui.sh` prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/piern`; use `PIERN_CONDA_ENV` to override.
 - `piern/training/services/training_manager.py` launches UI-created training jobs with the backend process Python by default; override `PIERN_TRAINING_PYTHON` if a different interpreter is needed.
 - `piern/core/llm_client.py` has provider-specific paths; test the provider branch you change instead of assuming OpenAI-compatible behavior covers all providers.
-- Simulator-local requirement files can be stale relative to root dependency constraints.
-- Frontend UI has little automated coverage; use `npm run build` plus targeted manual smoke tests for route or layout changes.
+- Dependency changes must keep root `requirements.txt` and `pyproject.toml` aligned; simulator-local requirement files should stay absent.
+- Frontend has focused unit coverage, but layout and routing changes still need `npm run build` plus a browser smoke check when behavior is visual.
 
 ## Change Rules
 
@@ -324,5 +332,5 @@ python scripts/ci/check_consistency.py
 2. Keep `piern/api/main.py` as assembly, not a business-logic module.
 3. Preserve Stage 1 HDF5, Stage 2 template, Stage 3 sample, Stage 4 router, and training artifact contracts unless the whole pipeline is updated.
 4. Keep Token Router assumptions explicit: Qwen chat format, dynamic tokenization, frozen embedding table, single GPU.
-5. Keep manifests and indexes in sync with any JSONL file lifecycle change.
+5. Keep manifests, indexes, and Parquet partition manifests in sync with any Stage 2-4 file lifecycle change.
 6. Update docs in the same change when user workflows, platform boundaries, or training assumptions change.

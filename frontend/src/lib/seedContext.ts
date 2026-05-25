@@ -1,5 +1,22 @@
 import { createContext, useContext } from 'react'
 
+export const SEED_MIN = 0
+export const SEED_MAX = 2_147_483_647
+
+export function normalizeSeed(value: number, fallback = 42): number {
+  const resolved = Number.isFinite(value) ? value : fallback
+  return Math.min(SEED_MAX, Math.max(SEED_MIN, Math.floor(resolved)))
+}
+
+export function parseSeedInput(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+
+  const parsed = Number(trimmed)
+  if (!Number.isFinite(parsed)) return null
+  return normalizeSeed(parsed)
+}
+
 export interface SeedContextValue {
   seed: number
   setSeed: (v: number) => void
@@ -16,12 +33,11 @@ export function useSeed(): SeedContextValue {
 
 export function readStoredSeed(): number {
   if (typeof localStorage === 'undefined') return 42
-  const value = parseInt(localStorage.getItem('piern-seed') ?? '42', 10)
-  return Number.isFinite(value) ? Math.max(0, value) : 42
+  return parseSeedInput(localStorage.getItem('piern-seed') ?? '42') ?? 42
 }
 
 export function writeStoredSeed(value: number): number {
-  const seed = Math.max(0, Math.floor(value))
+  const seed = normalizeSeed(value)
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem('piern-seed', String(seed))
   }

@@ -126,7 +126,7 @@ modflow:
     channel_min: 1
     channel_name_template: well {i}
     channel_name_template_zh: 第{i}号观测井
-    fixed_channels: []
+    fixed_channels: null
     fixed_time_mode: monthly
     time_mode_weights:
     - 0.5

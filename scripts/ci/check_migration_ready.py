@@ -7,9 +7,13 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Set
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from piern.shared.storage.hdf5_files import is_hdf5_path, iter_hdf5_files_in_child_dirs  # noqa: E402
+
 REQUIRED_ENV_EXAMPLE_KEYS = [
     "PIERN_ROOT",
     "PIERN_DATA_ROOT",
@@ -17,6 +21,7 @@ REQUIRED_ENV_EXAMPLE_KEYS = [
     "PIERN_RUNLOG_ROOT",
     "PIERN_BACKEND_PORT",
     "PIERN_FRONTEND_PORT",
+    "PIERN_CONDA_BASE",
     "PIERN_CONDA_ENV",
     "PIERN_PYTHON",
     "PIERN_NODE_BIN",
@@ -26,6 +31,16 @@ REQUIRED_ENV_EXAMPLE_KEYS = [
     "PIERN_JOB_STORE_PATH",
     "PIERN_TRAINING_JOB_STORE_PATH",
     "PIERN_ROUTER_JSONL_CACHE_DIR",
+    "PIERN_WORKER_QUEUE_SYNTH",
+    "PIERN_WORKER_QUEUE_TRAINING",
+    "PIERN_LOCK_TTL_SECONDS",
+    "PIERN_SYNTH_LOCK_TTL_SECONDS",
+    "PIERN_GPU_LOCK_TTL_SECONDS",
+    "PIERN_TRAINING_QUEUE_DEFAULT_PRIORITY",
+    "PIERN_SERVICE_WORKER",
+    "PIERN_SYSTEMD_USER_DIR",
+    "PIERN_INSTALL_WORKER",
+    "PIERN_ROUTER_BUILD_WORKERS",
 ]
 DERIVED_PREFIXES = (
     "data/text2comp/",
@@ -37,6 +52,22 @@ DERIVED_PREFIXES = (
     "artifacts/",
     ".runlogs/",
 )
+
+
+def load_local_env() -> None:
+    """Load local .env defaults without overriding explicit environment values."""
+    env_file = Path(os.getenv("PIERN_ENV_FILE", ROOT / ".env")).expanduser()
+    if not env_file.exists():
+        return
+    for raw in env_file.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'\"")
+        if key:
+            os.environ.setdefault(key, value)
 
 
 class Report:
@@ -97,7 +128,7 @@ def check_tracked_data(report: Report, tracked: List[str]) -> None:
         if path.startswith("data/templates/") and path.endswith("_templates.jsonl"):
             template_count += 1
             continue
-        if path.endswith(".h5"):
+        if is_hdf5_path(path):
             h5_count += 1
             continue
         bad.append(path)
@@ -138,7 +169,7 @@ def check_env_example(report: Report) -> None:
 def check_local_source_data(report: Report) -> None:
     data_root = Path(os.getenv("PIERN_DATA_ROOT", ROOT / "data")).expanduser()
     templates = sorted((data_root / "templates").glob("*_templates.jsonl"))
-    hdf5 = sorted(data_root.glob("*/*.h5"))
+    hdf5 = iter_hdf5_files_in_child_dirs(data_root)
     if templates:
         report.ok(f"template files present: {len(templates)}")
     else:
@@ -174,6 +205,7 @@ def check_model_paths(report: Report) -> None:
 
 
 def main() -> None:
+    load_local_env()
     report = Report()
     tracked = git_ls_files()
     check_tracked_data(report, tracked)

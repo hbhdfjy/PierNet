@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import shutil
 import time
 
 import h5py
@@ -12,9 +14,11 @@ import h5py
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote
 
 from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, PROJECT_ROOT, TEMPLATES_DIR
 from piern.shared.storage import portable
+from piern.shared.storage.hdf5_files import iter_hdf5_files
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
 from piern.synth.services import file_manager, hdf5_data, job_manager, jsonl_filter_index, jsonl_index, manifest_store
 from piern.training.services import training_manager
@@ -59,21 +63,23 @@ _STAGE_LABELS = {
 _KIND_LABELS = {
     "hdf5": "HDF5",
     "template": "模板 JSONL",
-    "sample": "样本 JSONL",
-    "sample_merged": "合并样本",
-    "router_scenario": "路由场景数据",
+    "sample": "样本 JSONL（兼容）",
+    "sample_merged": "合并样本 JSONL",
+    "router_scenario": "路由场景 JSONL（兼容）",
     "sample_parquet": "样本 Parquet",
     "router_parquet": "路由 Parquet",
-    "router_train": "路由训练数据",
+    "router_cache": "路由 JSONL 缓存",
+    "router_train": "路由训练 JSONL",
     "training_job": "训练任务",
+    "training_prepared": "训练 prepared 缓存",
     "training_checkpoint": "训练权重",
     "manifest": "清单",
     "index": "索引",
     "catalog_db": "目录数据库",
 }
 
-_DELETABLE_KINDS = {"hdf5", "template", "sample", "router_scenario", "sample_parquet", "router_parquet", "training_job", "training_checkpoint"}
-_PROTECTED_KINDS = {"sample_merged", "router_train", "manifest", "index"}
+_DELETABLE_KINDS = {"sample", "router_scenario", "sample_parquet", "router_parquet", "router_cache", "training_job", "training_prepared", "training_checkpoint"}
+_PROTECTED_KINDS = {"hdf5", "template", "sample_merged", "router_train", "manifest", "index"}
 
 
 def encode_asset_id(*parts: str) -> str:
@@ -91,6 +97,32 @@ def decode_asset_id(asset_id: str) -> list[str]:
     if not isinstance(parts, list) or not parts or not all(isinstance(part, str) for part in parts):
         raise ValueError("invalid asset id")
     return parts
+
+
+def _safe_name_component(value: str, label: str) -> str:
+    component = str(value or "")
+    if not component or component in {".", ".."} or "\x00" in component:
+        raise ValueError(f"{label} must be a non-empty file name component")
+    if Path(component).name != component or "\\" in component:
+        raise ValueError(f"{label} must be a file name component")
+    return component
+
+def _safe_identity_component(value: str, label: str) -> str:
+    component = str(value or "")
+    if not component or "\x00" in component or "\\" in component:
+        raise ValueError(f"{label} must be a non-empty portable identity")
+    path = Path(component)
+    if path.is_absolute():
+        raise ValueError(f"{label} must be a relative portable identity")
+    if any(part in {"", ".", ".."} for part in path.parts):
+        raise ValueError(f"{label} must not contain traversal segments")
+    return component
+
+
+def _router_cache_file_candidates(sim_dir: Path, scenario: str) -> list[Path]:
+    names = [f"{portable.safe_partition_value(scenario)}.jsonl", f"{scenario}.jsonl"]
+    candidates = [sim_dir / name for name in dict.fromkeys(names)]
+    return candidates
 
 
 def _relative_path(path: Path | str | None) -> str:
@@ -121,6 +153,113 @@ def _count_jsonl(path: Path) -> int:
         return 0
 
 
+def _delete_index_files(source_path: Path, profiles: tuple[str, ...] = ()) -> int:
+    index_paths = [jsonl_index.get_index_path(source_path)]
+    index_paths.extend(jsonl_filter_index.get_filter_index_path(source_path, profile) for profile in profiles)
+    deleted = 0
+    for index_path in index_paths:
+        try:
+            index_path.unlink()
+            deleted += 1
+        except FileNotFoundError:
+            continue
+        except OSError:
+            continue
+    return deleted
+
+
+def _clear_index_files_for_dirs(source_dirs: tuple[Path, ...]) -> int:
+    deleted = 0
+    index_dirs = {
+        jsonl_index.get_index_path(source_dir / "__piern_index_scope__.jsonl").parent
+        for source_dir in source_dirs
+    }
+    for index_dir in sorted(index_dirs):
+        if not index_dir.exists():
+            continue
+        for path in sorted(index_dir.glob("*.idx.json")):
+            try:
+                path.unlink()
+                deleted += 1
+            except OSError:
+                continue
+    return deleted
+
+
+def _delete_router_indexes(path: Path) -> int:
+    return _delete_index_files(path, ("router_label",))
+
+
+def _delete_sample_parquet_partitions(scenario: str, simulator: str | None = None) -> int:
+    deleted = 0
+    for part in portable.discover_partitions("text2comp"):
+        if part.scenario != scenario:
+            continue
+        if simulator is not None and part.simulator != simulator:
+            continue
+        if portable.delete_partition("text2comp", part.scenario, simulator=part.simulator):
+            deleted += 1
+    return deleted
+
+
+def _router_jsonl_cache_root() -> Path:
+    return Path(os.getenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(ROUTER_DIR / ".parquet_jsonl_cache")))
+
+
+def _delete_router_jsonl_cache(simulator: str | None = None, scenario: str | None = None) -> int:
+    root = _router_jsonl_cache_root()
+    if not root.exists():
+        return 0
+    deleted = 0
+    simulator_dirs = [root / simulator] if simulator else [path for path in root.iterdir() if path.is_dir()]
+    for sim_dir in simulator_dirs:
+        if not sim_dir.exists() or not sim_dir.is_dir():
+            continue
+        paths = _router_cache_file_candidates(sim_dir, scenario) if scenario else sorted(sim_dir.rglob("*.jsonl"))
+        for path in paths:
+            meta_path = path.with_suffix(".meta.json")
+            if path.exists():
+                try:
+                    path.unlink()
+                    deleted += 1
+                except OSError:
+                    continue
+            if meta_path.exists():
+                try:
+                    meta_path.unlink()
+                    deleted += 1
+                except OSError:
+                    continue
+            try:
+                if path.parent != sim_dir and path.parent.exists() and not any(path.parent.iterdir()):
+                    path.parent.rmdir()
+            except OSError:
+                pass
+        try:
+            if not any(sim_dir.iterdir()):
+                sim_dir.rmdir()
+        except OSError:
+            pass
+    try:
+        if root.exists() and not any(root.iterdir()):
+            root.rmdir()
+    except OSError:
+        pass
+    return deleted
+
+
+def _delete_router_parquet_partitions(scenario: str, simulator: str | None = None) -> int:
+    deleted = 0
+    for part in portable.discover_partitions("router"):
+        if part.scenario != scenario:
+            continue
+        if simulator is not None and part.simulator != simulator:
+            continue
+        if portable.delete_partition("router", part.scenario, simulator=part.simulator):
+            deleted += 1
+    return deleted
+
+
 def _dir_size(path: Path | None, *, max_files: int = 5000) -> int:
     if path is None or not path.exists():
         return 0
@@ -138,6 +277,14 @@ def _dir_size(path: Path | None, *, max_files: int = 5000) -> int:
             except OSError:
                 continue
     return total
+
+
+def _delete_parquet_partitions(kind: str) -> int:
+    deleted = 0
+    for part in portable.discover_partitions(kind):
+        if portable.delete_partition(kind, part.scenario, simulator=part.simulator):
+            deleted += 1
+    return deleted
 
 
 def _asset(
@@ -209,7 +356,7 @@ def _hdf5_assets() -> list[dict[str, Any]]:
         if not sim_dir.is_dir() or sim_dir.name in hdf5_data.SKIP_DATA_DIRS:
             continue
         simulator = sim_dir.name
-        for path in sorted([*sim_dir.glob("*.h5"), *sim_dir.glob("*.hdf5")]):
+        for path in iter_hdf5_files(sim_dir):
             stat = path.stat()
             scenario = hdf5_data.scenario_from_hdf5_path(path, simulator)
             info = _inspect_hdf5_header(path)
@@ -315,11 +462,13 @@ def _template_assets() -> list[dict[str, Any]]:
     manifest = manifest_store.ensure_template_manifest()
     for item in manifest.get("items", []):
         scenario = str(item.get("scenario") or "")
+        simulator = str(item.get("simulator") or "").strip() or None
         assets.append(_asset(
             platform="synth",
             stage="stage2",
             kind="template",
-            title=scenario,
+            title=f"{simulator}/{scenario}" if simulator else scenario,
+            simulator=simulator,
             scenario=scenario,
             path=item.get("path"),
             id_parts=("template", scenario),
@@ -346,11 +495,11 @@ def _sample_assets() -> list[dict[str, Any]]:
             platform="synth",
             stage="stage3",
             kind="sample",
-            title=scenario,
+            title=f"{simulator}/{scenario}",
             simulator=simulator,
             scenario=scenario,
             path=item.get("path"),
-            id_parts=("sample", scenario),
+            id_parts=("sample", simulator, scenario),
             count=int(item.get("sample_count") or 0),
             count_label="行",
             file_size_bytes=int(item.get("file_size_bytes") or 0),
@@ -382,9 +531,9 @@ def _sample_assets() -> list[dict[str, Any]]:
             mtime=merged_mtime,
             valid=True,
             status="empty" if is_empty_merged else "ok",
-            protected=not is_empty_merged,
-            deletable=is_empty_merged,
-            warnings=["空的合并样本文件，可直接删除。"] if is_empty_merged else [],
+            protected=True,
+            deletable=False,
+            warnings=["合并样本文件受保护；请删除源场景样本后由平台重建。"] if is_empty_merged else [],
             details={"note": "由各场景样本文件合并生成，删除样本后会重建。"},
         ))
     return assets
@@ -400,11 +549,11 @@ def _router_assets() -> list[dict[str, Any]]:
             platform="synth",
             stage="stage4",
             kind="router_scenario",
-            title=scenario,
+            title=f"{simulator}/{scenario}",
             simulator=simulator,
             scenario=scenario,
             path=item.get("path"),
-            id_parts=("router_scenario", scenario),
+            id_parts=("router_scenario", simulator, scenario),
             count=int(item.get("router_count") or 0),
             count_label="路由样本",
             file_size_bytes=int(item.get("file_size_bytes") or 0),
@@ -489,6 +638,43 @@ def _parquet_assets() -> list[dict[str, Any]]:
     return assets
 
 
+def _router_cache_assets() -> list[dict[str, Any]]:
+    assets: list[dict[str, Any]] = []
+    root = _router_jsonl_cache_root()
+    if not root.exists():
+        return assets
+    for sim_dir in sorted(path for path in root.iterdir() if path.is_dir()):
+        for path in sorted(sim_dir.rglob("*.jsonl")):
+            relative_stem = str(path.relative_to(sim_dir).with_suffix(""))
+            meta_path = path.with_suffix(".meta.json")
+            details: dict[str, Any] = {"cache": True}
+            if meta_path.exists():
+                try:
+                    payload = json.loads(meta_path.read_text(encoding="utf-8"))
+                    if isinstance(payload, dict):
+                        details.update(payload)
+                except Exception:
+                    details["meta_error"] = "failed to read cache metadata"
+            simulator = str(details.get("simulator") or unquote(sim_dir.name))
+            scenario = str(details.get("scenario") or unquote(relative_stem))
+            assets.append(_asset(
+                platform="synth",
+                stage="stage4",
+                kind="router_cache",
+                title=f"{simulator}/{scenario}",
+                simulator=simulator,
+                scenario=scenario,
+                path=path,
+                id_parts=("router_cache", simulator, scenario),
+                count=_count_jsonl(path),
+                count_label="缓存行",
+                valid=True,
+                details=details,
+                warnings=["由 Router Parquet 临时导出的训练准备缓存，可安全删除。"],
+            ))
+    return assets
+
+
 def _manifest_index_assets() -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
     if MANIFEST_DIR.exists():
@@ -506,18 +692,142 @@ def _manifest_index_assets() -> list[dict[str, Any]]:
             ))
     if INDEX_DIR.exists():
         for path in sorted(INDEX_DIR.rglob("*.json")):
+            relative = path.relative_to(INDEX_DIR)
+            if relative.parts and relative.parts[0] == ".tmp":
+                continue
             assets.append(_asset(
                 platform="system",
                 stage="system",
                 kind="index",
-                title=str(path.relative_to(INDEX_DIR)),
+                title=str(relative),
                 path=path,
-                id_parts=("index", str(path.relative_to(INDEX_DIR))),
+                id_parts=("index", str(relative)),
                 valid=True,
                 protected=True,
                 deletable=False,
             ))
     return assets
+
+
+def _read_json_object(path: Path) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
+def _coerce_nonnegative_int(value: Any) -> tuple[int, bool]:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return 0, False
+    return max(0, parsed), parsed >= 0
+
+
+def _active_prepared_refs(jobs: list[dict[str, Any]]) -> tuple[set[tuple[str, str]], set[str]]:
+    active_statuses = getattr(training_manager, "TRAINING_ACTIVE_STATUSES", set())
+    refs: set[tuple[str, str]] = set()
+    unknown_simulators: set[str] = set()
+    for job in jobs:
+        status = str(job.get("status") or "")
+        prepared_name = str(job.get("prepared_name") or "").strip()
+        simulator = str(job.get("simulator") or "").strip()
+        if status not in active_statuses or not simulator:
+            continue
+        if prepared_name:
+            refs.add((simulator, prepared_name))
+        else:
+            unknown_simulators.add(simulator)
+    return refs, unknown_simulators
+
+
+def _prepared_cache_path(simulator: str, prepared_name: str) -> Path:
+    return Path(training_manager.ARTIFACTS_ROOT) / simulator / "prepared" / prepared_name
+
+
+def _training_prepared_assets(jobs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    root = Path(training_manager.ARTIFACTS_ROOT)
+    if not root.exists():
+        return []
+    active_refs, unknown_active_simulators = _active_prepared_refs(jobs)
+    assets: list[dict[str, Any]] = []
+    for prepared_root in sorted(root.glob("*/prepared")):
+        if not prepared_root.is_dir():
+            continue
+        simulator = prepared_root.parent.name
+        for prepared_dir in sorted(path for path in prepared_root.iterdir() if path.is_dir()):
+            prepared_name = prepared_dir.name
+            meta_path = prepared_dir / "meta.json"
+            summary = _read_json_object(meta_path)
+            is_active = (simulator, prepared_name) in active_refs or simulator in unknown_active_simulators
+            scenarios = summary.get("scenarios") if isinstance(summary.get("scenarios"), list) else []
+            train_samples, train_samples_ok = _coerce_nonnegative_int(summary.get("train_samples"))
+            test_samples, test_samples_ok = _coerce_nonnegative_int(summary.get("test_samples"))
+            sample_count_valid = train_samples_ok and test_samples_ok
+            meta_valid = bool(summary) and sample_count_valid
+            errors = []
+            if not summary:
+                errors.append("缺少或无法读取 meta.json")
+            if summary and not sample_count_valid:
+                errors.append("meta.json 中的样本计数字段无效")
+            assets.append(_asset(
+                platform="training",
+                stage="training",
+                kind="training_prepared",
+                title=f"{simulator}/{prepared_name}",
+                simulator=simulator,
+                scenario=", ".join(str(item) for item in scenarios),
+                path=prepared_dir,
+                id_parts=("training_prepared", simulator, prepared_name),
+                count=train_samples + test_samples if summary else None,
+                count_label="样本",
+                file_size_bytes=_dir_size(prepared_dir, max_files=20000),
+                mtime=_safe_stat(meta_path if meta_path.exists() else prepared_dir)[1],
+                valid=meta_valid,
+                status="ok" if meta_valid else "invalid",
+                protected=is_active,
+                deletable=not is_active,
+                warnings=["活跃训练任务正在使用，不能删除。"] if is_active else [],
+                errors=errors,
+                details={
+                    "prepared_name": prepared_name,
+                    "prepared_format": summary.get("prepared_format"),
+                    "input_representation": summary.get("input_representation"),
+                    "train_samples": train_samples,
+                    "test_samples": test_samples,
+                    "source_fingerprint": summary.get("source_fingerprint"),
+                },
+            ))
+    return assets
+
+
+def _assert_prepared_cache_inactive(simulator: str, prepared_name: str) -> None:
+    active = []
+    active_statuses = getattr(training_manager, "TRAINING_ACTIVE_STATUSES", set())
+    for job in training_manager.list_jobs(refresh=True):
+        if str(job.get("status") or "") not in active_statuses:
+            continue
+        if str(job.get("simulator") or "") != simulator:
+            continue
+        job_prepared_name = str(job.get("prepared_name") or "").strip()
+        if not job_prepared_name or job_prepared_name == prepared_name:
+            active.append(str(job.get("job_id") or ""))
+    if active:
+        raise RuntimeError(f"训练 prepared 缓存正在被任务使用: {', '.join(active)}")
+
+
+def _delete_training_prepared_cache(simulator: str, prepared_name: str) -> bool:
+    root = Path(training_manager.ARTIFACTS_ROOT).resolve(strict=False)
+    target = _prepared_cache_path(simulator, prepared_name).resolve(strict=False)
+    try:
+        target.relative_to(root)
+    except ValueError as exc:
+        raise ValueError(f"refusing to delete path outside training artifact root: {target}") from exc
+    if not target.exists() or not target.is_dir():
+        return False
+    shutil.rmtree(target)
+    return True
 
 
 def _training_assets() -> list[dict[str, Any]]:
@@ -617,12 +927,13 @@ def _training_assets() -> list[dict[str, Any]]:
                     "checkpoint_name": checkpoint_name,
                 },
             ))
+    assets.extend(_training_prepared_assets(jobs))
     return assets
 
 
 def list_file_assets() -> list[dict[str, Any]]:
     assets: list[dict[str, Any]] = []
-    for collector in (_hdf5_assets, _template_assets, _sample_assets, _router_assets, _parquet_assets, _training_assets, _manifest_index_assets):
+    for collector in (_hdf5_assets, _template_assets, _sample_assets, _router_assets, _parquet_assets, _router_cache_assets, _training_assets, _manifest_index_assets):
         try:
             assets.extend(collector())
         except Exception as exc:
@@ -671,60 +982,94 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
     parts = decode_asset_id(asset_id)
     kind = parts[0]
     if kind == "hdf5" and len(parts) == 3:
-        _assert_no_active_jobs({"simulate", "fill_samples", "router"}, "HDF5 正在被仿真、样本填充或路由构建任务使用")
-        simulator, scenario = parts[1], parts[2]
-        path = hdf5_data.canonical_hdf5_path(simulator, scenario)
-        if not path.exists():
-            raise FileNotFoundError(f"HDF5 file does not exist: {_relative_path(path)}")
-        path.unlink()
-        invalidate_text2comp_scenarios_cache()
-        return {"ok": True, "kind": kind, "deleted": 1}
+        _safe_name_component(parts[1], "simulator")
+        _safe_name_component(parts[2], "scenario")
+        raise ValueError("Stage 1 HDF5 files are protected and must be preserved")
 
     if kind == "template" and len(parts) == 2:
-        _assert_no_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
-        if not file_manager.delete_template_file(parts[1]):
-            raise FileNotFoundError(f"file does not exist: {parts[1]}")
-        return {"ok": True, "kind": kind, "deleted": 1}
+        _safe_name_component(parts[1], "scenario")
+        raise ValueError("Stage 2 template files are protected and must be preserved")
 
-    if kind == "sample" and len(parts) == 2:
+    if kind == "sample" and len(parts) in {2, 3}:
         _assert_no_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
-        if not file_manager.delete_sample_file(parts[1]):
-            raise FileNotFoundError(f"file does not exist: {parts[1]}")
-        return {"ok": True, "kind": kind, "deleted": 1}
+        simulator = _safe_name_component(parts[1], "simulator") if len(parts) == 3 else None
+        scenario = (
+            _safe_name_component(parts[2], "scenario")
+            if len(parts) == 3
+            else _safe_name_component(parts[1], "scenario")
+        )
+        deleted_jsonl = 1 if file_manager.delete_sample_file(scenario, simulator=simulator) else 0
+        deleted_parquet = _delete_sample_parquet_partitions(scenario, simulator=simulator)
+        deleted = deleted_jsonl + deleted_parquet
+        if deleted_parquet:
+            invalidate_text2comp_scenarios_cache()
+        if deleted == 0:
+            target = f"{simulator}/{scenario}" if simulator else scenario
+            raise FileNotFoundError(f"file does not exist: {target}")
+        return {"ok": True, "kind": kind, "deleted": deleted}
 
     if kind == "sample_merged" and len(parts) == 2:
-        path = DATA_DIR / "all_training_data.jsonl"
-        if not path.exists():
-            raise FileNotFoundError(f"file does not exist: {_relative_path(path)}")
-        if path.stat().st_size > 0:
-            raise ValueError("non-empty merged sample file is protected; delete source sample files instead")
-        path.unlink()
-        return {"ok": True, "kind": kind, "deleted": 1}
+        _safe_name_component(parts[1], "sample_merged")
+        raise ValueError("merged sample file is protected; delete source sample files instead")
 
-    if kind == "router_scenario" and len(parts) == 2:
+    if kind == "router_scenario" and len(parts) in {2, 3}:
         _assert_no_active_jobs({"router"}, "路由数据正在构建")
         _assert_no_active_training_jobs("路由数据正在被训练任务使用")
-        return _delete_router_scenario(parts[1])
+        simulator = _safe_name_component(parts[1], "simulator") if len(parts) == 3 else None
+        scenario = (
+            _safe_name_component(parts[2], "scenario")
+            if len(parts) == 3
+            else _safe_name_component(parts[1], "scenario")
+        )
+        return _delete_router_scenario(scenario, simulator=simulator)
 
     if kind == "sample_parquet" and len(parts) == 3:
         _assert_no_active_jobs({"fill_samples", "router"}, "样本分区正在被填充或路由构建任务使用")
-        if not portable.delete_partition("text2comp", parts[2], simulator=parts[1]):
-            raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
+        simulator = _safe_name_component(parts[1], "simulator")
+        scenario = _safe_identity_component(parts[2], "scenario")
+        deleted = portable.delete_partition("text2comp", scenario, simulator=simulator)
+        if deleted:
+            invalidate_text2comp_scenarios_cache()
+        if not deleted:
+            raise FileNotFoundError(f"Parquet partition does not exist: {simulator}/{scenario}")
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "router_parquet" and len(parts) == 3:
         _assert_no_active_jobs({"router"}, "路由分区正在构建")
         _assert_no_active_training_jobs("路由分区正在被训练任务使用")
-        if not portable.delete_partition("router", parts[2], simulator=parts[1]):
-            raise FileNotFoundError(f"Parquet partition does not exist: {parts[1]}/{parts[2]}")
-        return {"ok": True, "kind": kind, "deleted": 1}
+        simulator = _safe_name_component(parts[1], "simulator")
+        scenario = _safe_identity_component(parts[2], "scenario")
+        if not portable.delete_partition("router", scenario, simulator=simulator):
+            raise FileNotFoundError(f"Parquet partition does not exist: {simulator}/{scenario}")
+        deleted = 1 + _delete_router_jsonl_cache(simulator=simulator, scenario=scenario)
+        return {"ok": True, "kind": kind, "deleted": deleted}
+
+    if kind == "router_cache" and len(parts) == 3:
+        _assert_no_active_training_jobs("路由缓存正在被训练任务使用")
+        simulator = _safe_name_component(parts[1], "simulator")
+        scenario = _safe_identity_component(parts[2], "scenario")
+        deleted = _delete_router_jsonl_cache(simulator=simulator, scenario=scenario)
+        if not deleted:
+            raise FileNotFoundError(f"Router JSONL cache does not exist: {simulator}/{scenario}")
+        return {"ok": True, "kind": kind, "deleted": deleted}
 
     if kind == "training_job" and len(parts) == 2:
-        training_manager.delete_job(parts[1])
+        job_id = _safe_name_component(parts[1], "job_id")
+        training_manager.delete_job(job_id)
+        return {"ok": True, "kind": kind, "deleted": 1}
+
+    if kind == "training_prepared" and len(parts) == 3:
+        simulator = _safe_name_component(parts[1], "simulator")
+        prepared_name = _safe_name_component(parts[2], "prepared_name")
+        _assert_prepared_cache_inactive(simulator, prepared_name)
+        if not _delete_training_prepared_cache(simulator, prepared_name):
+            raise FileNotFoundError(f"Training prepared cache does not exist: {simulator}/{prepared_name}")
         return {"ok": True, "kind": kind, "deleted": 1}
 
     if kind == "training_checkpoint" and len(parts) == 3:
-        training_manager.delete_checkpoint(parts[1], parts[2])
+        job_id = _safe_name_component(parts[1], "job_id")
+        checkpoint_name = _safe_name_component(parts[2], "checkpoint_name")
+        training_manager.delete_checkpoint(job_id, checkpoint_name)
         return {"ok": True, "kind": kind, "deleted": 1}
 
     raise ValueError(f"unsupported asset deletion kind: {kind}")
@@ -732,11 +1077,15 @@ def delete_asset(asset_id: str) -> dict[str, Any]:
 
 def clear_group(kind: str) -> dict[str, Any]:
     if kind == "templates":
-        _assert_no_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
-        return {"ok": True, "kind": kind, "deleted": file_manager.clear_all_templates()}
+        raise ValueError("Stage 2 template files are protected and must be preserved")
     if kind == "samples":
         _assert_no_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
-        return {"ok": True, "kind": kind, "deleted": file_manager.clear_all_samples()}
+        deleted_jsonl = file_manager.clear_all_samples()
+        deleted_parquet = _delete_parquet_partitions("text2comp")
+        if deleted_parquet:
+            invalidate_text2comp_scenarios_cache()
+        deleted = deleted_jsonl + deleted_parquet
+        return {"ok": True, "kind": kind, "deleted": deleted}
     if kind == "router":
         _assert_no_active_jobs({"router"}, "路由数据正在构建")
         _assert_no_active_training_jobs("路由数据正在被训练任务使用")
@@ -744,25 +1093,144 @@ def clear_group(kind: str) -> dict[str, Any]:
     raise ValueError(f"unsupported clear group kind: {kind}")
 
 
-def _delete_router_scenario(scenario: str) -> dict[str, Any]:
-    path = ROUTER_SCENARIO_DIR / f"{scenario}.jsonl"
-    meta_path = path.with_suffix(".meta.json")
-    if not path.exists():
+
+def _router_record_matches_identity(record: dict, fallback_scenario: str, scenario: str, simulator: str | None) -> bool:
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    record_scenario = str(metadata.get("scenario") or fallback_scenario).strip()
+    record_simulator = str(metadata.get("simulator") or "").strip() or None
+    return record_scenario == scenario and (simulator is None or record_simulator in {None, simulator})
+
+
+def _router_jsonl_contains_identity(path: Path, scenario: str, simulator: str | None = None) -> bool:
+    saw_record = False
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                saw_record = True
+                if _router_record_matches_identity(record, path.stem, scenario, simulator):
+                    return True
+    except OSError:
+        return False
+    return not saw_record and path.stem == scenario
+
+
+def _rewrite_router_scenario_file(path: Path, scenario: str, simulator: str | None = None) -> tuple[bool, int]:
+    kept: list[str] = []
+    removed = 0
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                stripped = line.strip()
+                if not stripped:
+                    continue
+                try:
+                    record = json.loads(stripped)
+                except json.JSONDecodeError:
+                    kept.append(line if line.endswith("\n") else line + "\n")
+                    continue
+                if isinstance(record, dict) and _router_record_matches_identity(record, path.stem, scenario, simulator):
+                    removed += 1
+                    continue
+                kept.append(line if line.endswith("\n") else line + "\n")
+    except OSError:
+        return False, 0
+
+    if removed == 0:
+        return False, len(kept)
+    _delete_router_indexes(path)
+    if kept:
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text("".join(kept), encoding="utf-8")
+        tmp_path.replace(path)
+    else:
+        path.unlink(missing_ok=True)
+    return True, len(kept)
+
+
+def _update_router_meta_count(meta_path: Path, remaining: int) -> None:
+    if not meta_path.exists():
+        return
+    try:
+        payload = json.loads(meta_path.read_text(encoding="utf-8"))
+    except Exception:
+        return
+    if not isinstance(payload, dict):
+        return
+    payload["output_count"] = remaining
+    meta_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+def _resolve_router_scenario_file(scenario: str, simulator: str | None = None) -> Path | None:
+    direct = ROUTER_SCENARIO_DIR / f"{scenario}.jsonl"
+    matches: list[Path] = []
+    if direct.exists() and _router_jsonl_contains_identity(direct, scenario, simulator=simulator):
+        matches.append(direct)
+
+    if ROUTER_SCENARIO_DIR.exists():
+        for path in sorted(ROUTER_SCENARIO_DIR.glob("*.jsonl")):
+            if path == direct:
+                continue
+            if _router_jsonl_contains_identity(path, scenario, simulator=simulator):
+                matches.append(path)
+
+    if len(matches) > 1:
+        target = f"{simulator}/{scenario}" if simulator else scenario
+        raise ValueError(f"ambiguous router scenario files for {target}")
+    return matches[0] if matches else None
+
+
+def _delete_router_scenario(scenario: str, simulator: str | None = None) -> dict[str, Any]:
+    path = _resolve_router_scenario_file(scenario, simulator=simulator)
+    meta_path = path.with_suffix(".meta.json") if path is not None else None
+    deleted = _delete_router_parquet_partitions(scenario, simulator=simulator)
+    if path is None or not path.exists():
+        if deleted:
+            deleted += _delete_router_jsonl_cache(simulator=simulator, scenario=scenario)
+            try:
+                manifest_store.rebuild_router_manifest()
+            except Exception:
+                pass
+            return {"ok": True, "kind": "router_scenario", "deleted": deleted, "train_count": 0}
         raise FileNotFoundError(f"router scenario file does not exist: {scenario}")
-    path.unlink()
-    meta_path.unlink(missing_ok=True)
+    removed, remaining = _rewrite_router_scenario_file(path, scenario, simulator=simulator)
+    if not removed:
+        if deleted:
+            try:
+                manifest_store.rebuild_router_manifest()
+            except Exception:
+                pass
+            return {"ok": True, "kind": "router_scenario", "deleted": deleted, "train_count": 0}
+        raise FileNotFoundError(f"router scenario file does not contain: {scenario}")
+    deleted += 1
+    deleted += _delete_router_jsonl_cache(simulator=simulator, scenario=scenario)
+    if remaining == 0 and meta_path is not None and meta_path.exists():
+        meta_path.unlink()
+        deleted += 1
+    elif meta_path is not None:
+        _update_router_meta_count(meta_path, remaining)
     total = _rewrite_router_train_from_scenarios()
     try:
         manifest_store.rebuild_router_manifest()
     except Exception:
         pass
-    return {"ok": True, "kind": "router_scenario", "deleted": 1, "train_count": total}
+    return {"ok": True, "kind": "router_scenario", "deleted": deleted, "train_count": total}
 
 
 def _delete_all_router_data() -> dict[str, Any]:
     deleted = 0
     if ROUTER_SCENARIO_DIR.exists():
         for path in ROUTER_SCENARIO_DIR.glob("*.jsonl"):
+            deleted += _delete_router_indexes(path)
             path.unlink()
             deleted += 1
         for meta_path in ROUTER_SCENARIO_DIR.glob("*.meta.json"):
@@ -770,8 +1238,11 @@ def _delete_all_router_data() -> dict[str, Any]:
             deleted += 1
     train_path = ROUTER_DIR / "train.jsonl"
     if train_path.exists():
+        deleted += _delete_router_indexes(train_path)
         train_path.unlink()
         deleted += 1
+    deleted += _delete_parquet_partitions("router")
+    deleted += _delete_router_jsonl_cache()
     try:
         manifest_store.rebuild_router_manifest()
     except Exception:
@@ -785,14 +1256,22 @@ def _rewrite_router_train_from_scenarios() -> int:
     samples: list[dict[str, Any]] = []
     for path in sorted(ROUTER_SCENARIO_DIR.glob("*.jsonl")):
         try:
-            with path.open("r", encoding="utf-8") as handle:
-                for line in handle:
-                    line = line.strip()
-                    if line:
-                        samples.append(json.loads(line))
-        except Exception:
+            handle = path.open("r", encoding="utf-8")
+        except OSError:
             continue
+        with handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    sample = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(sample, dict):
+                    samples.append(sample)
     out_path = ROUTER_DIR / "train.jsonl"
+    _delete_router_indexes(out_path)
     with out_path.open("w", encoding="utf-8") as handle:
         for sample in samples:
             handle.write(json.dumps(sample, ensure_ascii=False) + "\n")
@@ -804,6 +1283,7 @@ def rebuild_indexes(scope: str = "all") -> dict[str, Any]:
 
     rebuilt: list[str] = []
     errors: list[str] = []
+    deleted_indexes = 0
 
     def run(label: str, func) -> None:
         try:
@@ -813,12 +1293,14 @@ def rebuild_indexes(scope: str = "all") -> dict[str, Any]:
             errors.append(f"{label}: {exc}")
 
     if scope in {"all", "templates"}:
+        deleted_indexes += _clear_index_files_for_dirs((TEMPLATES_DIR,))
         run("manifest:templates", manifest_store.rebuild_template_manifest)
         for path in sorted(TEMPLATES_DIR.glob("*_templates.jsonl")) if TEMPLATES_DIR.exists() else []:
             run(f"index:{_relative_path(path)}", lambda p=path: jsonl_index.rebuild_index(p))
             run(f"filter:{_relative_path(path)}:template_language_style", lambda p=path: jsonl_filter_index.rebuild_filter_index(p, "template_language_style"))
 
     if scope in {"all", "samples"}:
+        deleted_indexes += _clear_index_files_for_dirs((DATA_DIR,))
         run("manifest:samples", manifest_store.rebuild_sample_manifest)
         for path in sorted(DATA_DIR.glob("*.jsonl")) if DATA_DIR.exists() else []:
             run(f"index:{_relative_path(path)}", lambda p=path: jsonl_index.rebuild_index(p))
@@ -826,6 +1308,7 @@ def rebuild_indexes(scope: str = "all") -> dict[str, Any]:
                 run(f"filter:{_relative_path(path)}:sample_language_style", lambda p=path: jsonl_filter_index.rebuild_filter_index(p, "sample_language_style"))
 
     if scope in {"all", "router"}:
+        deleted_indexes += _clear_index_files_for_dirs((ROUTER_DIR, ROUTER_SCENARIO_DIR))
         run("manifest:router", manifest_store.rebuild_router_manifest)
         router_files: list[Path] = []
         if ROUTER_DIR.exists():
@@ -838,4 +1321,4 @@ def rebuild_indexes(scope: str = "all") -> dict[str, Any]:
             run(f"index:{_relative_path(path)}", lambda p=path: jsonl_index.rebuild_index(p))
             run(f"filter:{_relative_path(path)}:router_label", lambda p=path: jsonl_filter_index.rebuild_filter_index(p, "router_label"))
 
-    return {"ok": len(errors) == 0, "rebuilt": rebuilt, "errors": errors}
+    return {"ok": len(errors) == 0, "rebuilt": rebuilt, "errors": errors, "deleted_indexes": deleted_indexes}

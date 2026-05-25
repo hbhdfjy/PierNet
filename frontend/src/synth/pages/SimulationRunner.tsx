@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { SimulationScenario } from '../../lib/types'
+import type { JobStatus, SimulationScenario } from '../../lib/types'
 import {
   Zap,
   RefreshCw,
@@ -20,6 +20,15 @@ import {
 import { cn, formatBytes } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
+import {
+  SYNTH_SAMPLE_COUNT_MAX,
+  SYNTH_SAMPLE_COUNT_MIN,
+  SYNTH_WORKERS_MAX,
+  SYNTH_WORKERS_MIN,
+  normalizeSynthSampleCount,
+  normalizeSynthWorkers,
+} from '../generationLimits'
+import { simulationScenarioKey } from '../simulationScenario'
 import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
 
@@ -271,10 +280,10 @@ export default function SimulationRunner() {
   }, [scenarios])
 
   // 全选/清空
-  const allNames = useMemo(() => (scenarios ?? []).map(s => s.scenario), [scenarios])
+  const allNames = useMemo(() => (scenarios ?? []).map(simulationScenarioKey), [scenarios])
   const filteredNames = useMemo(() => {
     if (!filterSim) return allNames
-    return (scenarios ?? []).filter(s => s.simulator === filterSim).map(s => s.scenario)
+    return (scenarios ?? []).filter(s => s.simulator === filterSim).map(simulationScenarioKey)
   }, [scenarios, filterSim, allNames])
 
   const toggle = (name: string) =>
@@ -290,7 +299,7 @@ export default function SimulationRunner() {
   const selectIncomplete = () => {
     const incomplete = (scenarios ?? [])
       .filter(s => (!filterSim || s.simulator === filterSim) && s.sample_count < nSamples)
-      .map(s => s.scenario)
+      .map(simulationScenarioKey)
     setSelected(new Set(incomplete))
   }
 
@@ -306,7 +315,8 @@ export default function SimulationRunner() {
     try {
       let result
       if (selected.size === 1) {
-        const sc = scenarios?.find(s => s.scenario === [...selected][0])
+        const selectedKey = [...selected][0]
+        const sc = scenarios?.find(s => simulationScenarioKey(s) === selectedKey)
         if (!sc) throw new Error('场景未找到')
         result = await api.startSimulation({
           simulator: sc.simulator,
@@ -328,7 +338,7 @@ export default function SimulationRunner() {
           max_workers: maxWorkers,
         })
       }
-      monitor.start(result.job_id)
+      monitor.start(result.job_id, result.scenario_totals, result.status as JobStatus)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {
@@ -351,7 +361,7 @@ export default function SimulationRunner() {
   }, [monitor.status, refreshScenarios])
 
   const selectedScenarios = useMemo(
-    () => (scenarios ?? []).filter(s => selected.has(s.scenario)),
+    () => (scenarios ?? []).filter(s => selected.has(simulationScenarioKey(s))),
     [scenarios, selected],
   )
 
@@ -470,10 +480,10 @@ export default function SimulationRunner() {
                 <div className="space-y-1">
                   {list.map(s => (
                     <ScenarioRow
-                      key={s.scenario}
+                      key={simulationScenarioKey(s)}
                       s={s}
-                      checked={selected.has(s.scenario)}
-                      onToggle={() => toggle(s.scenario)}
+                      checked={selected.has(simulationScenarioKey(s))}
+                      onToggle={() => toggle(simulationScenarioKey(s))}
                       nSamples={nSamples}
                     />
                   ))}
@@ -493,16 +503,16 @@ export default function SimulationRunner() {
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
                 value={nSamplesInput}
-                min={1}
-                max={100000}
+                min={SYNTH_SAMPLE_COUNT_MIN}
+                max={SYNTH_SAMPLE_COUNT_MAX}
                 onChange={e => {
                   setNSamplesInput(e.target.value)
-                  const n = parseInt(e.target.value, 10)
-                  if (!isNaN(n) && n >= 1) setNSamples(n)
+                  const n = Number(e.target.value)
+                  if (!isNaN(n)) setNSamples(normalizeSynthSampleCount(n))
                 }}
                 onBlur={() => {
-                  const n = parseInt(nSamplesInput, 10)
-                  const v = isNaN(n) ? 1 : Math.max(1, Math.min(100000, n))
+                  const n = Number(nSamplesInput)
+                  const v = normalizeSynthSampleCount(n)
                   setNSamples(v)
                   setNSamplesInput(String(v))
                 }}
@@ -523,9 +533,9 @@ export default function SimulationRunner() {
                 />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="text-sm text-slate-300 font-medium">断点续跑</span>
+                <span className="text-sm text-slate-300 font-medium">跳过已完成</span>
                 <span className="text-sm text-slate-600 ml-1.5">
-                  {skipExisting ? '跳过已有数据，仅补充新样本' : '忽略已有样本重新生成'}
+                  {skipExisting ? '已达目标则跳过，未满则重新生成' : '忽略已有样本重新生成'}
                 </span>
               </div>
               <SkipForward size={12} className={skipExisting ? 'text-amber-400' : 'text-slate-600'} />
@@ -558,12 +568,12 @@ export default function SimulationRunner() {
                     type="number"
                     className="input w-14 text-xs py-0.5 px-2 text-center"
                     value={maxWorkers}
-                    min={1}
-                    max={32}
+                    min={SYNTH_WORKERS_MIN}
+                    max={SYNTH_WORKERS_MAX}
                     onClick={e => e.stopPropagation()}
                     onChange={e => {
-                      const n = parseInt(e.target.value, 10)
-                      if (!isNaN(n) && n >= 1 && n <= 32) setMaxWorkers(n)
+                      const n = Number(e.target.value)
+                      if (!isNaN(n)) setMaxWorkers(normalizeSynthWorkers(n, 4))
                     }}
                   />
                 </div>
@@ -577,7 +587,7 @@ export default function SimulationRunner() {
                   const m = SIM_META[s.simulator] ?? fallbackMeta
                   return (
                     <span
-                      key={s.scenario}
+                      key={simulationScenarioKey(s)}
                       className={cn(
                         'inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-xs border',
                         m.bg,
@@ -660,8 +670,8 @@ export default function SimulationRunner() {
           stageLabel="物理仿真"
           stageColor="text-amber-400"
           accentColor="amber"
-          onDone={() => navigate('/register')}
-          doneLabel="去生成模板"
+          onDone={() => navigate('/synth/register')}
+          doneLabel="去注册场景"
         />
 
         {monitor.status === 'idle' && (

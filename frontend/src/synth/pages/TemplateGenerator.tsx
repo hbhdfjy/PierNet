@@ -8,6 +8,7 @@ import type {
   GenerationConfig,
   TemplateInfo,
   LLMConfig,
+  JobStatus,
 } from '../../lib/types'
 import {
   Cpu,
@@ -26,6 +27,18 @@ import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
+import { normalizeSynthWorkers, SYNTH_WORKERS_MAX, SYNTH_WORKERS_MIN } from '../generationLimits'
+import {
+  normalizeTemplateCount,
+  normalizeTemplateProbability,
+  TEMPLATE_COUNT_MAX,
+  TEMPLATE_COUNT_MIN,
+} from '../templateData'
+import {
+  duplicateText2CompScenarioNames,
+  selectableText2CompScenarios,
+  text2compScenarioKey,
+} from '../text2compScenario'
 
 export default function TemplateGenerator() {
   const navigate = useNavigate()
@@ -64,12 +77,17 @@ export default function TemplateGenerator() {
 
   useEffect(() => {
     if (genCfg?.generation?.n_samples_per_scenario) {
-      setNTemplates(genCfg.generation.n_samples_per_scenario)
-      setNTemplatesInput(String(genCfg.generation.n_samples_per_scenario))
+      const count = normalizeTemplateCount(genCfg.generation.n_samples_per_scenario)
+      setNTemplates(count)
+      setNTemplatesInput(String(count))
     }
-    if (genCfg?.generation?.language_mix != null) setLanguageMix(genCfg.generation.language_mix)
-    if (genCfg?.generation?.transform_prob != null) setTransformProb(genCfg.generation.transform_prob)
-    if (genCfg?.generation?.max_workers != null) setMaxWorkers(genCfg.generation.max_workers)
+    if (genCfg?.generation?.language_mix != null) {
+      setLanguageMix(normalizeTemplateProbability(genCfg.generation.language_mix, 0.5))
+    }
+    if (genCfg?.generation?.transform_prob != null) {
+      setTransformProb(normalizeTemplateProbability(genCfg.generation.transform_prob, 0.1))
+    }
+    if (genCfg?.generation?.max_workers != null) setMaxWorkers(normalizeSynthWorkers(genCfg.generation.max_workers))
   }, [genCfg])
 
   useEffect(() => {
@@ -79,10 +97,13 @@ export default function TemplateGenerator() {
   }, [monitor.status, refreshTemplates])
 
   const allScenarios: Text2CompScenario[] = scenariosCfg ? Object.values(scenariosCfg).flat() : []
+  const duplicateNames = duplicateText2CompScenarioNames(allScenarios)
+  const selectableScenariosWithData = selectableText2CompScenarios(allScenarios, duplicateNames, s => s.has_h5)
   const scenariosWithData = allScenarios.filter(s => s.has_h5)
   const unregisteredWithData = scenariosWithData.filter(s => !s.registered)
   const templateMap: Record<string, TemplateInfo> = {}
   for (const t of templatesStatus ?? []) templateMap[t.scenario] = t
+  const ambiguousSelected = Array.from(selected).filter(name => duplicateNames.has(name))
 
   const toggle = (name: string) =>
     setSelected(prev => {
@@ -97,20 +118,26 @@ export default function TemplateGenerator() {
       setError('请至少选择一个场景')
       return
     }
+    if (ambiguousSelected.length > 0) {
+      setError(
+        `以下场景名在多个 simulator 下重复，无法安全生成：${ambiguousSelected.slice(0, 3).join(', ')}${ambiguousSelected.length > 3 ? '…' : ''}`,
+      )
+      return
+    }
     setError(null)
     setLaunching(true)
     try {
       const result = await api.startGenerateTemplates({
         scenarios: Array.from(selected),
-        n_templates: nTemplates,
+        n_templates: normalizeTemplateCount(nTemplates),
         skip_existing: genMode === 'skip',
         append_existing: genMode === 'append',
         config: 'configs/text2comp/default.yaml',
-        ...(languageMix != null ? { language_mix: languageMix } : {}),
-        ...(transformProb != null ? { transform_prob: transformProb } : {}),
-        ...(maxWorkers != null ? { max_workers: maxWorkers } : {}),
+        ...(languageMix != null ? { language_mix: normalizeTemplateProbability(languageMix, 0.5) } : {}),
+        ...(transformProb != null ? { transform_prob: normalizeTemplateProbability(transformProb, 0.1) } : {}),
+        ...(maxWorkers != null ? { max_workers: normalizeSynthWorkers(maxWorkers) } : {}),
       })
-      monitor.start(result.job_id, result.scenario_totals)
+      monitor.start(result.job_id, result.scenario_totals, result.status as JobStatus)
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '启动失败')
     } finally {
@@ -166,8 +193,11 @@ export default function TemplateGenerator() {
                   className="btn-ghost py-0.5 px-2 text-sm"
                   onClick={
                     [
-                      () => setSelected(new Set(scenariosWithData.map(s => s.name))),
-                      () => setSelected(new Set(scenariosWithData.filter(s => !templateMap[s.name]).map(s => s.name))),
+                      () => setSelected(new Set(selectableScenariosWithData.map(s => s.name))),
+                      () =>
+                        setSelected(
+                          new Set(selectableScenariosWithData.filter(s => !templateMap[s.name]).map(s => s.name)),
+                        ),
                       () => setSelected(new Set()),
                     ][i]
                   }
@@ -206,7 +236,7 @@ export default function TemplateGenerator() {
                   <p className="text-xs text-slate-500 mb-2">未注册的场景生成时会因缺少 domain 信息而失败。</p>
                   <button
                     className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 transition-colors"
-                    onClick={() => navigate('/register')}
+                    onClick={() => navigate('/synth/register')}
                   >
                     前往注册数据集 <ChevronRight size={11} />
                   </button>
@@ -219,17 +249,23 @@ export default function TemplateGenerator() {
                 <div key={dirKey}>
                   <div className="workbench-group-label">{dirKey}</div>
                   <div className="scenario-grid grid gap-1.5">
-                    {list.map(s => (
-                      <ScenarioButton
-                        key={s.name}
-                        s={s}
-                        active={selected.has(s.name)}
-                        onClick={() => toggle(s.name)}
-                        templateCount={templateMap[s.name]?.template_count}
-                        disabled={!s.has_h5}
-                        tone="violet"
-                      />
-                    ))}
+                    {list.map(s => {
+                      const duplicateName = duplicateNames.has(s.name)
+                      return (
+                        <ScenarioButton
+                          key={text2compScenarioKey(s)}
+                          s={s}
+                          active={selected.has(s.name)}
+                          onClick={() => toggle(s.name)}
+                          templateCount={templateMap[s.name]?.template_count}
+                          disabled={!s.has_h5 || duplicateName}
+                          disabledReason={
+                            duplicateName ? '同名场景存在于多个 simulator，请先改名或清理配置' : undefined
+                          }
+                          tone="violet"
+                        />
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -242,9 +278,9 @@ export default function TemplateGenerator() {
                 </div>
                 <button
                   className="flex items-center gap-1 text-xs text-sky-400 hover:text-sky-300 transition-colors"
-                  onClick={() => navigate('/data-dirs')}
+                  onClick={() => navigate('/synth/simulate')}
                 >
-                  配置数据目录 <ChevronRight size={11} />
+                  前往物理仿真 <ChevronRight size={11} />
                 </button>
               </div>
             )}
@@ -267,16 +303,16 @@ export default function TemplateGenerator() {
                 type="number"
                 className="input w-full text-xs py-1.5 px-3"
                 value={nTemplatesInput}
-                min={1}
-                max={10000}
+                min={TEMPLATE_COUNT_MIN}
+                max={TEMPLATE_COUNT_MAX}
                 onChange={e => {
                   setNTemplatesInput(e.target.value)
-                  const n = parseInt(e.target.value, 10)
-                  if (!isNaN(n) && n >= 1) setNTemplates(n)
+                  const n = Number(e.target.value)
+                  if (!isNaN(n)) setNTemplates(normalizeTemplateCount(n))
                 }}
                 onBlur={() => {
-                  const n = parseInt(nTemplatesInput, 10)
-                  const clamped = isNaN(n) ? 1 : Math.max(1, Math.min(10000, n))
+                  const n = Number(nTemplatesInput)
+                  const clamped = normalizeTemplateCount(n)
                   setNTemplates(clamped)
                   setNTemplatesInput(String(clamped))
                 }}
@@ -320,27 +356,37 @@ export default function TemplateGenerator() {
               {[
                 {
                   label: '并发',
-                  value: maxWorkers ?? genCfg?.generation?.max_workers ?? 1,
-                  min: 1,
-                  max: 64,
-                  display: String(maxWorkers ?? genCfg?.generation?.max_workers ?? 1),
-                  onChange: (v: number) => setMaxWorkers(v),
+                  value: normalizeSynthWorkers(maxWorkers ?? genCfg?.generation?.max_workers ?? SYNTH_WORKERS_MIN),
+                  min: SYNTH_WORKERS_MIN,
+                  max: SYNTH_WORKERS_MAX,
+                  display: String(
+                    normalizeSynthWorkers(maxWorkers ?? genCfg?.generation?.max_workers ?? SYNTH_WORKERS_MIN),
+                  ),
+                  onChange: (v: number) => setMaxWorkers(normalizeSynthWorkers(v)),
                 },
                 {
                   label: '中文',
-                  value: Math.round((languageMix ?? genCfg?.generation?.language_mix ?? 0.5) * 100),
+                  value: Math.round(
+                    normalizeTemplateProbability(languageMix ?? genCfg?.generation?.language_mix ?? 0.5, 0.5) * 100,
+                  ),
                   min: 0,
                   max: 100,
-                  display: `${Math.round((languageMix ?? genCfg?.generation?.language_mix ?? 0.5) * 100)}%`,
-                  onChange: (v: number) => setLanguageMix(v / 100),
+                  display: `${Math.round(
+                    normalizeTemplateProbability(languageMix ?? genCfg?.generation?.language_mix ?? 0.5, 0.5) * 100,
+                  )}%`,
+                  onChange: (v: number) => setLanguageMix(normalizeTemplateProbability(v / 100, 0.5)),
                 },
                 {
                   label: '变换',
-                  value: Math.round((transformProb ?? genCfg?.generation?.transform_prob ?? 0.1) * 100),
+                  value: Math.round(
+                    normalizeTemplateProbability(transformProb ?? genCfg?.generation?.transform_prob ?? 0.1, 0.1) * 100,
+                  ),
                   min: 0,
-                  max: 50,
-                  display: `${Math.round((transformProb ?? genCfg?.generation?.transform_prob ?? 0.1) * 100)}%`,
-                  onChange: (v: number) => setTransformProb(v / 100),
+                  max: 100,
+                  display: `${Math.round(
+                    normalizeTemplateProbability(transformProb ?? genCfg?.generation?.transform_prob ?? 0.1, 0.1) * 100,
+                  )}%`,
+                  onChange: (v: number) => setTransformProb(normalizeTemplateProbability(v / 100, 0.1)),
                 },
               ].map(({ label, value, min, max, display, onChange }) => (
                 <div key={label}>
@@ -354,7 +400,7 @@ export default function TemplateGenerator() {
                     min={min}
                     max={max}
                     value={value}
-                    onChange={e => onChange(parseInt(e.target.value))}
+                    onChange={e => onChange(Number(e.target.value))}
                   />
                 </div>
               ))}
@@ -362,7 +408,7 @@ export default function TemplateGenerator() {
 
             {/* LLM 配置入口 */}
             <button
-              onClick={() => navigate('/llm-config')}
+              onClick={() => navigate('/synth/llm-config')}
               className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-700/30 hover:border-slate-600/50 hover:bg-slate-700/30 transition-all text-left"
             >
               <div className="flex items-center gap-2 min-w-0">
@@ -440,7 +486,7 @@ export default function TemplateGenerator() {
           autoScroll={monitor.autoScroll}
           onAutoScrollChange={monitor.setAutoScroll}
           onStop={monitor.stop}
-          onDone={() => navigate('/fill')}
+          onDone={() => navigate('/synth/fill')}
           doneLabel="去填充样本"
           jobId={monitor.jobId}
           jobIds={monitor.jobIds}
@@ -461,24 +507,24 @@ export default function TemplateGenerator() {
           </div>
         )}
 
-        {/* File management moved to /files */}
+        {/* File management lives in /synth/files */}
         <div className="card overflow-hidden">
           <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
               <span className="font-medium text-slate-200 text-base">Template files</span>
             </div>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
               打开文件管理
             </button>
           </div>
           <div className="p-4">
             <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
-              <div className="font-semibold text-slate-100">Centralized file manager</div>
+              <div className="font-semibold text-slate-100">统一文件管理</div>
               <p className="mt-1 text-sm leading-6 text-slate-400">
-                Template trim, delete, and clear operations now live in the unified file manager.
+                模板文件已纳入统一目录，可查看状态并重建索引；阶段 2 模板资产受保护，不提供裁剪、删除或清空。
               </p>
-              <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/files')}>
+              <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/synth/files')}>
                 打开统一文件管理
               </button>
             </div>

@@ -9,8 +9,12 @@ import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 
 const PAGE_SIZE = 10
 
+function datasetKey(item: Pick<DatasetInfo, 'simulator' | 'scenario' | 'name'>): string {
+  return `${item.simulator || 'unknown'}::${item.scenario || item.name}`
+}
+
 export default function SampleViewer() {
-  const [scenario, setScenario] = useState<string>('')
+  const [datasetId, setDatasetId] = useState('')
   const [page, setPage] = useState(0)
   const [language, setLanguage] = useState('')
   const [style, setStyle] = useState('')
@@ -27,15 +31,28 @@ export default function SampleViewer() {
     return g
   }, [datasets])
 
-  const selectedScenario = scenario || datasets?.[0]?.name || ''
+  const selectedDataset = useMemo(() => {
+    const items = datasets ?? []
+    return items.find(item => datasetKey(item) === datasetId) ?? items[0] ?? null
+  }, [datasets, datasetId])
+  const selectedDatasetKey = selectedDataset ? datasetKey(selectedDataset) : ''
+  const selectedScenario = selectedDataset?.scenario ?? ''
 
   const {
     data: samplesData,
     isLoading: sLoading,
     mutate,
   } = useSWR<SamplesResponse>(
-    selectedScenario ? ['samples', selectedScenario, page, language, style] : null,
-    () => api.getSamples(selectedScenario, page, PAGE_SIZE, language || undefined, style || undefined),
+    selectedDataset ? ['samples', selectedDataset.simulator, selectedDataset.scenario, page, language, style] : null,
+    () =>
+      api.getSamples(
+        selectedDataset!.scenario,
+        page,
+        PAGE_SIZE,
+        language || undefined,
+        style || undefined,
+        selectedDataset!.simulator || undefined,
+      ),
     { revalidateOnFocus: false },
   )
 
@@ -84,24 +101,27 @@ export default function SampleViewer() {
                     <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                     {SIMULATOR_LABELS[sim] ?? sim}
                   </div>
-                  {items.map(d => (
-                    <button
-                      key={d.name}
-                      onClick={() => {
-                        setScenario(d.name)
-                        setPage(0)
-                      }}
-                      className={cn(
-                        'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
-                        selectedScenario === d.name
-                          ? 'bg-emerald-500/8 text-emerald-300 border-l-2 border-l-emerald-500'
-                          : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border-l-2 border-l-transparent',
-                      )}
-                    >
-                      <div className="font-medium truncate">{d.name}</div>
-                      <div className="text-slate-600 mt-0.5 tabular-nums">{d.sample_count.toLocaleString()} 条</div>
-                    </button>
-                  ))}
+                  {items.map(d => {
+                    const itemKey = datasetKey(d)
+                    return (
+                      <button
+                        key={itemKey}
+                        onClick={() => {
+                          setDatasetId(itemKey)
+                          setPage(0)
+                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
+                          selectedDatasetKey === itemKey
+                            ? 'bg-emerald-500/8 text-emerald-300 border-l-2 border-l-emerald-500'
+                            : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200 border-l-2 border-l-transparent',
+                        )}
+                      >
+                        <div className="font-medium truncate">{d.name}</div>
+                        <div className="text-slate-600 mt-0.5 tabular-nums">{d.sample_count.toLocaleString()} 条</div>
+                      </button>
+                    )
+                  })}
                 </div>
               )
             })}
@@ -165,7 +185,7 @@ export default function SampleViewer() {
             )}
             {!sLoading &&
               samplesData?.items.map((sample, i) => (
-                <SampleCard key={`${selectedScenario}-${page}-${i}`} sample={sample} index={page * PAGE_SIZE + i} />
+                <SampleCard key={`${selectedDatasetKey}-${page}-${i}`} sample={sample} index={page * PAGE_SIZE + i} />
               ))}
             {!sLoading && (!samplesData || samplesData.items.length === 0) && (
               <EmptyState icon={Database} title={selectedScenario ? '该场景暂无样本' : '请在左侧选择场景'} size="sm" />

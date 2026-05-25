@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import useSWR from 'swr'
+import useSWR, { useSWRConfig } from 'swr'
 import {
   AlertTriangle,
   CheckCircle2,
@@ -118,7 +118,7 @@ export default function DataUploadPage() {
     isLoading,
     mutate,
   } = useSWR<Hdf5DataFileInfo[]>('hdf5-data-files', () => api.listHdf5DataFiles())
-  const { mutate: refreshSimulationScenarios } = useSWR('simulation-scenarios')
+  const { mutate: mutateCache } = useSWRConfig()
 
   const [simulator, setSimulator] = useState('modflow')
   const [scenario, setScenario] = useState('')
@@ -176,7 +176,7 @@ export default function DataUploadPage() {
       const response = await api.uploadHdf5Data({ simulator: cleanSimulator, scenario: cleanScenario, file, overwrite })
       setResult(response.validation)
       await mutate()
-      await refreshSimulationScenarios()
+      await mutateCache('simulation-scenarios', api.getSimulationScenarios(true), { revalidate: false })
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : '上传失败')
     } finally {
@@ -195,8 +195,7 @@ export default function DataUploadPage() {
                 上传物理数据
               </h1>
               <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
-                将外部仿真器/大场景的数据纳入 PiERN
-                合成链路。上传后即时预检；注册场景时会执行强校验，不合规数据不能进入模板生成。
+                将外部仿真器/大场景的数据纳入 PiERN 合成链路。服务端先预检，合规后才会落盘；不合规数据不能覆盖现有文件。
               </p>
             </div>
             <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full max-sm:grid-cols-2">
@@ -310,7 +309,7 @@ export default function DataUploadPage() {
               <ShieldCheck size={17} className="text-emerald-400" />
               <div>
                 <div className="training-panel-title">校验规范</div>
-                <div className="training-panel-copy">上传页只提示预检结果，注册场景时按此规范强制校验。</div>
+                <div className="training-panel-copy">上传页按此规范预检，只有合规 HDF5 会写入数据目录。</div>
               </div>
             </div>
             <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">

@@ -1,7 +1,6 @@
-"""
-PiERN Stage 2 API 入口（向后兼容）。
+"""Backward-compatible import target for the unified PiERN FastAPI app.
 
-启动：
+Run locally with:
   uvicorn api_server:app --reload --port 8000
 """
 

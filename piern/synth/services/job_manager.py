@@ -94,7 +94,6 @@ def _make_prefix(job_type: str) -> str:
     prefixes = {
         "generate_templates": "tmpl-",
         "fill_samples": "fill-",
-        "register": "reg-",
         "simulate": "sim-",
         "router": "router-",
     }
@@ -103,9 +102,9 @@ def _make_prefix(job_type: str) -> str:
 
 def get_job(job_id: str) -> Optional[JobRecord]:
     job = _jobs.get(job_id)
-    if job is not None:
-        return job
     stored = job_store.load_job(job_id)
+    if job is not None:
+        return _sync_record_from_stored(job, stored) if stored else job
     if not stored:
         return None
     return _record_from_stored(stored)
@@ -130,6 +129,31 @@ def _record_from_stored(stored: dict[str, Any]) -> JobRecord:
 
 def record_from_stored(stored: dict[str, Any]) -> JobRecord:
     return _record_from_stored(stored)
+
+
+def _sync_record_from_stored(record: JobRecord, stored: dict[str, Any]) -> JobRecord:
+    stored_status = normalize_status(stored.get("status"), fallback=record.status)
+    if stored_status not in SYNTH_TERMINAL_STATUSES and not record.persisted:
+        return record
+    with record._lock:
+        record.job_type = str(stored.get("job_type") or record.job_type or "job")
+        record.status = stored_status
+        record.scenario_totals = stored.get("scenario_totals") or {}
+        record.started_at = float(stored.get("started_at") or stored.get("created_at") or record.started_at)
+        record.progress = stored.get("progress") or {}
+        record.stats = stored.get("stats") or {"elapsed_sec": 0.0, "samples_per_sec": 0.0}
+        record.finished_at = stored.get("finished_at")
+        error_message = stored.get("error_message")
+        record.error_message = str(error_message) if error_message else None
+        events = stored.get("events")
+        if isinstance(events, list) and events:
+            record.events = list(events)
+        record.persisted = True
+        if record.status in SYNTH_TERMINAL_STATUSES:
+            task_locks.release_owner(record.job_id)
+            record.lock_keys = []
+            record.stop_event.set()
+    return record
 
 
 def should_stop(record: JobRecord) -> bool:
@@ -311,6 +335,11 @@ def terminate_job(job_id: str) -> bool:
             task_locks.release_owner(synthetic.job_id)
         return True
 
+    if record.status in SYNTH_TERMINAL_STATUSES:
+        task_locks.release_owner(record.job_id)
+        record.lock_keys = []
+        return True
+
     record.status = "terminated"
     task_locks.release_owner(record.job_id)
     record.lock_keys = []
@@ -335,11 +364,14 @@ def terminate_job(job_id: str) -> bool:
 
 
 def all_jobs(max_recent: int = 200) -> dict[str, JobRecord]:
-    jobs = dict(_jobs)
+    jobs: dict[str, JobRecord] = {}
     for stored in job_store.list_jobs(limit=max_recent, include_events=False):
         job_id = str(stored["job_id"])
+        memory_job = _jobs.get(job_id)
+        jobs[job_id] = _sync_record_from_stored(memory_job, stored) if memory_job else _record_from_stored(stored)
+    for job_id, job in _jobs.items():
         if job_id not in jobs:
-            jobs[job_id] = _record_from_stored(stored)
+            jobs[job_id] = job
     return jobs
 
 

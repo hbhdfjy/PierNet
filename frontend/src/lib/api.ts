@@ -1,29 +1,23 @@
 import type {
   DatasetInfo,
   SamplesResponse,
-  DatasetStats,
   DashboardSummary,
-  ScenariosConfig,
   GenerationConfig,
   Text2CompScenariosConfig,
-  RegisterRequest,
   AgentTurnResponse,
   InterviewStartRequest,
-  InterviewState,
   GenerateTemplatesRequest,
   FillSamplesRequest,
   TemplateInfo,
   LLMConfig,
   LLMConfigRequest,
   TemplateFileInfo,
-  SampleFileInfo,
   JobStartResponse,
   JobStatusSnapshot,
   TemplatesResponse,
   SimulationScenario,
   SimulateRequest,
   BatchSimulateRequest,
-  SimulationHistoryRecord,
   Hdf5DataFileInfo,
   Hdf5UploadResponse,
   FileCatalogResponse,
@@ -138,14 +132,14 @@ export const api = {
     pageSize = 20,
     language?: string,
     style?: string,
+    simulator?: string,
   ): Promise<SamplesResponse> => {
     const p: Record<string, string | number> = { scenario, page, page_size: pageSize }
     if (language) p.language = language
     if (style) p.style = style
+    if (simulator) p.simulator = simulator
     return get('/samples', p)
   },
-
-  getStats: (): Promise<DatasetStats> => get('/stats'),
 
   getDashboardSummary: (): Promise<DashboardSummary> => get('/dashboard/summary'),
 
@@ -173,18 +167,16 @@ export const api = {
     return res.json()
   },
 
-  getScenarios: (): Promise<ScenariosConfig> => get('/config/scenarios'),
-
   getText2CompScenarios: (): Promise<Text2CompScenariosConfig> => get('/config/text2comp-scenarios'),
 
   // ── 生成任务（SSE 流 + 终止）──────────────────────────────────
   stopGeneration: async (jobId: string): Promise<void> => {
-    const res = await apiFetch(`${BASE}/generate/${jobId}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/generate/${encodeURIComponent(jobId)}`, { method: 'DELETE' })
     if (!res.ok && res.status !== 404) await ensureOk(res, '终止失败')
   },
 
   openGenerationStream: (jobId: string): EventSource => {
-    return new EventSource(`${BASE}/generate/${jobId}/stream`)
+    return new EventSource(`${BASE}/generate/${encodeURIComponent(jobId)}/stream`)
   },
 
   getGenerationStatus: (jobId: string): Promise<JobStatusSnapshot> =>
@@ -226,7 +218,7 @@ export const api = {
   },
 
   sendInterviewMessage: async (sessionId: string, message: string): Promise<AgentTurnResponse> => {
-    const res = await apiFetch(`${BASE}/interview/${sessionId}/message`, {
+    const res = await apiFetch(`${BASE}/interview/${encodeURIComponent(sessionId)}/message`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message }),
@@ -240,7 +232,7 @@ export const api = {
     confirmed: boolean,
     editedData?: Record<string, unknown>,
   ): Promise<AgentTurnResponse> => {
-    const res = await apiFetch(`${BASE}/interview/${sessionId}/confirm`, {
+    const res = await apiFetch(`${BASE}/interview/${encodeURIComponent(sessionId)}/confirm`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ confirmed, edited_data: editedData ?? null }),
@@ -249,10 +241,9 @@ export const api = {
     return res.json()
   },
 
-  getInterviewState: (sessionId: string): Promise<InterviewState> => get(`/interview/${sessionId}/state`),
-
   cancelInterview: async (sessionId: string): Promise<void> => {
-    await apiFetch(`${BASE}/interview/${sessionId}`, { method: 'DELETE' })
+    const res = await apiFetch(`${BASE}/interview/${encodeURIComponent(sessionId)}`, { method: 'DELETE' })
+    await ensureOk(res, '取消会话失败')
   },
 
   // ── 两阶段生成 ──────────────────────────────────────────────────
@@ -294,36 +285,6 @@ export const api = {
     return get(`/files/templates/${encodeURIComponent(scenario)}/items`, p)
   },
 
-  listSampleFiles: (): Promise<SampleFileInfo[]> => get('/files/samples'),
-
-  trimTemplateFile: async (scenario: string, n: number): Promise<{ before: number; after: number }> => {
-    const res = await apiFetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}/trim?n=${n}`, {
-      method: 'POST',
-    })
-    await ensureOk(res, '截断失败')
-    return res.json()
-  },
-
-  deleteTemplateFile: async (scenario: string): Promise<void> => {
-    const res = await apiFetch(`${BASE}/files/templates/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
-    await ensureOk(res, '删除失败')
-  },
-
-  deleteSampleFile: async (scenario: string): Promise<void> => {
-    const res = await apiFetch(`${BASE}/files/samples/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
-    await ensureOk(res, '删除失败')
-  },
-
-  clearAllTemplates: async (): Promise<void> => {
-    const res = await apiFetch(`${BASE}/files/templates`, { method: 'DELETE' })
-    await ensureOk(res, '清空失败')
-  },
-
-  clearAllSamples: async (): Promise<void> => {
-    const res = await apiFetch(`${BASE}/files/samples`, { method: 'DELETE' })
-    await ensureOk(res, '清空失败')
-  },
-
   // ── Stage 1 物理仿真 ─────────────────────────────────────────────
   // Unified file catalog
   getFileCatalog: (): Promise<FileCatalogResponse> => get('/files/catalog'),
@@ -334,7 +295,7 @@ export const api = {
     return res.json()
   },
 
-  clearFileCatalogGroup: async (kind: 'templates' | 'samples' | 'router'): Promise<FileCatalogMutationResponse> => {
+  clearFileCatalogGroup: async (kind: 'samples' | 'router'): Promise<FileCatalogMutationResponse> => {
     const res = await apiFetch(`${BASE}/files/catalog/groups/${encodeURIComponent(kind)}`, { method: 'DELETE' })
     await ensureOk(res, '清空文件分组失败')
     return res.json()
@@ -392,13 +353,6 @@ export const api = {
     return res.json()
   },
 
-  getSimulationHistory: (limit = 50): Promise<SimulationHistoryRecord[]> => get('/simulation/history', { limit }),
-
-  clearSimulationHistory: async (): Promise<void> => {
-    const res = await apiFetch(`${BASE}/simulation/history`, { method: 'DELETE' })
-    await ensureOk(res, '清空历史失败')
-  },
-
   // ── Stage 4 Token Router ─────────────────────────────────────────
   getRouterStatus: (): Promise<RouterStatus> => get('/router/status'),
 
@@ -413,20 +367,10 @@ export const api = {
       neg_ratio: String(negRatio),
       max_workers: String(maxWorkers),
     })
-    if (scenarios.length > 0) params.set('scenarios', scenarios.join(','))
+    scenarios.forEach(scenario => params.append('scenarios', scenario))
     const res = await apiFetch(`${BASE}/router/build?${params}`, { method: 'POST' })
     await ensureOk(res, '启动路由数据生成失败')
     return res.json()
-  },
-
-  deleteRouterScenario: async (scenario: string): Promise<void> => {
-    const res = await apiFetch(`${BASE}/router/scenario/${encodeURIComponent(scenario)}`, { method: 'DELETE' })
-    await ensureOk(res, '删除失败')
-  },
-
-  deleteAllRouterData: async (): Promise<void> => {
-    const res = await apiFetch(`${BASE}/router/all`, { method: 'DELETE' })
-    await ensureOk(res, '清空失败')
   },
 
   getRouterSamples: (
@@ -435,20 +379,12 @@ export const api = {
     pageSize = 20,
     label = -1,
     scenario = '',
+    simulator = '',
   ): Promise<RouterSamplesResponse> => {
     const p: Record<string, string | number> = { split, page, page_size: pageSize, label }
     if (scenario) p.scenario = scenario
+    if (simulator) p.simulator = simulator
     return get('/router/samples', p)
-  },
-
-  startRegister: async (req: RegisterRequest): Promise<{ job_id: string }> => {
-    const res = await apiFetch(`${BASE}/register`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(req),
-    })
-    await ensureOk(res, '启动注册失败')
-    return res.json()
   },
 
   // ── 训练平台 ─────────────────────────────────────────────────────

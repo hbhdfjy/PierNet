@@ -24,7 +24,7 @@ interface Props {
   stats: LiveStats
   autoScroll: boolean
   onAutoScrollChange: (v: boolean) => void
-  onStop: () => void
+  onStop: () => void | Promise<void>
   onDone?: () => void
   doneLabel?: string
   doneIcon?: React.ReactNode
@@ -249,6 +249,8 @@ export default function JobMonitorPanel({
   const displayIds = jobIds && jobIds.length > 0 ? jobIds : jobId ? [jobId] : []
   const virtuosoRef = useRef<VirtuosoHandle>(null)
   const [logsOpen, setLogsOpen] = useState(false)
+  const [stopPending, setStopPending] = useState(false)
+  const [stopError, setStopError] = useState<string | null>(null)
 
   useEffect(() => {
     if (autoScroll && logs.length > 0) {
@@ -256,12 +258,32 @@ export default function JobMonitorPanel({
     }
   }, [logs, autoScroll])
 
+  const isRunning = ACTIVE_JOB_STATUSES.has(status)
+
+  useEffect(() => {
+    if (!isRunning) {
+      setStopPending(false)
+      setStopError(null)
+    }
+  }, [isRunning])
+
   const totalDone = Object.values(progress).reduce((s, p) => s + p.done, 0)
   const totalTarget = Object.values(progress).reduce((s, p) => s + p.total, 0)
   const overallPct = totalTarget > 0 ? Math.min(100, (totalDone / totalTarget) * 100) : 0
-  const isRunning = ACTIVE_JOB_STATUSES.has(status)
   const isDone = status === 'done'
   const scenarioList = Object.entries(progress)
+
+  async function handleStop() {
+    setStopPending(true)
+    setStopError(null)
+    try {
+      await onStop()
+    } catch (error) {
+      setStopError(error instanceof Error ? error.message : '终止失败')
+    } finally {
+      setStopPending(false)
+    }
+  }
 
   if (status === 'idle') return null
 
@@ -328,9 +350,10 @@ export default function JobMonitorPanel({
               className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium
                          bg-red-500/10 text-red-400 border border-red-500/20
                          hover:bg-red-500/20 hover:border-red-500/30 transition-all duration-150"
-              onClick={onStop}
+              onClick={handleStop}
+              disabled={stopPending}
             >
-              <Square size={11} />
+              {stopPending ? <Loader2 size={11} className="animate-spin" /> : <Square size={11} />}
               终止
             </button>
           )}
@@ -345,6 +368,12 @@ export default function JobMonitorPanel({
             </button>
           )}
         </div>
+
+        {stopError && (
+          <div className="border-b border-red-500/20 bg-red-500/10 px-4 py-2 text-xs whitespace-pre-wrap text-red-200">
+            {stopError}
+          </div>
+        )}
 
         {/* 进度内容 */}
         <div className="p-4">

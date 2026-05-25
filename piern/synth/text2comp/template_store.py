@@ -162,6 +162,37 @@ class TemplateRecord:
         return cls.from_dict(json.loads(line))
 
 
+def _is_valid_param_index(value: object, params_len: int) -> bool:
+    return (
+        isinstance(value, int)
+        and not isinstance(value, bool)
+        and value >= 0
+        and value < params_len
+    )
+
+
+def _describe_param_index(value: object) -> str:
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    return repr(value)
+
+
+def _validate_template_param_indices(template: TemplateRecord, params_len: int) -> None:
+    invalid = []
+    for idx, td in enumerate(template.transform_descs):
+        if not _is_valid_param_index(td.param_index, params_len):
+            invalid.append(f"transform_descs[{idx}].param_index={_describe_param_index(td.param_index)}")
+    for idx, slot in enumerate(template.placeholder_schema):
+        if not _is_valid_param_index(slot.param_index, params_len):
+            invalid.append(f"placeholder_schema[{idx}].param_index={_describe_param_index(slot.param_index)}")
+    if invalid:
+        refs = ", ".join(invalid)
+        raise ValueError(
+            f"参数维度不匹配：模板引用了无效参数索引 {refs}；实际 params 长度为 {params_len}。"
+            "HDF5 文件或模板文件可能由旧版代码生成，请重新运行 Stage 1/2。"
+        )
+
+
 def _compact_output_info_for_metadata(template: TemplateRecord, output_info: list = None) -> list:
     if output_info is None:
         return [s.name for s in template.output_schema]
@@ -252,14 +283,7 @@ def fill_sample(
         5字段训练样本 dict（input/number/params_transformed/target/metadata）
     """
     # ── 参数维度校验 ──────────────────────────────────────────
-    if template.transform_descs:
-        max_idx = max(td.param_index for td in template.transform_descs)
-        if max_idx >= len(params):
-            raise ValueError(
-                f"参数维度不匹配：模板期望至少 {max_idx + 1} 维，"
-                f"实际 params 长度为 {len(params)}。"
-                f"HDF5 文件可能由旧版代码生成，请重新运行 Stage 1。"
-            )
+    _validate_template_param_indices(template, len(params))
 
     # ── 计算 params_transformed ───────────────────────────────
     params_transformed = params.copy().astype(float)
@@ -357,78 +381,3 @@ def load_templates(path: Path | str) -> list[TemplateRecord]:
                 templates.append(TemplateRecord.from_json_line(line))
     logger.info(f"已加载 {len(templates)} 条模板 ← {path}")
     return templates
-
-
-def fill_dataset(
-    templates_path: Path | str,
-    h5_path: Path | str,
-    output_path: Path | str,
-    seed: int = 42,
-    n_samples: Optional[int] = None,
-) -> int:
-    """
-    批量阶段二：读取模板库 + HDF5，输出 JSONL 训练样本。
-
-    Args:
-        templates_path: templates.jsonl 路径
-        h5_path:        HDF5 数据集路径
-        output_path:    输出 JSONL 路径
-        seed:           随机种子（用于样本-模板匹配）
-        n_samples:      生成样本数（None=与模板数相同）
-
-    Returns:
-        实际写入的样本数
-    """
-    from piern.core.storage import load_dataset
-
-    templates = load_templates(templates_path)
-    timeseries, params, param_names = load_dataset(str(h5_path))
-
-    n = n_samples if n_samples is not None else len(templates)
-    n_avail_t = len(templates)
-    n_avail_d = len(params)
-
-    rng = np.random.default_rng(seed)
-    output_path = Path(output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-
-    t_order = rng.permutation(n_avail_t)
-    d_order = rng.permutation(n_avail_d)
-
-    written = 0
-    with open(output_path, "w", encoding="utf-8") as fout:
-        for i in range(n):
-            t_idx = int(t_order[i % n_avail_t])
-            d_idx = int(d_order[i % n_avail_d])
-            template = templates[t_idx]
-
-            ts = timeseries[d_idx]   # (ch_orig, ts_orig)
-            p = params[d_idx]        # (n_params,)
-
-            # 按模板记录的 time_indices 和 channel_indices 切片（防越界）
-            time_idx = np.array(template.time_indices)
-            valid_time_idx = time_idx[time_idx < ts.shape[1]]
-            if len(valid_time_idx) == 0:
-                continue
-            ts_time = ts[:, valid_time_idx]
-
-            if template.channel_indices is not None:
-                ch_arr = np.array(template.channel_indices)
-                valid_ch = ch_arr[ch_arr < ts_time.shape[0]]
-                if len(valid_ch) == 0:
-                    continue
-                ts_obs = ts_time[valid_ch, :]
-            else:
-                ts_obs = ts_time
-
-            # NaN/Inf 检查
-            if not np.isfinite(ts_obs).all():
-                logger.warning(f"样本 {i} 含 NaN/Inf，跳过")
-                continue
-
-            sample = fill_sample(template, p, ts_obs, sample_idx=d_idx)
-            fout.write(json.dumps(sample, ensure_ascii=False) + "\n")
-            written += 1
-
-    logger.info(f"已填充 {written}/{n} 条样本 → {output_path}")
-    return written

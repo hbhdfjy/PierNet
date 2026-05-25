@@ -24,26 +24,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/config/scenarios": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Scenarios
-         * @description 扫描 configs/*\/variants/*.yaml，返回各 simulator 的场景列表。
-         */
-        get: operations["get_scenarios_api_config_scenarios_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/config/text2comp-scenarios": {
         parameters: {
             query?: never;
@@ -54,7 +34,7 @@ export interface paths {
         /**
          * Get Text2Comp Scenarios
          * @description 返回 Stage 2 可用场景列表（按 simulator 子目录分组）。
-         *     约定：data/{simulator}/{simulator}_{scenario}.h5
+         *     约定：data/{simulator}/{simulator}_{scenario}.h5/.hdf5
          */
         get: operations["get_text2comp_scenarios_api_config_text2comp_scenarios_get"];
         put?: never;
@@ -94,7 +74,7 @@ export interface paths {
         };
         /**
          * Get Datasets
-         * @description 返回 Stage 3 数据集列表，优先走 manifest。
+         * @description 返回真实 Stage 3 样本数据集列表，优先走 manifest。
          */
         get: operations["get_datasets_api_datasets_get"];
         put?: never;
@@ -173,50 +153,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/files/samples": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Sample Files
-         * @description 列出所有样本文件。
-         */
-        get: operations["list_sample_files_api_files_samples_get"];
-        put?: never;
-        post?: never;
-        /**
-         * Clear All Samples
-         * @description 清空所有样本文件（保留 all_training_data.jsonl）。
-         */
-        delete: operations["clear_all_samples_api_files_samples_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/samples/{scenario}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Sample File
-         * @description 删除指定场景的样本文件。
-         */
-        delete: operations["delete_sample_file_api_files_samples__scenario__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/files/templates": {
         parameters: {
             query?: never;
@@ -231,31 +167,7 @@ export interface paths {
         get: operations["list_template_files_api_files_templates_get"];
         put?: never;
         post?: never;
-        /**
-         * Clear All Templates
-         * @description 清空所有模板文件。
-         */
-        delete: operations["clear_all_templates_api_files_templates_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/templates/{scenario}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Template File
-         * @description 删除指定场景的模板文件。
-         */
-        delete: operations["delete_template_file_api_files_templates__scenario__delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -275,26 +187,6 @@ export interface paths {
         get: operations["get_template_items_api_files_templates__scenario__items_get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/files/templates/{scenario}/trim": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Trim Template File
-         * @description 将指定场景的模板文件截断到 n 条。
-         */
-        post: operations["trim_template_file_api_files_templates__scenario__trim_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -567,26 +459,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/interview/{session_id}/state": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Interview State
-         * @description 获取会话完整状态快照。
-         */
-        get: operations["get_interview_state_api_interview__session_id__state_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/llm-config": {
         parameters: {
             query?: never;
@@ -650,26 +522,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/register": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Start Register
-         * @description 启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。
-         */
-        post: operations["start_register_api_register_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/registry": {
         parameters: {
             query?: never;
@@ -720,26 +572,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/router/all": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete All Router Data
-         * @description Delete all per-scenario router files and train.jsonl.
-         */
-        delete: operations["delete_all_router_data_api_router_all_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/router/build": {
         parameters: {
             query?: never;
@@ -775,26 +607,6 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/router/scenario/{scenario}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /**
-         * Delete Router Scenario
-         * @description Delete one scenario file and rewrite train.jsonl.
-         */
-        delete: operations["delete_router_scenario_api_router_scenario__scenario__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -900,30 +712,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/simulation/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Simulation History
-         * @description 返回最近的仿真历史记录（内存，重启后清空）。
-         */
-        get: operations["get_simulation_history_api_simulation_history_get"];
-        put?: never;
-        post?: never;
-        /**
-         * Clear Simulation History
-         * @description 清空历史记录。
-         */
-        delete: operations["clear_simulation_history_api_simulation_history_delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/simulation/scenarios": {
         parameters: {
             query?: never;
@@ -964,26 +752,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/stats": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Stats
-         * @description 返回 Stage 3 聚合统计，优先走 manifest。
-         */
-        get: operations["get_stats_api_stats_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/templates": {
         parameters: {
             query?: never;
@@ -993,7 +761,7 @@ export interface paths {
         };
         /**
          * Get Templates Status
-         * @description 扫描 data/templates/ 目录，返回各场景的模板库状态。
+         * @description 返回各场景的模板库状态。
          */
         get: operations["get_templates_status_api_templates_get"];
         put?: never;
@@ -1313,6 +1081,21 @@ export interface components {
             /** Simulator */
             simulator: string;
         };
+        /** JobStartResponse */
+        JobStartResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Scenario Totals */
+            scenario_totals?: {
+                [key: string]: number;
+            };
+            /**
+             * Status
+             * @default running
+             * @enum {string}
+             */
+            status: "queued" | "running";
+        };
         /** JobStatusResponse */
         JobStatusResponse: {
             /** Error Message */
@@ -1339,8 +1122,11 @@ export interface components {
             stats?: {
                 [key: string]: number;
             };
-            /** Status */
-            status: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "starting" | "running" | "evaluating" | "stopping" | "done" | "error" | "terminated" | "external_terminated";
         };
         /** LLMConfigRequest */
         LLMConfigRequest: {
@@ -1406,33 +1192,6 @@ export interface components {
             /** Queued */
             queued: number;
         };
-        /** RegisterRequest */
-        RegisterRequest: {
-            /**
-             * Config
-             * @default configs/text2comp/default.yaml
-             */
-            config: string;
-            /** Fields */
-            fields?: string[];
-            /**
-             * Output
-             * @default configs/text2comp/registry.yaml
-             */
-            output: string;
-            /**
-             * Overwrite
-             * @default false
-             */
-            overwrite: boolean;
-            /** Scenarios */
-            scenarios?: string[];
-            /**
-             * Simulator Level
-             * @default false
-             */
-            simulator_level: boolean;
-        };
         /** ResourceMetrics */
         ResourceMetrics: {
             /** Disk */
@@ -1443,19 +1202,6 @@ export interface components {
             gpus?: {
                 [key: string]: unknown;
             }[];
-        };
-        /** SampleFileInfo */
-        SampleFileInfo: {
-            /** File Size Bytes */
-            file_size_bytes: number;
-            /** Mtime */
-            mtime: number;
-            /** Path */
-            path: string;
-            /** Sample Count */
-            sample_count: number;
-            /** Scenario */
-            scenario: string;
         };
         /** SimulateRequest */
         SimulateRequest: {
@@ -1539,6 +1285,8 @@ export interface components {
             path: string;
             /** Scenario */
             scenario: string;
+            /** Simulator */
+            simulator?: string | null;
             /** Template Count */
             template_count: number;
         };
@@ -1974,37 +1722,6 @@ export interface components {
             /** Total */
             total: number;
         };
-        /** JobStartResponse */
-        piern__synth__api__routers__simulation__JobStartResponse: {
-            /** Job Id */
-            job_id: string;
-            /**
-             * Scenario Totals
-             * @default {}
-             */
-            scenario_totals: {
-                [key: string]: unknown;
-            };
-            /**
-             * Status
-             * @default running
-             */
-            status: string;
-        };
-        /** JobStartResponse */
-        piern__synth__api__schemas__generation__JobStartResponse: {
-            /** Job Id */
-            job_id: string;
-            /** Scenario Totals */
-            scenario_totals?: {
-                [key: string]: number;
-            };
-            /**
-             * Status
-             * @default running
-             */
-            status: string;
-        };
     };
     responses: never;
     parameters: never;
@@ -2015,26 +1732,6 @@ export interface components {
 export type $defs = Record<string, never>;
 export interface operations {
     get_config_api_config_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_scenarios_api_config_scenarios_get: {
         parameters: {
             query?: never;
             header?: never;
@@ -2227,77 +1924,6 @@ export interface operations {
             };
         };
     };
-    list_sample_files_api_files_samples_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SampleFileInfo"][];
-                };
-            };
-        };
-    };
-    clear_all_samples_api_files_samples_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    delete_sample_file_api_files_samples__scenario__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scenario: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     list_template_files_api_files_templates_get: {
         parameters: {
             query?: never;
@@ -2318,57 +1944,6 @@ export interface operations {
             };
         };
     };
-    clear_all_templates_api_files_templates_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    delete_template_file_api_files_templates__scenario__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scenario: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_template_items_api_files_templates__scenario__items_get: {
         parameters: {
             query?: {
@@ -2376,40 +1951,6 @@ export interface operations {
                 page_size?: number;
                 language?: string;
                 style?: string;
-            };
-            header?: never;
-            path: {
-                scenario: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    trim_template_file_api_files_templates__scenario__trim_post: {
-        parameters: {
-            query: {
-                /** @description 保留的模板条数 */
-                n: number;
             };
             header?: never;
             path: {
@@ -2458,7 +1999,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["piern__synth__api__schemas__generation__JobStartResponse"];
+                    "application/json": components["schemas"]["JobStartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2491,7 +2032,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["piern__synth__api__schemas__generation__JobStartResponse"];
+                    "application/json": components["schemas"]["JobStartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -2852,37 +2393,6 @@ export interface operations {
             };
         };
     };
-    get_interview_state_api_interview__session_id__state_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_llm_config_api_llm_config_get: {
         parameters: {
             query?: never;
@@ -2989,39 +2499,6 @@ export interface operations {
             };
         };
     };
-    start_register_api_register_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RegisterRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     get_registry_api_registry_get: {
         parameters: {
             query?: never;
@@ -3110,33 +2587,13 @@ export interface operations {
             };
         };
     };
-    delete_all_router_data_api_router_all_delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     build_router_data_api_router_build_post: {
         parameters: {
             query?: {
                 seed?: number;
                 neg_ratio?: number;
                 max_workers?: number;
-                scenarios?: string;
+                scenarios?: string[];
             };
             header?: never;
             path?: never;
@@ -3169,43 +2626,13 @@ export interface operations {
             query?: {
                 split?: string;
                 scenario?: string;
+                simulator?: string;
                 page?: number;
                 page_size?: number;
                 label?: number;
             };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    delete_router_scenario_api_router_scenario__scenario__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                scenario: string;
-            };
             cookie?: never;
         };
         requestBody?: never;
@@ -3258,6 +2685,7 @@ export interface operations {
                 page_size?: number;
                 language?: string | null;
                 style?: string | null;
+                simulator?: string | null;
             };
             header?: never;
             path?: never;
@@ -3304,7 +2732,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["piern__synth__api__routers__simulation__JobStartResponse"];
+                    "application/json": components["schemas"]["JobStartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3337,7 +2765,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["piern__synth__api__routers__simulation__JobStartResponse"];
+                    "application/json": components["schemas"]["JobStartResponse"];
                 };
             };
             /** @description Validation Error */
@@ -3352,57 +2780,6 @@ export interface operations {
         };
     };
     get_simulation_data_files_api_simulation_data_files_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
-    get_simulation_history_api_simulation_history_get: {
-        parameters: {
-            query?: {
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    clear_simulation_history_api_simulation_history_delete: {
         parameters: {
             query?: never;
             header?: never;
@@ -3486,26 +2863,6 @@ export interface operations {
             };
         };
     };
-    get_stats_api_stats_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-        };
-    };
     get_templates_status_api_templates_get: {
         parameters: {
             query?: never;
@@ -3521,7 +2878,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": unknown;
+                    "application/json": components["schemas"]["TemplateFileInfo"][];
                 };
             };
         };

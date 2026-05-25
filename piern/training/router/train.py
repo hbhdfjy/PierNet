@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import os
 import signal
 import time
 from contextlib import nullcontext
@@ -14,6 +13,8 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
+
+from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT
 
 from .data import (
     LengthBucketBatchSampler,
@@ -30,8 +31,8 @@ from .pretrained_embeddings import EmbeddingBackboneSpec, PretrainedEmbeddingEnc
 class RouterTrainingConfig:
     simulator: str = "modflow"
     scenarios: tuple[str, ...] | None = None
-    router_dir: str = "data/router"
-    artifact_root: str = "artifacts/token_router/modflow"
+    router_dir: str = str(DATA_ROOT / "router")
+    artifact_root: str | None = None
     prepared_name: str | None = None
     run_name: str | None = None
     test_ratio: float = 0.10
@@ -58,6 +59,10 @@ class RouterTrainingConfig:
     max_test_samples: int | None = None
     input_representation: str = "embedding"
     stop_file: str | None = None
+
+    def __post_init__(self) -> None:
+        if self.artifact_root is None:
+            self.artifact_root = str(ARTIFACT_ROOT / "token_router" / self.simulator)
 
 
 class PlatformStopController:

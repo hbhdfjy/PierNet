@@ -53,8 +53,14 @@ function isExpectedJobForStage(stageKey: string, jobType: string | null | undefi
   return !expected || (typeof jobType === 'string' && expected.includes(jobType))
 }
 
+export const LIVE_JOB_STATUSES = ['queued', 'starting', 'running', 'evaluating', 'stopping'] as const
+
 export function isTerminalJobStatus(status: string | null | undefined): status is JobStatus {
   return status === 'done' || status === 'error' || status === 'terminated' || status === 'external_terminated'
+}
+
+export function isLiveJobStatus(status: string | null | undefined): status is JobStatus {
+  return LIVE_JOB_STATUSES.some(item => item === status)
 }
 
 export function isRestartableJobStatus(status: JobStatus | null | undefined): boolean {
@@ -64,6 +70,35 @@ export function isRestartableJobStatus(status: JobStatus | null | undefined): bo
 function toFiniteNumber(value: unknown, fallback = 0): number {
   const next = Number(value)
   return Number.isFinite(next) ? next : fallback
+}
+
+export interface RestoredJobStatus {
+  id: string
+  status: JobStatus
+}
+
+export function restoredJobStatusMap(items: RestoredJobStatus[]): Record<string, JobStatus> {
+  return Object.fromEntries(items.map(item => [item.id, item.status]))
+}
+
+export function jobIdsNewestFirst(jobs: Pick<JobStatusSnapshot, 'job_id' | 'started_at'>[]): string[] {
+  return [...jobs].sort((a, b) => Number(b.started_at ?? 0) - Number(a.started_at ?? 0)).map(job => job.job_id)
+}
+
+export function currentJobIdFromNewestFirst(jobIds: string[]): string | null {
+  return jobIds[0] ?? null
+}
+
+export type StopJobResult = { id: string; ok: true } | { id: string; ok: false; error: unknown }
+
+function stopErrorText(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
+export function stopFailureMessage(results: StopJobResult[]): string | null {
+  const failed = results.filter((result): result is Extract<StopJobResult, { ok: false }> => !result.ok)
+  if (failed.length === 0) return null
+  return failed.map(result => `${result.id}: ${stopErrorText(result.error)}`).join('\n')
 }
 
 function normalizeProgress(scenario: string, progress: Partial<ScenarioProgress>): ScenarioProgress {
@@ -245,14 +280,8 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
       const expected = expectedJobTypesForStage(stageKey)
       if (!expected) return []
       try {
-        const running = await api.listGenerationJobs({ status: 'running' })
-        const queued = await api.listGenerationJobs({ status: 'queued' })
-        const jobs = [...running, ...queued]
-        return jobs
-          .filter(job => isExpectedJobForStage(stageKey, job.job_type))
-          .sort((a, b) => Number(b.started_at ?? 0) - Number(a.started_at ?? 0))
-          .slice(0, 1)
-          .map(job => job.job_id)
+        const jobs = (await Promise.all(LIVE_JOB_STATUSES.map(status => api.listGenerationJobs({ status })))).flat()
+        return jobIdsNewestFirst(jobs.filter(job => isExpectedJobForStage(stageKey, job.job_type)))
       } catch {
         return []
       }
@@ -263,7 +292,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
       const candidateIds = stored.length > 0 ? stored : await discoverRunningJobIds()
       if (candidateIds.length === 0) return
 
-      const toConnect: string[] = []
+      const toConnect: { id: string; status: JobStatus }[] = []
       const toRestore: { id: string; status: JobStatus }[] = []
       const toDrop: string[] = []
 
@@ -277,8 +306,8 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
             }
             applyBackendSnapshot(data)
             const snapshotStatus = data.status as JobStatus
-            if (snapshotStatus === 'running' || snapshotStatus === 'queued' || snapshotStatus === 'starting') {
-              toConnect.push(id)
+            if (isLiveJobStatus(snapshotStatus)) {
+              toConnect.push({ id, status: snapshotStatus })
             } else if (isTerminalJobStatus(snapshotStatus)) {
               toRestore.push({ id, status: snapshotStatus })
             } else {
@@ -290,7 +319,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
         }),
       )
 
-      const validIds = [...toConnect, ...toRestore.map(r => r.id)]
+      const validIds = [...toConnect.map(r => r.id), ...toRestore.map(r => r.id)]
 
       if (validIds.length > 0) {
         setJobIds(validIds)
@@ -299,18 +328,15 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
         // done/error：先在 terminatedRef 标记，防止 connectOne 的 onerror 误判为 error
         toRestore.forEach(({ id }) => terminatedRef.current.add(id))
 
-        // done/error：设置真实最终状态（connectOne 里检测到 prev[id] 已有值会跳过覆盖）
-        const finalStatuses: Record<string, JobStatus> = {}
-        toRestore.forEach(({ id, status }) => {
-          finalStatuses[id] = status
-        })
-        setJobStatuses(prev => ({ ...prev, ...finalStatuses }))
+        // 设置后端快照中的真实状态，connectOne 不会覆盖已有状态。
+        const restoredJobs = [...toConnect, ...toRestore]
+        setJobStatuses(prev => ({ ...prev, ...restoredJobStatusMap(restoredJobs) }))
 
-        // running：建立 SSE 连接
-        toConnect.forEach(id => connectOne(id))
+        // live：建立 SSE 连接继续跟踪。
+        toConnect.forEach(({ id, status }) => connectOne(id, status))
 
-        // done/error：连接 SSE 回放历史日志，拿完后自动断开
-        toRestore.forEach(({ id }) => connectOne(id))
+        // done/error：连接 SSE 回放历史日志，拿完后自动断开。
+        toRestore.forEach(({ id, status }) => connectOne(id, status))
       } else {
         saveStoredJobs(stageKey, [])
       }
@@ -328,10 +354,10 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
   const start = useCallback(
     (id: string, scenarioTotals?: Record<string, number>, initialStatus: JobStatus = 'running') => {
-      // 清理旧的已完成/出错任务，只保留 running 的
+      // 清理旧的非 live 任务，保留仍在运行或排队的连接。
       const toClose: string[] = []
       esMap.current.forEach((_, oldId) => {
-        if (jobStatuses[oldId] !== 'running') toClose.push(oldId)
+        if (!isLiveJobStatus(jobStatuses[oldId])) toClose.push(oldId)
       })
       toClose.forEach(oldId => {
         esMap.current.get(oldId)?.close()
@@ -357,21 +383,47 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
   const stop = useCallback(async () => {
     const runningIds = Object.entries(jobStatuses)
-      .filter(([, s]) => s === 'running' || s === 'queued' || s === 'starting')
+      .filter(([, s]) => isLiveJobStatus(s))
       .map(([id]) => id)
-    await Promise.all(runningIds.map(id => api.stopGeneration(id)))
-    setJobStatuses(prev => {
-      const next = { ...prev }
-      runningIds.forEach(id => {
-        next[id] = 'terminated'
+    if (runningIds.length === 0) return
+
+    const results: StopJobResult[] = await Promise.all(
+      runningIds.map(async id => {
+        try {
+          await api.stopGeneration(id)
+          return { id, ok: true as const }
+        } catch (error) {
+          return { id, ok: false as const, error }
+        }
+      }),
+    )
+
+    const stoppedIds = results.filter(result => result.ok).map(result => result.id)
+    const stoppedSet = new Set(stoppedIds)
+
+    if (stoppedIds.length > 0) {
+      setJobStatuses(prev => {
+        const next = { ...prev }
+        stoppedIds.forEach(id => {
+          next[id] = 'terminated'
+        })
+        return next
       })
-      return next
-    })
-    esMap.current.forEach(es => es.close())
-    esMap.current.clear()
-    saveStoredJobs(stageKey, [])
-    setJobIds([])
-  }, [jobStatuses, stageKey])
+      stoppedIds.forEach(id => {
+        terminatedRef.current.add(id)
+        errorCheckInFlightRef.current.delete(id)
+        esMap.current.get(id)?.close()
+        esMap.current.delete(id)
+      })
+    }
+
+    const remainingIds = jobIds.filter(id => !stoppedSet.has(id))
+    saveStoredJobs(stageKey, remainingIds)
+    setJobIds(remainingIds)
+
+    const failureMessage = stopFailureMessage(results)
+    if (failureMessage) throw new Error(failureMessage)
+  }, [jobIds, jobStatuses, stageKey])
 
   const reset = useCallback(() => {
     esMap.current.forEach(es => es.close())
@@ -390,7 +442,7 @@ export function useJobMonitor(stageKey = 'default'): JobMonitorState {
 
   return {
     jobIds,
-    jobId: jobIds.length > 0 ? jobIds[jobIds.length - 1] : null,
+    jobId: currentJobIdFromNewestFirst(jobIds),
     status,
     logs,
     progress,

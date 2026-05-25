@@ -21,6 +21,7 @@ from piern.shared.tasks.state import (
 JOB_STORE_PATH = Path(os.getenv("PIERN_JOB_STORE_PATH", RUNLOG_ROOT / "jobs.sqlite"))
 ACTIVE_STATUSES = set(SHARED_ACTIVE_STATUSES)
 TERMINAL_STATUSES = set(SHARED_TERMINAL_STATUSES)
+ORPHAN_RECOVERY_STATUSES = sorted(ACTIVE_STATUSES - {"queued"})
 
 _LOCK = RLock()
 _INITIALIZED = False
@@ -274,8 +275,10 @@ def mark_incomplete_external_terminated(active_job_ids: Iterable[str] = ()) -> l
     message = "服务重启或任务执行器消失，任务已标记为外部终止。"
     updated: list[str] = []
     with _LOCK, _connect() as conn:
+        placeholders = ", ".join("?" for _ in ORPHAN_RECOVERY_STATUSES)
         rows = conn.execute(
-            "SELECT job_id FROM jobs WHERE status IN ('running', 'starting', 'stopping')"
+            f"SELECT job_id FROM jobs WHERE status IN ({placeholders})",
+            ORPHAN_RECOVERY_STATUSES,
         ).fetchall()
         for row in rows:
             job_id = str(row["job_id"])

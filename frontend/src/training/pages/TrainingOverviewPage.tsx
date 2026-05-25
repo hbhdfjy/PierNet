@@ -11,6 +11,7 @@ import {
   gpuUsageLabel,
   statusBadgeClass,
   statusLabel,
+  trainingJobDetailPath,
 } from '../shared'
 
 function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
@@ -93,9 +94,9 @@ export default function TrainingOverviewPage() {
                 icon={<Gauge size={16} />}
               />
               <KpiCard
-                label="运行中"
+                label="活跃中"
                 value={formatCount(data?.running_job_count ?? 0)}
-                note="启动中 / 训练中 / 评测中 / 停止中"
+                note="排队中 / 启动中 / 训练中 / 评测中 / 停止中"
                 icon={<Activity size={16} />}
               />
               <KpiCard
@@ -227,7 +228,7 @@ export default function TrainingOverviewPage() {
                 {data?.jobs.length ? (
                   <div className="space-y-2">
                     {data.jobs.slice(0, 5).map(job => (
-                      <Link key={job.job_id} to={`/training/jobs/${job.job_id}`} className="card-hover block p-3">
+                      <Link key={job.job_id} to={trainingJobDetailPath(job.job_id)} className="card-hover block p-3">
                         <div className="flex items-center justify-between gap-3">
                           <div className="min-w-0">
                             <div className="text-[15px] font-semibold text-slate-100">{job.name}</div>

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage.path_ids import source_relative_path
 
 INDEX_ROOT = DATA_ROOT / ".indexes"
 INDEX_VERSION = 1
@@ -44,7 +45,7 @@ def rebuild_index(source_path: Path, stride: int = DEFAULT_STRIDE) -> dict:
 
     payload = {
         "version": INDEX_VERSION,
-        "source_relative_path": str(source_path.relative_to(PROJECT_ROOT)),
+        "source_relative_path": str(source_relative_path(source_path, roots=(PROJECT_ROOT, DATA_ROOT))),
         "file_size_bytes": fingerprint["file_size_bytes"],
         "mtime_ns": fingerprint["mtime_ns"],
         "stride": stride,
@@ -100,7 +101,7 @@ def read_page(source_path: Path, page: int, page_size: int, total_rows: int | No
 
 
 def get_index_path(source_path: Path) -> Path:
-    relative = source_path.relative_to(PROJECT_ROOT)
+    relative = source_relative_path(source_path, roots=(PROJECT_ROOT, DATA_ROOT))
     return INDEX_ROOT / relative.parent / f"{relative.name}.idx.json"
 
 

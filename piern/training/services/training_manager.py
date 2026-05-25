@@ -51,7 +51,6 @@ TRAIN_SCRIPT = PROJECT_ROOT / "scripts" / "router" / "train_token_router.py"
 ARTIFACTS_ROOT = ARTIFACT_ROOT / "token_router"
 RUNLOGS_ROOT = RUNLOG_ROOT
 CONTROL_ROOT = RUNLOGS_ROOT / "training-controls"
-REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 DEFAULT_ROUTER_MANIFEST_PATH = DATA_ROOT / ".manifests" / "router.json"
 ROUTER_MANIFEST_PATH = DEFAULT_ROUTER_MANIFEST_PATH
 ROUTER_DATA_DIR = DATA_ROOT / "router"
@@ -387,6 +386,7 @@ def delete_job(job_id: str) -> dict[str, Any]:
     staged = _stage_job_artifacts_for_delete(entry)
     try:
         _save_registry(remaining)
+        training_job_store.mark_deleted(job_id)
     except Exception:
         _restore_staged_job_artifacts(staged)
         raise
@@ -394,10 +394,6 @@ def delete_job(job_id: str) -> dict[str, Any]:
     _remove_job_log(entry)
     task_locks.release_lock(f"gpu:{entry.get('gpu_id')}", job_id)
     _remove_job_stop_file(entry)
-    try:
-        training_job_store.mark_deleted(job_id)
-    except Exception:
-        LOGGER.exception("Failed to mark training job deleted in SQLite store: %s", job_id)
     _delete_job_artifacts_in_background([target for _, target in staged])
     return entry
 
@@ -437,12 +433,13 @@ def _validate_scenarios(simulator: str, scenarios: list[str]) -> list[str]:
     if simulator not in datasets:
         raise ValueError(f"Unsupported simulator: {simulator}")
     available = {scenario["scenario"] for scenario in datasets[simulator]["scenarios"]}
-    if not scenarios:
+    requested = sorted({str(item).strip() for item in scenarios if str(item).strip()})
+    if not requested:
         return sorted(available)
-    missing = sorted(set(scenarios) - available)
+    missing = sorted(set(requested) - available)
     if missing:
         raise ValueError(f"Unknown scenarios for {simulator}: {missing}")
-    return sorted(scenarios)
+    return requested
 
 
 def _training_queue_enabled() -> bool:
@@ -611,6 +608,8 @@ def mark_queued_job_error(job_id: str, message: str) -> None:
     with _REGISTRY_LOCK:
         entries = _load_registry()
         entry = _find_job(entries, job_id)
+        if entry.get("status") != "queued" or entry.get("stop_requested"):
+            return
         entry["status"] = "error"
         entry["ended_at"] = time.time()
         entry["error_message"] = message
@@ -618,7 +617,7 @@ def mark_queued_job_error(job_id: str, message: str) -> None:
         _save_registry(entries)
 
 
-def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
+def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
     gpu_id = int(payload["gpu_id"])
     gpu_map = {gpu["index"]: gpu for gpu in get_gpu_inventory()}
     gpu = gpu_map.get(gpu_id)
@@ -699,6 +698,8 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
         str(prepare_workers),
         "--test-ratio",
         str(test_ratio),
+        "--router-dir",
+        str(ROUTER_DATA_DIR),
         "--artifact-root",
         str(artifact_root),
         "--prepared-name",
@@ -721,6 +722,15 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
 
     with _REGISTRY_LOCK:
         entries = _load_registry()
+        queued_job_id = payload.get("_job_id")
+        if queued_job_id:
+            try:
+                queued_entry = _find_job(entries, str(queued_job_id))
+            except KeyError:
+                return None
+            if queued_entry.get("status") != "queued" or queued_entry.get("stop_requested"):
+                return None
+
         current_gpu_map = {item["index"]: item for item in get_gpu_inventory()}
         current_gpu = current_gpu_map.get(gpu_id)
         if current_gpu is None:
@@ -860,6 +870,8 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any]:
 def delete_checkpoint(job_id: str, checkpoint_name: str) -> dict[str, Any]:
     if not checkpoint_name.startswith("router_epoch_") or not checkpoint_name.endswith(".pt"):
         raise ValueError(f"only epoch checkpoints can be deleted individually: {checkpoint_name}")
+    if Path(checkpoint_name).name != checkpoint_name or "\\" in checkpoint_name:
+        raise ValueError(f"checkpoint name must be a file name: {checkpoint_name}")
 
     entries = _load_registry()
     entry = _find_job(entries, job_id)
@@ -867,8 +879,8 @@ def delete_checkpoint(job_id: str, checkpoint_name: str) -> dict[str, Any]:
     if entry.get("status") in TRAINING_ACTIVE_STATUSES or _pid_alive(entry.get("pid")):
         raise ValueError(f"training job is still active: {job_id}")
 
-    run_dir = Path(entry["run_dir"])
-    checkpoint_path = run_dir / checkpoint_name
+    run_dir = Path(entry["run_dir"]).resolve()
+    checkpoint_path = (run_dir / checkpoint_name).resolve()
     try:
         checkpoint_path.relative_to(run_dir)
     except ValueError as exc:
@@ -914,10 +926,11 @@ def stop_job(job_id: str) -> dict[str, Any]:
     entry = _refresh_entry(entry)
     pid = entry.get("pid")
     if not pid or not _pid_alive(pid):
+        if entry.get("status") in TRAINING_TERMINAL_STATUSES:
+            _save_registry(entries)
+            return entry
         entry["terminated"] = True
-        entry["status"] = (
-            "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else entry.get("status", "terminated")
-        )
+        entry["status"] = "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else "terminated"
         entry["ended_at"] = entry.get("ended_at") or time.time()
         _save_registry(entries)
         return entry

@@ -10,7 +10,7 @@
 
 ## 生成 Word 文件
 
-默认命令会读取两个正式草案，并把中文命名的专利化 Word 文件输出到 `docs/` 目录：
+默认命令会读取两个正式草案，并把中文命名的专利化 Word 文件输出到 `docs/` 目录。Word 文件是可重复生成的审稿交付件，不作为 Git 源文件长期跟踪：
 
 ```bash
 python3 scripts/patents/patent_md_to_docx.py --output-suffix '（专利化附图版）'

@@ -9,9 +9,22 @@ from pathlib import Path
 
 import yaml
 
+from piern.shared.runtime.paths import DATA_ROOT
+from piern.shared.storage.hdf5_files import iter_hdf5_files
 from piern.synth.text2comp.generator import DOMAIN_REGISTRY
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_data_path(value: str | None, base_dir: Path, default: str = "data") -> Path:
+    raw = (value or default).strip()
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    parts = path.parts
+    if parts and parts[0] == "data":
+        return DATA_ROOT.joinpath(*parts[1:])
+    return base_dir / path
 
 
 # ── 配置加载 ──────────────────────────────────────────────────────
@@ -54,7 +67,7 @@ def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
     约定（新格式，data_root）：
       data_root/
         {simulator}/
-          {simulator}_{scenario}.h5
+          {simulator}_{scenario}.h5/.hdf5
 
     目录名即 simulator 名，文件名去掉 "{simulator}_" 前缀得到场景名。
     跳过非 simulator 目录（templates、text2comp、router 等）。
@@ -62,7 +75,7 @@ def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
     # 新格式：data_root
     data_root_str = cfg.get("data_root")
     if data_root_str:
-        data_root = base_dir / data_root_str
+        data_root = _resolve_data_path(data_root_str, base_dir)
         skip = {"templates", "text2comp", "router"}
         found = []
         if data_root.exists():
@@ -70,7 +83,7 @@ def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
                 if not sim_dir.is_dir() or sim_dir.name in skip:
                     continue
                 simulator = sim_dir.name
-                for h5_file in sorted(sim_dir.glob("*.h5")):
+                for h5_file in iter_hdf5_files(sim_dir):
                     found.append((h5_file, simulator, None))
                     logger.info(f"发现文件: {h5_file.name} → simulator={simulator}")
         return found
@@ -92,18 +105,42 @@ def _scan_h5_files(cfg: dict, base_dir: Path) -> list:
             logger.warning(f"数据目录不存在，跳过: {dir_path}")
             continue
 
-        for h5_file in sorted(dir_path.glob("*.h5")):
+        for h5_file in iter_hdf5_files(dir_path):
             found.append((h5_file, simulator, file_suffix))
             logger.info(f"发现文件: {h5_file.name} → simulator={simulator}")
 
     return found
 
 
+def duplicate_stage_scenarios(h5_files: list[tuple[Path, str, str | None]]) -> list[str]:
+    """Return HDF5 scenario names that would collide in Stage 2/3 outputs."""
+    by_scenario: dict[str, list[tuple[str, Path]]] = {}
+    for h5_path, simulator, file_suffix in h5_files:
+        scenario = _scenario_name_from_path(h5_path, file_suffix)
+        by_scenario.setdefault(scenario, []).append((str(simulator), h5_path))
+
+    duplicates: list[str] = []
+    for scenario, items in sorted(by_scenario.items()):
+        if len(items) <= 1:
+            continue
+        simulators = ", ".join(sorted({simulator for simulator, _path in items}))
+        duplicates.append(f"{scenario} ({simulators})")
+    return duplicates
+
+
+def assert_unique_stage_scenarios(h5_files: list[tuple[Path, str, str | None]]) -> None:
+    duplicates = duplicate_stage_scenarios(h5_files)
+    if duplicates:
+        raise ValueError(
+            "同名场景会写入相同的 Stage 2/3 输出文件，无法安全区分：" + "; ".join(duplicates)
+        )
+
+
 def _scenario_name_from_path(h5_path: Path, file_suffix: str = None) -> str:
     """
     从文件名提取场景名。
 
-    新约定：文件名格式为 {simulator}_{scenario}.h5，目录名即 simulator。
+    新约定：文件名格式为 {simulator}_{scenario}.h5 或 .hdf5，目录名即 simulator。
     去掉 "{simulator}_" 前缀得到场景名。
 
     旧格式兼容：若提供了 file_suffix，去掉该后缀。

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { FolderOpen, Lock, RefreshCw, Scissors, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { FolderOpen, Lock, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import type { FileAsset, FileCatalogResponse } from '../lib/types'
 import { cn, formatBytes } from '../lib/utils'
@@ -25,18 +25,22 @@ const STAGE_LABELS: Record<string, string> = {
 const KIND_LABELS: Record<string, string> = {
   hdf5: 'HDF5 文件',
   template: '模板 JSONL',
-  sample: '样本 JSONL',
-  sample_merged: '合并样本',
-  router_scenario: '路由场景数据',
-  router_train: '路由训练数据',
+  sample: '样本 JSONL（兼容）',
+  sample_merged: '合并样本 JSONL',
+  sample_parquet: '样本 Parquet',
+  router_scenario: '路由场景 JSONL（兼容）',
+  router_parquet: '路由 Parquet',
+  router_cache: '路由 JSONL 缓存',
+  router_train: '路由训练 JSONL',
+  catalog_db: '目录数据库',
   training_job: '训练任务',
+  training_prepared: '训练 prepared 缓存',
   training_checkpoint: '训练权重',
   manifest: '清单',
   index: '索引',
 }
 
 const KIND_CLEAR_OPTIONS = [
-  { key: 'templates', label: '清空模板' },
   { key: 'samples', label: '清空样本' },
   { key: 'router', label: '清空路由数据' },
 ] as const
@@ -123,17 +127,11 @@ function JsonDetails({ value }: { value: unknown }) {
 function DetailPanel({
   asset,
   busy,
-  trimValue,
-  onTrimValueChange,
   onDelete,
-  onTrim,
 }: {
   asset: FileAsset | null
   busy: boolean
-  trimValue: string
-  onTrimValueChange: (value: string) => void
   onDelete: (asset: FileAsset) => void
-  onTrim: (asset: FileAsset) => void
 }) {
   if (!asset) {
     return (
@@ -189,32 +187,6 @@ function DetailPanel({
                 {msg}
               </div>
             ))}
-          </div>
-        )}
-
-        {asset.kind === 'template' && (
-          <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
-            <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-200">
-              <Scissors size={14} className="text-amber-300" />
-              裁剪模板文件
-            </div>
-            <div className="flex gap-2">
-              <input
-                className="input font-mono"
-                type="number"
-                min={1}
-                placeholder={asset.count != null ? String(asset.count) : '保留行数'}
-                value={trimValue}
-                onChange={e => onTrimValueChange(e.target.value)}
-              />
-              <button
-                className="btn-ghost flex-shrink-0 text-amber-300"
-                disabled={busy || !trimValue}
-                onClick={() => onTrim(asset)}
-              >
-                裁剪
-              </button>
-            </div>
           </div>
         )}
 
@@ -280,7 +252,6 @@ export function FileManagerContent({
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [busyAssetId, setBusyAssetId] = useState<string | null>(null)
   const [busyAction, setBusyAction] = useState<string | null>(null)
-  const [trimValue, setTrimValue] = useState('')
   const [error, setError] = useState<string | null>(null)
 
   const platformOptions = useMemo(() => toOptions(scopedAssets, 'platform', platformLabel), [scopedAssets])
@@ -315,7 +286,7 @@ export function FileManagerContent({
     })
   }, [scopedAssets, lockPlatform, platform, stage, kind, status, query])
 
-  const selectedAsset = scopedAssets.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
+  const selectedAsset = filtered.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
   const scopedSummary = useMemo(
     () => ({
       total_assets: scopedAssets.length,
@@ -349,26 +320,7 @@ export function FileManagerContent({
     }
   }
 
-  async function trimTemplate(asset: FileAsset) {
-    const n = parseInt(trimValue, 10)
-    if (!asset.scenario || Number.isNaN(n) || n < 1) {
-      setError('请输入有效的裁剪数量')
-      return
-    }
-    setBusyAssetId(asset.id)
-    setError(null)
-    try {
-      await api.trimTemplateFile(asset.scenario, n)
-      setTrimValue('')
-      await mutate()
-    } catch (e) {
-      setError(e instanceof Error ? e.message : '裁剪失败')
-    } finally {
-      setBusyAssetId(null)
-    }
-  }
-
-  async function clearGroup(group: 'templates' | 'samples' | 'router') {
+  async function clearGroup(group: 'samples' | 'router') {
     const label = KIND_CLEAR_OPTIONS.find(item => item.key === group)?.label ?? group
     const ok = window.confirm(`${label}? 此操作不可撤销。`)
     if (!ok) return
@@ -574,14 +526,7 @@ export function FileManagerContent({
               </table>
             </div>
 
-            <DetailPanel
-              asset={selectedAsset}
-              busy={!!busyAssetId}
-              trimValue={trimValue}
-              onTrimValueChange={setTrimValue}
-              onDelete={deleteAsset}
-              onTrim={trimTemplate}
-            />
+            <DetailPanel asset={selectedAsset} busy={!!busyAssetId} onDelete={deleteAsset} />
           </div>
         </section>
       </div>

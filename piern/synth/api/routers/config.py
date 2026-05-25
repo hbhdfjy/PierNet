@@ -1,11 +1,16 @@
-"""配置相关路由：/api/config, /api/llm-config, /api/config/scenarios。"""
+"""配置相关路由：/api/config, /api/llm-config, /api/config/text2comp-scenarios。"""
 
 import time
+from pathlib import Path
+
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from piern.shared.runtime.paths import CONFIG_DIR, CONFIGS_ROOT, PROJECT_ROOT
+from piern.shared.runtime.paths import CONFIG_DIR, DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage import portable
+from piern.shared.storage.hdf5_files import iter_hdf5_files
 from piern.synth.api.schemas.config import LLMConfigRequest
+from piern.synth.services import file_manager
 
 router = APIRouter()
 
@@ -61,6 +66,11 @@ def get_llm_config():
 @router.post("/llm-config")
 def save_llm_config(req: LLMConfigRequest):
     """保存 LLM 配置到 default.yaml 的 llm 节。api_key 为空时保持原有值不变。"""
+    provider = req.provider.strip() or "siliconflow"
+    model = req.model.strip()
+    if not model:
+        raise HTTPException(status_code=400, detail="模型名称不能为空")
+
     default_yaml = CONFIG_DIR / "default.yaml"
     try:
         cfg: dict = {}
@@ -69,14 +79,12 @@ def save_llm_config(req: LLMConfigRequest):
                 cfg = yaml.safe_load(f) or {}
 
         llm = cfg.get("llm", {})
-        llm["provider"] = req.provider
-        if req.model:
-            llm["model"] = req.model
-        if req.api_key:
-            llm["api_key"] = req.api_key
-        if req.base_url is not None:
-            # 空字符串表示清空 base_url，存为空字符串（不存 None，避免 YAML null 解析歧义）
-            llm["base_url"] = req.base_url
+        llm["provider"] = provider
+        llm["model"] = model
+        api_key = req.api_key.strip()
+        if api_key:
+            llm["api_key"] = api_key
+        llm["base_url"] = req.base_url.strip()
         llm["temperature"] = req.temperature
         llm["max_tokens"] = req.max_tokens
         llm["thinking"] = req.thinking if req.thinking in ("enabled", "disabled") else "disabled"
@@ -132,34 +140,6 @@ def test_llm_config(req: LLMConfigRequest):
         return {"ok": False, "message": str(e), "response_preview": ""}
 
 
-@router.get("/config/scenarios")
-def get_scenarios():
-    """扫描 configs/*/variants/*.yaml，返回各 simulator 的场景列表。"""
-    result = {}
-    for sim_dir in CONFIGS_ROOT.iterdir():
-        if not sim_dir.is_dir() or sim_dir.name == "text2comp":
-            continue
-        variants_dir = sim_dir / "variants"
-        if not variants_dir.exists():
-            continue
-        scenarios = []
-        for yaml_file in sorted(variants_dir.glob("*.yaml")):
-            try:
-                with open(yaml_file, "r", encoding="utf-8") as f:
-                    cfg = yaml.safe_load(f) or {}
-                scenarios.append({
-                    "name": yaml_file.stem,
-                    "scenario": cfg.get("scenario", yaml_file.stem),
-                    "output_file": cfg.get("output_file", ""),
-                    "n_samples": cfg.get("n_samples", 0),
-                })
-            except Exception:
-                scenarios.append({"name": yaml_file.stem})
-        if scenarios:
-            result[sim_dir.name] = scenarios
-    return result
-
-
 _t2c_cache: dict = {"result": None, "ts": 0.0}
 _T2C_TTL = 10.0  # seconds
 
@@ -168,11 +148,22 @@ def invalidate_text2comp_scenarios_cache() -> None:
     _t2c_cache.update({"result": None, "ts": 0.0})
 
 
+def _resolve_data_path(value: str | None, *, default: str = "data") -> Path:
+    raw = (value or default).strip()
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    parts = path.parts
+    if parts and parts[0] == "data":
+        return DATA_ROOT.joinpath(*parts[1:])
+    return PROJECT_ROOT / path
+
+
 @router.get("/config/text2comp-scenarios")
 def get_text2comp_scenarios():
     """
     返回 Stage 2 可用场景列表（按 simulator 子目录分组）。
-    约定：data/{simulator}/{simulator}_{scenario}.h5
+    约定：data/{simulator}/{simulator}_{scenario}.h5/.hdf5
     """
     if _t2c_cache["result"] is not None and time.time() - _t2c_cache["ts"] < _T2C_TTL:
         return _t2c_cache["result"]
@@ -184,7 +175,7 @@ def get_text2comp_scenarios():
     with open(default_yaml, "r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
 
-    data_root = PROJECT_ROOT / cfg.get("data_root", "data")
+    data_root = _resolve_data_path(cfg.get("data_root", "data"))
 
     # 加载 registry
     registry_path_str = cfg.get("registry", "configs/text2comp/registry.yaml")
@@ -197,15 +188,67 @@ def get_text2comp_scenarios():
         except Exception:
             pass
 
-    from piern.shared.runtime.paths import DATA_DIR as _DATA_DIR
     import h5py
 
-    # 收集所有 simulator 名（来自 data/ 子目录 + registry 顶层 key）
+    parquet_counts: dict[tuple[str, str], int] = {}
+    try:
+        for part in portable.discover_partitions("text2comp"):
+            parquet_counts[(part.simulator, part.scenario)] = max(
+                parquet_counts.get((part.simulator, part.scenario), 0),
+                int(part.row_count or 0),
+            )
+    except Exception:
+        parquet_counts = {}
+
+    def _jsonl_status(simulator_name: str, scenario_name: str) -> tuple[int, bool]:
+        try:
+            jsonl_path = file_manager.resolve_sample_file(scenario_name, simulator=simulator_name)
+        except ValueError:
+            return 0, True
+        if jsonl_path is None or not jsonl_path.exists():
+            return 0, False
+        try:
+            with open(jsonl_path, "rb") as jf:
+                content = jf.read()
+                count = content.count(b"\n")
+                if content and not content.endswith(b"\n"):
+                    count += 1
+                return count, True
+        except Exception:
+            return 0, True
+
+    def _sample_status(simulator_name: str, scenario_name: str, jsonl_count: int, has_jsonl: bool) -> dict:
+        parquet_count = parquet_counts.get((simulator_name, scenario_name), 0)
+        has_parquet = parquet_count > 0
+        if has_parquet and has_jsonl:
+            storage = "mixed"
+            existing_count = max(jsonl_count, parquet_count)
+        elif has_parquet:
+            storage = "parquet"
+            existing_count = parquet_count
+        elif has_jsonl:
+            storage = "jsonl"
+            existing_count = jsonl_count
+        else:
+            storage = None
+            existing_count = 0
+        return {
+            "existing_jsonl_count": jsonl_count,
+            "existing_parquet_count": parquet_count,
+            "existing_sample_count": existing_count,
+            "existing_storage": storage,
+            "has_jsonl": has_jsonl,
+            "has_parquet": has_parquet,
+            "has_samples": existing_count > 0,
+        }
+
+    # 收集所有 simulator 名（来自 data/ 子目录 + registry 顶层 key + Parquet 分区）
     sim_dirs = {d.name for d in data_root.iterdir() if d.is_dir()} if data_root.exists() else set()
     reg_sims = set(registry.keys())
+    parquet_sims = {simulator for simulator, _ in parquet_counts}
     # 排除非 simulator 目录（templates、text2comp 等）
     skip = {"templates", "text2comp", "router"}
-    all_sims = sorted((sim_dirs | reg_sims) - skip)
+    all_sims = sorted((sim_dirs | reg_sims | parquet_sims) - skip)
 
     result: dict = {}
 
@@ -213,10 +256,10 @@ def get_text2comp_scenarios():
         dir_path = data_root / simulator
         scenarios_map: dict = {}
 
-        # 1. 扫描 HDF5 文件：文件名格式 {simulator}_{scenario}.h5
+        # 1. 扫描 HDF5 文件：文件名格式 {simulator}_{scenario}.h5/.hdf5
         if dir_path.exists():
             prefix = simulator + "_"
-            for h5_file in sorted(dir_path.glob("*.h5")):
+            for h5_file in iter_hdf5_files(dir_path):
                 stem = h5_file.stem
                 scenario_name = stem[len(prefix):] if stem.startswith(prefix) else stem
 
@@ -232,14 +275,7 @@ def get_text2comp_scenarios():
                 except Exception:
                     pass
 
-                jsonl_path = _DATA_DIR / f"{scenario_name}.jsonl"
-                existing_count = 0
-                if jsonl_path.exists():
-                    try:
-                        with open(jsonl_path, "rb") as jf:
-                            existing_count = jf.read().count(b"\n")
-                    except Exception:
-                        pass
+                existing_count, has_jsonl = _jsonl_status(simulator, scenario_name)
 
                 scenarios_map[scenario_name] = {
                     "name": scenario_name,
@@ -247,8 +283,7 @@ def get_text2comp_scenarios():
                     "h5_file": h5_file.name,
                     "sample_count": sample_count,
                     "output_shape": output_shape,
-                    "existing_jsonl_count": existing_count,
-                    "has_jsonl": jsonl_path.exists(),
+                    **_sample_status(simulator, scenario_name, existing_count, has_jsonl),
                     "has_h5": True,
                     "registered": False,
                 }
@@ -258,18 +293,35 @@ def get_text2comp_scenarios():
         reg_scenarios = sim_entry.get("scenarios", {}) if isinstance(sim_entry, dict) else {}
         for sc_name in reg_scenarios:
             if sc_name not in scenarios_map:
+                existing_count, has_jsonl = _jsonl_status(simulator, sc_name)
                 scenarios_map[sc_name] = {
                     "name": sc_name,
                     "simulator": simulator,
                     "h5_file": None,
                     "sample_count": 0,
-                    "existing_jsonl_count": 0,
-                    "has_jsonl": False,
+                    "output_shape": None,
+                    **_sample_status(simulator, sc_name, existing_count, has_jsonl),
                     "has_h5": False,
                     "registered": True,
                 }
 
-        # 3. 标记已注册的场景
+        # 3. 合并只有 Parquet 样本、但无 HDF5/registry 记录的场景
+        for (part_simulator, sc_name), _ in parquet_counts.items():
+            if part_simulator != simulator or sc_name in scenarios_map:
+                continue
+            existing_count, has_jsonl = _jsonl_status(simulator, sc_name)
+            scenarios_map[sc_name] = {
+                "name": sc_name,
+                "simulator": simulator,
+                "h5_file": None,
+                "sample_count": 0,
+                "output_shape": None,
+                **_sample_status(simulator, sc_name, existing_count, has_jsonl),
+                "has_h5": False,
+                "registered": sc_name in reg_scenarios,
+            }
+
+        # 4. 标记已注册的场景
         for sc_name in scenarios_map:
             scenarios_map[sc_name]["registered"] = sc_name in reg_scenarios
 

@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage.path_ids import source_relative_path
 
 INDEX_ROOT = DATA_ROOT / ".indexes"
 INDEX_VERSION = 1
@@ -58,7 +59,7 @@ def rebuild_filter_index(source_path: Path, profile: str, stride: int = DEFAULT_
     payload = {
         "version": INDEX_VERSION,
         "profile": profile,
-        "source_relative_path": str(source_path.relative_to(PROJECT_ROOT)),
+        "source_relative_path": str(source_relative_path(source_path, roots=(PROJECT_ROOT, DATA_ROOT))),
         "file_size_bytes": fingerprint["file_size_bytes"],
         "mtime_ns": fingerprint["mtime_ns"],
         "stride": stride,
@@ -119,7 +120,7 @@ def read_filtered_page(source_path: Path, profile: str, key: str, page: int, pag
 
 
 def get_filter_index_path(source_path: Path, profile: str) -> Path:
-    relative = source_path.relative_to(PROJECT_ROOT)
+    relative = source_relative_path(source_path, roots=(PROJECT_ROOT, DATA_ROOT))
     return INDEX_ROOT / relative.parent / f"{relative.name}.{profile}.idx.json"
 
 

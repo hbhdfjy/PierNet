@@ -17,6 +17,10 @@ import { cn } from '../../../lib/utils'
 import { DomainTab, ObsConfigEditor, OutputInfoTab, ParamInfoTab } from './RegistryEditors'
 import type { OutputInfoItem, RegistryEntry } from './registryTypes'
 
+function actionErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 function FieldBadge({ present, label }: { present: boolean; label: string }) {
   return (
     <span
@@ -50,6 +54,8 @@ export function RegistryEntryCard({
   const [saving, setSaving] = useState(false)
   const [saveErr, setSaveErr] = useState<string | null>(null)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleteErr, setDeleteErr] = useState<string | null>(null)
+  const [deleting, setDeleting] = useState(false)
 
   const hasDomain = !!entry.domain_context
   const hasOutput = Array.isArray(entry.output_info)
@@ -60,6 +66,35 @@ export function RegistryEntryCard({
   const params = entry.param_info ?? {}
   const outputInfo = (entry.output_info ?? []) as OutputInfoItem[]
 
+  const saveEntry = async (nextEntry: RegistryEntry): Promise<boolean> => {
+    setSaving(true)
+    setSaveErr(null)
+    setDeleteErr(null)
+    try {
+      await onSave(entryKey, nextEntry)
+      return true
+    } catch (error) {
+      setSaveErr(actionErrorMessage(error))
+      return false
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteEntry = async () => {
+    setDeleting(true)
+    setDeleteErr(null)
+    setSaveErr(null)
+    try {
+      await onDelete(entryKey)
+      setConfirmDelete(false)
+    } catch (error) {
+      setDeleteErr(actionErrorMessage(error))
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <div
       className={cn(
@@ -69,6 +104,7 @@ export function RegistryEntryCard({
     >
       <div className="registry-entry-card-header flex items-center gap-3 px-4 py-3.5">
         <button
+          aria-label={`${open ? '收起' : '展开'} ${entryKey}`}
           onClick={() => setOpen(o => !o)}
           className="registry-entry-title-button flex items-center gap-3 flex-1 text-left min-w-0"
         >
@@ -95,8 +131,10 @@ export function RegistryEntryCard({
           {!confirmDelete ? (
             <button
               className="btn-ghost py-1 px-2 text-xs text-slate-600 hover:text-red-400 ml-1"
+              aria-label={`删除 ${entryKey}`}
               onClick={e => {
                 e.stopPropagation()
+                setDeleteErr(null)
                 setConfirmDelete(true)
               }}
             >
@@ -107,20 +145,33 @@ export function RegistryEntryCard({
               <span className="text-xs text-red-400">确认？</span>
               <button
                 className="btn-ghost py-0.5 px-2 text-xs text-red-400"
-                onClick={async () => {
-                  await onDelete(entryKey)
+                aria-label={`确认删除 ${entryKey}`}
+                disabled={deleting}
+                onClick={deleteEntry}
+              >
+                {deleting ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
+              </button>
+              <button
+                className="btn-ghost py-0.5 px-2 text-xs text-slate-500"
+                aria-label={`取消删除 ${entryKey}`}
+                onClick={() => {
                   setConfirmDelete(false)
+                  setDeleteErr(null)
                 }}
               >
-                <Check size={12} />
-              </button>
-              <button className="btn-ghost py-0.5 px-2 text-xs text-slate-500" onClick={() => setConfirmDelete(false)}>
                 <X size={12} />
               </button>
             </div>
           )}
         </div>
       </div>
+
+      {deleteErr && (
+        <div className="px-4 pb-3 text-xs text-red-400 flex items-center gap-1">
+          <XCircle size={11} />
+          {deleteErr}
+        </div>
+      )}
 
       {open && (
         <div className="border-t border-slate-700/30">
@@ -165,17 +216,7 @@ export function RegistryEntryCard({
                 entry={entry}
                 saving={saving}
                 saveErr={saveErr}
-                onSave={async patch => {
-                  setSaving(true)
-                  setSaveErr(null)
-                  try {
-                    await onSave(entryKey, { ...entry, ...patch })
-                  } catch (e) {
-                    setSaveErr(String(e))
-                  } finally {
-                    setSaving(false)
-                  }
-                }}
+                onSave={patch => saveEntry({ ...entry, ...patch })}
               />
             )}
             {tab === 'output' && (
@@ -183,17 +224,7 @@ export function RegistryEntryCard({
                 outputInfo={outputInfo}
                 saving={saving}
                 saveErr={saveErr}
-                onSave={async updated => {
-                  setSaving(true)
-                  setSaveErr(null)
-                  try {
-                    await onSave(entryKey, { ...entry, output_info: updated })
-                  } catch (e) {
-                    setSaveErr(String(e))
-                  } finally {
-                    setSaving(false)
-                  }
-                }}
+                onSave={updated => saveEntry({ ...entry, output_info: updated })}
               />
             )}
             {tab === 'obs' && (
@@ -216,16 +247,8 @@ export function RegistryEntryCard({
                   <ObsConfigEditor
                     obs={obs}
                     outputInfo={outputInfo}
-                    onChange={async updated => {
-                      setSaving(true)
-                      setSaveErr(null)
-                      try {
-                        await onSave(entryKey, { ...entry, observation_config: updated })
-                      } catch (e) {
-                        setSaveErr(String(e))
-                      } finally {
-                        setSaving(false)
-                      }
+                    onChange={updated => {
+                      void saveEntry({ ...entry, observation_config: updated })
                     }}
                   />
                 ) : (
@@ -238,17 +261,7 @@ export function RegistryEntryCard({
                 params={params}
                 saving={saving}
                 saveErr={saveErr}
-                onSave={async updated => {
-                  setSaving(true)
-                  setSaveErr(null)
-                  try {
-                    await onSave(entryKey, { ...entry, param_info: updated })
-                  } catch (e) {
-                    setSaveErr(String(e))
-                  } finally {
-                    setSaving(false)
-                  }
-                }}
+                onSave={updated => saveEntry({ ...entry, param_info: updated })}
               />
             )}
             {tab === 'raw' && (
@@ -276,15 +289,12 @@ export function RegistryEntryCard({
                         className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
                         disabled={saving}
                         onClick={async () => {
-                          setSaving(true)
                           setSaveErr(null)
                           try {
-                            await onSave(entryKey, JSON.parse(rawVal))
-                            setRawEdit(false)
-                          } catch (e) {
-                            setSaveErr(e instanceof SyntaxError ? 'JSON 格式错误' : String(e))
-                          } finally {
-                            setSaving(false)
+                            const parsed = JSON.parse(rawVal) as RegistryEntry
+                            if (await saveEntry(parsed)) setRawEdit(false)
+                          } catch (error) {
+                            setSaveErr(error instanceof SyntaxError ? 'JSON 格式错误' : actionErrorMessage(error))
                           }
                         }}
                       >

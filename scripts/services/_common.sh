@@ -21,10 +21,22 @@ WORKER_LOG="$RUN_DIR/worker.log"
 HOST=${PIERN_HOST:-${PIERN_SERVICE_HOST:-0.0.0.0}}
 BACKEND_PORT=${PIERN_BACKEND_PORT:-8000}
 FRONTEND_PORT=${PIERN_FRONTEND_PORT:-5173}
-CONDA_ENV=${PIERN_CONDA_ENV:-"$HOME/.conda/envs/piern"}
+DEFAULT_CONDA_ENV="$HOME/.conda/envs/piern"
+if [[ -x "$ROOT/.conda/env/bin/python" ]]; then
+  DEFAULT_CONDA_ENV="$ROOT/.conda/env"
+fi
+CONDA_ENV=${PIERN_CONDA_ENV:-"$DEFAULT_CONDA_ENV"}
 PYTHON=${PIERN_PYTHON:-"$CONDA_ENV/bin/python"}
 NPM=${PIERN_NPM:-npm}
-NODE_BIN=${PIERN_NODE_BIN:-}
+DEFAULT_NODE_BIN=""
+if [[ -x "$ROOT/.node/current/bin/node" ]]; then
+  DEFAULT_NODE_BIN="$ROOT/.node/current/bin/node"
+elif compgen -G "$ROOT/.node/node-v*/bin/node" >/dev/null; then
+  for candidate in "$ROOT"/.node/node-v*/bin/node; do
+    [[ -x "$candidate" ]] && DEFAULT_NODE_BIN="$candidate" && break
+  done
+fi
+NODE_BIN=${PIERN_NODE_BIN:-${PIERN_NODE:-$DEFAULT_NODE_BIN}}
 NODE_BIN_DIR=${PIERN_NODE_BIN_DIR:-}
 [[ -n "$NODE_BIN" && -z "$NODE_BIN_DIR" ]] && NODE_BIN_DIR=$(dirname "$NODE_BIN")
 SERVICE_PATH="${NODE_BIN_DIR:+$NODE_BIN_DIR:}$CONDA_ENV/bin:$PATH"
@@ -91,8 +103,8 @@ worker_should_start() {
     1|true|yes|on) return 0 ;;
     0|false|no|off) return 1 ;;
   esac
-  local synth=${PIERN_WORKER_QUEUE_SYNTH:-0}
-  local training=${PIERN_WORKER_QUEUE_TRAINING:-0}
+  local synth=${PIERN_WORKER_QUEUE_SYNTH:-1}
+  local training=${PIERN_WORKER_QUEUE_TRAINING:-1}
   case "${synth,,}" in
     1|true|yes|on) return 0 ;;
   esac

@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import type { RouterStatus, RouterSample, RouterScenarioInfo } from '../../lib/types'
 import { GitBranch, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
+import { hasUsableRouterData, routerLabelValue, routerScenarioKey } from '../routerData'
 import EmptyState from '../components/ui/EmptyState'
 
 const PAGE_SIZE = 10
@@ -11,20 +12,32 @@ const PAGE_SIZE = 10
 // ── 样本卡片 ─────────────────────────────────────────────────────
 
 function SampleCard({ sample, index }: { sample: RouterSample; index: number }) {
-  const isPos = sample.label === 1
+  const labelValue = routerLabelValue(sample)
+  const isPos = labelValue === 1
 
   return (
-    <div className={cn('card overflow-hidden border-l-2', isPos ? 'border-l-emerald-500' : 'border-l-slate-600')}>
+    <div
+      className={cn(
+        'card overflow-hidden border-l-2',
+        isPos ? 'border-l-emerald-500' : labelValue === 0 ? 'border-l-slate-600' : 'border-l-amber-500',
+      )}
+    >
       <div className="accordion-card-header px-4 py-2.5 flex items-center gap-3 border-b border-slate-700/40">
         <span
           className={cn(
             'badge border text-xs font-bold',
             isPos
               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
-              : 'bg-slate-700/40 text-slate-400 border-slate-600/30',
+              : labelValue === 0
+                ? 'bg-slate-700/40 text-slate-400 border-slate-600/30'
+                : 'bg-amber-500/10 text-amber-300 border-amber-500/20',
           )}
         >
-          {isPos ? 'label=1  \u4e13\u5bb6' : 'label=0  LLM'}
+          {isPos
+            ? 'label=1  \u4e13\u5bb6'
+            : labelValue === 0
+              ? 'label=0  LLM'
+              : `label=${String(sample.label)}  \u672a\u77e5`}
         </span>
         <span className="text-xs text-slate-500 font-mono">{sample.metadata.language}</span>
         <span className="ml-auto text-xs text-slate-600 font-mono">#{index}</span>
@@ -41,7 +54,7 @@ function SampleCard({ sample, index }: { sample: RouterSample; index: number }) 
 // ── 主页面 ────────────────────────────────────────────────────────
 
 export default function RouterViewer() {
-  const [scenario, setScenario] = useState('')
+  const [scenarioKey, setScenarioKey] = useState('')
   const [labelFilter, setLabelFilter] = useState<-1 | 0 | 1>(-1)
   const [page, setPage] = useState(0)
 
@@ -51,14 +64,11 @@ export default function RouterViewer() {
     mutate: refresh,
   } = useSWR<RouterStatus>('router-status', () => api.getRouterStatus())
 
-  // 按 simulator 分组（只显示有合法 router 数据的场景）
-  // router_count 合法范围：(0, source_count * 20]，超出视为脏数据
+  // 按 simulator 分组（只显示有可用 router 数据的场景）
   const grouped = useMemo(() => {
     const g: Record<string, RouterScenarioInfo[]> = {}
     for (const s of status?.scenarios ?? []) {
-      const rc = s.router_count ?? 0
-      if (rc === 0) continue
-      if (rc > s.source_count * 20) continue // 异常大，跳过（脏数据）
+      if (!hasUsableRouterData(s)) continue
       if (!g[s.simulator]) g[s.simulator] = []
       g[s.simulator].push(s)
     }
@@ -66,11 +76,26 @@ export default function RouterViewer() {
   }, [status?.scenarios])
 
   const hasRouterData = (status?.total ?? 0) > 0
-  const activeScenario = scenario || Object.values(grouped).flat()[0]?.scenario || ''
+  const flattenedScenarios = useMemo(() => Object.values(grouped).flat(), [grouped])
+  const activeScenarioInfo = useMemo(
+    () => flattenedScenarios.find(item => routerScenarioKey(item) === scenarioKey) ?? flattenedScenarios[0] ?? null,
+    [flattenedScenarios, scenarioKey],
+  )
+  const activeScenarioKey = activeScenarioInfo ? routerScenarioKey(activeScenarioInfo) : ''
 
   const { data: samplesResp, isLoading: samplesLoading } = useSWR(
-    activeScenario ? ['router-samples', activeScenario, labelFilter, page] : null,
-    () => api.getRouterSamples('train', page, PAGE_SIZE, labelFilter, activeScenario),
+    activeScenarioInfo
+      ? ['router-samples', activeScenarioInfo.simulator, activeScenarioInfo.scenario, labelFilter, page]
+      : null,
+    () =>
+      api.getRouterSamples(
+        'train',
+        page,
+        PAGE_SIZE,
+        labelFilter,
+        activeScenarioInfo!.scenario,
+        activeScenarioInfo!.simulator,
+      ),
     { revalidateOnFocus: false },
   )
 
@@ -123,28 +148,31 @@ export default function RouterViewer() {
                     <span className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0', badge?.dot ?? 'bg-slate-500')} />
                     {SIMULATOR_LABELS[sim] ?? sim}
                   </div>
-                  {items.map(item => (
-                    <button
-                      key={item.scenario}
-                      onClick={() => {
-                        setScenario(item.scenario)
-                        setPage(0)
-                      }}
-                      className={cn(
-                        'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
-                        activeScenario === item.scenario
-                          ? 'bg-rose-500/8 text-rose-300 font-medium'
-                          : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
-                      )}
-                    >
-                      <div className="truncate">{item.scenario}</div>
-                      <div className="text-xs mt-0.5 font-mono text-slate-600">
-                        {item.router_count != null
-                          ? `${item.router_count.toLocaleString()} 条`
-                          : `源 ${item.source_count.toLocaleString()} 条`}
-                      </div>
-                    </button>
-                  ))}
+                  {items.map(item => {
+                    const itemKey = routerScenarioKey(item)
+                    return (
+                      <button
+                        key={itemKey}
+                        onClick={() => {
+                          setScenarioKey(itemKey)
+                          setPage(0)
+                        }}
+                        className={cn(
+                          'w-full text-left px-3 py-2 text-sm transition-all duration-150 border-b border-slate-800/30',
+                          activeScenarioKey === itemKey
+                            ? 'bg-rose-500/8 text-rose-300 font-medium'
+                            : 'text-slate-400 hover:bg-slate-800/50 hover:text-slate-200',
+                        )}
+                      >
+                        <div className="truncate">{item.scenario}</div>
+                        <div className="text-xs mt-0.5 font-mono text-slate-600">
+                          {item.router_count != null
+                            ? `${item.router_count.toLocaleString()} 条`
+                            : `源 ${item.source_count.toLocaleString()} 条`}
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
               )
             })}

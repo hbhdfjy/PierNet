@@ -14,7 +14,6 @@ PiERN 是一个面向物理与工程时序数据的双平台系统，当前由�
 - `README.md`：安装、启动、快速命令和运行约定。
 - `PROJECT_OVERVIEW.md`：系统边界、架构和数据契约。
 - `CLAUDE.md`：开发者和编码 Agent 的实现注意事项。
-- `docs/INDUSTRIALIZATION_PLAN.md`：工业化升级总计划和执行记录。
 - `docs/MIGRATION.md`：服务器迁移、便携式数据边界和恢复流程。
 - `docs/patents/README.md`：专利 Markdown、附图和 Word 生成说明。
 
@@ -26,7 +25,7 @@ PiERN 是一个面向物理与工程时序数据的双平台系统，当前由�
 首页       http://localhost:8000/
 数据合成   http://localhost:8000/synth
 自动训练   http://localhost:8000/training
-文件管理   http://localhost:8000/files
+文件管理   http://localhost:8000/synth/files（/files 会重定向）
 API 文档   http://localhost:8000/docs
 Vite 开发  http://localhost:5173/
 ```
@@ -35,7 +34,7 @@ Vite 开发  http://localhost:5173/
 
 ## 安装
 
-要求 Python 3.11。
+要求 Python 3.11 和 Node.js 20.19.0+。
 
 ```bash
 pip install -r requirements.txt
@@ -53,7 +52,7 @@ npm install
 
 ### Conda 环境
 
-服务脚本会在 `.env` 存在时加载它，并默认使用 `$HOME/.conda/envs/piern`。迁移部署时建议复制 `.env.example`：
+`scripts/services/*` 和 `start_ui.sh` 会在 `.env` 存在时加载它；若仓库内存在 `.conda/env/bin/python` 会优先使用该环境，否则默认使用 `$HOME/.conda/envs/piern`。迁移部署时建议复制 `.env.example`：
 
 ```bash
 cp .env.example .env
@@ -92,7 +91,7 @@ scripts/services/restart.sh
 scripts/services/stop.sh
 ```
 
-服务脚本会在 `.runlogs/services/` 下写入 PID 和日志，SSH 退出后进程仍会保留，并将配置的 conda 或 Node bin 目录放到 `PATH` 前面，确保 Vite 使用 Node.js 20+。
+服务脚本会在 `.runlogs/services/` 下写入 PID 和日志，SSH 退出后进程仍会保留，并将配置的 conda 或 Node bin 目录放到 `PATH` 前面，确保 Vite 使用 Node.js 20.19.0+。
 
 交互式开发启动：
 
@@ -187,12 +186,28 @@ data/templates/{scenario}_templates.jsonl
 
 ### Stage 3 样本
 
+默认 Parquet 分区：
+
+```text
+data/text2comp_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
+```
+
+兼容旧 JSONL：
+
 ```text
 data/text2comp/{scenario}.jsonl
 data/text2comp/all_training_data.jsonl
 ```
 
 ### Stage 4 Router 数据
+
+默认 Parquet 分区：
+
+```text
+data/router_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
+```
+
+兼容旧 JSONL：
 
 ```text
 data/router/by_scenario/{scenario}.jsonl
@@ -260,8 +275,8 @@ Stage 3 是本地确定性填充，不调用大模型。
 ### Stage 4
 
 ```bash
-python scripts/router/build_router_data.py --seed 42
-python scripts/router/build_router_data.py --seed 42 --chat-template qwen --neg-ratio 2
+python scripts/router/build_router_data.py --seed 42 --input-format parquet --output-format parquet
+python scripts/router/build_router_data.py --seed 42 --input-format parquet --output-format parquet --chat-template qwen --neg-ratio 2
 ```
 
 Stage 4 会生成 Qwen chat template 上下文，用于二分类 Token Router 训练。
@@ -285,11 +300,13 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 
 ## 读取性能层
 
-Stage 2-4 的源产物仍以 JSONL 为主，前端读取通过旁路摘要和索引加速：
+Stage 2 模板仍是 JSONL；Stage 3/4 当前主产物是便携式 Parquet 分区，旧 JSONL 仍可读取和迁移。JSONL 读取通过旁路摘要和索引加速，Parquet 分区通过 manifest、目录数据库和文件管理器汇总：
 
 ```text
 data/.manifests/
 data/.indexes/
+data/text2comp_parquet/
+data/router_parquet/
 ```
 
 手动重建：
@@ -297,7 +314,6 @@ data/.indexes/
 ```bash
 python scripts/utils/rebuild_manifests.py
 python scripts/utils/rebuild_indexes.py
-python scripts/utils/rebuild_filter_indexes.py
 ```
 
 ## 仓库结构
@@ -339,10 +355,10 @@ npm run build
 ```bash
 pytest tests/test_build_router_data_script.py \
   tests/test_hdf5_data_validation.py \
-  tests/test_registry_observation_config.py \
+  tests/test_data_browsing_mixed_storage.py \
   tests/test_router_prepared_inputs.py \
-  tests/test_training_manager_fallbacks.py \
-  tests/test_check_garbled_text.py
+  tests/test_storage_scripts.py \
+  tests/test_training_manager_fallbacks.py
 ```
 
 仓库一致性检查：

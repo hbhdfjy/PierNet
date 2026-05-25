@@ -54,8 +54,18 @@ def run_next_queued_job(*, worker_id: str | None = None) -> bool:
             )
             dispatcher = DISPATCH[record.job_type]
             LOGGER.info("running queued synthesis job job_id=%s type=%s worker_id=%s", record.job_id, record.job_type, owner)
-            with workers.heartbeat_while(worker_id=owner, kind="piern-worker", current_job_id=record.job_id):
-                dispatcher(record, latest.get("request_json") or {})
+            try:
+                with task_locks.refresh_lock_while(
+                    QUEUE_LOCK_KEY, owner, ttl_seconds=QUEUE_LOCK_TTL_SECONDS
+                ), workers.heartbeat_while(
+                    worker_id=owner, kind="piern-worker", current_job_id=record.job_id
+                ):
+                    dispatcher(record, latest.get("request_json") or {})
+            except Exception as exc:
+                LOGGER.exception("queued synthesis job failed before publishing a terminal event job_id=%s", record.job_id)
+                if record.status not in job_manager.SYNTH_TERMINAL_STATUSES:
+                    record.status = "error"
+                    publish(record, {"type": "error", "ts": time.time(), "message": str(exc)})
             return True
     finally:
         task_locks.release_lock(QUEUE_LOCK_KEY, owner)

@@ -4,6 +4,15 @@ import { api } from '../../lib/api'
 import type { LLMConfig, LLMConfigRequest } from '../../lib/types'
 import { KeyRound, Eye, EyeOff, Save, RefreshCw, CheckCircle, XCircle, Zap, AlertCircle, Info } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import {
+  LLM_MAX_TOKENS_MAX,
+  LLM_MAX_TOKENS_MIN,
+  LLM_TEMPERATURE_MAX,
+  LLM_TEMPERATURE_MIN,
+  normalizeMaxTokens,
+  normalizeTemperature,
+  parseMaxTokensInput,
+} from '../llmConfigBounds'
 
 // 各 provider 的默认模型建议
 const MODEL_SUGGESTIONS: Record<string, string[]> = {
@@ -69,22 +78,33 @@ export default function LLMConfig() {
       setProvider(llmCfg.provider || 'siliconflow')
       setModel(llmCfg.model || '')
       setBaseUrl(llmCfg.base_url || '')
-      setTemperature(llmCfg.temperature ?? 1.0)
-      setMaxTokens(llmCfg.max_tokens ?? 1024)
+      setTemperature(normalizeTemperature(llmCfg.temperature ?? 1.0))
+      setMaxTokens(normalizeMaxTokens(llmCfg.max_tokens ?? 1024))
       setThinking(llmCfg.thinking === 'enabled' ? 'enabled' : 'disabled')
       // api_key 不回填（脱敏后无意义）
     }
   }, [llmCfg])
 
   const buildReq = (): LLMConfigRequest => ({
-    provider,
-    model,
-    api_key: apiKey,
-    base_url: baseUrl,
-    temperature,
-    max_tokens: maxTokens,
+    provider: provider.trim(),
+    model: model.trim(),
+    api_key: apiKey.trim(),
+    base_url: baseUrl.trim(),
+    temperature: normalizeTemperature(temperature),
+    max_tokens: normalizeMaxTokens(maxTokens),
     thinking,
   })
+
+  const validateRequiredFields = (): boolean => {
+    if (!model.trim()) {
+      setSaveErr('请填写模型名称')
+      setTestState('idle')
+      setTestMessage('')
+      setTestPreview('')
+      return false
+    }
+    return true
+  }
 
   const handleSaveAndTest = async () => {
     setSaving(true)
@@ -93,6 +113,10 @@ export default function LLMConfig() {
     setTestMessage('')
     setTestPreview('')
 
+    if (!validateRequiredFields()) {
+      setSaving(false)
+      return
+    }
     try {
       // 1. 先保存
       await api.saveLLMConfig(buildReq())
@@ -114,9 +138,11 @@ export default function LLMConfig() {
   }
 
   const handleTestOnly = async () => {
+    setSaveErr(null)
     setTestState('testing')
     setTestMessage('')
     setTestPreview('')
+    if (!validateRequiredFields()) return
     try {
       const result = await api.testLLMConfig(buildReq())
       setTestState(result.ok ? 'ok' : 'fail')
@@ -276,15 +302,15 @@ export default function LLMConfig() {
                 <input
                   type="range"
                   className="w-full accent-amber-500"
-                  min={0}
-                  max={2}
+                  min={LLM_TEMPERATURE_MIN}
+                  max={LLM_TEMPERATURE_MAX}
                   step={0.1}
                   value={temperature}
-                  onChange={e => setTemperature(parseFloat(e.target.value))}
+                  onChange={e => setTemperature(normalizeTemperature(parseFloat(e.target.value)))}
                 />
                 <div className="flex justify-between text-xs text-slate-600 mt-0.5">
-                  <span>0</span>
-                  <span>2</span>
+                  <span>{LLM_TEMPERATURE_MIN}</span>
+                  <span>{LLM_TEMPERATURE_MAX}</span>
                 </div>
               </div>
               <div>
@@ -292,11 +318,12 @@ export default function LLMConfig() {
                 <input
                   type="number"
                   className="input w-full text-sm py-1.5"
-                  min={64}
-                  max={8192}
+                  min={LLM_MAX_TOKENS_MIN}
+                  max={LLM_MAX_TOKENS_MAX}
                   step={64}
                   value={maxTokens}
-                  onChange={e => setMaxTokens(parseInt(e.target.value) || 1024)}
+                  aria-label="Max Tokens"
+                  onChange={e => setMaxTokens(parseMaxTokensInput(e.target.value, maxTokens))}
                 />
               </div>
             </div>

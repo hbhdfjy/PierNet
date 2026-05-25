@@ -71,10 +71,14 @@ def build_gpu_inventory(
             LOGGER.warning("Skipping malformed nvidia-smi row: %s", row)
             continue
         idx_s, name, mem_used_s, mem_total_s, util_s = parts
-        index = int(idx_s)
-        memory_used = int(mem_used_s)
-        memory_total = int(mem_total_s)
-        utilization = int(util_s)
+        try:
+            index = int(idx_s)
+            memory_used = int(mem_used_s)
+            memory_total = int(mem_total_s)
+            utilization = int(util_s)
+        except (TypeError, ValueError):
+            LOGGER.warning("Skipping nvidia-smi row with non-integer fields: %s", row)
+            continue
         available = True
         reason = None
         locked_by_job_id = locked.get(index)

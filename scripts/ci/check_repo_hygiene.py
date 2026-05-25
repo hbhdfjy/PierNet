@@ -7,15 +7,20 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import List, Optional
 
 ROOT = Path(__file__).resolve().parents[2]
 
 BANNED_PREFIXES = (
+    ".cache/",
+    ".conda/",
+    ".flopy_bin/",
+    ".node/",
     ".pytest_cache/",
     ".ruff_cache/",
     ".mypy_cache/",
     ".runlogs/",
+    ".tmp/",
     "artifacts/",
     "data/text2comp/",
     "data/text2comp_parquet/",
@@ -26,9 +31,21 @@ BANNED_PREFIXES = (
     "frontend/dist/",
     "frontend/test-results/",
     "frontend/playwright-report/",
+    "models/",
     "node_modules/",
 )
-BANNED_PARTS = {"__pycache__", "node_modules", ".pytest_cache", ".ruff_cache", ".mypy_cache"}
+BANNED_PARTS = {
+    "__pycache__",
+    "node_modules",
+    ".cache",
+    ".conda",
+    ".flopy_bin",
+    ".node",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".mypy_cache",
+    ".tmp",
+}
 BANNED_SUFFIXES = (
     ".pyc",
     ".pyo",
@@ -70,6 +87,8 @@ def is_banned_path(path: str) -> Optional[str]:
     for prefix in BANNED_PREFIXES:
         if path.startswith(prefix):
             return f"banned runtime/derived prefix: {prefix}"
+    if any(part.endswith(".egg-info") for part in Path(path).parts):
+        return "banned generated package metadata: *.egg-info"
     parts = set(Path(path).parts)
     overlap = parts & BANNED_PARTS
     if overlap:
@@ -139,7 +158,14 @@ def check_gitignore() -> List[str]:
         "data/router/",
         "data/**/*.parquet",
         "artifacts/",
+        "models/",
+        ".cache/",
+        ".conda/",
+        ".flopy_bin/",
+        ".node/",
         ".runlogs/",
+        ".ruff_cache/",
+        ".tmp/",
         ".env",
         "frontend/test-results/",
     ]

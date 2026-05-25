@@ -18,6 +18,7 @@ dependencies = [
   "pyarrow>=15.0.0",
   "duckdb>=1.0.0",
   "tqdm>=4.65.0",
+  "pillow>=9.0.0",
   "flopy>=3.7.0",
   "pandapower>=2.13.0",
   "andes>=2.0.0",
@@ -74,9 +75,9 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
-# Start with correctness-oriented checks so phase 1 adds a real gate without forcing
-# large style-only rewrites. Later milestones can expand this list.
-select = ["E9", "F63", "F7", "F82"]
+# Correctness and dead-code checks without forcing broad style-only rewrites.
+# Later milestones can expand this list.
+select = ["E9", "F401", "F63", "F7", "F82", "F841"]
 
 [tool.mypy]
 python_version = "3.11"

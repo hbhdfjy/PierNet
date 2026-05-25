@@ -8,7 +8,6 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from piern.synth.services import job_manager, job_store
-from piern.synth.services.job_manager import subscribe, unsubscribe
 from piern.synth.api.schemas.jobs import JobStatusResponse
 
 router = APIRouter()

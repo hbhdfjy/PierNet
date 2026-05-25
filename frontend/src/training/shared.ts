@@ -5,6 +5,107 @@ export type TrainingJobNotice = {
   tone: 'amber' | 'rose'
 }
 
+export function isTrainingJobActive(status: TrainingJobStatus): boolean {
+  return (
+    status === 'queued' ||
+    status === 'starting' ||
+    status === 'running' ||
+    status === 'evaluating' ||
+    status === 'stopping'
+  )
+}
+
+export function isTrainingJobStoppable(status: TrainingJobStatus): boolean {
+  return status === 'queued' || status === 'starting' || status === 'running' || status === 'evaluating'
+}
+
+export function isTrainingJobDeletable(status: TrainingJobStatus): boolean {
+  return !isTrainingJobActive(status)
+}
+
+export function trainingJobRefreshInterval(status?: TrainingJobStatus | null): number {
+  if (!status) return 2000
+  if (status === 'queued' || status === 'starting' || status === 'stopping') return 2000
+  return status === 'running' || status === 'evaluating' ? 5000 : 0
+}
+
+export function trainingJobDetailPath(jobId: string): string {
+  return `/training/jobs/${encodeURIComponent(jobId)}`
+}
+
+export const TRAINING_FINITE_EPOCHS_MIN = 1
+export const TRAINING_EPOCHS_MAX = 100000
+export const TRAINING_EVAL_INTERVAL_MIN = 1
+export const TRAINING_EVAL_INTERVAL_MAX = 100000
+export const TRAINING_KEEP_LAST_EPOCHS_MIN = 0
+export const TRAINING_KEEP_LAST_EPOCHS_MAX = 200
+export const TRAINING_SEED_MIN = 0
+export const TRAINING_SEED_MAX = 2147483647
+export const TRAINING_BATCH_SIZE_MIN = 1
+export const TRAINING_BATCH_SIZE_MAX = 8192
+export const TRAINING_LEARNING_RATE_MIN = 1e-8
+export const TRAINING_LEARNING_RATE_MAX = 1
+export const TRAINING_WEIGHT_DECAY_MIN = 0
+export const TRAINING_WEIGHT_DECAY_MAX = 10
+export const TRAINING_NUM_WORKERS_MIN = 0
+export const TRAINING_NUM_WORKERS_MAX = 128
+export const TRAINING_TEST_RATIO_MIN = 0
+export const TRAINING_TEST_RATIO_MAX = 0.9
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value))
+}
+
+function normalizeBoundedInteger(value: number, fallback: number, min: number, max: number): number {
+  const resolved = Number.isFinite(value) ? value : fallback
+  return clamp(Math.floor(resolved), min, max)
+}
+
+function normalizeBoundedFloat(value: number, fallback: number, min: number, max: number): number {
+  const resolved = Number.isFinite(value) ? value : fallback
+  return clamp(resolved, min, max)
+}
+
+export function normalizeTrainingFiniteEpochs(value: number, fallback = 1): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_FINITE_EPOCHS_MIN, TRAINING_EPOCHS_MAX)
+}
+
+export function normalizeTrainingEvalInterval(value: number, fallback = 1): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_EVAL_INTERVAL_MIN, TRAINING_EVAL_INTERVAL_MAX)
+}
+
+export function normalizeTrainingKeepLastEpochs(value: number, fallback = 5): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_KEEP_LAST_EPOCHS_MIN, TRAINING_KEEP_LAST_EPOCHS_MAX)
+}
+
+export function normalizeTrainingSeed(value: number, fallback = 42): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_SEED_MIN, TRAINING_SEED_MAX)
+}
+
+export function normalizeTrainingBatchSize(value: number, fallback = 256): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_BATCH_SIZE_MIN, TRAINING_BATCH_SIZE_MAX)
+}
+
+export function normalizeTrainingTestBatchSize(value: number, fallback = 256): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_BATCH_SIZE_MIN, TRAINING_BATCH_SIZE_MAX)
+}
+
+export function normalizeTrainingLearningRate(value: number, fallback = 2e-4): number {
+  return normalizeBoundedFloat(value, fallback, TRAINING_LEARNING_RATE_MIN, TRAINING_LEARNING_RATE_MAX)
+}
+
+export function normalizeTrainingWeightDecay(value: number, fallback = 0.01): number {
+  return normalizeBoundedFloat(value, fallback, TRAINING_WEIGHT_DECAY_MIN, TRAINING_WEIGHT_DECAY_MAX)
+}
+
+export function normalizeTrainingNumWorkers(value: number, fallback = 8): number {
+  return normalizeBoundedInteger(value, fallback, TRAINING_NUM_WORKERS_MIN, TRAINING_NUM_WORKERS_MAX)
+}
+
+export function normalizeTrainingTestRatio(value: number, fallback = 0.1): number {
+  return normalizeBoundedFloat(value, fallback, TRAINING_TEST_RATIO_MIN, TRAINING_TEST_RATIO_MAX)
+}
+
 const PLATFORM_STOP_PENDING_MESSAGE = 'Platform stop requested; waiting for checkpoint save.'
 const PLATFORM_STOP_PENDING_DISPLAY = '已发送停止请求，正在等待当前 checkpoint 安全保存。'
 

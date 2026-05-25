@@ -15,7 +15,7 @@ PiERN is one FastAPI + React application with two product surfaces: a Stage 1-4 
 | Landing | `/` | `frontend/src/platform/` | `piern/api/main.py` | entry into synth, training, and files |
 | Synthesis | `/synth/*` | `frontend/src/synth/` | `piern/synth/` | Stage 1-4 data pipeline |
 | Training | `/training/*` | `frontend/src/training/` | `piern/training/` | Token Router training jobs |
-| Files | `/files` and `/synth/files` | `frontend/src/files/` | `piern/synth/services/file_catalog.py` | unified data/artifact management |
+| Files | `/synth/files`, `/training/files`; `/files` redirects to `/synth/files` | `frontend/src/files/` | `piern/synth/services/file_catalog.py` | unified data/artifact management |
 
 The surfaces are separated at product and namespace level, but still share one repository, one frontend package, one FastAPI app, one static hosting path, and one startup script.
 
@@ -41,7 +41,7 @@ Top-level routing lives in `frontend/src/platform/PlatformRouter.tsx`:
 - `/` -> `LandingPage`
 - `/synth/*` -> `SynthApp`
 - `/training/*` -> `TrainingApp`
-- `/files` -> standalone `FileManagerPage`
+- `/files` -> redirect to `/synth/files`
 - legacy synthesis routes redirect to `/synth/...`
 
 Synthesis routes are owned by `frontend/src/synth/SynthApp.tsx`; training routes are owned by `frontend/src/training/TrainingApp.tsx`.
@@ -107,9 +107,10 @@ Inputs:
 Outputs:
 
 ```text
-data/text2comp/{scenario}.jsonl
-data/text2comp/all_training_data.jsonl
+data/text2comp_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
 ```
+
+Legacy JSONL remains readable and migratable at `data/text2comp/{scenario}.jsonl` and `data/text2comp/all_training_data.jsonl`.
 
 Stage 3 is local filling. It should not call an LLM.
 
@@ -122,14 +123,15 @@ Implementation:
 
 Inputs:
 
-- Stage 3 sample JSONL
+- Stage 3 samples, preferring Parquet partitions and accepting legacy JSONL
 
 Outputs:
 
 ```text
-data/router/by_scenario/{scenario}.jsonl
-data/router/train.jsonl
+data/router_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
 ```
+
+Legacy JSONL remains readable and migratable at `data/router/by_scenario/{scenario}.jsonl` and `data/router/train.jsonl`.
 
 Each Stage 3 sample becomes one positive expert-prefix sample plus negative LLM-prefix samples. Stage 4 currently assumes Qwen chat template formatting and records embedding metadata for the Qwen backbone.
 
@@ -165,7 +167,7 @@ Primary implementation:
 Training jobs are persisted in:
 
 ```text
-artifacts/token_router/training_jobs.json
+.runlogs/training_jobs.sqlite
 .runlogs/
 artifacts/token_router/{simulator}/runs/{run_name}/
 ```
@@ -182,11 +184,12 @@ artifacts/token_router/{simulator}/runs/{run_name}/
 
 ## Read Path And File Management
 
-Stage 2-4 source artifacts are JSONL. Interactive reads use sidecar acceleration:
+Stage 2 templates are JSONL. Stage 3/4 primary artifacts are portable Parquet partitions, with legacy JSONL support kept for migration and compatibility. Interactive reads use catalog summaries and sidecar acceleration instead of full scans:
 
 - manifests: `data/.manifests/`
 - sparse indexes: `data/.indexes/`
 - filter indexes: `data/.indexes/`
+- Parquet partitions: `data/text2comp_parquet/`, `data/router_parquet/`
 
 Related implementation:
 
@@ -196,7 +199,6 @@ Related implementation:
 - `piern/synth/services/file_catalog.py`
 - `scripts/utils/rebuild_manifests.py`
 - `scripts/utils/rebuild_indexes.py`
-- `scripts/utils/rebuild_filter_indexes.py`
 
 The unified file catalog can manage HDF5, template, sample, router, training-job, manifest, and index assets. Protected merged files and indexes are not blindly deleted.
 
@@ -207,7 +209,7 @@ Synthesis API prefixes include:
 - `/api/dashboard/*`
 - `/api/config/*`
 - `/api/simulation/*`
-- `/api/register/*`
+- `/api/registry/*`
 - `/api/generate/*`
 - `/api/files/*`
 - `/api/router/*`
@@ -217,12 +219,12 @@ Training API prefix:
 
 - `/api/training/*`
 
-Static frontend serving uses browser-history fallback through `SPAStaticFiles`, while preserving `/api/*` and asset 404 behavior.
+Static frontend serving uses browser-history fallback through `SPAStaticFiles`, while preserving `/api`, `/api/*`, and asset 404 behavior.
 
 ## Operational Contracts
 
 - `start_ui.sh` is the main combined backend/frontend development startup path.
-- If the active conda environment is not the script default, set `PIERN_CONDA_ENV` before startup.
+- Startup scripts prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/piern`; set `PIERN_CONDA_ENV` before startup to override.
 - Frontend nested scroll behavior depends on `frontend/src/lib/scrollAssist.ts`; scroll changes are application behavior, not only CSS.
 - Root docs expected by consistency checks are `README.md`, `PROJECT_OVERVIEW.md`, and `CLAUDE.md`.
 

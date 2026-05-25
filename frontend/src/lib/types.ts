@@ -1,6 +1,6 @@
 import type { components } from './generated/openapi'
 
-// ── Stage 2 JSONL 样本类型（与 Python 端完全对应）──────────────────
+// ── Stage 3 样本记录结构（JSONL 与 Parquet record_json 共用）──────────────
 
 export interface ObservationConfig {
   time_mode: string
@@ -92,6 +92,7 @@ export interface FileCatalogMutationResponse {
   deleted?: number
   train_count?: number
   rebuilt?: string[]
+  deleted_indexes?: number
   errors?: string[]
 }
 
@@ -127,17 +128,6 @@ export interface DashboardSummary {
   router: RouterStatus
 }
 
-export interface ScenarioConfig {
-  name: string
-  scenario: string
-  output_file: string
-  n_samples: number
-}
-
-export interface ScenariosConfig {
-  [simulator: string]: ScenarioConfig[]
-}
-
 // Stage 2 可用场景（来自 HDF5 文件扫描）
 export interface Text2CompScenario {
   name: string
@@ -145,8 +135,13 @@ export interface Text2CompScenario {
   h5_file: string | null
   sample_count: number // HDF5 中的样本数（无 HDF5 时为 0）
   output_shape: number[] | null // HDF5 timeseries 的输出维度，如 [43, 365]
-  existing_jsonl_count: number // 已生成的 JSONL 条数
+  existing_jsonl_count: number // 已生成的 JSONL 条数（兼容旧存储）
+  existing_parquet_count?: number // 已生成的 Parquet 条数
+  existing_sample_count?: number // 当前主样本存储中的已生成条数
+  existing_storage?: 'jsonl' | 'parquet' | 'mixed' | null
   has_jsonl: boolean
+  has_parquet?: boolean
+  has_samples?: boolean
   has_h5: boolean // 是否有 HDF5 数据文件
   registered: boolean // 是否在 registry.yaml 中有注册信息
 }
@@ -218,11 +213,6 @@ export interface GenerationJob {
   error_message?: string | null
 }
 
-export type RegisterRequest = components['schemas']['RegisterRequest'] & {
-  scenarios: string[]
-  fields: string[]
-}
-
 // ── 两阶段生成请求 ────────────────────────────────────────────────
 
 export type GenerateTemplatesRequest = components['schemas']['GenerateTemplatesRequest'] & {
@@ -238,10 +228,9 @@ export type FillSamplesRequest = Omit<
   compression?: 'zstd' | 'snappy' | 'gzip' | 'brotli' | 'none'
 }
 
-type GenerationJobStartResponse = components['schemas']['piern__synth__api__schemas__generation__JobStartResponse']
-type SimulationJobStartResponse = components['schemas']['piern__synth__api__routers__simulation__JobStartResponse']
+type ApiJobStartResponse = components['schemas']['JobStartResponse']
 
-export type JobStartResponse = Omit<GenerationJobStartResponse | SimulationJobStartResponse, 'scenario_totals'> & {
+export type JobStartResponse = Omit<ApiJobStartResponse, 'scenario_totals'> & {
   scenario_totals: Record<string, number>
 }
 
@@ -260,6 +249,7 @@ export interface JobStatusSnapshot extends Omit<
 // 模板库状态（来自 /api/templates）
 export interface TemplateInfo {
   scenario: string
+  simulator?: string | null
   template_count: number
   file_size_bytes: number
   mtime: number
@@ -269,15 +259,8 @@ export interface TemplateInfo {
 // 文件管理
 export interface TemplateFileInfo {
   scenario: string
+  simulator?: string | null
   template_count: number
-  file_size_bytes: number
-  mtime: number
-  path: string
-}
-
-export interface SampleFileInfo {
-  scenario: string
-  sample_count: number
   file_size_bytes: number
   mtime: number
   path: string
@@ -380,19 +363,6 @@ export interface InterviewCollectedData {
   param_info: Record<string, [string, string]>
   output_info: unknown[]
   observation_config: Record<string, unknown>
-}
-
-export interface InterviewState {
-  session_id: string
-  simulator: string
-  scenario: string
-  step: number
-  status: 'interviewing' | 'confirming' | 'done' | 'error'
-  history: InterviewMessage[]
-  collected_data: InterviewCollectedData
-  pending_extraction: Record<string, unknown> | null
-  hdf5_loaded: boolean
-  timeseries_shape: number[] | null
 }
 
 export interface AgentTurnResponse {
@@ -502,13 +472,13 @@ export interface RouterStatus {
   label_counts: Record<string, number>
   scenarios: RouterScenarioInfo[]
   source_count: number
-  source_by_scenario: Record<string, number>
+  source_by_scenario: Record<string, number> // key: simulator/scenario
   router_dir: string
 }
 
 export interface RouterSample {
   context: string
-  label: 0 | 1
+  label: 0 | 1 | '0' | '1'
   metadata: {
     simulator: string
     scenario: string
@@ -521,19 +491,6 @@ export interface RouterSamplesResponse {
   page: number
   page_size: number
   items: RouterSample[]
-}
-
-export interface SimulationHistoryRecord {
-  job_id: string
-  simulator: string
-  scenario: string
-  n_samples: number
-  skip_existing: boolean
-  started_at: number
-  finished_at: number | null
-  status: string
-  elapsed_sec: number | null
-  final_sample_count: number | null
 }
 
 export type TrainingDatasetScenario = components['schemas']['TrainingDatasetScenario']

@@ -23,6 +23,7 @@ import {
   Info,
 } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { parseIntegerField, parseIntegerText, parseOptionalIntegerField } from '../../integerInput'
 
 interface Props {
   onRegistryUpdate: () => void
@@ -264,8 +265,14 @@ function Step1Editor({
                   <input
                     type="number"
                     className="input w-full text-sm"
+                    min={0}
                     value={Number(data[k] ?? 0)}
-                    onChange={e => onChange({ ...data, [k]: parseInt(e.target.value) || 0 })}
+                    onChange={e =>
+                      onChange({
+                        ...data,
+                        [k]: parseIntegerField(e.target.value, Number(data[k] ?? 0) || 0, { min: 0 }),
+                      })
+                    }
                   />
                 </div>
               ),
@@ -370,6 +377,13 @@ function Step3Editor({
       ...data,
       output_info: [...items, { name: '', description: '', unit: '', slice: [0, null] as [number, null] }],
     })
+  const updateSliceStart = (i: number, item: OI, value: string) => {
+    const start = parseIntegerField(value, item.slice[0], { min: 0 })
+    const end = item.slice[1]
+    setItem(i, { slice: [start, end !== null && end < start ? start : end] })
+  }
+  const updateSliceEnd = (i: number, item: OI, value: string) =>
+    setItem(i, { slice: [item.slice[0], parseOptionalIntegerField(value, item.slice[1], { min: item.slice[0] })] })
   const removeItem = (i: number) => onChange({ ...data, output_info: items.filter((_, j) => j !== i) })
 
   return (
@@ -438,17 +452,18 @@ function Step3Editor({
                   type="number"
                   className="input w-full text-xs py-1 px-2"
                   placeholder="0"
+                  min={0}
                   value={item.slice[0]}
-                  onChange={e => setItem(i, { slice: [parseInt(e.target.value) || 0, item.slice[1]] })}
+                  onChange={e => updateSliceStart(i, item, e.target.value)}
                 />
                 <span className="text-slate-600 text-xs flex-shrink-0">:</span>
                 <input
+                  type="number"
                   className="input w-full text-xs py-1 px-2 font-mono"
+                  min={item.slice[0]}
                   placeholder="null"
                   value={item.slice[1] === null ? '' : String(item.slice[1])}
-                  onChange={e =>
-                    setItem(i, { slice: [item.slice[0], e.target.value === '' ? null : parseInt(e.target.value)] })
-                  }
+                  onChange={e => updateSliceEnd(i, item, e.target.value)}
                 />
               </div>
             </div>
@@ -526,7 +541,12 @@ function Step4Editor({
             className="input w-full text-xs py-1.5"
             min={1}
             value={Number(data.channel_min ?? 1)}
-            onChange={e => onChange({ ...data, channel_min: parseInt(e.target.value) || 1 })}
+            onChange={e =>
+              onChange({
+                ...data,
+                channel_min: parseIntegerField(e.target.value, Number(data.channel_min ?? 1) || 1, { min: 1 }),
+              })
+            }
           />
         </div>
         <div>
@@ -537,7 +557,16 @@ function Step4Editor({
             className="input w-full text-xs py-1.5 font-mono"
             placeholder="null"
             value={data.channel_max === null || data.channel_max === undefined ? '' : String(data.channel_max)}
-            onChange={e => onChange({ ...data, channel_max: e.target.value === '' ? null : parseInt(e.target.value) })}
+            onChange={e =>
+              onChange({
+                ...data,
+                channel_max: parseOptionalIntegerField(
+                  e.target.value,
+                  data.channel_max === null || data.channel_max === undefined ? null : Number(data.channel_max) || null,
+                  { min: 1 },
+                ),
+              })
+            }
           />
         </div>
       </div>
@@ -586,8 +615,8 @@ function parseTimeMode(fixed: string): { type: TimeMode; step: number } {
   if (fixed === 'weekly') return { type: 'weekly', step: 7 }
   if (fixed === 'full') return { type: 'full', step: 1 }
   if (fixed.startsWith('every_')) {
-    const n = parseInt(fixed.slice(6))
-    return { type: 'every_n', step: isNaN(n) || n <= 0 ? 10 : n }
+    const n = parseIntegerText(fixed.slice(6), { min: 1 })
+    return { type: 'every_n', step: n ?? 10 }
   }
   return { type: 'monthly', step: 10 }
 }
@@ -632,7 +661,7 @@ function Step5Editor({
   const [stepInput, setStepInput] = useState(String(everyStep))
 
   const select = (type: TimeMode, step?: number) => {
-    const n = step ?? (type === 'every_n' ? parseInt(stepInput) || 10 : 10)
+    const n = step ?? (type === 'every_n' ? parseIntegerField(stepInput, 10, { min: 1 }) : 10)
     const modeStr = type === 'every_n' ? `every_${n}` : type
     const { indices, desc_en, desc_zh } = buildTimeMode(type, n)
     onChange({
@@ -644,8 +673,8 @@ function Step5Editor({
 
   const handleStepChange = (val: string) => {
     setStepInput(val)
-    const n = parseInt(val)
-    if (n > 0) select('every_n', n)
+    const n = parseIntegerText(val, { min: 1 })
+    if (n !== null) select('every_n', n)
   }
 
   return (

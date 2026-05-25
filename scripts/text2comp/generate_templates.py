@@ -38,7 +38,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from piern.core.llm_client import LLMClient
 from piern.synth.text2comp.generator import LLMTextGenerator
-from piern.synth.text2comp.pipeline import load_config, _scan_h5_files, _scenario_name_from_path, _load_registry, _resolve_domain
+from piern.synth.text2comp.pipeline import (
+    _load_registry,
+    _resolve_data_path,
+    _resolve_domain,
+    _scan_h5_files,
+    assert_unique_stage_scenarios,
+    _scenario_name_from_path,
+    load_config,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -111,7 +119,7 @@ def run_generate_templates(
         base_dir = Path.cwd()
 
     # 模板输出目录
-    templates_dir = base_dir / "data" / "templates"
+    templates_dir = _resolve_data_path("data/templates", base_dir)
     templates_dir.mkdir(parents=True, exist_ok=True)
 
     # 加载 registry
@@ -168,6 +176,10 @@ def run_generate_templates(
             (p, s, sfx) for p, s, sfx in h5_files
             if _scenario_name_from_path(p, sfx) in scenarios_set
         ]
+        if not h5_files:
+            raise RuntimeError(f"未找到所选场景: {', '.join(sorted(scenarios_set))}")
+
+    assert_unique_stage_scenarios(h5_files)
 
     if h5_files:
         configured_scenario_workers = gen_cfg.get("scenario_workers")
@@ -185,6 +197,13 @@ def run_generate_templates(
 
     stats = Counter()
     stats_lock = threading.Lock()
+    failures: list[str] = []
+    failures_lock = threading.Lock()
+
+    def _record_failure(scenario: str, message: str) -> None:
+        _log(f"[错误] {scenario}: {message}")
+        with failures_lock:
+            failures.append(f"{scenario}: {message}")
 
     def _process_scenario(item) -> None:
         h5_path, simulator, file_suffix = item
@@ -221,14 +240,14 @@ def run_generate_templates(
         try:
             domain = _resolve_domain(simulator, scenario_name, registry)
         except ValueError as e:
-            logger.error(str(e))
+            _record_failure(scenario_name, str(e))
             return
 
         try:
             timeseries_shape, param_names = _read_h5_template_metadata(h5_path)
             _log(f"  timeseries_shape: {timeseries_shape}, params: {len(param_names)}")
         except Exception as e:
-            logger.error(f"load {h5_path} failed: {e}")
+            _record_failure(scenario_name, f"读取 HDF5 元数据失败: {e}")
             return
 
         file_lock = threading.Lock()
@@ -308,6 +327,11 @@ def run_generate_templates(
                     for pending in futures:
                         pending.cancel()
                     raise
+
+    if failures:
+        preview = "; ".join(failures[:5])
+        suffix = f"；另有 {len(failures) - 5} 个失败" if len(failures) > 5 else ""
+        raise RuntimeError(f"模板生成失败: {preview}{suffix}")
 
     _log("\n" + "=" * 60)
     _log(f"阶段一完成：共生成 {stats['total']} 条模板")

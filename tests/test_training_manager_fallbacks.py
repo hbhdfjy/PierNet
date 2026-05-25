@@ -7,7 +7,7 @@ import torch
 
 from piern.training.api.schemas.training import TrainingJobSummary
 from piern.training.services import job_store as training_job_store
-from piern.training.services import gpu_inventory, training_manager
+from piern.training.services import gpu_inventory, training_cleanup, training_manager
 from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 from piern.training.router.train import _prune_epoch_checkpoints
 
@@ -26,6 +26,40 @@ def test_list_datasets_returns_empty_when_router_manifest_is_missing(monkeypatch
     assert overview["datasets"] == []
 
 
+def test_validate_scenarios_deduplicates_direct_api_input(monkeypatch):
+    monkeypatch.setattr(
+        training_manager,
+        "list_datasets",
+        lambda: [{"simulator": "modflow", "scenarios": [{"scenario": "basin"}, {"scenario": "coastal"}]}],
+    )
+
+    scenarios = training_manager._validate_scenarios("modflow", ["coastal", "basin", "coastal", ""])
+
+    assert scenarios == ["basin", "coastal"]
+
+
+def test_get_gpu_inventory_skips_malformed_nvidia_smi_rows(monkeypatch):
+    monkeypatch.setattr(training_manager, "list_jobs", lambda refresh=True: [])
+    monkeypatch.setattr(training_manager.task_locks, "list_locks", lambda prefix=None: [])
+    monkeypatch.setattr(
+        gpu_inventory,
+        "query_nvidia_smi",
+        lambda: "\n".join(
+            [
+                "0, GPU 0, 10, 8192, 0",
+                "1, GPU 1, N/A, 8192, 0",
+                "2, GPU 2, 20, 8192, 10",
+            ]
+        ),
+    )
+
+    result = training_manager.get_gpu_inventory()
+
+    assert [item["index"] for item in result] == [0, 2]
+    assert result[0]["available"] is True
+    assert result[1]["available"] is True
+
+
 def test_get_gpu_inventory_returns_empty_when_nvidia_smi_is_unavailable(monkeypatch):
     monkeypatch.setattr(training_manager, "list_jobs", lambda refresh=True: [])
 
@@ -42,6 +76,46 @@ def test_pid_alive_treats_zombie_process_as_dead(monkeypatch):
     monkeypatch.setattr(training_manager.Path, "read_text", lambda self, **kwargs: "123 (python) Z 1")
 
     assert training_manager._pid_alive(123) is False
+
+
+def test_validate_resume_checkpoint_rejects_non_dict_torch_payload(tmp_path: Path):
+    checkpoint_path = tmp_path / "router_latest.pt"
+    torch.save(["not", "a", "checkpoint"], checkpoint_path)
+
+    try:
+        training_manager._validate_resume_checkpoint(
+            resume_from=str(checkpoint_path),
+            simulator="modflow",
+            scenarios=["coastal_seawater"],
+            test_ratio=0.10,
+            input_representation="pretrained_embeddings",
+            embedding_model=DEFAULT_QWEN_EMBEDDING_MODEL,
+            embedding_tokenizer=DEFAULT_QWEN_EMBEDDING_MODEL,
+        )
+    except ValueError as exc:
+        assert "resume checkpoint is unreadable" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for non-dict checkpoint payload")
+
+
+def test_validate_resume_checkpoint_rejects_malformed_metadata(tmp_path: Path):
+    checkpoint_path = tmp_path / "router_latest.pt"
+    torch.save({"prepared_summary": {"simulator": "modflow", "scenarios": "coastal", "test_ratio": "bad"}}, checkpoint_path)
+
+    try:
+        training_manager._validate_resume_checkpoint(
+            resume_from=str(checkpoint_path),
+            simulator="modflow",
+            scenarios=["coastal_seawater"],
+            test_ratio=0.10,
+            input_representation="pretrained_embeddings",
+            embedding_model=DEFAULT_QWEN_EMBEDDING_MODEL,
+            embedding_tokenizer=DEFAULT_QWEN_EMBEDDING_MODEL,
+        )
+    except ValueError as exc:
+        assert "resume checkpoint is unreadable" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for malformed checkpoint metadata")
 
 
 def test_validate_resume_checkpoint_rejects_input_representation_mismatch(tmp_path: Path):
@@ -127,6 +201,34 @@ def test_prune_epoch_checkpoints_keeps_latest_epochs(tmp_path: Path):
 
 
 
+def test_list_jobs_tolerates_non_dict_latest_checkpoint(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    run_dir = tmp_path / "artifacts" / "modflow" / "runs" / "train-weird-checkpoint"
+    log_path = tmp_path / "run.log"
+    run_dir.mkdir(parents=True, exist_ok=True)
+    torch.save(["not", "metadata"], run_dir / "router_latest.pt")
+    log_path.write_text("[done] completed", encoding="utf-8")
+
+    training_manager._save_registry(
+        [
+            {
+                "job_id": "train-weird-checkpoint",
+                "name": "weird-checkpoint",
+                "status": "done",
+                "pid": None,
+                "created_at": 1.0,
+                "run_dir": str(run_dir),
+                "log_path": str(log_path),
+            }
+        ]
+    )
+
+    jobs = training_manager.list_jobs(refresh=True)
+
+    assert jobs[0]["checkpoints"][0]["name"] == "router_latest.pt"
+    assert jobs[0]["checkpoints"][0]["epoch"] is None
+
+
 def test_list_jobs_normalizes_legacy_snapshots(monkeypatch, tmp_path: Path):
     _use_tmp_training_store(monkeypatch, tmp_path)
     run_dir = tmp_path / 'artifacts' / 'modflow' / 'runs' / 'train-legacy'
@@ -165,6 +267,8 @@ def test_delete_job_removes_finished_entry(monkeypatch, tmp_path: Path):
     metrics_path = run_dir / 'test_metrics_latest.json'
 
     monkeypatch.setattr(training_manager, '_refresh_entry', lambda entry: entry)
+    monkeypatch.setattr(training_cleanup, "ARTIFACT_ROOT", tmp_path / "artifacts")
+    monkeypatch.setattr(training_cleanup, "RUNLOG_ROOT", tmp_path)
 
     run_dir.mkdir(parents=True, exist_ok=True)
     checkpoint_path.write_text('checkpoint', encoding='utf-8')
@@ -192,6 +296,122 @@ def test_delete_job_removes_finished_entry(monkeypatch, tmp_path: Path):
 
 
 
+def test_delete_job_restores_staged_artifacts_when_mark_deleted_fails(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    run_dir = tmp_path / "artifacts" / "modflow" / "runs" / "train-done"
+    log_path = tmp_path / "run.log"
+    checkpoint_path = run_dir / "router_latest.pt"
+
+    monkeypatch.setattr(training_manager, "_refresh_entry", lambda entry: entry)
+    monkeypatch.setattr(training_cleanup, "ARTIFACT_ROOT", tmp_path / "artifacts")
+    monkeypatch.setattr(training_cleanup, "RUNLOG_ROOT", tmp_path)
+
+    run_dir.mkdir(parents=True, exist_ok=True)
+    checkpoint_path.write_text("checkpoint", encoding="utf-8")
+    log_path.write_text("log", encoding="utf-8")
+
+    training_manager._save_registry([
+        {
+            "job_id": "train-done",
+            "name": "done-job",
+            "status": "done",
+            "pid": None,
+            "created_at": 1.0,
+            "run_dir": str(run_dir),
+            "log_path": str(log_path),
+        }
+    ])
+
+    def fail_mark_deleted(job_id: str) -> None:
+        assert job_id == "train-done"
+        raise RuntimeError("deleted marker write failed")
+
+    monkeypatch.setattr(training_job_store, "mark_deleted", fail_mark_deleted)
+
+    try:
+        training_manager.delete_job("train-done")
+    except RuntimeError as exc:
+        assert "deleted marker write failed" in str(exc)
+    else:
+        raise AssertionError("expected delete_job to fail when mark_deleted fails")
+
+    assert run_dir.exists()
+    assert checkpoint_path.exists()
+    assert log_path.exists()
+    assert training_manager._load_registry()[0]["job_id"] == "train-done"
+    assert not any(path.name.startswith(".deleting-train-done") for path in run_dir.parent.iterdir())
+
+
+def test_delete_job_rejects_run_dir_outside_artifact_root(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    artifact_root = tmp_path / "artifacts"
+    outside_dir = tmp_path / "outside-run"
+    log_path = tmp_path / "run.log"
+    artifact_root.mkdir()
+    outside_dir.mkdir()
+    (outside_dir / "router_latest.pt").write_text("checkpoint", encoding="utf-8")
+    log_path.write_text("log", encoding="utf-8")
+
+    monkeypatch.setattr(training_manager, "_refresh_entry", lambda entry: entry)
+    monkeypatch.setattr(training_cleanup, "ARTIFACT_ROOT", artifact_root)
+    training_manager._save_registry([
+        {
+            "job_id": "train-outside",
+            "name": "outside-job",
+            "status": "done",
+            "pid": None,
+            "created_at": 1.0,
+            "run_dir": str(outside_dir),
+            "log_path": str(log_path),
+        }
+    ])
+
+    try:
+        training_manager.delete_job("train-outside")
+    except ValueError as exc:
+        assert "artifact root" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for run directory outside artifact root")
+
+    assert outside_dir.exists()
+    assert log_path.exists()
+    assert training_manager._load_registry()[0]["job_id"] == "train-outside"
+
+
+def test_delete_job_rejects_artifact_root_run_dir(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    artifact_root = tmp_path / "artifacts"
+    log_path = tmp_path / "run.log"
+    artifact_root.mkdir()
+    (artifact_root / "keep.txt").write_text("keep", encoding="utf-8")
+    log_path.write_text("log", encoding="utf-8")
+
+    monkeypatch.setattr(training_manager, "_refresh_entry", lambda entry: entry)
+    monkeypatch.setattr(training_cleanup, "ARTIFACT_ROOT", artifact_root)
+    training_manager._save_registry([
+        {
+            "job_id": "train-root",
+            "name": "root-job",
+            "status": "done",
+            "pid": None,
+            "created_at": 1.0,
+            "run_dir": str(artifact_root),
+            "log_path": str(log_path),
+        }
+    ])
+
+    try:
+        training_manager.delete_job("train-root")
+    except ValueError as exc:
+        assert "artifact root" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for artifact root run directory")
+
+    assert (artifact_root / "keep.txt").exists()
+    assert log_path.exists()
+    assert training_manager._load_registry()[0]["job_id"] == "train-root"
+
+
 def test_delete_job_rejects_running_entry(monkeypatch, tmp_path: Path):
     _use_tmp_training_store(monkeypatch, tmp_path)
     monkeypatch.setattr(training_manager, '_refresh_entry', lambda entry: entry)
@@ -214,6 +434,64 @@ def test_delete_job_rejects_running_entry(monkeypatch, tmp_path: Path):
         assert 'still active' in str(exc)
     else:
         raise AssertionError('expected ValueError for active job deletion')
+
+
+def test_queued_job_can_be_stopped_but_not_deleted(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(training_manager, '_refresh_entry', lambda entry: entry)
+
+    training_manager._save_registry([
+        {
+            'job_id': 'train-queued',
+            'name': 'queued-job',
+            'status': 'queued',
+            'pid': None,
+            'created_at': 1.0,
+            'run_dir': str(tmp_path / 'run'),
+            'log_path': str(tmp_path / 'run.log'),
+        }
+    ])
+
+    try:
+        training_manager.delete_job('train-queued')
+    except ValueError as exc:
+        assert 'still active' in str(exc)
+    else:
+        raise AssertionError('expected ValueError for queued job deletion')
+
+    stopped = training_manager.stop_job('train-queued')
+
+    assert stopped['status'] == 'terminated'
+    assert stopped['terminated'] is True
+    assert training_manager.get_job('train-queued', refresh=False)['status'] == 'terminated'
+
+
+def test_stop_job_does_not_mark_finished_job_as_terminated(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(training_manager, '_refresh_entry', lambda entry: entry)
+
+    training_manager._save_registry([
+        {
+            'job_id': 'train-done',
+            'name': 'done-job',
+            'status': 'done',
+            'terminated': False,
+            'pid': None,
+            'created_at': 1.0,
+            'ended_at': 2.0,
+            'run_dir': str(tmp_path / 'run'),
+            'log_path': str(tmp_path / 'run.log'),
+        }
+    ])
+
+    stopped = training_manager.stop_job('train-done')
+    stored = training_manager.get_job('train-done', refresh=False)
+
+    assert stopped['status'] == 'done'
+    assert stopped['terminated'] is False
+    assert stopped['ended_at'] == 2.0
+    assert stored['status'] == 'done'
+    assert stored['terminated'] is False
 
 
 
@@ -254,6 +532,17 @@ def test_delete_checkpoint_rejects_primary_weight(monkeypatch, tmp_path: Path):
         assert 'only epoch checkpoints' in str(exc)
     else:
         raise AssertionError('expected ValueError for primary checkpoint deletion')
+
+
+def test_delete_checkpoint_rejects_path_traversal_name(monkeypatch, tmp_path: Path):
+    _use_tmp_training_store(monkeypatch, tmp_path)
+
+    try:
+        training_manager.delete_checkpoint('train-done', 'router_epoch_0001.pt/../../router_epoch_evil.pt')
+    except ValueError as exc:
+        assert 'checkpoint name must be a file name' in str(exc)
+    else:
+        raise AssertionError('expected ValueError for checkpoint path traversal')
 
 
 def test_training_curves_ignore_partial_and_non_finite_metrics(monkeypatch, tmp_path: Path):

@@ -12,7 +12,7 @@ export function useResizable({ defaultWidth, minWidth, maxWidth, storageKey }: U
     if (storageKey) {
       const stored = localStorage.getItem(storageKey)
       if (stored) {
-        const n = parseInt(stored, 10)
+        const n = Number(stored)
         if (!isNaN(n) && n >= minWidth && n <= maxWidth) return n
       }
     }

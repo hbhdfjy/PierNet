@@ -23,7 +23,7 @@ class SPAStaticFiles(StaticFiles):
         except StarletteHTTPException as exc:
             if exc.status_code != 404:
                 raise
-            if path.startswith('api/'):
+            if path == 'api' or path.startswith('api/'):
                 raise
             if FilePath(path).suffix:
                 raise

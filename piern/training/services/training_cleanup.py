@@ -9,9 +9,31 @@ from pathlib import Path
 from threading import Thread
 from typing import Any
 
+from piern.shared.runtime.paths import ARTIFACT_ROOT, RUNLOG_ROOT
 from piern.training.services.checkpoint_store import clear_checkpoint_metadata_cache
 
 LOGGER = logging.getLogger(__name__)
+
+
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _safe_cleanup_path(value: str | Path, *, root: Path, label: str) -> Path | None:
+    path = Path(value).expanduser()
+    resolved_path = path.resolve(strict=False)
+    resolved_root = Path(root).expanduser().resolve(strict=False)
+    if resolved_path == resolved_root:
+        LOGGER.warning("Refusing to delete %s root: %s", label, resolved_root)
+        return None
+    if _path_within(resolved_path, resolved_root):
+        return resolved_path
+    LOGGER.warning("Refusing to delete %s outside %s: %s", label, resolved_root, resolved_path)
+    return None
 
 
 def stage_job_artifacts_for_delete(entry: dict[str, Any]) -> list[tuple[Path, Path]]:
@@ -20,7 +42,9 @@ def stage_job_artifacts_for_delete(entry: dict[str, Any]) -> list[tuple[Path, Pa
     if not run_dir_value:
         return staged
 
-    run_dir = Path(run_dir_value)
+    run_dir = _safe_cleanup_path(run_dir_value, root=ARTIFACT_ROOT, label="training run directory")
+    if run_dir is None:
+        raise ValueError("training run directory is outside the configured artifact root")
     if not run_dir.exists():
         return staged
 
@@ -68,7 +92,9 @@ def remove_job_log(entry: dict[str, Any]) -> None:
     if not log_path_value:
         return
 
-    log_path = Path(log_path_value)
+    log_path = _safe_cleanup_path(log_path_value, root=RUNLOG_ROOT, label="training log")
+    if log_path is None:
+        return
     try:
         log_path.unlink(missing_ok=True)
     except OSError:
@@ -79,7 +105,10 @@ def remove_job_stop_file(entry: dict[str, Any]) -> None:
     stop_file_value = entry.get("stop_file")
     if not stop_file_value:
         return
+    stop_file = _safe_cleanup_path(stop_file_value, root=RUNLOG_ROOT, label="training stop file")
+    if stop_file is None:
+        return
     try:
-        Path(stop_file_value).unlink(missing_ok=True)
+        stop_file.unlink(missing_ok=True)
     except OSError:
         LOGGER.exception("Failed to delete training stop file %s", stop_file_value)

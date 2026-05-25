@@ -1,13 +1,15 @@
 """多智能体交互式注册路由：/api/interview/*。"""
 
 import asyncio
+from pathlib import Path
 from typing import Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
-from piern.shared.runtime.paths import CONFIG_DIR, PROJECT_ROOT, REGISTRY_PATH
+from piern.shared.runtime.paths import CONFIG_DIR, DATA_ROOT, PROJECT_ROOT, REGISTRY_PATH
+from piern.synth.services.hdf5_data import validate_name
 from piern.synth.text2comp.interview_agent import (
     create_session as _iv_create,
     process_user_message as _iv_message,
@@ -35,6 +37,53 @@ class InterviewConfirmRequest(BaseModel):
     edited_data: Optional[dict] = None
 
 
+def _path_within(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _resolve_hdf5_path(value: str | None) -> Optional[str]:
+    raw = str(value or "").strip()
+    if not raw:
+        return None
+
+    input_path = Path(raw).expanduser()
+    project_root = PROJECT_ROOT.resolve(strict=False)
+    data_root = DATA_ROOT.resolve(strict=False)
+    if input_path.is_absolute():
+        candidate = input_path
+        allowed_roots = (project_root, data_root)
+    elif input_path.parts and input_path.parts[0] == "data":
+        candidate = DATA_ROOT.joinpath(*input_path.parts[1:])
+        allowed_roots = (data_root,)
+    else:
+        candidate = PROJECT_ROOT / input_path
+        allowed_roots = (project_root,)
+
+    resolved = candidate.resolve(strict=False)
+    if not any(_path_within(resolved, root) for root in allowed_roots):
+        raise HTTPException(400, "hdf5_path 必须位于项目目录或数据目录内")
+    if resolved.suffix.lower() not in {".h5", ".hdf5"}:
+        return None
+    return str(resolved) if resolved.is_file() else None
+
+
+def _validate_start_request(req: InterviewStartRequest) -> tuple[str, str, str]:
+    try:
+        simulator = validate_name("simulator", req.simulator)
+        scenario = validate_name("scenario", req.scenario)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
+
+    mode = str(req.mode or "simulator").strip()
+    if mode not in {"simulator", "scenario"}:
+        raise HTTPException(400, "mode 必须是 simulator 或 scenario")
+    return simulator, scenario, mode
+
+
 def _load_llm_cfg() -> dict:
     """从 default.yaml → generation.yaml 读取 LLM 配置。"""
     default_yaml = CONFIG_DIR / "default.yaml"
@@ -56,26 +105,22 @@ def _load_llm_cfg() -> dict:
 @router.post("/interview/start")
 async def start_interview(req: InterviewStartRequest):
     """创建新的面试会话，返回第一个问题。"""
-    if not req.simulator or not req.scenario:
-        raise HTTPException(400, "simulator 和 scenario 不能为空")
+    simulator, scenario, mode = _validate_start_request(req)
 
     llm_cfg = _load_llm_cfg()
-    hdf5_path: Optional[str] = None
-    if req.hdf5_path:
-        p = PROJECT_ROOT / req.hdf5_path
-        hdf5_path = str(p) if p.exists() else None
+    hdf5_path = _resolve_hdf5_path(req.hdf5_path)
 
     loop = asyncio.get_event_loop()
     try:
         session_id, resp = await loop.run_in_executor(
             None,
             lambda: _iv_create(
-                simulator=req.simulator,
-                scenario=req.scenario,
+                simulator=simulator,
+                scenario=scenario,
                 hdf5_path=hdf5_path,
                 llm_cfg=llm_cfg,
                 registry_path=REGISTRY_PATH,
-                mode=req.mode,
+                mode=mode,
             )
         )
     except Exception as e:
@@ -104,35 +149,6 @@ async def send_interview_message(session_id: str, req: InterviewMessageRequest):
         raise HTTPException(500, f"消息处理失败: {e}")
 
     return resp.to_dict()
-
-
-@router.get("/interview/{session_id}/state")
-def get_interview_state(session_id: str):
-    """获取会话完整状态快照。"""
-    session = _iv_get(session_id)
-    if not session:
-        raise HTTPException(404, f"会话 {session_id} 不存在")
-
-    return {
-        "session_id": session.session_id,
-        "simulator": session.simulator,
-        "scenario": session.scenario,
-        "step": session.step,
-        "status": session.status,
-        "history": session.history,
-        "collected_data": {
-            "domain_context": session.domain_context,
-            "output_description": session.output_description,
-            "param_info": session.param_info,
-            "output_info": session.output_info,
-            "observation_config": session.observation_config,
-        },
-        "pending_extraction": session.pending_extraction or None,
-        "hdf5_loaded": session.timeseries_shape is not None,
-        "timeseries_shape": list(session.timeseries_shape) if session.timeseries_shape else None,
-        "github_url": session.github_url,
-        "prefilled_steps": list(session.prefilled_steps),
-    }
 
 
 @router.post("/interview/{session_id}/confirm")

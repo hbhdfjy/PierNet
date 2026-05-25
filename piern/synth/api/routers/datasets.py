@@ -1,4 +1,4 @@
-"""数据集相关路由：/api/datasets, /api/samples, /api/stats。"""
+"""数据集相关路由：/api/datasets, /api/samples, /api/dashboard/summary。"""
 
 from __future__ import annotations
 
@@ -13,20 +13,34 @@ from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT
 from piern.shared.storage import portable
+from piern.shared.storage.hdf5_files import iter_hdf5_files_in_child_dirs
+from piern.shared.storage.scenario_summary import duplicate_scenario_names, scenario_summary_key
 from piern.synth.api.routers import router_data as router_data_router
-from piern.synth.services import jsonl_filter_index, jsonl_index, manifest_store
+from piern.synth.services import file_manager, jsonl_filter_index, jsonl_index, manifest_store
 
 router = APIRouter()
 LOGGER = logging.getLogger(__name__)
 
 
+def _record_matches_sample_identity(
+    record: dict,
+    fallback_scenario: str,
+    scenario: str,
+    simulator: str | None,
+) -> bool:
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    record_scenario = str(metadata.get("scenario") or fallback_scenario).strip()
+    record_simulator = str(metadata.get("simulator") or "").strip() or None
+    return record_scenario == scenario and (simulator is None or record_simulator in {None, simulator})
+
+
 @router.get("/datasets")
 def get_datasets():
-    """返回 Stage 3 数据集列表，优先走 manifest。"""
+    """返回真实 Stage 3 样本数据集列表，优先走 manifest。"""
     try:
         manifest = _combined_sample_manifest()
-        if not manifest.get("items"):
-            manifest = _raw_data_manifest_like()
         return [
             {
                 "name": item["scenario"],
@@ -51,16 +65,21 @@ def get_samples(
     page_size: int = Query(20, ge=1, le=100),
     language: Optional[str] = Query(None),
     style: Optional[str] = Query(None),
+    simulator: Optional[str] = Query(None),
 ):
     """分页读取指定场景样本；Parquet 存在时优先使用 Parquet。"""
-    if portable.has_partitions("text2comp"):
+    language_filter = language.strip() if isinstance(language, str) and language.strip() else None
+    style_filter = style.strip() if isinstance(style, str) and style.strip() else None
+    simulator_filter = simulator.strip() if isinstance(simulator, str) and simulator.strip() else None
+    if portable.partition_for("text2comp", scenario, simulator=simulator_filter) is not None:
         try:
             parquet_page = portable.read_text2comp_page(
                 scenario=scenario,
                 page=page,
                 page_size=page_size,
-                language=language,
-                style=style,
+                language=language_filter,
+                style=style_filter,
+                simulator=simulator_filter,
             )
             if parquet_page is not None:
                 total, items = parquet_page
@@ -68,17 +87,23 @@ def get_samples(
         except Exception as exc:
             raise HTTPException(500, f"读取 Parquet 失败: {exc}")
 
-    jsonl_path = DATA_DIR / f"{scenario}.jsonl"
-    if not jsonl_path.exists():
+    try:
+        jsonl_path = file_manager.resolve_sample_file(scenario, simulator=simulator_filter)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if jsonl_path is None or not jsonl_path.exists():
         raise HTTPException(404, f"场景 {scenario} 的数据文件不存在")
 
-    has_filter = bool(language or style)
+    sample_manifest_items = _sample_manifest_items_for_path(jsonl_path)
+    requires_record_filter = _sample_requires_record_filter(sample_manifest_items, scenario, simulator_filter)
+    requires_record_filter = requires_record_filter or jsonl_path.stem != scenario
+    has_filter = bool(language_filter or style_filter or simulator_filter or requires_record_filter)
     start = page * page_size
     end = start + page_size
 
     try:
         if not has_filter:
-            total_hint = _sample_total_from_manifest(scenario)
+            total_hint = _sample_total_from_manifest(scenario, simulator_filter, source_path=jsonl_path)
             try:
                 total, items = jsonl_index.read_page(
                     jsonl_path,
@@ -90,8 +115,8 @@ def get_samples(
             except Exception:
                 pass
 
-        filter_key = _sample_filter_key(language=language, style=style)
-        if filter_key:
+        filter_key = _sample_filter_key(language=language_filter, style=style_filter)
+        if filter_key and not simulator_filter and not requires_record_filter:
             try:
                 total, items_page = jsonl_filter_index.read_filtered_page(
                     jsonl_path,
@@ -116,10 +141,12 @@ def get_samples(
                 except json.JSONDecodeError:
                     continue
 
-                metadata = sample.get("metadata", {})
-                if language and metadata.get("language") != language:
+                metadata = sample.get("metadata", {}) if isinstance(sample.get("metadata"), dict) else {}
+                if not _record_matches_sample_identity(sample, jsonl_path.stem, scenario, simulator_filter):
                     continue
-                if style and metadata.get("style") != style:
+                if language_filter and metadata.get("language") != language_filter:
+                    continue
+                if style_filter and metadata.get("style") != style_filter:
                     continue
                 if start <= total < end:
                     items_page.append(sample)
@@ -129,8 +156,7 @@ def get_samples(
         raise HTTPException(500, f"读取 JSONL 失败: {exc}")
 
 
-@router.get("/stats")
-def get_stats():
+def _get_sample_stats():
     """返回 Stage 3 聚合统计，优先走 manifest。"""
     try:
         manifest = _combined_sample_manifest()
@@ -149,7 +175,7 @@ def get_stats():
             },
         )
     except Exception:
-        LOGGER.exception("Falling back to legacy /api/stats scan")
+        LOGGER.exception("Falling back to legacy stats scan")
         return _compute_stats_from_individual()
 
 
@@ -197,10 +223,14 @@ def get_dashboard_summary():
     except Exception:
         LOGGER.exception("Falling back to composed dashboard summary reads")
         return {
-            "stats": get_stats(),
+            "stats": _get_sample_stats(),
             "datasets": get_datasets(),
             "router": router_data_router.get_router_status(),
         }
+
+
+def _manifest_item_key(item: dict) -> tuple[str, str]:
+    return (str(item.get("simulator") or "unknown"), str(item.get("scenario") or ""))
 
 
 def _combined_sample_manifest() -> dict:
@@ -210,13 +240,13 @@ def _combined_sample_manifest() -> dict:
         return jsonl_manifest
 
     parquet_items = list(parquet_manifest.get("items", []))
-    parquet_scenarios = {item.get("scenario") for item in parquet_items}
+    parquet_scenarios = {_manifest_item_key(item) for item in parquet_items}
     jsonl_items = [
         {**item, "storage": "jsonl"}
         for item in jsonl_manifest.get("items", [])
-        if item.get("scenario") not in parquet_scenarios
+        if _manifest_item_key(item) not in parquet_scenarios
     ]
-    items = sorted([*parquet_items, *jsonl_items], key=lambda item: item.get("scenario", ""))
+    items = sorted([*parquet_items, *jsonl_items], key=_manifest_item_key)
     return {
         "version": 2,
         "kind": "sample_manifest",
@@ -235,13 +265,21 @@ def _raw_data_manifest_like() -> dict:
     source corpus instead of showing an empty Stage 3 view.
     """
     template_manifest = manifest_store.ensure_template_manifest()
-    templates_by_scenario = {
-        str(item.get("scenario")): item
-        for item in template_manifest.get("items", [])
-        if item.get("scenario")
-    }
+    templates_by_identity: dict[tuple[str, str], dict] = {}
+    templates_by_scenario: dict[str, dict] = {}
+    for item in template_manifest.get("items", []):
+        scenario = str(item.get("scenario") or "")
+        if not scenario:
+            continue
+        simulator = str(item.get("simulator") or "")
+        if simulator:
+            templates_by_identity[(simulator, scenario)] = item
+        templates_by_scenario.setdefault(scenario, item)
 
-    items = [_raw_hdf5_item(path, templates_by_scenario) for path in _iter_raw_hdf5_files()]
+    items = [
+        _raw_hdf5_item(path, templates_by_identity, templates_by_scenario)
+        for path in _iter_raw_hdf5_files()
+    ]
     if not items:
         items = [_template_item_like(item) for item in template_manifest.get("items", [])]
 
@@ -257,9 +295,6 @@ def _raw_data_manifest_like() -> dict:
 
 
 def _iter_raw_hdf5_files() -> list[Path]:
-    if not DATA_ROOT.exists():
-        return []
-
     ignored_dirs = {
         ".manifests",
         ".parquet_jsonl_cache",
@@ -267,19 +302,14 @@ def _iter_raw_hdf5_files() -> list[Path]:
         "templates",
         "text2comp",
     }
-    paths: list[Path] = []
-    for path in DATA_ROOT.rglob("*.h5"):
-        try:
-            relative = path.relative_to(DATA_ROOT)
-        except ValueError:
-            continue
-        if not relative.parts or relative.parts[0] in ignored_dirs:
-            continue
-        paths.append(path)
-    return sorted(paths)
+    return iter_hdf5_files_in_child_dirs(DATA_ROOT, skip_dirs=ignored_dirs)
 
 
-def _raw_hdf5_item(path: Path, templates_by_scenario: dict[str, dict]) -> dict:
+def _raw_hdf5_item(
+    path: Path,
+    templates_by_identity: dict[tuple[str, str], dict],
+    templates_by_scenario: dict[str, dict],
+) -> dict:
     stat = path.stat()
     simulator = path.parent.name
     scenario = path.stem
@@ -287,7 +317,7 @@ def _raw_hdf5_item(path: Path, templates_by_scenario: dict[str, dict]) -> dict:
     if scenario.startswith(prefix):
         scenario = scenario[len(prefix):]
 
-    template_item = templates_by_scenario.get(scenario, {})
+    template_item = templates_by_identity.get((simulator, scenario)) or templates_by_scenario.get(scenario, {})
     sample_count, timeseries_shape = _read_hdf5_stats(path)
     return {
         "scenario": scenario,
@@ -366,6 +396,7 @@ def _summary_from_sample_items(items: list[dict]) -> dict:
     by_style: Counter = Counter()
     by_time_mode: Counter = Counter()
     timeseries_shapes: dict = {}
+    duplicate_scenarios = duplicate_scenario_names(items)
     total = 0
     for item in items:
         count = int(item.get("sample_count") or 0)
@@ -373,7 +404,7 @@ def _summary_from_sample_items(items: list[dict]) -> dict:
         scenario = str(item.get("scenario") or "unknown")
         total += count
         by_simulator[simulator] += count
-        by_scenario[scenario] += count
+        by_scenario[scenario_summary_key(simulator, scenario, duplicate_scenarios)] += count
         by_language.update({str(k): int(v) for k, v in (item.get("by_language") or {}).items()})
         by_style.update({str(k): int(v) for k, v in (item.get("by_style") or {}).items()})
         by_time_mode.update({str(k): int(v) for k, v in (item.get("by_time_mode") or {}).items()})
@@ -414,7 +445,9 @@ def _legacy_get_datasets():
                 first = handle.readline().strip()
                 if first:
                     metadata = json.loads(first).get("metadata", {})
-                    simulator = metadata.get("simulator", "unknown")
+                    if isinstance(metadata, dict):
+                        simulator = metadata.get("simulator", "unknown")
+                        scenario = str(metadata.get("scenario") or scenario)
         except Exception:
             pass
 
@@ -432,16 +465,57 @@ def _legacy_get_datasets():
     return results
 
 
-def _sample_total_from_manifest(scenario: str) -> int | None:
+def _sample_manifest_items_for_path(source_path: Path) -> list[dict]:
     try:
         manifest = manifest_store.ensure_sample_manifest()
     except Exception:
+        return []
+
+    source = str(source_path)
+    items: list[dict] = []
+    for item in manifest.get("items", []):
+        item_path = item.get("path")
+        if not item_path:
+            continue
+        try:
+            if str(Path(str(item_path))) == source:
+                items.append(item)
+        except Exception:
+            continue
+    return items
+
+
+def _sample_requires_record_filter(manifest_items: list[dict], scenario: str, simulator: str | None) -> bool:
+    if not manifest_items:
+        return False
+
+    target_scenario = str(scenario)
+    target_simulator = str(simulator) if simulator else None
+    matching = [
+        item
+        for item in manifest_items
+        if str(item.get("scenario") or "") == target_scenario
+        and (target_simulator is None or str(item.get("simulator") or "unknown") == target_simulator)
+    ]
+    return len(matching) != len(manifest_items)
+
+
+def _sample_total_from_manifest(scenario: str, simulator: str | None = None, source_path: Path | None = None) -> int | None:
+    try:
+        items = _sample_manifest_items_for_path(source_path) if source_path is not None else manifest_store.ensure_sample_manifest().get("items", [])
+    except Exception:
         return None
 
-    for item in manifest.get("items", []):
-        if item.get("scenario") == scenario:
-            return int(item.get("sample_count", 0))
-    return None
+    total = 0
+    matched = False
+    for item in items:
+        if str(item.get("scenario") or "") != scenario:
+            continue
+        if simulator is not None and str(item.get("simulator") or "unknown") != simulator:
+            continue
+        total += int(item.get("sample_count", 0))
+        matched = True
+    return total if matched else None
 
 
 def _sample_filter_key(language: Optional[str], style: Optional[str]) -> str | None:
@@ -454,56 +528,9 @@ def _sample_filter_key(language: Optional[str], style: Optional[str]) -> str | N
     return None
 
 
-def _compute_stats(jsonl_path: Path) -> dict:
-    by_simulator: Counter = Counter()
-    by_scenario: Counter = Counter()
-    by_language: Counter = Counter()
-    by_style: Counter = Counter()
-    by_time_mode: Counter = Counter()
-    timeseries_shapes: dict = {}
-    total = 0
-
-    try:
-        with open(jsonl_path, "r", encoding="utf-8") as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    sample = json.loads(line)
-                    metadata = sample.get("metadata", {})
-                except Exception:
-                    continue
-
-                total += 1
-                simulator = metadata.get("simulator", "unknown")
-                by_simulator[simulator] += 1
-                scenario = metadata.get("scenario", "unknown")
-                by_scenario[scenario] += 1
-                by_language[metadata.get("language", "unknown")] += 1
-                by_style[metadata.get("style", "unknown")] += 1
-                observation = metadata.get("observation", {})
-                by_time_mode[observation.get("time_mode", "unknown")] += 1
-                shape_obs = metadata.get("timeseries_shape_obs")
-                if shape_obs and simulator not in timeseries_shapes:
-                    timeseries_shapes[simulator] = shape_obs
-    except Exception:
-        pass
-
-    return {
-        "total_samples": total,
-        "by_simulator": dict(by_simulator),
-        "by_scenario": dict(by_scenario),
-        "by_language": dict(by_language),
-        "by_style": dict(by_style),
-        "by_time_mode": dict(by_time_mode),
-        "timeseries_shapes": timeseries_shapes,
-    }
-
-
 def _compute_stats_from_individual() -> dict:
     by_simulator: Counter = Counter()
-    by_scenario: Counter = Counter()
+    by_identity: Counter = Counter()
     by_language: Counter = Counter()
     by_style: Counter = Counter()
     by_time_mode: Counter = Counter()
@@ -524,20 +551,51 @@ def _compute_stats_from_individual() -> dict:
     for path in DATA_DIR.glob("*.jsonl"):
         if path.name == "all_training_data.jsonl":
             continue
-        stats = _compute_stats(path)
-        total += stats["total_samples"]
-        by_simulator.update(stats["by_simulator"])
-        by_scenario.update(stats["by_scenario"])
-        by_language.update(stats["by_language"])
-        by_style.update(stats["by_style"])
-        by_time_mode.update(stats["by_time_mode"])
-        for simulator, shape in stats["timeseries_shapes"].items():
-            timeseries_shapes.setdefault(simulator, shape)
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                for line in handle:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        sample = json.loads(line)
+                        metadata = sample.get("metadata", {})
+                        if not isinstance(metadata, dict):
+                            metadata = {}
+                    except Exception:
+                        continue
+
+                    total += 1
+                    simulator = str(metadata.get("simulator") or "unknown")
+                    scenario = str(metadata.get("scenario") or "unknown")
+                    by_simulator[simulator] += 1
+                    by_identity[(simulator, scenario)] += 1
+                    by_language[str(metadata.get("language") or "unknown")] += 1
+                    by_style[str(metadata.get("style") or "unknown")] += 1
+                    observation = metadata.get("observation", {})
+                    if not isinstance(observation, dict):
+                        observation = {}
+                    by_time_mode[str(observation.get("time_mode") or "unknown")] += 1
+                    shape_obs = metadata.get("timeseries_shape_obs")
+                    if shape_obs and simulator not in timeseries_shapes:
+                        timeseries_shapes[simulator] = shape_obs
+        except Exception:
+            continue
+
+    summary_items = [
+        {"simulator": simulator, "scenario": scenario, "sample_count": count}
+        for (simulator, scenario), count in by_identity.items()
+    ]
+    duplicate_scenarios = duplicate_scenario_names(summary_items)
+    by_scenario = {
+        scenario_summary_key(simulator, scenario, duplicate_scenarios): count
+        for (simulator, scenario), count in by_identity.items()
+    }
 
     return {
         "total_samples": total,
         "by_simulator": dict(by_simulator),
-        "by_scenario": dict(by_scenario),
+        "by_scenario": by_scenario,
         "by_language": dict(by_language),
         "by_style": dict(by_style),
         "by_time_mode": dict(by_time_mode),

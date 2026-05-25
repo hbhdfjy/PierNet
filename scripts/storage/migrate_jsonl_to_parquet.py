@@ -22,7 +22,7 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
+from piern.shared.runtime.paths import DATA_ROOT  # noqa: E402
 from piern.shared.storage import portable  # noqa: E402
 
 try:
@@ -88,10 +88,15 @@ def iter_sources(kind: str, scenarios: set[str] | None) -> list[Path]:
         paths = sorted(source_dir.glob("*.jsonl"))
     else:
         raise ValueError(kind)
-    if scenarios:
-        paths = [path for path in paths if path.stem in scenarios]
-    return paths
+    return [path for path in paths if source_matches_scenarios(kind, path, scenarios)]
 
+
+
+def source_matches_scenarios(kind: str, path: Path, scenarios: set[str] | None) -> bool:
+    if not scenarios:
+        return True
+    simulator, scenario = detect_simulator_scenario(kind, path)
+    return scenario in scenarios or f"{simulator}/{scenario}" in scenarios or path.stem in scenarios
 
 def iter_jsonl(path: Path) -> Iterable[dict[str, Any]]:
     with path.open("r", encoding="utf-8") as handle:

@@ -19,6 +19,8 @@ sys.path.insert(0, str(PROJECT_ROOT))
 
 from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
 from piern.shared.storage import portable  # noqa: E402
+from piern.shared.storage.hdf5_files import hdf5_scenario_from_path  # noqa: E402
+from piern.shared.storage.hdf5_files import iter_hdf5_files_in_child_dirs  # noqa: E402
 
 CATALOG_PATH = portable.CATALOG_DB_PATH
 
@@ -108,6 +110,31 @@ def parquet_assets() -> list[dict[str, Any]]:
     return rows
 
 
+
+def first_jsonl_record(path: Path) -> dict[str, Any] | None:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for raw in handle:
+                line = raw.strip()
+                if not line:
+                    continue
+                payload = json.loads(line)
+                return payload if isinstance(payload, dict) else None
+    except Exception:
+        return None
+    return None
+
+
+def jsonl_identity(path: Path) -> tuple[str | None, str]:
+    record = first_jsonl_record(path) or {}
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    simulator = str(metadata.get("simulator") or "").strip() or None
+    scenario = str(metadata.get("scenario") or path.stem).strip() or path.stem
+    return simulator, scenario
+
+
 def legacy_jsonl_assets() -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     sources = [
@@ -121,13 +148,15 @@ def legacy_jsonl_assets() -> list[dict[str, Any]]:
             if path.name == "all_training_data.jsonl":
                 continue
             stat = path.stat()
+            simulator, scenario = jsonl_identity(path)
+            asset_key = f"{simulator}:{scenario}" if simulator else scenario
             rows.append(
                 {
-                    "id": f"jsonl:{kind}:{path.stem}",
+                    "id": f"jsonl:{kind}:{asset_key}",
                     "storage": "jsonl",
                     "kind": kind,
-                    "simulator": None,
-                    "scenario": path.stem,
+                    "simulator": simulator,
+                    "scenario": scenario,
                     "path": str(path),
                     "row_count": count_jsonl(path),
                     "file_size_bytes": stat.st_size,
@@ -143,16 +172,17 @@ def hdf5_assets() -> list[dict[str, Any]]:
     data_root = DATA_ROOT
     if not data_root.exists():
         return rows
-    for path in sorted([*data_root.glob("*/*.h5"), *data_root.glob("*/*.hdf5")]):
+    for path in iter_hdf5_files_in_child_dirs(data_root):
         stat = path.stat()
         simulator = path.parent.name
+        scenario = hdf5_scenario_from_path(path, simulator)
         rows.append(
             {
-                "id": f"hdf5:{simulator}:{path.stem}",
+                "id": f"hdf5:{simulator}:{scenario}",
                 "storage": "hdf5",
                 "kind": "hdf5",
                 "simulator": simulator,
-                "scenario": path.stem,
+                "scenario": scenario,
                 "path": str(path),
                 "row_count": None,
                 "file_size_bytes": stat.st_size,

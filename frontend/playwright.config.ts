@@ -1,7 +1,10 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = process.env.PIERN_E2E_BASE_URL ?? 'http://127.0.0.1:5173'
-const shouldStartServer = process.env.PIERN_E2E_START_SERVER === '1'
+const externalBaseURL = process.env.PIERN_E2E_BASE_URL
+const e2ePort = process.env.PIERN_E2E_PORT ?? '5174'
+const baseURL = externalBaseURL ?? `http://127.0.0.1:${e2ePort}`
+const shouldStartServer =
+  process.env.PIERN_E2E_START_SERVER === '1' || (!externalBaseURL && process.env.PIERN_E2E_START_SERVER !== '0')
 
 export default defineConfig({
   testDir: './e2e',
@@ -11,9 +14,9 @@ export default defineConfig({
   reporter: [['list']],
   webServer: shouldStartServer
     ? {
-        command: 'npm run dev -- --host 127.0.0.1 --port 5173',
+        command: `npm run dev -- --host 127.0.0.1 --port ${e2ePort}`,
         url: baseURL,
-        reuseExistingServer: true,
+        reuseExistingServer: false,
         timeout: 60_000,
       }
     : undefined,

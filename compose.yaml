@@ -23,16 +23,14 @@ x-piern-common: &piern-common
     PIERN_TRAINING_PYTHON: /usr/local/bin/python
     PIERN_CONDA_ENV: /usr/local
     PIERN_NPM: npm
-    PIERN_NODE: ""
     PIERN_NODE_BIN: ""
-    PIERN_NODE_BIN_DIR: ""
     PIERN_QWEN_EMBEDDING_MODEL: /models/qwen
     PIERN_QWEN_EMBEDDING_TOKENIZER: /models/qwen
   volumes: &piern-volumes
     - ./data:/app/data
     - ./artifacts:/app/artifacts
     - ./.runlogs:/app/.runlogs
-    - ${PIERN_QWEN_EMBEDDING_MODEL:-./models/Qwen2.5-0.5B-Instruct}:/models/qwen:ro
+    - ${PIERN_QWEN_EMBEDDING_MODEL:-./models/Qwen/Qwen2.5-0.5B-Instruct}:/models/qwen:ro
   restart: unless-stopped
 
 services:
@@ -43,4 +41,4 @@ services:
 
   worker:
     <<: *piern-common
-    command: ["python", "-m", "piern.worker.runner", "--interval", "5"]
+    command: ["python", "-m", "piern.worker", "--interval", "5"]

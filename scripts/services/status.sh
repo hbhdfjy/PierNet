@@ -90,7 +90,7 @@ tail_log() {
 
 section "processes"
 print_status backend "$BACKEND_PID_FILE" find_backend_pid
-print_status frontend "$FRONTEND_PID_FILE" find_frontend_pid
+print_status "frontend dev" "$FRONTEND_PID_FILE" find_frontend_pid
 if worker_should_start; then
   print_status worker "$WORKER_PID_FILE" find_worker_pid
 else
@@ -98,6 +98,7 @@ else
 fi
 
 backend_base="http://127.0.0.1:$BACKEND_PORT/api"
+backend_app_url="http://127.0.0.1:$BACKEND_PORT/"
 frontend_url="http://127.0.0.1:$FRONTEND_PORT/"
 
 section "health"
@@ -105,7 +106,13 @@ probe_api "backend live" "$backend_base/health/live"
 probe_api "backend ready" "$backend_base/health/ready"
 probe_api "backend storage" "$backend_base/health/storage"
 probe_api "backend gpu" "$backend_base/health/gpu"
-probe_head "frontend" "$frontend_url"
+if service_alive "$FRONTEND_PID_FILE" find_frontend_pid; then
+  probe_head "frontend dev" "$frontend_url"
+elif [[ -f "$ROOT/frontend/dist/index.html" ]]; then
+  probe_head "frontend static" "$backend_app_url"
+else
+  probe_head "frontend" "$frontend_url"
+fi
 
 section "disk"
 print_disk
@@ -115,5 +122,5 @@ print_gpu_cli | indent
 
 section "recent logs"
 tail_log backend "$BACKEND_LOG"
-tail_log frontend "$FRONTEND_LOG"
+tail_log "frontend dev" "$FRONTEND_LOG"
 tail_log worker "$WORKER_LOG"

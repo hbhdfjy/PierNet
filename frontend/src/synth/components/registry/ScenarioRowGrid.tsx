@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Loader2, Pencil, Trash2, X } from 'lucide-react'
+import { Check, Loader2, Pencil, Trash2, X, XCircle } from 'lucide-react'
 
 export function ScenarioRowGrid({
   simulator,
@@ -18,13 +18,35 @@ export function ScenarioRowGrid({
   const [val, setVal] = useState(description)
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const key = `${simulator}/${scenario}`
+
+  const actionErrorMessage = (error: unknown) => {
+    if (error instanceof Error && error.message) return error.message
+    return String(error || '未知错误')
+  }
 
   const commit = async () => {
     setSaving(true)
+    setActionError(null)
     try {
       await onSave(key, val)
       setEditing(false)
+    } catch (error) {
+      setActionError(`保存失败：${actionErrorMessage(error)}`)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteRow = async () => {
+    setSaving(true)
+    setActionError(null)
+    try {
+      await onDelete(key)
+      setConfirmDelete(false)
+    } catch (error) {
+      setActionError(`删除失败：${actionErrorMessage(error)}`)
     } finally {
       setSaving(false)
     }
@@ -58,9 +80,11 @@ export function ScenarioRowGrid({
             <div className="flex items-center gap-0.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex-shrink-0">
               <button
                 className="btn-ghost py-0.5 px-1.5 text-xs text-slate-500 hover:text-slate-200"
+                aria-label={`编辑 ${scenario}`}
                 onClick={() => {
                   setEditing(true)
                   setVal(description)
+                  setActionError(null)
                 }}
               >
                 <Pencil size={11} />
@@ -68,19 +92,32 @@ export function ScenarioRowGrid({
               {!confirmDelete ? (
                 <button
                   className="btn-ghost py-0.5 px-1.5 text-xs text-slate-600 hover:text-red-400"
-                  onClick={() => setConfirmDelete(true)}
+                  aria-label={`删除 ${scenario}`}
+                  onClick={() => {
+                    setConfirmDelete(true)
+                    setActionError(null)
+                  }}
                 >
                   <Trash2 size={11} />
                 </button>
               ) : (
                 <div className="flex items-center gap-1 rounded-full border border-red-500/25 bg-red-500/10 px-2 py-1">
                   <span className="text-[11px] text-red-400">删除？</span>
-                  <button className="btn-ghost py-0.5 px-1 text-xs text-red-400" onClick={() => onDelete(key)}>
-                    <Check size={11} />
+                  <button
+                    className="btn-ghost py-0.5 px-1 text-xs text-red-400"
+                    aria-label={`确认删除 ${scenario}`}
+                    disabled={saving}
+                    onClick={deleteRow}
+                  >
+                    {saving ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />}
                   </button>
                   <button
                     className="btn-ghost py-0.5 px-1 text-xs text-slate-500"
-                    onClick={() => setConfirmDelete(false)}
+                    aria-label={`取消删除 ${scenario}`}
+                    onClick={() => {
+                      setConfirmDelete(false)
+                      setActionError(null)
+                    }}
                   >
                     <X size={11} />
                   </button>
@@ -105,6 +142,12 @@ export function ScenarioRowGrid({
               }}
               autoFocus
             />
+            {actionError && (
+              <div className="flex items-center gap-1 text-xs text-red-400">
+                <XCircle size={11} />
+                {actionError}
+              </div>
+            )}
             <div className="flex items-center justify-end gap-2">
               <button className="btn-ghost py-1 px-2 text-xs text-emerald-400" onClick={commit} disabled={saving}>
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Check size={12} />}
@@ -115,6 +158,7 @@ export function ScenarioRowGrid({
                 onClick={() => {
                   setEditing(false)
                   setVal(description)
+                  setActionError(null)
                 }}
               >
                 <X size={12} />
@@ -123,22 +167,30 @@ export function ScenarioRowGrid({
             </div>
           </div>
         ) : (
-          <div className="registry-description-card mt-2 w-full min-w-0 rounded-xl border px-3 py-2.5">
-            {description ? (
-              <p
-                className="registry-description-text m-0 block w-full max-w-full text-sm leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
-                style={{
-                  whiteSpace: 'normal',
-                  overflowWrap: 'anywhere',
-                  wordBreak: 'break-word',
-                }}
-              >
-                {description}
-              </p>
-            ) : (
-              <span className="text-sm text-slate-600 italic">（无描述）</span>
+          <>
+            {actionError && (
+              <div className="mt-2 flex items-center gap-1 text-xs text-red-400">
+                <XCircle size={11} />
+                {actionError}
+              </div>
             )}
-          </div>
+            <div className="registry-description-card mt-2 w-full min-w-0 rounded-xl border px-3 py-2.5">
+              {description ? (
+                <p
+                  className="registry-description-text m-0 block w-full max-w-full text-sm leading-6 whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+                  style={{
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                    wordBreak: 'break-word',
+                  }}
+                >
+                  {description}
+                </p>
+              ) : (
+                <span className="text-sm text-slate-600 italic">（无描述）</span>
+              )}
+            </div>
+          </>
         )}
       </div>
     </div>

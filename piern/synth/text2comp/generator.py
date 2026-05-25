@@ -438,12 +438,25 @@ class ObservationSpec:
 # 时间索引生成
 # ─────────────────────────────────────────────
 
+def _evenly_spaced_indices(n_timesteps: int, max_points: int) -> np.ndarray:
+    """Return up to max_points valid, ordered indices spanning the series."""
+    if n_timesteps <= 0:
+        return np.array([], dtype=int)
+    n_points = min(max_points, n_timesteps)
+    return np.round(np.linspace(0, n_timesteps - 1, n_points)).astype(int)
+
+
 def _get_time_indices(mode_name: str, n_timesteps: int) -> np.ndarray:
     """根据模式名生成时间步索引数组。"""
     if mode_name == "monthly":
-        # 均匀分12段，取各段中点（≈每月第15天）
+        # 均匀分12段，取各段中点（≈每月第15天）。短时序无法表示
+        # 12 个“月中”采样点时，退化为全跨度均匀采样，避免负数/重复索引。
+        if n_timesteps < 39:
+            return _evenly_spaced_indices(n_timesteps, 12)
         return np.round(np.linspace(14, n_timesteps - 14, 12)).astype(int)
     elif mode_name == "weekly":
+        if n_timesteps <= 0:
+            return np.array([], dtype=int)
         return np.arange(0, n_timesteps, 7)[:52]
     elif mode_name == "full":
         return np.arange(n_timesteps)
@@ -715,6 +728,11 @@ class LLMTextGenerator:
             )
         mode = mode_map[fixed_time_mode]
         time_indices = _get_time_indices(mode["indices"], ts)
+
+        if len(time_indices) == 0:
+            raise ValueError(
+                "observation_config resolved to an empty time selection. Ensure the time series has at least one time step."
+            )
 
         n_actual = len(time_indices)
         desc_en = re.sub(r'\d+ time points?', f'{n_actual} time points', mode["desc_en"])

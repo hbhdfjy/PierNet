@@ -89,6 +89,7 @@ class PrepareSummary:
     embedding_tokenizer: str = ""
     embedding_source: str = ""
     prepared_format: str = ""
+    source_fingerprint: str = ""
 
     @classmethod
     def from_dict(cls, payload: dict[str, object]) -> "PrepareSummary":
@@ -130,6 +131,29 @@ class _TokenCacheShardResult:
     test: _TokenCacheSplitShard
 
 
+@dataclass(slots=True)
+class _RouterSourceSelection:
+    jsonl_files: list[Path]
+    parquet_partitions: list[portable.PartitionInfo]
+    selected_scenarios: list[str]
+    metadata: RouterEmbeddingMetadata
+    source_storage: str
+
+
+def _coerce_int(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_float(value: object) -> float | None:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def _stable_hash(text: str) -> int:
     digest = hashlib.blake2b(text.encode("utf-8"), digest_size=8).digest()
     return int.from_bytes(digest, "big", signed=False)
@@ -146,8 +170,12 @@ def assign_split(context: str, scenario: str, test_ratio: float) -> str:
     return "test" if (_stable_hash(key) % 1_000_000) < boundary else "train"
 
 
-def _materialize_parquet_router_files(router_dir: Path, simulator: str) -> list[Path]:
-    partitions = [part for part in portable.discover_partitions("router") if part.simulator == simulator]
+def _materialize_parquet_router_files(
+    router_dir: Path,
+    simulator: str,
+    partitions: list[portable.PartitionInfo] | None = None,
+) -> list[Path]:
+    partitions = partitions or [part for part in portable.discover_partitions("router") if part.simulator == simulator]
     if not partitions:
         return []
 
@@ -155,7 +183,7 @@ def _materialize_parquet_router_files(router_dir: Path, simulator: str) -> list[
     cache_dir.mkdir(parents=True, exist_ok=True)
     files: list[Path] = []
     for part in sorted(partitions, key=lambda item: item.scenario):
-        out_path = cache_dir / f"{part.scenario}.jsonl"
+        out_path = cache_dir / f"{portable.safe_partition_value(part.scenario)}.jsonl"
         meta_path = out_path.with_suffix(".meta.json")
         cache_meta = {}
         if meta_path.exists():
@@ -166,15 +194,21 @@ def _materialize_parquet_router_files(router_dir: Path, simulator: str) -> list[
         valid_cache = (
             out_path.exists()
             and cache_meta.get("source_path") == str(part.path)
-            and int(cache_meta.get("row_count", -1)) == int(part.row_count)
-            and float(cache_meta.get("source_mtime", -1.0)) == float(part.mtime)
+            and _coerce_int(cache_meta.get("row_count")) == int(part.row_count)
+            and _coerce_float(cache_meta.get("source_mtime")) == float(part.mtime)
         )
         if not valid_cache:
             _log_prepare(f"materializing router Parquet partition scenario={part.scenario} -> {out_path}")
             count = portable.export_records_to_jsonl("router", out_path, simulator=simulator, scenario=part.scenario)
             meta_path.write_text(
                 json.dumps(
-                    {"source_path": str(part.path), "source_mtime": part.mtime, "row_count": count},
+                    {
+                        "source_path": str(part.path),
+                        "source_mtime": part.mtime,
+                        "row_count": count,
+                        "simulator": simulator,
+                        "scenario": part.scenario,
+                    },
                     ensure_ascii=False,
                     indent=2,
                 ),
@@ -187,58 +221,14 @@ def _materialize_parquet_router_files(router_dir: Path, simulator: str) -> list[
 def _jsonl_scenario_files(router_dir: Path, simulator: str) -> list[Path]:
     files: list[Path] = []
     for path in sorted((router_dir / "by_scenario").glob("*.jsonl")):
-        with path.open("r", encoding="utf-8") as handle:
-            first_line = next((line for line in handle if line.strip()), None)
-        if first_line is None:
-            raise ValueError(f"Router scenario file is empty: {path}")
-        first = json.loads(first_line)
-        if first["metadata"].get("simulator") == simulator:
+        try:
+            first = _first_record(path)
+        except Exception:
+            continue
+        metadata = first.get("metadata", {}) if isinstance(first, dict) else {}
+        if isinstance(metadata, dict) and metadata.get("simulator") == simulator:
             files.append(path)
     return files
-
-
-def _scenario_files(router_dir: Path, simulator: str) -> list[Path]:
-    files = _jsonl_scenario_files(router_dir, simulator)
-    if not files:
-        files = _materialize_parquet_router_files(router_dir, simulator)
-    if not files:
-        raise FileNotFoundError(f"No router files found for simulator={simulator!r} under {router_dir}")
-    return files
-
-
-def _selected_jsonl_scenario_files(
-    router_dir: Path,
-    simulator: str,
-    scenarios: list[str] | None = None,
-) -> list[Path]:
-    files = _jsonl_scenario_files(router_dir, simulator)
-    if scenarios:
-        wanted = set(scenarios)
-        files = [path for path in files if path.stem in wanted]
-    return files
-
-
-def _selected_parquet_router_partitions(
-    simulator: str,
-    scenarios: list[str] | None = None,
-) -> list[portable.PartitionInfo]:
-    partitions = sorted(
-        (part for part in portable.discover_partitions("router") if part.simulator == simulator),
-        key=lambda item: item.scenario,
-    )
-    if not partitions:
-        return []
-    if not scenarios:
-        return partitions
-
-    wanted = set(scenarios)
-    selected = [part for part in partitions if part.scenario in wanted]
-    if not selected:
-        return []
-    missing = sorted(wanted - {part.scenario for part in selected})
-    if missing:
-        raise FileNotFoundError(f"No router Parquet partitions found for simulator={simulator!r} and scenarios={missing!r}")
-    return selected
 
 
 def _collect_embedding_metadata_from_partitions(partitions: list[portable.PartitionInfo]) -> RouterEmbeddingMetadata:
@@ -289,10 +279,6 @@ def _collect_embedding_metadata_from_partitions(partitions: list[portable.Partit
     return RouterEmbeddingMetadata(chat_template=chat_template)
 
 
-def _scenario_names_from_partitions(partitions: list[portable.PartitionInfo]) -> list[str]:
-    return sorted(part.scenario for part in partitions)
-
-
 def _load_jsonl(path: Path) -> Iterable[dict[str, object]]:
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -315,6 +301,7 @@ def _first_record(path: Path) -> dict[str, object]:
     except StopIteration as exc:
         raise ValueError(f"Router scenario file is empty: {path}") from exc
 
+
 def _scenario_meta_path(path: Path) -> Path:
     return path.with_suffix(".meta.json")
 
@@ -329,6 +316,13 @@ def _load_scenario_meta(path: Path) -> dict[str, object]:
         return {}
     return payload if isinstance(payload, dict) else {}
 
+
+
+def _router_file_scenario(path: Path) -> str:
+    metadata = _first_record(path).get("metadata", {})
+    if not isinstance(metadata, dict):
+        raise ValueError(f"Router record metadata must be an object: {path}")
+    return str(metadata.get("scenario") or path.stem)
 
 def _collect_embedding_metadata(files: list[Path]) -> RouterEmbeddingMetadata:
     chat_templates: set[str] = set()
@@ -378,6 +372,109 @@ def _collect_embedding_metadata(files: list[Path]) -> RouterEmbeddingMetadata:
     return RouterEmbeddingMetadata(chat_template=chat_template)
 
 
+def _merge_embedding_metadata(items: list[RouterEmbeddingMetadata]) -> RouterEmbeddingMetadata:
+    items = [item for item in items if item]
+    if not items:
+        raise FileNotFoundError("No router files or partitions were selected")
+
+    chat_templates = {item.chat_template or DEFAULT_CHAT_TEMPLATE for item in items}
+    if len(chat_templates) > 1:
+        raise ValueError(f"Selected router sources mix different chat templates: {sorted(chat_templates)}")
+
+    embedding_specs = {
+        (item.embedding_model, item.tokenizer_name)
+        for item in items
+        if item.has_embedding_backbone
+    }
+    missing_embedding_metadata = any(not item.has_embedding_backbone for item in items)
+    if len(embedding_specs) > 1:
+        raise ValueError("Selected router sources mix different embedding backbones; rebuild them consistently")
+    if embedding_specs and missing_embedding_metadata:
+        raise ValueError(
+            "Selected router sources mix old records without embedding metadata and new embedding-aware records"
+        )
+
+    chat_template = next(iter(chat_templates), DEFAULT_CHAT_TEMPLATE)
+    if embedding_specs:
+        model, tokenizer = next(iter(embedding_specs))
+        provider = next((item.embedding_provider for item in items if item.embedding_provider), "")
+        source = next((item.embedding_source for item in items if item.embedding_source), "")
+        return RouterEmbeddingMetadata(
+            chat_template=chat_template,
+            embedding_provider=provider,
+            embedding_model=model,
+            embedding_tokenizer=tokenizer,
+            embedding_source=source,
+        )
+    if chat_template == DEFAULT_CHAT_TEMPLATE:
+        return RouterEmbeddingMetadata(
+            chat_template=chat_template,
+            embedding_model=DEFAULT_QWEN_EMBEDDING_MODEL,
+            embedding_tokenizer=DEFAULT_QWEN_EMBEDDING_TOKENIZER,
+        )
+    return RouterEmbeddingMetadata(chat_template=chat_template)
+
+
+def _router_dir_uses_default_parquet(router_dir: Path) -> bool:
+    default_router_dir = portable.ROUTER_PARQUET_DIR.parent / "router"
+    try:
+        return router_dir.resolve() == default_router_dir.resolve()
+    except OSError:
+        return router_dir == default_router_dir
+
+
+def _select_router_sources(
+    router_dir: Path,
+    simulator: str,
+    scenarios: list[str] | None = None,
+) -> _RouterSourceSelection:
+    jsonl_by_scenario = {_router_file_scenario(path): path for path in _jsonl_scenario_files(router_dir, simulator)}
+    parquet_by_scenario = (
+        {
+            part.scenario: part
+            for part in sorted(
+                (part for part in portable.discover_partitions("router") if part.simulator == simulator),
+                key=lambda item: item.scenario,
+            )
+        }
+        if _router_dir_uses_default_parquet(router_dir)
+        else {}
+    )
+    if scenarios:
+        selected_scenarios = sorted(set(scenarios))
+    else:
+        selected_scenarios = sorted(set(parquet_by_scenario) | set(jsonl_by_scenario))
+    if not selected_scenarios:
+        raise FileNotFoundError(f"No router files found for simulator={simulator!r} under {router_dir}")
+
+    jsonl_files: list[Path] = []
+    parquet_partitions: list[portable.PartitionInfo] = []
+    missing: list[str] = []
+    for scenario in selected_scenarios:
+        if scenario in parquet_by_scenario:
+            parquet_partitions.append(parquet_by_scenario[scenario])
+        elif scenario in jsonl_by_scenario:
+            jsonl_files.append(jsonl_by_scenario[scenario])
+        else:
+            missing.append(scenario)
+    if missing:
+        raise FileNotFoundError(f"No router files found for simulator={simulator!r} and scenarios={missing!r}")
+
+    metadata_items: list[RouterEmbeddingMetadata] = []
+    if parquet_partitions:
+        metadata_items.append(_collect_embedding_metadata_from_partitions(parquet_partitions))
+    if jsonl_files:
+        metadata_items.append(_collect_embedding_metadata(jsonl_files))
+    source_storage = "mixed" if parquet_partitions and jsonl_files else "parquet" if parquet_partitions else "jsonl"
+    return _RouterSourceSelection(
+        jsonl_files=jsonl_files,
+        parquet_partitions=parquet_partitions,
+        selected_scenarios=selected_scenarios,
+        metadata=_merge_embedding_metadata(metadata_items),
+        source_storage=source_storage,
+    )
+
+
 def _resolve_input_representation(
     requested: str,
     metadata: RouterEmbeddingMetadata,
@@ -400,22 +497,6 @@ def _resolve_input_representation(
     return PRETRAINED_EMBEDDINGS
 
 
-def _selected_scenario_files(
-    router_dir: Path,
-    simulator: str,
-    scenarios: list[str] | None = None,
-) -> list[Path]:
-    files = _scenario_files(router_dir, simulator)
-    if scenarios:
-        wanted = set(scenarios)
-        files = [path for path in files if path.stem in wanted]
-        if not files:
-            raise FileNotFoundError(
-                f"No router files found for simulator={simulator!r} and scenarios={sorted(wanted)!r} under {router_dir}"
-            )
-    return files
-
-
 def inspect_router_input_representation(
     *,
     simulator: str,
@@ -423,18 +504,9 @@ def inspect_router_input_representation(
     scenarios: list[str] | None = None,
     input_representation: str = "embedding",
 ) -> tuple[str, RouterEmbeddingMetadata]:
-    files = _selected_jsonl_scenario_files(router_dir, simulator, scenarios)
-    if files:
-        metadata = _collect_embedding_metadata(files)
-    else:
-        partitions = _selected_parquet_router_partitions(simulator, scenarios)
-        if partitions:
-            metadata = _collect_embedding_metadata_from_partitions(partitions)
-        else:
-            files = _selected_scenario_files(router_dir, simulator, scenarios)
-            metadata = _collect_embedding_metadata(files)
-    resolved_representation = _resolve_input_representation(input_representation, metadata)
-    return resolved_representation, metadata
+    selection = _select_router_sources(router_dir, simulator, scenarios)
+    resolved_representation = _resolve_input_representation(input_representation, selection.metadata)
+    return resolved_representation, selection.metadata
 
 
 def _required_prepared_files(output_dir: Path, representation: str) -> list[Path]:
@@ -454,6 +526,47 @@ def _required_prepared_files(output_dir: Path, representation: str) -> list[Path
     return paths
 
 
+def _stat_fingerprint(path: Path) -> dict[str, object]:
+    try:
+        stat = path.stat()
+    except OSError:
+        return {"path": str(path), "exists": False}
+    return {
+        "path": str(path),
+        "exists": True,
+        "size": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+    }
+
+
+def _router_source_fingerprint(
+    *,
+    jsonl_files: list[Path],
+    parquet_partitions: list[portable.PartitionInfo],
+) -> str:
+    payload: list[dict[str, object]] = []
+    for path in sorted(jsonl_files):
+        payload.append({"storage": "jsonl", **_stat_fingerprint(path)})
+        meta_path = _scenario_meta_path(path)
+        if meta_path.exists():
+            payload.append({"storage": "jsonl_meta", **_stat_fingerprint(meta_path)})
+    for part in sorted(parquet_partitions, key=lambda item: (item.simulator, item.scenario, str(item.path))):
+        payload.append(
+            {
+                "storage": "parquet",
+                "simulator": part.simulator,
+                "scenario": part.scenario,
+                "path": str(part.path),
+                "row_count": part.row_count,
+                "file_size_bytes": part.file_size_bytes,
+                "mtime": part.mtime,
+                "metadata": part.metadata,
+            }
+        )
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return hashlib.blake2b(encoded.encode("utf-8"), digest_size=16).hexdigest()
+
+
 def _prepared_summary_matches(
     summary: PrepareSummary,
     *,
@@ -463,6 +576,7 @@ def _prepared_summary_matches(
     test_ratio: float,
     selected_scenarios: list[str],
     metadata: RouterEmbeddingMetadata,
+    source_fingerprint: str,
 ) -> bool:
     if summary.prepared_format != PREPARED_FORMAT:
         return False
@@ -473,6 +587,8 @@ def _prepared_summary_matches(
     if abs(float(summary.test_ratio) - float(test_ratio)) > 1e-9:
         return False
     if sorted(summary.scenarios) != sorted(selected_scenarios):
+        return False
+    if summary.source_fingerprint != source_fingerprint:
         return False
     if summary.chat_template != metadata.chat_template:
         return False
@@ -1005,22 +1121,16 @@ def prepare_router_dataset(
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "meta.json"
 
-    files = _selected_jsonl_scenario_files(router_dir, simulator, scenarios)
-    parquet_partitions: list[portable.PartitionInfo] = []
-    source_storage = "jsonl"
-    if files:
-        metadata = _collect_embedding_metadata(files)
-        selected_scenarios = [path.stem for path in files]
-    else:
-        parquet_partitions = _selected_parquet_router_partitions(simulator, scenarios)
-        if parquet_partitions:
-            metadata = _collect_embedding_metadata_from_partitions(parquet_partitions)
-            selected_scenarios = _scenario_names_from_partitions(parquet_partitions)
-            source_storage = "parquet"
-        else:
-            files = _selected_scenario_files(router_dir, simulator, scenarios)
-            metadata = _collect_embedding_metadata(files)
-            selected_scenarios = [path.stem for path in files]
+    selection = _select_router_sources(router_dir, simulator, scenarios)
+    files = list(selection.jsonl_files)
+    parquet_partitions = list(selection.parquet_partitions)
+    metadata = selection.metadata
+    selected_scenarios = selection.selected_scenarios
+    source_storage = selection.source_storage
+    source_fingerprint = _router_source_fingerprint(
+        jsonl_files=files,
+        parquet_partitions=parquet_partitions,
+    )
     resolved_representation = _resolve_input_representation(input_representation, metadata)
     _log_prepare(
         "requested dataset "
@@ -1038,6 +1148,7 @@ def prepare_router_dataset(
             test_ratio=test_ratio,
             selected_scenarios=selected_scenarios,
             metadata=metadata,
+            source_fingerprint=source_fingerprint,
         ):
             _log_prepare(
                 "reusing cached prepared dataset "
@@ -1046,17 +1157,17 @@ def prepare_router_dataset(
             )
             return cached
 
-    if parquet_partitions and not files:
+    if parquet_partitions:
         _log_prepare("cached prepared dataset missing or stale; materializing router Parquet partitions for rebuild")
-        files = _materialize_parquet_router_files(router_dir, simulator)
-        if scenarios:
-            wanted = set(scenarios)
-            files = [path for path in files if path.stem in wanted]
-            missing = sorted(wanted - {path.stem for path in files})
-            if missing:
-                raise FileNotFoundError(
-                    f"No materialized router files found for simulator={simulator!r} and scenarios={missing!r} under {router_dir}"
-                )
+        materialized = _materialize_parquet_router_files(router_dir, simulator, partitions=parquet_partitions)
+        by_scenario = {_router_file_scenario(path): path for path in files}
+        by_scenario.update({_router_file_scenario(path): path for path in materialized})
+        missing = sorted(set(selected_scenarios) - set(by_scenario))
+        if missing:
+            raise FileNotFoundError(
+                f"No materialized router files found for simulator={simulator!r} and scenarios={missing!r} under {router_dir}"
+            )
+        files = [by_scenario[scenario] for scenario in selected_scenarios]
 
     _log_prepare(f"rebuilding prepared dataset in {output_dir}")
     _cleanup_prepared_dir(output_dir)
@@ -1069,6 +1180,7 @@ def prepare_router_dataset(
         metadata=metadata,
         prepare_workers=prepare_workers,
     )
+    summary.source_fingerprint = source_fingerprint
 
     summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
     _log_prepare(

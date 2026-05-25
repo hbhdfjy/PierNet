@@ -13,11 +13,13 @@ import shutil
 import time
 from collections import Counter
 from dataclasses import asdict, dataclass
+from urllib.parse import quote, unquote
 from importlib import import_module
 from pathlib import Path
 from typing import Any, Iterable
 
 from piern.shared.runtime.paths import DATA_ROOT
+from piern.shared.storage.scenario_summary import duplicate_scenario_names, scenario_summary_key
 
 TEXT2COMP_PARQUET_DIR = DATA_ROOT / "text2comp_parquet"
 ROUTER_PARQUET_DIR = DATA_ROOT / "router_parquet"
@@ -288,7 +290,8 @@ def discover_partitions(kind: str) -> list[PartitionInfo]:
         if not parquet_files:
             continue
         manifest = _read_json(scenario_dir / "_manifest.json") or {}
-        row_count = int(manifest.get("row_count") or _parquet_row_count(parquet_files))
+        manifest_row_count = _coerce_nonnegative_int(manifest.get("row_count"))
+        row_count = manifest_row_count if manifest_row_count is not None else _parquet_row_count(parquet_files)
         file_size = sum(_safe_stat(path)[0] for path in parquet_files)
         mtime = max((_safe_stat(path)[1] for path in parquet_files), default=0.0)
         partitions.append(
@@ -335,7 +338,7 @@ def text2comp_manifest_like() -> dict[str, Any] | None:
         "kind": "sample_manifest",
         "storage": "parquet",
         "generated_at": time.time(),
-        "items": sorted(items, key=lambda item: item["scenario"]),
+        "items": sorted(items, key=lambda item: (item["simulator"], item["scenario"])),
         "summary": summary,
     }
 
@@ -377,7 +380,7 @@ def router_manifest_like() -> dict[str, Any] | None:
         },
         "total": total,
         "label_counts": {"0": int(label_counts.get("0", 0)), "1": int(label_counts.get("1", 0))},
-        "scenarios": sorted(scenarios, key=lambda item: item["scenario"]),
+        "scenarios": sorted(scenarios, key=lambda item: (item["simulator"], item["scenario"])),
     }
 
 
@@ -392,10 +395,11 @@ def text2comp_stats() -> dict[str, Any]:
         "timeseries_shapes": {},
         "storage": "parquet",
     }
-    if not has_partitions("text2comp"):
+    partitions = discover_partitions("text2comp")
+    if not partitions:
         return fallback
     if not duckdb_available():
-        return _manifest_stats_fallback()
+        return _manifest_stats_fallback(partitions)
 
     con = _duckdb_connect()
     paths_expr = _paths_expr(_parquet_files("text2comp"))
@@ -404,7 +408,7 @@ def text2comp_stats() -> dict[str, Any]:
         return {
             "total_samples": total,
             "by_simulator": _query_group_counts(con, paths_expr, "simulator"),
-            "by_scenario": _query_group_counts(con, paths_expr, "scenario"),
+            "by_scenario": _scenario_counts_from_partitions(partitions),
             "by_language": _query_group_counts(con, paths_expr, "language"),
             "by_style": _query_group_counts(con, paths_expr, "style"),
             "by_time_mode": _query_group_counts(con, paths_expr, "time_mode"),
@@ -422,8 +426,11 @@ def read_text2comp_page(
     page_size: int,
     language: str | None = None,
     style: str | None = None,
+    simulator: str | None = None,
 ) -> tuple[int, list[dict[str, Any]]] | None:
     filters: list[tuple[str, Any]] = [("scenario", scenario)]
+    if simulator:
+        filters.append(("simulator", simulator))
     if language:
         filters.append(("language", language))
     if style:
@@ -437,8 +444,11 @@ def read_router_page(
     page: int,
     page_size: int,
     label: int = -1,
+    simulator: str | None = None,
 ) -> tuple[int, list[dict[str, Any]]] | None:
     filters: list[tuple[str, Any]] = []
+    if simulator:
+        filters.append(("simulator", simulator))
     if scenario:
         filters.append(("scenario", scenario))
     if label in (0, 1):
@@ -606,7 +616,7 @@ def delete_partition(kind: str, scenario: str, simulator: str | None = None) -> 
 
 def safe_partition_value(value: str) -> str:
     cleaned = str(value or "unknown").strip() or "unknown"
-    return cleaned.replace("/", "_").replace("\\", "_").replace("\0", "_")
+    return quote(cleaned, safe="")
 
 
 def source_signature(path: Path) -> dict[str, Any]:
@@ -651,6 +661,14 @@ def _duckdb_connect():
     return duckdb.connect(database=":memory:")
 
 
+def _coerce_nonnegative_int(value: Any) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed >= 0 else None
+
+
 def _parquet_row_count(paths: list[Path]) -> int:
     if not parquet_available():
         return 0
@@ -683,7 +701,7 @@ def _safe_stat(path: Path) -> tuple[int, float]:
 def _decode_partition_value(name: str, key: str) -> str:
     prefix = f"{key}="
     if name.startswith(prefix):
-        return name[len(prefix):]
+        return unquote(name[len(prefix):])
     return name
 
 
@@ -741,24 +759,33 @@ def _group_counts(kind: str, column: str) -> dict[str, int]:
         con.close()
 
 
-def _manifest_stats_fallback() -> dict[str, Any]:
-    by_simulator: Counter[str] = Counter()
+def _scenario_counts_from_partitions(partitions: list[PartitionInfo]) -> dict[str, int]:
+    duplicate_scenarios = duplicate_scenario_names(
+        {"simulator": part.simulator, "scenario": part.scenario} for part in partitions
+    )
     by_scenario: Counter[str] = Counter()
+    for part in partitions:
+        by_scenario[scenario_summary_key(part.simulator, part.scenario, duplicate_scenarios)] += part.row_count
+    return dict(by_scenario)
+
+
+def _manifest_stats_fallback(partitions: list[PartitionInfo] | None = None) -> dict[str, Any]:
+    by_simulator: Counter[str] = Counter()
     by_language: Counter[str] = Counter()
     by_style: Counter[str] = Counter()
     by_time_mode: Counter[str] = Counter()
     total = 0
-    for part in discover_partitions("text2comp"):
+    partitions = partitions if partitions is not None else discover_partitions("text2comp")
+    for part in partitions:
         total += part.row_count
         by_simulator[part.simulator] += part.row_count
-        by_scenario[part.scenario] += part.row_count
         by_language.update({str(k): int(v) for k, v in part.metadata.get("by_language", {}).items()})
         by_style.update({str(k): int(v) for k, v in part.metadata.get("by_style", {}).items()})
         by_time_mode.update({str(k): int(v) for k, v in part.metadata.get("by_time_mode", {}).items()})
     return {
         "total_samples": total,
         "by_simulator": dict(by_simulator),
-        "by_scenario": dict(by_scenario),
+        "by_scenario": _scenario_counts_from_partitions(partitions),
         "by_language": dict(by_language),
         "by_style": dict(by_style),
         "by_time_mode": dict(by_time_mode),

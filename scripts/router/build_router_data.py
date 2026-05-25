@@ -51,6 +51,33 @@ class Stage3Source:
     part_paths: tuple[Path, ...] = ()
 
 
+def _duplicate_jsonl_output_scenarios(sources: list[Stage3Source]) -> list[str]:
+    seen: dict[str, str] = {}
+    duplicates: set[str] = set()
+    for source in sources:
+        previous = seen.setdefault(source.scenario, source.simulator)
+        if previous != source.simulator:
+            duplicates.add(source.scenario)
+    return sorted(duplicates)
+
+
+def _source_selector(source: Stage3Source) -> str:
+    return f"{source.simulator}/{source.scenario}"
+
+
+def _source_matches_selector(source: Stage3Source, selector: str) -> bool:
+    selector = selector.strip()
+    if not selector:
+        return False
+    if "::" in selector:
+        simulator, scenario = selector.split("::", 1)
+        return source.simulator == simulator and source.scenario == scenario
+    if "/" in selector:
+        simulator, scenario = selector.split("/", 1)
+        return source.simulator == simulator and source.scenario == scenario
+    return source.scenario == selector
+
+
 def _apply_chat_template_pos(input_text: str, trigger_prefix: str, tmpl: dict[str, str]) -> str:
     return tmpl["user_prefix"] + input_text + tmpl["user_suffix"] + tmpl["assistant_prefix"] + trigger_prefix
 
@@ -93,7 +120,9 @@ def _load_jsonl(path: Path) -> Iterable[dict[str, object]]:
 
 def _iter_text2comp_parquet_records(paths: tuple[Path, ...]) -> Iterable[dict[str, object]]:
     for path in paths:
-        yield from _iter_parquet_row_group_records(path, 0, portable.require_parquet_modules()[1].ParquetFile(path).num_row_groups)
+        yield from _iter_parquet_row_group_records(
+            path, 0, portable.require_parquet_modules()[1].ParquetFile(path).num_row_groups
+        )
 
 
 def _first_record(path: Path) -> dict[str, object] | None:
@@ -151,7 +180,7 @@ def _safe_json(path: Path) -> dict[str, object]:
 
 def _partition_value(path: Path, key: str) -> str:
     prefix = f"{key}="
-    return path.name[len(prefix):] if path.name.startswith(prefix) else path.name
+    return path.name[len(prefix) :] if path.name.startswith(prefix) else path.name
 
 
 def _parquet_row_count(paths: tuple[Path, ...]) -> int:
@@ -195,22 +224,56 @@ def _discover_parquet_sources(data_dir: Path) -> list[Stage3Source]:
                 part_paths=part_paths,
             )
         )
-    return sorted(sources, key=lambda item: item.scenario)
+    return sorted(sources, key=lambda item: (item.simulator, item.scenario))
+
+
+def _source_key(source: Stage3Source) -> tuple[str, str]:
+    return (source.simulator, source.scenario)
+
+
+def _auto_source_dirs(data_dir: Path) -> tuple[list[Path], list[Path]]:
+    parquet_dirs = [data_dir]
+    jsonl_dirs = [data_dir]
+    if (data_dir / "text2comp_parquet").exists():
+        parquet_dirs.append(data_dir / "text2comp_parquet")
+    if (data_dir / "text2comp").exists():
+        jsonl_dirs.append(data_dir / "text2comp")
+    return parquet_dirs, jsonl_dirs
+
+
+def _dedupe_sources(sources: list[Stage3Source]) -> list[Stage3Source]:
+    deduped: dict[tuple[str, str], Stage3Source] = {}
+    for source in sorted(sources, key=lambda item: (item.simulator, item.scenario, item.storage)):
+        deduped.setdefault(_source_key(source), source)
+    return sorted(deduped.values(), key=lambda item: (item.simulator, item.scenario))
+
+
+def _merge_auto_sources(
+    parquet_sources: list[Stage3Source],
+    jsonl_sources: list[Stage3Source],
+) -> tuple[str, list[Stage3Source]]:
+    parquet_sources = _dedupe_sources(parquet_sources)
+    parquet_keys = {_source_key(source) for source in parquet_sources}
+    jsonl_only = [source for source in _dedupe_sources(jsonl_sources) if _source_key(source) not in parquet_keys]
+    sources = sorted([*parquet_sources, *jsonl_only], key=lambda item: (item.simulator, item.scenario))
+    if parquet_sources and jsonl_only:
+        return "mixed", sources
+    if parquet_sources:
+        return "parquet", sources
+    return "jsonl", sources
 
 
 def _select_sources(data_dir: Path, input_format: str) -> tuple[str, list[Stage3Source]]:
     input_format = input_format.lower()
-    jsonl_sources = _discover_jsonl_sources(data_dir)
-    parquet_sources = _discover_parquet_sources(data_dir)
     if input_format == "jsonl":
-        return "jsonl", jsonl_sources
+        return "jsonl", _discover_jsonl_sources(data_dir)
     if input_format == "parquet":
-        return "parquet", parquet_sources
-    if parquet_sources and (data_dir.name.endswith("_parquet") or not jsonl_sources):
-        return "parquet", parquet_sources
-    if jsonl_sources:
-        return "jsonl", jsonl_sources
-    return "parquet", parquet_sources
+        return "parquet", _discover_parquet_sources(data_dir)
+
+    parquet_dirs, jsonl_dirs = _auto_source_dirs(data_dir)
+    parquet_sources = _dedupe_sources([source for root in parquet_dirs for source in _discover_parquet_sources(root)])
+    jsonl_sources = _dedupe_sources([source for root in jsonl_dirs for source in _discover_jsonl_sources(root)])
+    return _merge_auto_sources(parquet_sources, jsonl_sources)
 
 
 def _build_embedding_metadata() -> dict[str, str]:
@@ -293,7 +356,9 @@ def _iter_router_samples(
             progress_callback(emitted)
 
 
-def _iter_parquet_row_group_records(path: Path, row_group_start: int, row_group_stop: int) -> Iterable[dict[str, object]]:
+def _iter_parquet_row_group_records(
+    path: Path, row_group_start: int, row_group_stop: int
+) -> Iterable[dict[str, object]]:
     _, pq = portable.require_parquet_modules()
     parquet_file = pq.ParquetFile(path)
     for row_group in range(row_group_start, row_group_stop):
@@ -478,7 +543,14 @@ def _write_router_parquet_parallel(
     )
     if not chunks:
         shutil.rmtree(tmp_dir, ignore_errors=True)
-        return {"kind": "router", "scenario": source.scenario, "simulator": source.simulator, "status": "empty", "rows": 0, "pos": 0}
+        return {
+            "kind": "router",
+            "scenario": source.scenario,
+            "simulator": source.simulator,
+            "status": "empty",
+            "rows": 0,
+            "pos": 0,
+        }
 
     counters = {
         "by_language": Counter(),
@@ -507,13 +579,22 @@ def _write_router_parquet_parallel(
 
         if row_count == 0:
             shutil.rmtree(tmp_dir, ignore_errors=True)
-            return {"kind": "router", "scenario": source.scenario, "simulator": source.simulator, "status": "empty", "rows": 0, "pos": 0}
+            return {
+                "kind": "router",
+                "scenario": source.scenario,
+                "simulator": source.simulator,
+                "status": "empty",
+                "rows": 0,
+                "pos": 0,
+            }
 
         actual = 0
         for path in sorted(Path(item) for item in part_paths):
             actual += int(pq.ParquetFile(path).metadata.num_rows)
         if actual != row_count:
-            raise RuntimeError(f"row count mismatch for router/{source.scenario}: generated={row_count}, parquet={actual}")
+            raise RuntimeError(
+                f"row count mismatch for router/{source.scenario}: generated={row_count}, parquet={actual}"
+            )
 
         if partition_dir.exists():
             shutil.rmtree(partition_dir)
@@ -577,8 +658,8 @@ def _write_all_jsonl(samples: list[dict[str, object]], output_dir: Path, seed: i
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build Token Router training data.")
-    parser.add_argument("--data-dir", type=str, default="data/text2comp_parquet")
-    parser.add_argument("--output-dir", type=str, default="data/router_parquet")
+    parser.add_argument("--data-dir", type=str, default=str(portable.TEXT2COMP_PARQUET_DIR))
+    parser.add_argument("--output-dir", type=str, default=str(portable.ROUTER_PARQUET_DIR))
     parser.add_argument("--input-format", choices=["auto", "parquet", "jsonl"], default="auto")
     parser.add_argument("--output-format", choices=["parquet", "jsonl", "both"], default="parquet")
     parser.add_argument("--seed", type=int, default=42)
@@ -607,14 +688,26 @@ def main() -> None:
 
     selected_format, sources = _select_sources(data_dir, args.input_format)
     if args.scenarios:
-        wanted = set(args.scenarios)
-        sources = [source for source in sources if source.scenario in wanted]
+        wanted = {selector.strip() for selector in args.scenarios if selector.strip()}
+        sources = [
+            source for source in sources if any(_source_matches_selector(source, selector) for selector in wanted)
+        ]
         if not sources:
             print(f"[error] scenarios not found: {sorted(wanted)}", flush=True)
             raise SystemExit(1)
     if not sources:
         print(f"[error] no Stage 3 samples found for input_format={args.input_format} data_dir={data_dir}", flush=True)
         raise SystemExit(1)
+
+    if args.output_format in {"jsonl", "both"}:
+        duplicate_scenarios = _duplicate_jsonl_output_scenarios(sources)
+        if duplicate_scenarios:
+            print(
+                "[error] JSONL router output cannot represent duplicate scenario names across simulators: "
+                f"{duplicate_scenarios}. Use --output-format parquet instead.",
+                flush=True,
+            )
+            raise SystemExit(1)
 
     print(f"[router-build] input_storage={selected_format}", flush=True)
     print(f"[router-build] output_format={args.output_format}", flush=True)
@@ -630,7 +723,7 @@ def main() -> None:
 
     for source in sources:
         expected = source.row_count * (1 + args.neg_ratio)
-        print(f"PROGRESS_INIT:{source.scenario}:{expected}", flush=True)
+        print(f"PROGRESS_INIT:{_source_selector(source)}:{expected}", flush=True)
 
     output_dir.mkdir(parents=True, exist_ok=True)
     if args.output_format in {"jsonl", "both"}:
@@ -643,9 +736,9 @@ def main() -> None:
 
     for source in sources:
         expected = source.row_count * (1 + args.neg_ratio)
-        print(f"  processing {source.name} ({source.storage}) ...", flush=True)
+        print(f"  processing {_source_selector(source)} ({source.storage}) ...", flush=True)
 
-        def _progress(done_samples: int, sc: str = source.scenario, exp: int = expected) -> None:
+        def _progress(done_samples: int, sc: str = _source_selector(source), exp: int = expected) -> None:
             print(f"PROGRESS_UPDATE:{sc}:{done_samples}:{exp}", flush=True)
 
         counters = {"rows": 0, "pos": 0}
@@ -734,8 +827,8 @@ def main() -> None:
                 )
 
         if rows == 0:
-            print(f"  [warn] no router samples generated for {source.scenario}", flush=True)
-            print(f"PROGRESS_DONE:{source.scenario}:0:{expected}", flush=True)
+            print(f"  [warn] no router samples generated for {_source_selector(source)}", flush=True)
+            print(f"PROGRESS_DONE:{_source_selector(source)}:0:{expected}", flush=True)
             continue
 
         n_pos = counters["pos"]
@@ -744,7 +837,7 @@ def main() -> None:
         total_rows += rows
         total_pos += n_pos
         print(f"  done: {rows} rows (pos={n_pos}, neg={rows - n_pos})", flush=True)
-        print(f"PROGRESS_DONE:{source.scenario}:{rows}:{expected}", flush=True)
+        print(f"PROGRESS_DONE:{_source_selector(source)}:{rows}:{expected}", flush=True)
 
     if total_rows == 0:
         print(

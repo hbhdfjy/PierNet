@@ -11,7 +11,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from piern.shared.runtime.paths import PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage import portable
 from piern.synth.services import job_manager, manifest_store
 from piern.synth.services.job_manager import JobRecord, publish
 
@@ -28,6 +29,53 @@ def _kill_process_group(proc: subprocess.Popen[str]) -> None:
             proc.kill()
         except Exception:
             pass
+
+
+def _has_jsonl_stage3_sources() -> bool:
+    jsonl_root = DATA_ROOT / "text2comp"
+    return jsonl_root.exists() and any(
+        path.name != "all_training_data.jsonl" for path in jsonl_root.glob("*.jsonl")
+    )
+
+
+def _router_input_source() -> tuple[Path, str]:
+    has_parquet = portable.has_partitions("text2comp")
+    has_jsonl = _has_jsonl_stage3_sources()
+    if has_parquet and has_jsonl:
+        return DATA_ROOT, "auto"
+    if has_parquet:
+        return portable.TEXT2COMP_PARQUET_DIR, "parquet"
+    return DATA_ROOT / "text2comp", "jsonl"
+
+
+def _router_build_command(seed: int, neg_ratio: int, max_workers: int, scenario_list: list[str]) -> list[str]:
+    script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
+    input_dir, input_format = _router_input_source()
+    cmd = [
+        sys.executable,
+        str(script),
+        "--data-dir",
+        str(input_dir),
+        "--output-dir",
+        str(portable.ROUTER_PARQUET_DIR),
+        "--input-format",
+        input_format,
+        "--output-format",
+        "parquet",
+        "--seed",
+        str(seed),
+        "--neg-ratio",
+        str(neg_ratio),
+        "--chat-template",
+        "qwen",
+        "--batch-size",
+        "32768",
+        "--max-workers",
+        str(max_workers),
+    ]
+    if scenario_list:
+        cmd += ["--scenarios", *scenario_list]
+    return cmd
 
 
 def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
@@ -59,31 +107,7 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
             },
         )
 
-        script = PROJECT_ROOT / "scripts" / "router" / "build_router_data.py"
-        cmd = [
-            sys.executable,
-            str(script),
-            "--data-dir",
-            "data/text2comp_parquet",
-            "--output-dir",
-            "data/router_parquet",
-            "--input-format",
-            "parquet",
-            "--output-format",
-            "parquet",
-            "--seed",
-            str(seed),
-            "--neg-ratio",
-            str(neg_ratio),
-            "--chat-template",
-            "qwen",
-            "--batch-size",
-            "32768",
-            "--max-workers",
-            str(max_workers),
-        ]
-        if scenario_list:
-            cmd += ["--scenarios", *scenario_list]
+        cmd = _router_build_command(seed, neg_ratio, max_workers, scenario_list)
 
         proc = subprocess.Popen(
             cmd,

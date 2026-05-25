@@ -57,7 +57,7 @@ if worker_should_start && ! service_alive "$WORKER_PID_FILE" find_worker_pid; th
   exit 1
 fi
 
-backend_url="http://127.0.0.1:$BACKEND_PORT/api/training/gpus"
+backend_url="http://127.0.0.1:$BACKEND_PORT/api/health/ready"
 frontend_url="http://127.0.0.1:$FRONTEND_PORT/"
 wait_http "$backend_url" 30 || { echo "backend health check failed: $backend_url"; tail -n 80 "$BACKEND_LOG" || true; exit 1; }
 wait_http "$frontend_url" 30 || { echo "frontend health check failed: $frontend_url"; tail -n 80 "$FRONTEND_LOG" || true; exit 1; }

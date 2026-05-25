@@ -14,10 +14,17 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from piern.shared.runtime.paths import PROJECT_ROOT, TEMPLATES_DIR  # noqa: E402
+from piern.shared.runtime.paths import PROJECT_ROOT  # noqa: E402
 from piern.synth.api.schemas.generation import FillSamplesRequest, GenerateTemplatesRequest, JobStartResponse  # noqa: E402
-from piern.synth.services import generation_executor, job_manager, worker_queue  # noqa: E402
+from piern.synth.api.schemas.jobs import TemplateFileInfo  # noqa: E402
+from piern.synth.services import file_manager, generation_executor, job_manager, worker_queue  # noqa: E402
 from piern.synth.services.job_manager import JobRecord, publish  # noqa: E402
+from piern.synth.text2comp.pipeline import (  # noqa: E402
+    _scan_h5_files,
+    _scenario_name_from_path,
+    duplicate_stage_scenarios,
+    load_config,
+)
 
 router = APIRouter()
 _executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="gen-worker")
@@ -32,6 +39,43 @@ def _request_payload(req) -> dict:
 def _resource_lock_keys(kind: str, scenarios: list[str]) -> list[str]:
     selected = scenarios or ["all"]
     return [f"{kind}:{scenario}" for scenario in selected]
+
+
+def _config_path(config: str) -> Path:
+    path = Path(config).expanduser()
+    if path.is_absolute():
+        return path
+    return PROJECT_ROOT / path
+
+
+def _base_dir_for_config(config_path: Path) -> Path:
+    base_dir = config_path.parent.parent.parent
+    return base_dir if (base_dir / "data").exists() else PROJECT_ROOT
+
+
+def _duplicate_stage_scenarios(config: str, scenarios: list[str]) -> list[str]:
+    cfg_path = _config_path(config)
+    cfg = load_config(cfg_path)
+    base_dir = _base_dir_for_config(cfg_path)
+    selected = {item.strip() for item in scenarios if item.strip()}
+    h5_files = [
+        (h5_path, simulator, file_suffix)
+        for h5_path, simulator, file_suffix in _scan_h5_files(cfg, base_dir)
+        if not selected or _scenario_name_from_path(h5_path, file_suffix) in selected
+    ]
+    return duplicate_stage_scenarios(h5_files)
+
+
+def _assert_unique_stage_scenarios(config: str, scenarios: list[str]) -> None:
+    duplicates = _duplicate_stage_scenarios(config, scenarios)
+    if duplicates:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "同名场景分布在多个 simulator 中，阶段 2/3 的模板文件仍按 scenario 命名，无法安全区分："
+                + "; ".join(duplicates)
+            ),
+        )
 
 
 def _reject_active_jobs(job_types: set[str], message: str) -> None:
@@ -82,6 +126,7 @@ def _start_job(
 async def start_generate_templates(req: GenerateTemplatesRequest):
     """阶段二：生成语言模板库。"""
     _reject_active_jobs({"generate_templates"}, "已有模板生成任务正在运行")
+    _assert_unique_stage_scenarios(req.config, req.scenarios)
     scenario_totals = {sc: req.n_templates for sc in req.scenarios} if req.scenarios else {}
     payload = _request_payload(req)
     record = _start_job(
@@ -98,6 +143,7 @@ async def start_generate_templates(req: GenerateTemplatesRequest):
 async def start_fill_samples(req: FillSamplesRequest):
     """阶段三：数值填充。"""
     _reject_active_jobs({"fill_samples", "router"}, "样本填充或路由构建任务正在运行")
+    _assert_unique_stage_scenarios(req.config, req.scenarios)
     scenario_totals = {sc: req.n_samples for sc in req.scenarios} if req.scenarios else {}
     payload = _request_payload(req)
     record = _start_job(
@@ -110,29 +156,7 @@ async def start_fill_samples(req: FillSamplesRequest):
     return JobStartResponse(job_id=record.job_id, status=record.status, scenario_totals=scenario_totals)
 
 
-@router.get("/templates")
+@router.get("/templates", response_model=list[TemplateFileInfo])
 def get_templates_status():
-    """扫描 data/templates/ 目录，返回各场景的模板库状态。"""
-    if not TEMPLATES_DIR.exists():
-        return []
-
-    results = []
-    for f in sorted(TEMPLATES_DIR.glob("*_templates.jsonl")):
-        scenario = f.stem.replace("_templates", "")
-        stat = f.stat()
-        template_count = 0
-        try:
-            with open(f, "rb") as fh:
-                template_count = fh.read().count(b"\n")
-        except Exception:
-            pass
-        results.append(
-            {
-                "scenario": scenario,
-                "template_count": template_count,
-                "file_size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-                "path": str(f.relative_to(PROJECT_ROOT)),
-            }
-        )
-    return results
+    """返回各场景的模板库状态。"""
+    return file_manager.list_template_files()

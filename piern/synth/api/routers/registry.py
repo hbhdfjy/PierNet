@@ -1,25 +1,13 @@
-"""Registry CRUD 路由：/api/registry, /api/register。"""
-
-import os
-import re
-import sys
-import subprocess
-import threading
-import time
+"""Registry CRUD 路由：/api/registry。"""
 
 import yaml
 from fastapi import APIRouter, HTTPException
 
-from piern.shared.runtime.paths import REGISTRY_PATH, PROJECT_ROOT
-from piern.synth.api.schemas.registry import RegisterRequest
-from piern.synth.services import job_manager
-from piern.synth.services.hdf5_data import collect_registration_hdf5_validations
-from piern.synth.services.job_manager import publish
+from piern.shared.runtime.paths import REGISTRY_PATH
+from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
+from piern.synth.services.hdf5_data import validate_name
 
 router = APIRouter()
-
-_REGISTER_PROGRESS_RE = re.compile("^\[注册\]\s+(\S+)\s+→\s+字段组:\s+(.+)$")
-_SAVE_MARKERS = ("已保存",)
 
 
 def _load_registry_raw() -> dict:
@@ -35,14 +23,61 @@ def _save_registry_raw(data: dict) -> None:
         yaml.dump(data, f, allow_unicode=True, sort_keys=False, indent=2)
 
 
+def _registry_key_parts(key: str) -> tuple[str, str | None]:
+    raw = str(key or "").strip()
+    parts = raw.split("/") if raw else []
+    if len(parts) not in {1, 2}:
+        raise HTTPException(400, "registry key 必须是 simulator 或 simulator/scenario")
+    try:
+        simulator = validate_name("simulator", parts[0])
+        scenario = validate_name("scenario", parts[1]) if len(parts) == 2 else None
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return simulator, scenario
+
+
+def _is_plain_int(value: object) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _validate_output_info(output_info: object) -> set[str]:
+    if output_info is None:
+        return set()
+    if not isinstance(output_info, list) or len(output_info) == 0:
+        raise HTTPException(400, "至少需要保留 1 个 output_info 输出定义")
+
+    output_names = set()
+    for index, item in enumerate(output_info):
+        if not isinstance(item, dict):
+            raise HTTPException(400, f"output_info[{index}] 必须是 JSON 对象")
+        name = str(item.get("name", "")).strip()
+        if not name:
+            raise HTTPException(400, f"output_info[{index}].name 不能为空")
+        if name in output_names:
+            raise HTTPException(400, f"output_info.name 重复: {name}")
+        output_names.add(name)
+        slice_value = item.get("slice")
+        if not isinstance(slice_value, list) or len(slice_value) != 2:
+            raise HTTPException(400, f"output_info[{index}].slice 必须是 [start, end_or_null]")
+        start, end = slice_value
+        if not _is_plain_int(start) or start < 0:
+            raise HTTPException(400, f"output_info[{index}].slice start 必须是非负整数")
+        if end is not None and (not _is_plain_int(end) or end < start):
+            raise HTTPException(400, f"output_info[{index}].slice end 必须是 null 或不小于 start 的整数")
+    return output_names
+
+
+def _validate_optional_positive_int(name: str, value: object) -> None:
+    if value is not None and (not _is_plain_int(value) or value < 1):
+        raise HTTPException(400, f"{name} 必须是正整数或 null")
+
+
 def _validate_registry_entry(key: str, body: dict) -> None:
     if not isinstance(body, dict):
         raise HTTPException(400, "registry 条目必须是 JSON 对象")
 
     output_info = body.get("output_info")
-    if output_info is not None:
-        if not isinstance(output_info, list) or len(output_info) == 0:
-            raise HTTPException(400, "至少需要保留 1 个 output_info 输出定义")
+    output_names = _validate_output_info(output_info)
 
     obs = body.get("observation_config")
     if obs is None:
@@ -56,6 +91,13 @@ def _validate_registry_entry(key: str, body: dict) -> None:
     is_output_level = channel_level in {"output", "output_info"}
     obs["channel_level"] = "output_info" if is_output_level else "row"
 
+    channel_min = obs.get("channel_min")
+    channel_max = obs.get("channel_max")
+    _validate_optional_positive_int("channel_min", channel_min)
+    _validate_optional_positive_int("channel_max", channel_max)
+    if channel_min is not None and channel_max is not None and channel_max < channel_min:
+        raise HTTPException(400, "channel_max 必须大于或等于 channel_min")
+
     fixed_channels = obs.get("fixed_channels", None)
     if fixed_channels is None:
         return
@@ -68,14 +110,6 @@ def _validate_registry_entry(key: str, body: dict) -> None:
         )
     if is_output_level and not isinstance(output_info, list):
         raise HTTPException(400, "按输出维度采样需要先定义 output_info")
-
-    output_names = set()
-    if isinstance(output_info, list):
-        output_names = {
-            str(item.get("name", "")).strip()
-            for item in output_info
-            if isinstance(item, dict) and str(item.get("name", "")).strip()
-        }
 
     invalid = []
     invalid_output = []
@@ -136,24 +170,26 @@ def update_registry_entry(key: str, body: dict):
     """
     try:
         data = _load_registry_raw()
-        if "/" in key:
-            simulator, scenario = key.split("/", 1)
+        simulator, scenario = _registry_key_parts(key)
+        normalized_key = f"{simulator}/{scenario}" if scenario else simulator
+        if scenario:
             sim_entry = data.setdefault(simulator, {})
             scenarios = sim_entry.setdefault("scenarios", {})
             # body 可以是 {"scenario_description": "..."} 或直接字符串
             desc = body.get("scenario_description", "") if isinstance(body, dict) else str(body)
             scenarios[scenario] = desc
         else:
-            _validate_registry_entry(key, body)
+            _validate_registry_entry(simulator, body)
             # simulator 级：合并 scenarios 子字段（不丢失已有场景描述）
-            existing_scenarios = data.get(key, {}).get("scenarios", {}) if isinstance(data.get(key), dict) else {}
-            data[key] = body
+            existing_scenarios = data.get(simulator, {}).get("scenarios", {}) if isinstance(data.get(simulator), dict) else {}
+            data[simulator] = body
             if existing_scenarios and isinstance(body, dict):
                 # body 中的 scenarios 优先，但保留 body 中没有的场景描述
                 merged = {**existing_scenarios, **(body.get("scenarios") or {})}
-                data[key]["scenarios"] = merged
+                data[simulator]["scenarios"] = merged
         _save_registry_raw(data)
-        return {"ok": True, "key": key}
+        invalidate_text2comp_scenarios_cache()
+        return {"ok": True, "key": normalized_key}
     except HTTPException:
         raise
     except Exception as e:
@@ -169,118 +205,24 @@ def delete_registry_entry(key: str):
     """
     try:
         data = _load_registry_raw()
-        if "/" in key:
-            simulator, scenario = key.split("/", 1)
+        simulator, scenario = _registry_key_parts(key)
+        normalized_key = f"{simulator}/{scenario}" if scenario else simulator
+        if scenario:
             sim_entry = data.get(simulator, {})
             scenarios = sim_entry.get("scenarios", {})
             if scenario not in scenarios:
-                raise HTTPException(404, f"场景 '{key}' 不存在")
+                raise HTTPException(404, f"场景 '{normalized_key}' 不存在")
             del scenarios[scenario]
             if not scenarios:
                 sim_entry.pop("scenarios", None)
         else:
-            if key not in data:
-                raise HTTPException(404, f"key '{key}' 不存在")
-            del data[key]
+            if simulator not in data:
+                raise HTTPException(404, f"key '{simulator}' 不存在")
+            del data[simulator]
         _save_registry_raw(data)
-        return {"ok": True, "key": key}
+        invalidate_text2comp_scenarios_cache()
+        return {"ok": True, "key": normalized_key}
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(500, f"删除 registry 失败: {e}")
-
-
-@router.post("/register")
-async def start_register(req: RegisterRequest):
-    """启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。"""
-    try:
-        validations = collect_registration_hdf5_validations(
-            req.config,
-            req.scenarios if req.scenarios else None,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-    invalid = [item for item in validations if not item.get("valid")]
-    if invalid:
-        raise HTTPException(
-            status_code=400,
-            detail={
-                "message": "注册前校验失败：部分 HDF5 文件不符合 PiERN Stage 1 规范",
-                "items": invalid,
-            },
-        )
-
-    record = job_manager.create_job("register", {})
-    job_id = record.job_id
-
-    cmd = [
-        sys.executable, "-m", "piern.synth.text2comp.auto_register",
-        "--config", req.config,
-        "--output", req.output,
-    ]
-    if req.scenarios:
-        cmd += ["--scenarios"] + req.scenarios
-    if req.fields:
-        cmd += ["--fields"] + req.fields
-    if req.overwrite:
-        cmd.append("--overwrite")
-    if req.simulator_level:
-        cmd.append("--simulator-level")
-
-    try:
-        proc = subprocess.Popen(
-            cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            bufsize=1,
-            cwd=str(PROJECT_ROOT),
-            env=os.environ.copy(),
-            start_new_session=True,
-        )
-        record.proc = proc
-        record.proc_uses_process_group = True
-    except FileNotFoundError as e:
-        raise HTTPException(500, f"启动注册任务失败: {e}")
-
-    def _reader():
-        try:
-            for raw_line in proc.stdout:
-                line = raw_line.rstrip("\n")
-                if not line:
-                    continue
-                event: dict = {"type": "log", "line": line, "ts": time.time()}
-
-                m = _REGISTER_PROGRESS_RE.search(line)
-                if m:
-                    event["register_progress"] = {"key": m.group(1), "fields": m.group(2)}
-                if any(marker in line for marker in _SAVE_MARKERS):
-                    event["saved"] = True
-
-                publish(record, event)
-        except Exception as e:
-            if not record.stop_event.is_set():
-                publish(record, {"type": "error", "message": str(e), "ts": time.time()})
-        finally:
-            try:
-                proc.wait()
-            finally:
-                record.proc = None
-                record.proc_uses_process_group = False
-
-            if record.stop_event.is_set():
-                return
-
-            rc = proc.returncode
-            final = {
-                "type": "done" if rc == 0 else "error",
-                "return_code": rc,
-                "ts": time.time(),
-                "message": "注册完成" if rc == 0 else f"注册失败，退出码: {rc}",
-            }
-            publish(record, final)
-            record.status = "done" if rc == 0 else "error"
-
-    threading.Thread(target=_reader, daemon=True).start()
-    return {"job_id": job_id, "status": "running"}

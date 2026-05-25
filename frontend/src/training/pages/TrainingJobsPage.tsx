@@ -10,9 +10,13 @@ import {
   formatDateTime,
   formatDuration,
   formatMetric,
+  isTrainingJobActive,
+  isTrainingJobDeletable,
+  isTrainingJobStoppable,
   statusBadgeClass,
   statusLabel,
   trainingJobNotice,
+  trainingJobDetailPath,
 } from '../shared'
 
 function actionErrorMessage(error: unknown): string {
@@ -28,9 +32,9 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
   const [isDeleting, setIsDeleting] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
-  const stoppable = ['starting', 'running', 'evaluating'].includes(job.status)
+  const stoppable = isTrainingJobStoppable(job.status)
   const stopping = job.status === 'stopping'
-  const deletable = !stoppable && !stopping
+  const deletable = isTrainingJobDeletable(job.status)
   const scenarioText = job.scenarios.join(', ')
   const notice = trainingJobNotice(job)
 
@@ -95,7 +99,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
             {(stoppable || stopping) && (
               <button type="button" className="btn-danger" onClick={stopJob} disabled={isStopping || stopping}>
                 <PauseCircle size={14} />
-                {isStopping || stopping ? '终止中...' : '终止'}
+                {isStopping || stopping ? '终止中...' : job.status === 'queued' ? '取消排队' : '终止'}
               </button>
             )}
             {deletable && (
@@ -110,7 +114,7 @@ function JobRow({ job, expanded = false }: { job: TrainingJobSummary; expanded?:
               </button>
             )}
             <Link
-              to={`/training/jobs/${job.job_id}`}
+              to={trainingJobDetailPath(job.job_id)}
               className={isDeleting ? 'btn-primary pointer-events-none opacity-60' : 'btn-primary'}
             >
               <PlayCircle size={14} />
@@ -186,8 +190,7 @@ export default function TrainingJobsPage() {
     revalidateOnFocus: false,
   })
 
-  const runningCount =
-    data?.filter(job => ['starting', 'running', 'evaluating', 'stopping'].includes(job.status)).length ?? 0
+  const runningCount = data?.filter(job => isTrainingJobActive(job.status)).length ?? 0
   const doneCount = data?.filter(job => job.status === 'done').length ?? 0
   const errorCount = data?.filter(job => job.status === 'error' || job.status === 'external_terminated').length ?? 0
 
@@ -223,9 +226,9 @@ export default function TrainingJobsPage() {
                 icon={<Gauge size={16} />}
               />
               <MetricTile
-                label="运行中"
+                label="活跃中"
                 value={formatCount(runningCount)}
-                note="启动中 / 训练中 / 评测中 / 停止中"
+                note="排队中 / 启动中 / 训练中 / 评测中 / 停止中"
                 icon={<PlayCircle size={16} />}
               />
               <MetricTile
@@ -254,7 +257,7 @@ export default function TrainingJobsPage() {
               <Gauge size={16} className="text-sky-300" />
               <div>
                 <div className="training-panel-title">任务列表</div>
-                <div className="training-panel-copy">运行中任务可终止，历史任务可删除</div>
+                <div className="training-panel-copy">排队和运行中的任务可终止，历史任务可删除</div>
               </div>
             </div>
             <div className="training-card__body training-scroll training-job-list-scroll">

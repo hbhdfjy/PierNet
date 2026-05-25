@@ -464,7 +464,7 @@ export default function DatasetStats() {
                       <tbody>
                         {datasets.map((dataset, index) => (
                           <tr
-                            key={dataset.name}
+                            key={`${dataset.simulator}/${dataset.scenario}`}
                             className={cn(
                               'border-b border-slate-800/40 transition-colors hover:bg-slate-700/20',
                               index % 2 === 0 ? '' : 'bg-slate-800/10',
@@ -546,7 +546,7 @@ export default function DatasetStats() {
                   <tbody>
                     {routerStatus.scenarios.map((scenario, index) => (
                       <tr
-                        key={scenario.scenario}
+                        key={`${scenario.simulator}/${scenario.scenario}`}
                         className={cn(
                           'border-b border-slate-800/40 transition-colors hover:bg-slate-700/20',
                           index % 2 === 0 ? '' : 'bg-slate-800/10',
@@ -562,7 +562,7 @@ export default function DatasetStats() {
                           {(scenario.router_count ?? 0).toLocaleString()}
                         </td>
                         <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">
-                          {(routerStatus.source_by_scenario[scenario.scenario] ?? 0).toLocaleString()}
+                          {scenario.source_count.toLocaleString()}
                         </td>
                         <td className="px-5 py-3 text-right font-mono tabular-nums text-slate-400">
                           {formatBytes(scenario.file_size_bytes ?? 0)}

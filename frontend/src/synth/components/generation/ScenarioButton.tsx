@@ -9,6 +9,7 @@ interface Props {
   templateCount?: number
   disabled?: boolean
   tone?: 'sky' | 'violet' | 'emerald'
+  disabledReason?: string
 }
 
 const TONE = {
@@ -38,8 +39,18 @@ const TONE = {
   },
 } as const
 
-export default function ScenarioButton({ s, active, onClick, templateCount, disabled, tone = 'sky' }: Props) {
-  const pct = s.sample_count > 0 ? Math.min(100, (s.existing_jsonl_count / s.sample_count) * 100) : 0
+export default function ScenarioButton({
+  s,
+  active,
+  onClick,
+  templateCount,
+  disabled,
+  disabledReason,
+  tone = 'sky',
+}: Props) {
+  const existingSampleCount = s.existing_sample_count ?? s.existing_jsonl_count
+  const hasGeneratedSamples = s.has_samples ?? s.has_jsonl
+  const pct = s.sample_count > 0 ? Math.min(100, (existingSampleCount / s.sample_count) * 100) : 0
   const c = SIMULATOR_BADGE[s.simulator]
   const noData = !s.has_h5
   const unregistered = !s.registered
@@ -49,7 +60,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
     <button
       onClick={onClick}
       disabled={disabled}
-      title={noData ? '尚无 HDF5 数据，需先运行 阶段 1 物理仿真' : undefined}
+      title={disabledReason ?? (noData ? '尚无 HDF5 数据，需先运行 阶段 1 物理仿真' : undefined)}
       className={cn(
         'scenario-button relative w-full overflow-hidden border text-left transition-all duration-150',
         'focus:outline-none focus-visible:ring-2',
@@ -68,7 +79,7 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
       )}
     >
       {/* 已生成进度底色 */}
-      {s.has_jsonl && pct > 0 && !active && !disabled && !noData && (
+      {hasGeneratedSamples && pct > 0 && !active && !disabled && !noData && (
         <div className="scenario-button__progress bg-emerald-500/6" style={{ width: `${pct}%` }} />
       )}
 
@@ -134,16 +145,20 @@ export default function ScenarioButton({ s, active, onClick, templateCount, disa
             </span>
           )}
 
-          {/* 已有 JSONL */}
-          {s.has_jsonl && (
+          {/* 已有样本 */}
+          {hasGeneratedSamples && (
             <span className="scenario-button__meta-item tabular-nums text-emerald-500/70">
-              ✓{s.existing_jsonl_count}
+              ✓{existingSampleCount.toLocaleString()}
             </span>
           )}
         </div>
 
         {/* 提示文字 */}
-        {noData && <p className="scenario-button__note text-slate-600">需先运行阶段 1 生成 HDF5</p>}
+        {disabledReason ? (
+          <p className="scenario-button__note text-amber-600/70">{disabledReason}</p>
+        ) : noData ? (
+          <p className="scenario-button__note text-slate-600">需先运行阶段 1 生成 HDF5</p>
+        ) : null}
         {!noData && unregistered && (
           <p className="scenario-button__note text-amber-600/60">未注册元数据，生成可能失败</p>
         )}

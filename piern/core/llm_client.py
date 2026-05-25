@@ -286,29 +286,3 @@ class LLMClient:
             results.append(text)
 
         return results
-
-
-def test_llm_client():
-    """测试 LLM 客户端。"""
-    # 测试 OpenAI
-    try:
-        client = LLMClient(provider="openai", model="gpt-3.5-turbo")
-        response = client.generate("你好，请用一句话介绍自己。")
-        print(f"OpenAI 响应: {response}")
-    except Exception as e:
-        print(f"OpenAI 测试失败: {e}")
-
-    # 测试 SiliconFlow
-    try:
-        client = LLMClient(
-            provider="siliconflow",
-            model="Qwen/Qwen2.5-7B-Instruct"
-        )
-        response = client.generate("你好，请用一句话介绍自己。")
-        print(f"SiliconFlow 响应: {response}")
-    except Exception as e:
-        print(f"SiliconFlow 测试失败: {e}")
-
-
-if __name__ == "__main__":
-    test_llm_client()

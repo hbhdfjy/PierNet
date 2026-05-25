@@ -17,6 +17,19 @@ import JobMonitorPanel from '../components/generation/JobMonitorPanel'
 import ResizeHandle from '../components/ui/ResizeHandle'
 import { isRestartableJobStatus, isTerminalJobStatus, useJobMonitor } from '../hooks/useJobMonitor'
 import { useResizable } from '../hooks/useResizable'
+import {
+  duplicateText2CompScenarioNames,
+  selectableText2CompScenarios,
+  text2compScenarioKey,
+} from '../text2compScenario'
+import {
+  SYNTH_SAMPLE_COUNT_MAX,
+  SYNTH_SAMPLE_COUNT_MIN,
+  SYNTH_WORKERS_MAX,
+  SYNTH_WORKERS_MIN,
+  normalizeSynthSampleCount,
+  normalizeSynthWorkers,
+} from '../generationLimits'
 
 const ACTIVE_STATUS_LABEL: Partial<Record<JobStatus, string>> = {
   queued: '任务排队中',
@@ -59,8 +72,10 @@ export default function SampleFiller() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (genCfg?.generation?.n_samples_per_scenario) setNSamples(genCfg.generation.n_samples_per_scenario)
-    if (genCfg?.generation?.max_workers) setMaxWorkers(genCfg.generation.max_workers)
+    if (genCfg?.generation?.n_samples_per_scenario) {
+      setNSamples(normalizeSynthSampleCount(genCfg.generation.n_samples_per_scenario))
+    }
+    if (genCfg?.generation?.max_workers) setMaxWorkers(normalizeSynthWorkers(genCfg.generation.max_workers))
   }, [genCfg])
 
   useEffect(() => {
@@ -76,6 +91,10 @@ export default function SampleFiller() {
   for (const t of templatesStatus ?? []) templateMap[t.scenario] = t
 
   const scenariosWithTemplates = allScenarios.filter(s => templateMap[s.name])
+  const duplicateNames = duplicateText2CompScenarioNames(allScenarios)
+  const selectableScenariosWithTemplates = selectableText2CompScenarios(allScenarios, duplicateNames, s =>
+    Boolean(templateMap[s.name]),
+  )
 
   const toggle = (name: string) => {
     if (!templateMap[name]) return
@@ -93,8 +112,15 @@ export default function SampleFiller() {
       return
     }
     const missing = Array.from(selected).filter(n => !templateMap[n])
+    const ambiguousSelected = Array.from(selected).filter(name => duplicateNames.has(name))
     if (missing.length > 0) {
       setError(`以下场景缺少模板：${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '…' : ''}`)
+      return
+    }
+    if (ambiguousSelected.length > 0) {
+      setError(
+        `以下场景名在多个 simulator 下重复，无法安全填充：${ambiguousSelected.slice(0, 3).join(', ')}${ambiguousSelected.length > 3 ? '…' : ''}`,
+      )
       return
     }
     setError(null)
@@ -102,13 +128,13 @@ export default function SampleFiller() {
     try {
       const result = await api.startFillSamples({
         scenarios: Array.from(selected),
-        n_samples: nSamples,
+        n_samples: normalizeSynthSampleCount(nSamples),
         templates_dir: '',
         output_dir: '',
         output_format: 'parquet',
         compression: 'zstd',
         batch_size: 32768,
-        max_workers: maxWorkers,
+        max_workers: normalizeSynthWorkers(maxWorkers),
         skip_existing: skipExisting,
         config: 'configs/text2comp/default.yaml',
         seed,
@@ -173,7 +199,7 @@ export default function SampleFiller() {
             </div>
             <button
               className="text-xs text-violet-400 hover:text-violet-300 transition-colors"
-              onClick={() => navigate('/templates')}
+              onClick={() => navigate('/synth/templates')}
             >
               去生成 →
             </button>
@@ -196,7 +222,7 @@ export default function SampleFiller() {
             <div className="flex items-center gap-0.5">
               <button
                 className="btn-ghost py-0.5 px-2 text-sm"
-                onClick={() => setSelected(new Set(scenariosWithTemplates.map(s => s.name)))}
+                onClick={() => setSelected(new Set(selectableScenariosWithTemplates.map(s => s.name)))}
               >
                 全选
               </button>
@@ -227,17 +253,23 @@ export default function SampleFiller() {
                 <div key={dirKey}>
                   <div className="workbench-group-label">{dirKey}</div>
                   <div className="scenario-grid grid gap-1.5">
-                    {list.map(s => (
-                      <ScenarioButton
-                        key={s.name}
-                        s={s}
-                        active={selected.has(s.name)}
-                        onClick={() => toggle(s.name)}
-                        templateCount={templateMap[s.name]?.template_count}
-                        disabled={!templateMap[s.name]}
-                        tone="emerald"
-                      />
-                    ))}
+                    {list.map(s => {
+                      const duplicateName = duplicateNames.has(s.name)
+                      return (
+                        <ScenarioButton
+                          key={text2compScenarioKey(s)}
+                          s={s}
+                          active={selected.has(s.name)}
+                          onClick={() => toggle(s.name)}
+                          templateCount={templateMap[s.name]?.template_count}
+                          disabled={!templateMap[s.name] || duplicateName}
+                          disabledReason={
+                            duplicateName ? '同名场景存在于多个 simulator，请先改名或清理配置' : undefined
+                          }
+                          tone="emerald"
+                        />
+                      )
+                    })}
                   </div>
                 </div>
               ))}
@@ -250,7 +282,7 @@ export default function SampleFiller() {
                 </div>
                 <button
                   className="flex items-center gap-1 text-xs text-violet-400 hover:text-violet-300 transition-colors"
-                  onClick={() => navigate('/templates')}
+                  onClick={() => navigate('/synth/templates')}
                 >
                   前往模板生成 →
                 </button>
@@ -273,9 +305,9 @@ export default function SampleFiller() {
                   type="number"
                   className="input w-full text-xs py-1.5 px-3"
                   value={nSamples}
-                  min={1}
-                  max={100000}
-                  onChange={e => setNSamples(parseInt(e.target.value) || 1)}
+                  min={SYNTH_SAMPLE_COUNT_MIN}
+                  max={SYNTH_SAMPLE_COUNT_MAX}
+                  onChange={e => setNSamples(normalizeSynthSampleCount(Number(e.target.value)))}
                 />
               </div>
               <div>
@@ -284,9 +316,9 @@ export default function SampleFiller() {
                   type="number"
                   className="input w-full text-xs py-1.5 px-3"
                   value={maxWorkers}
-                  min={1}
-                  max={16}
-                  onChange={e => setMaxWorkers(Math.max(1, Math.min(16, parseInt(e.target.value) || 1)))}
+                  min={SYNTH_WORKERS_MIN}
+                  max={SYNTH_WORKERS_MAX}
+                  onChange={e => setMaxWorkers(normalizeSynthWorkers(Number(e.target.value)))}
                 />
               </div>
               <div>
@@ -294,9 +326,9 @@ export default function SampleFiller() {
                 <select
                   className="select w-full text-xs py-1.5 px-3"
                   value={precision}
-                  onChange={e => setPrecision(parseInt(e.target.value))}
+                  onChange={e => setPrecision(Number(e.target.value))}
                 >
-                  {[2, 3, 4, 5, 6, 8].map(p => (
+                  {[1, 2, 3, 4, 5, 6, 8, 10].map(p => (
                     <option key={p} value={p}>
                       {p} 位
                     </option>
@@ -317,9 +349,9 @@ export default function SampleFiller() {
                   style={{ left: skipExisting ? '18px' : '2px' }}
                 />
               </div>
-              <span className="text-sm text-slate-300 font-medium flex-1">断点续跑</span>
+              <span className="text-sm text-slate-300 font-medium flex-1">跳过已完成</span>
               <span className="text-xs text-slate-600">
-                {skipExisting ? '跳过已有数据，仅补充新样本' : '忽略已有样本重新生成'}
+                {skipExisting ? '已达目标则跳过，未满则重新生成' : '忽略已有样本重新生成'}
               </span>
             </div>
           </div>
@@ -387,7 +419,7 @@ export default function SampleFiller() {
           autoScroll={monitor.autoScroll}
           onAutoScrollChange={monitor.setAutoScroll}
           onStop={monitor.stop}
-          onDone={() => navigate('/samples')}
+          onDone={() => navigate('/synth/samples')}
           doneLabel="查看样本"
           jobId={monitor.jobId}
           jobIds={monitor.jobIds}
@@ -408,14 +440,14 @@ export default function SampleFiller() {
           </div>
         )}
 
-        {/* File management moved to /files */}
+        {/* File management lives in /synth/files */}
         <div className="card overflow-hidden">
           <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
               <span className="font-medium text-slate-200 text-base">Sample files</span>
             </div>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/files')}>
+            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
               打开文件管理
             </button>
           </div>
@@ -425,7 +457,7 @@ export default function SampleFiller() {
               <p className="mt-1 text-sm leading-6 text-slate-400">
                 Sample delete, clear, and merged-file state now live in the unified file manager.
               </p>
-              <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/files')}>
+              <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/synth/files')}>
                 打开统一文件管理
               </button>
             </div>

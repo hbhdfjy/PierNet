@@ -1,12 +1,25 @@
 """任务状态相关 Pydantic 模型。"""
 
 from pydantic import BaseModel, Field
-from typing import Any, Optional
+from typing import Any, Literal, Optional
+
+
+JobStatus = Literal[
+    "queued",
+    "starting",
+    "running",
+    "evaluating",
+    "stopping",
+    "done",
+    "error",
+    "terminated",
+    "external_terminated",
+]
 
 
 class JobStatusResponse(BaseModel):
     job_id: str
-    status: str
+    status: JobStatus
     job_type: Optional[str] = None
     started_at: Optional[float] = None
     scenario_totals: dict[str, int] = Field(default_factory=dict)
@@ -18,15 +31,8 @@ class JobStatusResponse(BaseModel):
 
 class TemplateFileInfo(BaseModel):
     scenario: str
+    simulator: Optional[str] = None
     template_count: int
-    file_size_bytes: int
-    mtime: float
-    path: str
-
-
-class SampleFileInfo(BaseModel):
-    scenario: str
-    sample_count: int
     file_size_bytes: int
     mtime: float
     path: str

@@ -8,7 +8,7 @@ GitHub 主分支保存：
 
 - 代码、配置和文档。
 - 语言模板：`data/templates/*.jsonl`。
-- 原始科学计算数据：`data/*/*.h5`。
+- 原始科学计算数据：`data/*/*.h5` 或 `data/*/*.hdf5`。
 
 GitHub 不保存：
 
@@ -105,7 +105,7 @@ curl -fsS http://127.0.0.1:8000/api/health/ready
 loginctl enable-linger $USER
 ```
 
-当前 worker 单元负责共享维护任务，例如过期任务锁清理；默认不启用，可使用 `scripts/services/install-systemd.sh --enable --now --worker` 安装。
+worker 单元会消费合成/训练队列，并负责共享维护任务，例如过期任务锁清理；默认随 systemd 安装启用。仅部署 API/UI 且确认不需要后台队列时，可使用 `scripts/services/install-systemd.sh --enable --now --no-worker` 跳过。
 
 ## 重建派生数据
 

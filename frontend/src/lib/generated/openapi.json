@@ -5,11 +5,15 @@
         "properties": {
           "max_workers": {
             "default": 4,
+            "maximum": 64.0,
+            "minimum": 1.0,
             "title": "Max Workers",
             "type": "integer"
           },
           "n_samples": {
             "default": 100,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
             "title": "N Samples",
             "type": "integer"
           },
@@ -27,6 +31,8 @@
           },
           "seed": {
             "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
             "title": "Seed",
             "type": "integer"
           },
@@ -110,6 +116,8 @@
           "seed": {
             "anyOf": [
               {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
                 "type": "integer"
               },
               {
@@ -351,6 +359,35 @@
         "title": "InterviewStartRequest",
         "type": "object"
       },
+      "JobStartResponse": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "scenario_totals": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "title": "Scenario Totals",
+            "type": "object"
+          },
+          "status": {
+            "default": "running",
+            "enum": [
+              "queued",
+              "running"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "JobStartResponse",
+        "type": "object"
+      },
       "JobStatusResponse": {
         "properties": {
           "error_message": {
@@ -424,6 +461,17 @@
             "type": "object"
           },
           "status": {
+            "enum": [
+              "queued",
+              "starting",
+              "running",
+              "evaluating",
+              "stopping",
+              "done",
+              "error",
+              "terminated",
+              "external_terminated"
+            ],
             "title": "Status",
             "type": "string"
           }
@@ -449,6 +497,8 @@
           },
           "max_tokens": {
             "default": 1024,
+            "maximum": 8192.0,
+            "minimum": 64.0,
             "title": "Max Tokens",
             "type": "integer"
           },
@@ -464,6 +514,8 @@
           },
           "temperature": {
             "default": 1.0,
+            "maximum": 2.0,
+            "minimum": 0.0,
             "title": "Temperature",
             "type": "number"
           },
@@ -549,46 +601,6 @@
         "title": "QueueSummary",
         "type": "object"
       },
-      "RegisterRequest": {
-        "properties": {
-          "config": {
-            "default": "configs/text2comp/default.yaml",
-            "title": "Config",
-            "type": "string"
-          },
-          "fields": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Fields",
-            "type": "array"
-          },
-          "output": {
-            "default": "configs/text2comp/registry.yaml",
-            "title": "Output",
-            "type": "string"
-          },
-          "overwrite": {
-            "default": false,
-            "title": "Overwrite",
-            "type": "boolean"
-          },
-          "scenarios": {
-            "items": {
-              "type": "string"
-            },
-            "title": "Scenarios",
-            "type": "array"
-          },
-          "simulator_level": {
-            "default": false,
-            "title": "Simulator Level",
-            "type": "boolean"
-          }
-        },
-        "title": "RegisterRequest",
-        "type": "object"
-      },
       "ResourceMetrics": {
         "properties": {
           "disk": {
@@ -608,39 +620,6 @@
         "title": "ResourceMetrics",
         "type": "object"
       },
-      "SampleFileInfo": {
-        "properties": {
-          "file_size_bytes": {
-            "title": "File Size Bytes",
-            "type": "integer"
-          },
-          "mtime": {
-            "title": "Mtime",
-            "type": "number"
-          },
-          "path": {
-            "title": "Path",
-            "type": "string"
-          },
-          "sample_count": {
-            "title": "Sample Count",
-            "type": "integer"
-          },
-          "scenario": {
-            "title": "Scenario",
-            "type": "string"
-          }
-        },
-        "required": [
-          "scenario",
-          "sample_count",
-          "file_size_bytes",
-          "mtime",
-          "path"
-        ],
-        "title": "SampleFileInfo",
-        "type": "object"
-      },
       "SimulateRequest": {
         "properties": {
           "config_path": {
@@ -649,11 +628,15 @@
           },
           "max_workers": {
             "default": 4,
+            "maximum": 64.0,
+            "minimum": 1.0,
             "title": "Max Workers",
             "type": "integer"
           },
           "n_samples": {
             "default": 100,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
             "title": "N Samples",
             "type": "integer"
           },
@@ -668,6 +651,8 @@
           },
           "seed": {
             "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
             "title": "Seed",
             "type": "integer"
           },
@@ -799,6 +784,17 @@
           "scenario": {
             "title": "Scenario",
             "type": "string"
+          },
+          "simulator": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulator"
           },
           "template_count": {
             "title": "Template Count",
@@ -2056,55 +2052,6 @@
         ],
         "title": "WorkerMetrics",
         "type": "object"
-      },
-      "piern__synth__api__routers__simulation__JobStartResponse": {
-        "properties": {
-          "job_id": {
-            "title": "Job Id",
-            "type": "string"
-          },
-          "scenario_totals": {
-            "additionalProperties": true,
-            "default": {},
-            "title": "Scenario Totals",
-            "type": "object"
-          },
-          "status": {
-            "default": "running",
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "job_id"
-        ],
-        "title": "JobStartResponse",
-        "type": "object"
-      },
-      "piern__synth__api__schemas__generation__JobStartResponse": {
-        "properties": {
-          "job_id": {
-            "title": "Job Id",
-            "type": "string"
-          },
-          "scenario_totals": {
-            "additionalProperties": {
-              "type": "integer"
-            },
-            "title": "Scenario Totals",
-            "type": "object"
-          },
-          "status": {
-            "default": "running",
-            "title": "Status",
-            "type": "string"
-          }
-        },
-        "required": [
-          "job_id"
-        ],
-        "title": "JobStartResponse",
-        "type": "object"
       }
     }
   },
@@ -2131,26 +2078,9 @@
         "summary": "Get Config"
       }
     },
-    "/api/config/scenarios": {
-      "get": {
-        "description": "扫描 configs/*/variants/*.yaml，返回各 simulator 的场景列表。",
-        "operationId": "get_scenarios_api_config_scenarios_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Get Scenarios"
-      }
-    },
     "/api/config/text2comp-scenarios": {
       "get": {
-        "description": "返回 Stage 2 可用场景列表（按 simulator 子目录分组）。\n约定：data/{simulator}/{simulator}_{scenario}.h5",
+        "description": "返回 Stage 2 可用场景列表（按 simulator 子目录分组）。\n约定：data/{simulator}/{simulator}_{scenario}.h5/.hdf5",
         "operationId": "get_text2comp_scenarios_api_config_text2comp_scenarios_get",
         "responses": {
           "200": {
@@ -2184,7 +2114,7 @@
     },
     "/api/datasets": {
       "get": {
-        "description": "返回 Stage 3 数据集列表，优先走 manifest。",
+        "description": "返回真实 Stage 3 样本数据集列表，优先走 manifest。",
         "operationId": "get_datasets_api_datasets_get",
         "responses": {
           "200": {
@@ -2327,98 +2257,7 @@
         "summary": "Rebuild File Catalog Indexes"
       }
     },
-    "/api/files/samples": {
-      "delete": {
-        "description": "清空所有样本文件（保留 all_training_data.jsonl）。",
-        "operationId": "clear_all_samples_api_files_samples_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Clear All Samples"
-      },
-      "get": {
-        "description": "列出所有样本文件。",
-        "operationId": "list_sample_files_api_files_samples_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/SampleFileInfo"
-                  },
-                  "title": "Response List Sample Files Api Files Samples Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "List Sample Files"
-      }
-    },
-    "/api/files/samples/{scenario}": {
-      "delete": {
-        "description": "删除指定场景的样本文件。",
-        "operationId": "delete_sample_file_api_files_samples__scenario__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "scenario",
-            "required": true,
-            "schema": {
-              "title": "Scenario",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Sample File"
-      }
-    },
     "/api/files/templates": {
-      "delete": {
-        "description": "清空所有模板文件。",
-        "operationId": "clear_all_templates_api_files_templates_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Clear All Templates"
-      },
       "get": {
         "description": "列出所有模板文件。",
         "operationId": "list_template_files_api_files_templates_get",
@@ -2439,44 +2278,6 @@
           }
         },
         "summary": "List Template Files"
-      }
-    },
-    "/api/files/templates/{scenario}": {
-      "delete": {
-        "description": "删除指定场景的模板文件。",
-        "operationId": "delete_template_file_api_files_templates__scenario__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "scenario",
-            "required": true,
-            "schema": {
-              "title": "Scenario",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Template File"
       }
     },
     "/api/files/templates/{scenario}/items": {
@@ -2558,56 +2359,6 @@
         "summary": "Get Template Items"
       }
     },
-    "/api/files/templates/{scenario}/trim": {
-      "post": {
-        "description": "将指定场景的模板文件截断到 n 条。",
-        "operationId": "trim_template_file_api_files_templates__scenario__trim_post",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "scenario",
-            "required": true,
-            "schema": {
-              "title": "Scenario",
-              "type": "string"
-            }
-          },
-          {
-            "description": "保留的模板条数",
-            "in": "query",
-            "name": "n",
-            "required": true,
-            "schema": {
-              "description": "保留的模板条数",
-              "minimum": 1,
-              "title": "N",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Trim Template File"
-      }
-    },
     "/api/fill-samples": {
       "post": {
         "description": "阶段三：数值填充。",
@@ -2627,7 +2378,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/piern__synth__api__schemas__generation__JobStartResponse"
+                  "$ref": "#/components/schemas/JobStartResponse"
                 }
               }
             },
@@ -2666,7 +2417,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/piern__synth__api__schemas__generation__JobStartResponse"
+                  "$ref": "#/components/schemas/JobStartResponse"
                 }
               }
             },
@@ -3119,44 +2870,6 @@
         "summary": "Send Interview Message"
       }
     },
-    "/api/interview/{session_id}/state": {
-      "get": {
-        "description": "获取会话完整状态快照。",
-        "operationId": "get_interview_state_api_interview__session_id__state_get",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "session_id",
-            "required": true,
-            "schema": {
-              "title": "Session Id",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Interview State"
-      }
-    },
     "/api/llm-config": {
       "get": {
         "description": "读取当前 LLM 配置（default.yaml 的 llm 节），api_key 脱敏返回。",
@@ -3267,43 +2980,6 @@
         ]
       }
     },
-    "/api/register": {
-      "post": {
-        "description": "启动 auto_register 后台任务，返回 job_id 供 SSE 订阅。",
-        "operationId": "start_register_api_register_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RegisterRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Start Register"
-      }
-    },
     "/api/registry": {
       "get": {
         "description": "读取 registry.yaml，返回完整内容。",
@@ -3407,23 +3083,6 @@
         "summary": "Update Registry Entry"
       }
     },
-    "/api/router/all": {
-      "delete": {
-        "description": "Delete all per-scenario router files and train.jsonl.",
-        "operationId": "delete_all_router_data_api_router_all_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Delete All Router Data"
-      }
-    },
     "/api/router/build": {
       "post": {
         "description": "Start Stage 4 router build and return a job id for SSE.",
@@ -3435,6 +3094,8 @@
             "required": false,
             "schema": {
               "default": 42,
+              "maximum": 2147483647,
+              "minimum": 0,
               "title": "Seed",
               "type": "integer"
             }
@@ -3468,9 +3129,11 @@
             "name": "scenarios",
             "required": false,
             "schema": {
-              "default": "",
+              "items": {
+                "type": "string"
+              },
               "title": "Scenarios",
-              "type": "string"
+              "type": "array"
             }
           }
         ],
@@ -3519,6 +3182,16 @@
             "schema": {
               "default": "",
               "title": "Scenario",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "simulator",
+            "required": false,
+            "schema": {
+              "default": "",
+              "title": "Simulator",
               "type": "string"
             }
           },
@@ -3579,44 +3252,6 @@
           }
         },
         "summary": "Get Router Samples"
-      }
-    },
-    "/api/router/scenario/{scenario}": {
-      "delete": {
-        "description": "Delete one scenario file and rewrite train.jsonl.",
-        "operationId": "delete_router_scenario_api_router_scenario__scenario__delete",
-        "parameters": [
-          {
-            "in": "path",
-            "name": "scenario",
-            "required": true,
-            "schema": {
-              "title": "Scenario",
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Delete Router Scenario"
       }
     },
     "/api/router/status": {
@@ -3704,6 +3339,22 @@
               ],
               "title": "Style"
             }
+          },
+          {
+            "in": "query",
+            "name": "simulator",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Simulator"
+            }
           }
         ],
         "responses": {
@@ -3748,7 +3399,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/piern__synth__api__routers__simulation__JobStartResponse"
+                  "$ref": "#/components/schemas/JobStartResponse"
                 }
               }
             },
@@ -3787,7 +3438,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/piern__synth__api__routers__simulation__JobStartResponse"
+                  "$ref": "#/components/schemas/JobStartResponse"
                 }
               }
             },
@@ -3822,60 +3473,6 @@
           }
         },
         "summary": "Get Simulation Data Files"
-      }
-    },
-    "/api/simulation/history": {
-      "delete": {
-        "description": "清空历史记录。",
-        "operationId": "clear_simulation_history_api_simulation_history_delete",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Clear Simulation History"
-      },
-      "get": {
-        "description": "返回最近的仿真历史记录（内存，重启后清空）。",
-        "operationId": "get_simulation_history_api_simulation_history_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "limit",
-            "required": false,
-            "schema": {
-              "default": 50,
-              "title": "Limit",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Get Simulation History"
       }
     },
     "/api/simulation/scenarios": {
@@ -3980,32 +3577,21 @@
         "summary": "Upload Simulation Data"
       }
     },
-    "/api/stats": {
-      "get": {
-        "description": "返回 Stage 3 聚合统计，优先走 manifest。",
-        "operationId": "get_stats_api_stats_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Get Stats"
-      }
-    },
     "/api/templates": {
       "get": {
-        "description": "扫描 data/templates/ 目录，返回各场景的模板库状态。",
+        "description": "返回各场景的模板库状态。",
         "operationId": "get_templates_status_api_templates_get",
         "responses": {
           "200": {
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TemplateFileInfo"
+                  },
+                  "title": "Response Get Templates Status Api Templates Get",
+                  "type": "array"
+                }
               }
             },
             "description": "Successful Response"

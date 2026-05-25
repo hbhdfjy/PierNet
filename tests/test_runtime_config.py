@@ -41,3 +41,28 @@ def test_runtime_config_reports_missing_data_root(monkeypatch, tmp_path):
 
     assert not validation.ok
     assert any("PIERN_DATA_ROOT" in item for item in validation.errors)
+
+
+def test_runtime_config_prefers_repo_local_python_and_node_defaults(monkeypatch, tmp_path):
+    repo_python = tmp_path / ".conda" / "env" / "bin" / "python"
+    repo_node = tmp_path / ".node" / "current" / "bin" / "node"
+    repo_python.parent.mkdir(parents=True)
+    repo_node.parent.mkdir(parents=True)
+    repo_python.write_text("#!/bin/sh\n", encoding="utf-8")
+    repo_node.write_text("#!/bin/sh\n", encoding="utf-8")
+
+    monkeypatch.setenv("PIERN_ROOT", str(tmp_path))
+    for key in (
+        "PIERN_CONDA_ENV",
+        "PIERN_PYTHON",
+        "PIERN_TRAINING_PYTHON",
+        "PIERN_NODE_BIN",
+        "PIERN_NODE",
+    ):
+        monkeypatch.delenv(key, raising=False)
+
+    config = load_runtime_config()
+
+    assert config.conda_env == (tmp_path / ".conda" / "env").resolve()
+    assert config.python == repo_python.resolve()
+    assert config.node_bin == repo_node.resolve()

@@ -1,4 +1,4 @@
-"""Stage 1 物理仿真路由：场景扫描、单场景/批量仿真、历史记录。"""
+"""Stage 1 物理仿真路由：场景扫描、单场景/批量仿真。"""
 
 import os
 import re
@@ -6,14 +6,13 @@ import subprocess
 import sys
 import tempfile
 import time
-from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Literal, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
@@ -40,19 +39,30 @@ def _display_path(path: Path) -> str:
     return str(path)
 
 
-# 清理上次遗留的临时 config 文件
-_tmp_configs_dir = RUNLOG_ROOT / "tmp_configs"
-if _tmp_configs_dir.exists():
-    for _f in _tmp_configs_dir.glob("*.yaml"):
+def _resolve_data_aware_path(value: str) -> Path:
+    path = Path(value).expanduser()
+    if path.is_absolute():
+        return path
+    parts = path.parts
+    if parts and parts[0] == "data":
+        return DATA_ROOT.joinpath(*parts[1:])
+    return PROJECT_ROOT / path
+
+
+def cleanup_stale_tmp_configs(tmp_configs_dir: Optional[Path] = None) -> int:
+    tmp_dir = tmp_configs_dir or RUNLOG_ROOT / "tmp_configs"
+    if not tmp_dir.exists():
+        return 0
+    deleted = 0
+    for path in tmp_dir.glob("*.yaml"):
         try:
-            _f.unlink()
+            path.unlink()
+            deleted += 1
         except OSError:
-            pass
+            continue
+    return deleted
 
 SIMULATORS = ["modflow", "simpeg", "power_flow", "transient", "gcam"]
-
-# 历史记录（内存，最多保留 200 条；重启后清空）
-_history: deque = deque(maxlen=200)
 
 # ── Pydantic 模型 ────────────────────────────────────────────────
 
@@ -69,40 +79,27 @@ class SimulationScenario(BaseModel):
 class SimulateRequest(BaseModel):
     simulator: str
     scenario: str
-    n_samples: int = 100
-    seed: int = 42
+    n_samples: int = Field(100, ge=1, le=1_000_000)
+    seed: int = Field(42, ge=0, le=2_147_483_647)
     config_path: str
     skip_existing: bool = False
     parallel: bool = False
-    max_workers: int = 4
+    max_workers: int = Field(4, ge=1, le=64)
 
 
 class BatchSimulateRequest(BaseModel):
     scenarios: List[str]
-    n_samples: int = 100
-    seed: int = 42
+    n_samples: int = Field(100, ge=1, le=1_000_000)
+    seed: int = Field(42, ge=0, le=2_147_483_647)
     skip_existing: bool = False
     parallel: bool = False
-    max_workers: int = 4
+    max_workers: int = Field(4, ge=1, le=64)
 
 
 class JobStartResponse(BaseModel):
     job_id: str
-    status: str = "running"
-    scenario_totals: dict = {}
-
-
-class HistoryRecord(BaseModel):
-    job_id: str
-    simulator: str
-    scenario: str
-    n_samples: int
-    skip_existing: bool
-    started_at: float
-    finished_at: Optional[float] = None
-    status: str   # running | done | error | terminated
-    elapsed_sec: Optional[float] = None
-    final_sample_count: Optional[int] = None
+    status: Literal["queued", "running"] = "running"
+    scenario_totals: dict[str, int] = Field(default_factory=dict)
 
 
 # ── 场景扫描 ─────────────────────────────────────────────────────
@@ -153,7 +150,7 @@ def _scan_scenarios() -> List[SimulationScenario]:
                     # 优先使用 YAML 中的 output_dir（各 simulator 写入自己的数据目录）
                     output_dir_str = cfg.get("output_dir")
                     if output_dir_str:
-                        h5_candidate = PROJECT_ROOT / output_dir_str / output_file
+                        h5_candidate = _resolve_data_aware_path(str(output_dir_str)) / output_file
                     else:
                         h5_candidate = DATA_ROOT / sim / output_file
                     if h5_candidate.exists():
@@ -210,6 +207,69 @@ def _invalidate_cache():
     _scenario_cache = None
 
 
+def _scenario_key(simulator: str, scenario: str) -> str:
+    return f"{simulator}/{scenario}"
+
+
+def _scenario_key_for_req(req: SimulateRequest) -> str:
+    return _scenario_key(req.simulator, req.scenario)
+
+
+def _simulation_output_lock_key(req: SimulateRequest) -> str:
+    output_path = _resolve_output_h5_path(req.config_path, req.simulator)
+    if output_path is None:
+        return f"raw:{_scenario_key_for_req(req)}"
+    try:
+        output_path = output_path.resolve(strict=False)
+    except OSError:
+        pass
+    return f"raw-file:{_display_path(output_path)}"
+
+
+def _simulation_lock_keys(reqs: List[SimulateRequest]) -> list[str]:
+    seen: dict[str, str] = {}
+    result: list[str] = []
+    for req in reqs:
+        key = _simulation_output_lock_key(req)
+        scenario_key = _scenario_key_for_req(req)
+        previous = seen.get(key)
+        if previous and previous != scenario_key:
+            raise HTTPException(
+                status_code=400,
+                detail=f"多个场景写入同一 HDF5 输出：{previous}, {scenario_key}",
+            )
+        if key not in seen:
+            seen[key] = scenario_key
+            result.append(key)
+    return result
+
+
+def _parse_scenario_selector(selector: str) -> tuple[str | None, str]:
+    value = str(selector or "").strip()
+    if "::" in value:
+        simulator, scenario = value.split("::", 1)
+        return simulator.strip() or None, scenario.strip()
+    if "/" in value:
+        simulator, scenario = value.split("/", 1)
+        return simulator.strip() or None, scenario.strip()
+    return None, value
+
+
+def _simulate_request_payload(req: SimulateRequest) -> dict:
+    return req.model_dump() if hasattr(req, "model_dump") else req.dict()
+
+
+def _canonical_simulate_request(req: SimulateRequest) -> SimulateRequest:
+    requested_key = _scenario_key(req.simulator, req.scenario)
+    for scenario in _get_scenarios_cached():
+        if _scenario_key(scenario.simulator, scenario.scenario) != requested_key:
+            continue
+        payload = _simulate_request_payload(req)
+        payload["config_path"] = scenario.config_path
+        return SimulateRequest(**payload)
+    raise HTTPException(status_code=400, detail=f"未找到仿真场景: {requested_key}")
+
+
 @router.get("/simulation/data-files")
 def get_simulation_data_files():
     """列出 data/ 下已存在的 Stage 1 HDF5 文件及校验状态。"""
@@ -254,6 +314,17 @@ async def upload_simulation_data(
     if bytes_written == 0:
         tmp_path.unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail="上传文件为空")
+
+    tmp_validation = validate_hdf5_file(tmp_path)
+    if not tmp_validation.get("valid"):
+        tmp_path.unlink(missing_ok=True)
+        return {
+            "ok": False,
+            "simulator": simulator,
+            "scenario": scenario,
+            "saved_path": "",
+            "validation": tmp_validation,
+        }
 
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp_path.replace(target)
@@ -313,7 +384,7 @@ def _resolve_output_h5_path(config_path: str, simulator: str) -> Optional[Path]:
 
     output_dir_str = cfg.get("output_dir")
     if output_dir_str:
-        return PROJECT_ROOT / output_dir_str / output_file
+        return _resolve_data_aware_path(str(output_dir_str)) / output_file
     return DATA_ROOT / simulator / output_file
 
 
@@ -352,11 +423,11 @@ def _cleanup_runtime_config(tmp_cfg_path: Optional[Path]) -> None:
         pass
 
 
-def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
+def _run_one_scenario(record: JobRecord, req: SimulateRequest, run_state: dict) -> bool:
     """执行单个场景仿真，支持跳过已有结果。"""
     publish(record, {
         "type": "init",
-        "scenario_totals": {req.scenario: req.n_samples},
+        "scenario_totals": {_scenario_key_for_req(req): req.n_samples},
         "ts": time.time(),
     })
     publish(record, {
@@ -370,23 +441,43 @@ def _run_one_scenario(record: JobRecord, req: SimulateRequest, history_entry: di
     if req.skip_existing:
         h5_path = _resolve_output_h5_path(req.config_path, req.simulator)
         if h5_path is not None and h5_path.exists():
-            existing_count, _, _ = _read_h5_info(h5_path)
-            if existing_count > 0:
+            validation = validate_hdf5_file(h5_path)
+            existing_count = int(validation.get("sample_count") or 0)
+            display_path = _display_path(h5_path)
+            if validation.get("valid") and existing_count >= req.n_samples:
                 publish(record, {
                     "type": "log",
-                    "line": f"[跳过] {req.scenario} 已存在 {existing_count} 条样本：{h5_path}",
+                    "line": (
+                        f"[跳过] {req.scenario} 已达到目标 "
+                        f"{existing_count}/{req.n_samples} 条样本：{display_path}"
+                    ),
                     "ts": time.time(),
                 })
-                history_entry["final_sample_count"] = existing_count
-                _finalize_history(record, req, history_entry, True)
+                run_state["final_sample_count"] = existing_count
                 return True
+            if validation.get("valid"):
+                publish(record, {
+                    "type": "log",
+                    "line": (
+                        f"[重建] {req.scenario} 已有 {existing_count}/{req.n_samples} "
+                        f"条样本，未达到目标：{display_path}"
+                    ),
+                    "ts": time.time(),
+                })
+            else:
+                errors = "; ".join(str(e) for e in validation.get("errors") or ["无有效样本"])
+                publish(record, {
+                    "type": "log",
+                    "line": f"[重建] {req.scenario} 现有 HDF5 不可用，重新生成：{display_path}（{errors}）",
+                    "ts": time.time(),
+                })
 
     if req.parallel:
-        return _run_in_process_direct(record, req, history_entry)
-    return _run_via_subprocess(record, req, history_entry)
+        return _run_in_process_direct(record, req, run_state)
+    return _run_via_subprocess(record, req, run_state)
 
 
-def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
+def _run_via_subprocess(record: JobRecord, req: SimulateRequest, run_state: dict) -> bool:
     """通过子进程运行 simulator pipeline，并把 stdout 转发到 SSE。"""
     runtime_cfg_path, tmp_cfg_path = _prepare_runtime_config(req)
     cmd = [
@@ -418,7 +509,7 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
             counts = _extract_progress_counts(line)
             if counts is not None:
                 done, total = counts
-                event["progress"] = {"scenario": req.scenario, "done": done, "total": total}
+                event["progress"] = {"scenario": _scenario_key_for_req(req), "done": done, "total": total}
             publish(record, event)
 
         proc.wait()
@@ -433,11 +524,10 @@ def _run_via_subprocess(record: JobRecord, req: SimulateRequest, history_entry: 
         record.proc_uses_process_group = False
         _cleanup_runtime_config(tmp_cfg_path)
 
-    _finalize_history(record, req, history_entry, success)
-    return success
+    return _finalize_simulation_result(record, req, run_state, success)
 
 
-def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entry: dict) -> bool:
+def _run_in_process_direct(record: JobRecord, req: SimulateRequest, run_state: dict) -> bool:
     """在当前进程直接调用 run_pipeline()，把日志和进度转发到 SSE。"""
     import logging
 
@@ -464,7 +554,7 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
             "type": "log",
             "line": f"进度 {done}/{total}",
             "ts": time.time(),
-            "progress": {"scenario": req.scenario, "done": done, "total": total},
+            "progress": {"scenario": _scenario_key_for_req(req), "done": done, "total": total},
         })
 
     runtime_cfg_path, tmp_cfg_path = _prepare_runtime_config(req)
@@ -494,29 +584,54 @@ def _run_in_process_direct(record: JobRecord, req: SimulateRequest, history_entr
         main_logger.removeHandler(handler)
         _cleanup_runtime_config(tmp_cfg_path)
 
-    _finalize_history(record, req, history_entry, success)
-    return success
+    return _finalize_simulation_result(record, req, run_state, success)
 
 
-def _finalize_history(record: JobRecord, req: SimulateRequest, history_entry: dict, success: bool):
-    history_entry["finished_at"] = time.time()
-    history_entry["elapsed_sec"] = history_entry["finished_at"] - history_entry["started_at"]
-    history_entry["status"] = "done" if success else ("terminated" if record.status == "terminated" else "error")
-    # 先失效缓存，再重新扫描拿最新样本数（仿真已写完 HDF5）
+def _finalize_simulation_result(
+    record: JobRecord,
+    req: SimulateRequest,
+    run_state: dict,
+    success: bool,
+) -> bool:
     _invalidate_cache()
-    if success:
-        try:
-            for s in _get_scenarios_cached():
-                if s.scenario == req.scenario:
-                    history_entry["final_sample_count"] = s.sample_count
-                    break
-        except Exception:
-            pass
+    if not success:
+        return False
+
+    h5_path = _resolve_output_h5_path(req.config_path, req.simulator)
+    if h5_path is None:
+        publish(record, {
+            "type": "log",
+            "line": f"[ERROR] 无法解析 {req.simulator}/{req.scenario} 的 HDF5 输出路径",
+            "ts": time.time(),
+        })
+        return False
+    if not h5_path.exists():
+        publish(record, {
+            "type": "log",
+            "line": f"[ERROR] 仿真结束但未生成 HDF5：{_display_path(h5_path)}",
+            "ts": time.time(),
+        })
+        return False
+
+    validation = validate_hdf5_file(h5_path)
+    if not validation.get("valid"):
+        invalidate_text2comp_scenarios_cache()
+        errors = "; ".join(str(e) for e in validation.get("errors") or ["未知错误"])
+        publish(record, {
+            "type": "log",
+            "line": f"[ERROR] 仿真输出 HDF5 校验失败：{_display_path(h5_path)}（{errors}）",
+            "ts": time.time(),
+        })
+        return False
+
+    run_state["final_sample_count"] = int(validation.get("sample_count") or req.n_samples)
+    invalidate_text2comp_scenarios_cache()
+    return True
 
 
 def _run_simulate(record: JobRecord, req: SimulateRequest) -> None:
     """单场景仿真后台线程。"""
-    history_entry = {
+    run_state = {
         "job_id": record.job_id,
         "simulator": req.simulator,
         "scenario": req.scenario,
@@ -528,16 +643,15 @@ def _run_simulate(record: JobRecord, req: SimulateRequest) -> None:
         "elapsed_sec": None,
         "final_sample_count": None,
     }
-    _history.appendleft(history_entry)
 
-    success = _run_one_scenario(record, req, history_entry)
+    success = _run_one_scenario(record, req, run_state)
     if success:
-        final_count = history_entry.get("final_sample_count") or req.n_samples
+        final_count = run_state.get("final_sample_count") or req.n_samples
         publish(record, {
             "type": "log",
             "line": f"[完成] {req.scenario} 共 {final_count} 条样本",
             "ts": time.time(),
-            "progress": {"scenario": req.scenario, "done": final_count, "total": final_count},
+            "progress": {"scenario": _scenario_key_for_req(req), "done": final_count, "total": final_count},
         })
         record.status = "done"
         publish(record, {"type": "done", "ts": time.time(), "message": "仿真完成"})
@@ -556,7 +670,7 @@ def _run_batch_simulate(record: JobRecord, reqs: List[SimulateRequest]) -> None:
     # 初始化所有场景的进度为 0
     publish(record, {
         "type": "init",
-        "scenario_totals": {r.scenario: r.n_samples for r in reqs},
+        "scenario_totals": {_scenario_key_for_req(r): r.n_samples for r in reqs},
         "ts": time.time(),
     })
     publish(record, {
@@ -573,7 +687,7 @@ def _run_batch_simulate(record: JobRecord, reqs: List[SimulateRequest]) -> None:
             "line": f"[{i+1}/{total}] 开始：{req.simulator}/{req.scenario}",
             "ts": time.time(),
         })
-        history_entry = {
+        run_state = {
             "job_id": record.job_id + f"_{i}",
             "simulator": req.simulator,
             "scenario": req.scenario,
@@ -585,23 +699,23 @@ def _run_batch_simulate(record: JobRecord, reqs: List[SimulateRequest]) -> None:
             "elapsed_sec": None,
             "final_sample_count": None,
         }
-        _history.appendleft(history_entry)
-        success = _run_one_scenario(record, req, history_entry)
+        success = _run_one_scenario(record, req, run_state)
         if success:
-            final_count = history_entry.get("final_sample_count") or req.n_samples
+            final_count = run_state.get("final_sample_count") or req.n_samples
             publish(record, {
                 "type": "log",
                 "line": f"[完成] {req.scenario} 共 {final_count} 个样本",
                 "ts": time.time(),
-                "progress": {"scenario": req.scenario, "done": final_count, "total": final_count},
+                "progress": {"scenario": _scenario_key_for_req(req), "done": final_count, "total": final_count},
             })
             # 通知前端刷新场景列表（已写入 HDF5）
-            publish(record, {"type": "scenario_done", "scenario": req.scenario, "ts": time.time()})
+            publish(record, {"type": "scenario_done", "scenario": _scenario_key_for_req(req), "ts": time.time()})
         else:
-            failed.append(req.scenario)
+            failed_key = _scenario_key_for_req(req)
+            failed.append(failed_key)
             publish(record, {
                 "type": "log",
-                "line": f"[警告] {req.scenario} 仿真失败，继续下一个",
+                "line": f"[警告] {failed_key} 仿真失败，继续下一个",
                 "ts": time.time(),
             })
 
@@ -637,12 +751,17 @@ def get_simulation_scenarios(refresh: bool = False):
 @router.post("/simulate", response_model=JobStartResponse)
 async def start_simulate(req: SimulateRequest):
     """启动单场景仿真。"""
-    record = job_manager.create_job("simulate", {req.scenario: req.n_samples})
+    req = _canonical_simulate_request(req)
+    scenario_totals = {_scenario_key_for_req(req): req.n_samples}
+    try:
+        record = job_manager.create_job("simulate", scenario_totals, lock_keys=_simulation_lock_keys([req]))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     _executor.submit(_run_simulate, record, req)
     return JobStartResponse(
         job_id=record.job_id,
         status="running",
-        scenario_totals={req.scenario: req.n_samples},
+        scenario_totals=scenario_totals,
     )
 
 
@@ -651,15 +770,34 @@ async def start_batch_simulate(req: BatchSimulateRequest):
     """批量启动多场景仿真（顺序执行）。"""
     # 从缓存中查找各场景的 config_path
     all_scenarios = _get_scenarios_cached()
-    scenario_map = {s.scenario: s for s in all_scenarios}
+    by_key = {_scenario_key(s.simulator, s.scenario): s for s in all_scenarios}
+    by_scenario: dict[str, list[SimulationScenario]] = {}
+    for scenario in all_scenarios:
+        by_scenario.setdefault(scenario.scenario, []).append(scenario)
 
     reqs: List[SimulateRequest] = []
     missing = []
-    for sc_name in req.scenarios:
-        sc = scenario_map.get(sc_name)
+    ambiguous = []
+    duplicates = []
+    seen_keys: set[str] = set()
+    for selector in req.scenarios:
+        simulator, scenario = _parse_scenario_selector(selector)
+        sc = by_key.get(_scenario_key(simulator, scenario)) if simulator else None
+        if sc is None and not simulator:
+            matches = by_scenario.get(scenario, [])
+            if len(matches) == 1:
+                sc = matches[0]
+            elif len(matches) > 1:
+                ambiguous.append(selector)
+                continue
         if sc is None:
-            missing.append(sc_name)
+            missing.append(selector)
             continue
+        scenario_key = _scenario_key(sc.simulator, sc.scenario)
+        if scenario_key in seen_keys:
+            duplicates.append(selector)
+            continue
+        seen_keys.add(scenario_key)
         reqs.append(SimulateRequest(
             simulator=sc.simulator,
             scenario=sc.scenario,
@@ -671,27 +809,24 @@ async def start_batch_simulate(req: BatchSimulateRequest):
             max_workers=req.max_workers,
         ))
 
-    if not reqs:
+    if ambiguous:
+        raise HTTPException(status_code=400, detail=f"场景选择存在歧义，请使用 simulator/scenario: {ambiguous}")
+    if missing:
         raise HTTPException(status_code=400, detail=f"未找到场景：{missing}")
+    if duplicates:
+        raise HTTPException(status_code=400, detail=f"重复场景：{duplicates}")
 
-    scenario_totals = {r.scenario: r.n_samples for r in reqs}
-    record = job_manager.create_job("simulate", scenario_totals)
+    if not reqs:
+        raise HTTPException(status_code=400, detail="未选择场景")
+
+    scenario_totals = {_scenario_key_for_req(r): r.n_samples for r in reqs}
+    try:
+        record = job_manager.create_job("simulate", scenario_totals, lock_keys=_simulation_lock_keys(reqs))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
     _executor.submit(_run_batch_simulate, record, reqs)
     return JobStartResponse(
         job_id=record.job_id,
         status="running",
         scenario_totals=scenario_totals,
     )
-
-
-@router.get("/simulation/history")
-def get_simulation_history(limit: int = 50):
-    """返回最近的仿真历史记录（内存，重启后清空）。"""
-    return list(_history)[:limit]
-
-
-@router.delete("/simulation/history")
-def clear_simulation_history():
-    """清空历史记录。"""
-    _history.clear()
-    return {"ok": True}

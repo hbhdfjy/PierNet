@@ -81,7 +81,14 @@ def storage() -> dict:
 
 @router.get("/health/gpu")
 def gpu() -> dict:
-    gpus = training_manager.get_gpu_inventory()
+    try:
+        gpus = training_manager.get_gpu_inventory()
+    except Exception as exc:  # pragma: no cover - defensive runtime endpoint
+        return {
+            "status": "unavailable",
+            "gpus": [],
+            "error": str(exc),
+        }
     return {
         "status": "ok" if gpus else "unavailable",
         "gpus": gpus,

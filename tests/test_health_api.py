@@ -28,3 +28,22 @@ def test_health_ready_reports_core_paths():
     assert payload["checks"]["data_root"]["writable_checked"] is True
     assert "runlog_root" in payload["checks"]
     assert "runtime_config" in payload["checks"]
+
+
+def test_health_gpu_degrades_when_inventory_fails(monkeypatch):
+    from piern.shared.api import health
+
+    monkeypatch.setattr(
+        health.training_manager,
+        "get_gpu_inventory",
+        lambda: (_ for _ in ()).throw(RuntimeError("gpu probe failed")),
+    )
+    client = TestClient(app)
+
+    response = client.get("/api/health/gpu")
+    payload = response.json()
+
+    assert response.status_code == 200
+    assert payload["status"] == "unavailable"
+    assert payload["gpus"] == []
+    assert "gpu probe failed" in payload["error"]

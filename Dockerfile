@@ -19,6 +19,7 @@ RUN apt-get update \
 COPY requirements.txt pyproject.toml README.md ./
 COPY piern ./piern
 COPY scripts ./scripts
+COPY configs ./configs
 COPY api_server.py ./
 COPY --from=frontend /app/frontend/dist ./frontend/dist
 

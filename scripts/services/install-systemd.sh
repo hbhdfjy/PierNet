@@ -5,14 +5,14 @@ UNIT_DIR=${PIERN_SYSTEMD_USER_DIR:-"$HOME/.config/systemd/user"}
 DRY_RUN=0
 ENABLE=0
 START_NOW=0
-INSTALL_WORKER=${PIERN_INSTALL_WORKER:-0}
+INSTALL_WORKER=${PIERN_INSTALL_WORKER:-1}
 
 usage() {
   cat <<USAGE
-Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--worker]
+Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--worker] [--no-worker]
 
-Installs user-level systemd units for PiERN backend and frontend.
-The worker unit runs shared maintenance tasks and is installed only with --worker.
+Installs user-level systemd units for PiERN backend, frontend, and worker.
+The worker consumes queued synthesis/training jobs and performs shared housekeeping; use --no-worker only for API/UI-only deployments.
 USAGE
 }
 
@@ -22,6 +22,7 @@ while [[ $# -gt 0 ]]; do
     --enable) ENABLE=1 ;;
     --now) ENABLE=1; START_NOW=1 ;;
     --worker) INSTALL_WORKER=1 ;;
+    --no-worker) INSTALL_WORKER=0 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "unknown argument: $1" >&2; usage; exit 2 ;;
   esac
@@ -60,15 +61,9 @@ fi
 
 systemctl --user daemon-reload
 if [[ "$ENABLE" == "1" ]]; then
-  systemctl --user enable piern-backend.service piern-frontend.service
-  if [[ "$INSTALL_WORKER" == "1" ]]; then
-    systemctl --user enable piern-worker.service
-  fi
+  systemctl --user enable "${units[@]}"
 fi
 if [[ "$START_NOW" == "1" ]]; then
-  systemctl --user restart piern-backend.service piern-frontend.service
-  if [[ "$INSTALL_WORKER" == "1" ]]; then
-    systemctl --user restart piern-worker.service || true
-  fi
+  systemctl --user restart "${units[@]}"
 fi
-systemctl --user status piern-backend.service piern-frontend.service --no-pager || true
+systemctl --user status "${units[@]}" --no-pager || true

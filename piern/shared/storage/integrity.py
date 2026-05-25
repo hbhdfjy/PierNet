@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage.hdf5_files import iter_hdf5_files
 
 DEFAULT_MANIFEST = DATA_ROOT / ".manifests" / "source_integrity.json"
 
@@ -32,9 +33,13 @@ def _rel(path: Path, *, project_root: Path = PROJECT_ROOT) -> str:
 
 
 def source_files(data_root: Path = DATA_ROOT) -> list[Path]:
+    if not data_root.exists():
+        return []
     files = []
     files.extend(sorted((data_root / "templates").glob("*_templates.jsonl")))
-    files.extend(sorted(data_root.glob("*/*.h5")))
+    for data_dir in sorted(path for path in data_root.iterdir() if path.is_dir()):
+        if data_dir.name != "templates":
+            files.extend(iter_hdf5_files(data_dir))
     return [path for path in files if path.is_file()]
 
 

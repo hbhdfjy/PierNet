@@ -17,6 +17,7 @@ import time
 import numpy as np
 import yaml
 
+from piern.simulators.naming import scenario_name_from_output
 from piern.simulators.simpeg.generator import generate_batch
 from piern.simulators.simpeg.generator_with_params import generate_batch_from_params
 from piern.simulators.simpeg.unified_params import SimPEGParamConverter
@@ -245,9 +246,7 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
     n_samples = n_samples if n_samples is not None else cfg["n_samples"]
     seed = cfg.get("seed", 42)
     output_path = os.path.join(cfg["output_dir"], cfg["output_file"])
-    output_stem = os.path.basename(cfg.get("output_file", "unknown")).removesuffix(".h5")
-    dir_name = os.path.basename(cfg.get("output_dir", ""))
-    scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
+    scenario_name = scenario_name_from_output(cfg.get("output_dir"), cfg.get("output_file"))
 
     logger.info("===== SimPEG 数据合成管线启动 =====")
     logger.info(f"场景名称: {scenario_name}")
@@ -275,10 +274,15 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
         raise RuntimeError("质量过滤后无有效样本，请检查 SimPEG 配置或验证阈值")
 
     # Step 3: 参数空间采样增强
-    if seed_ratio >= 1.0:
-        logger.info("Step 3/4: seed_ratio=1.0，跳过增强")
+    if timeseries.shape[0] >= n_samples:
+        logger.info("Step 3/4: 直接采样已满足配置数量，跳过增强")
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
+    elif seed_ratio >= 1.0 or not aug_cfg.get("enabled", True):
+        logger.info("Step 3/4: 直接采样不足，继续补充真实样本")
+        aug_ts, aug_params = _top_up_direct_samples(
+            cfg, timeseries, params, n_samples, seed, progress_callback=progress_callback
+        )
     else:
         logger.info(f"Step 3/4: 参数空间采样增强（配置数 {n_samples} 个）...")
         aug_ts, aug_params = augment_with_parameter_sampling(
@@ -287,6 +291,8 @@ def run_pipeline(cfg_path: str, n_samples: int = None, progress_callback=None) -
             progress_callback=progress_callback,
         )
     logger.info(f"  → 增强后共 {aug_ts.shape[0]} 个样本")
+    if aug_ts.shape[0] < n_samples:
+        raise RuntimeError(f"SimPEG 有效样本不足，仅得到 {aug_ts.shape[0]}/{n_samples} 条")
 
     # Step 3.5: 转换为统一参数
     logger.info("Step 3.5/5: 转换为统一参数表示...")

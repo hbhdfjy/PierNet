@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Check, Clock, Eye, FileText, Layers, Loader2, Plus, Save, Tag, Trash2, X, XCircle } from 'lucide-react'
 import { cn } from '../../../lib/utils'
+import { parseIntegerField, parseIntegerText, parseOptionalIntegerField } from '../../integerInput'
 import type { ObsConfig, OutputInfoItem, RegistryEntry } from './registryTypes'
 
 function normalizeChannelLevel(level?: string): 'row' | 'output_info' {
@@ -20,9 +21,7 @@ function ChannelEditor({
   const channelLevel = normalizeChannelLevel(obs.channel_level)
   const isOutputLevel = channelLevel === 'output_info'
   const rawChannels = isAll ? [] : (obs.fixed_channels ?? [])
-  const channels = rawChannels
-    .map(v => (typeof v === 'number' ? v : parseInt(String(v), 10)))
-    .filter(n => Number.isInteger(n) && n >= 0)
+  const channels = rawChannels.map(v => parseIntegerText(String(v), { min: 0 })).filter((n): n is number => n !== null)
   const outputChannels = Array.from(
     new Set(
       rawChannels
@@ -31,9 +30,9 @@ function ChannelEditor({
           const s = String(v).trim()
           const named = outputInfo.findIndex(info => info.name === s)
           if (named >= 0) return named
-          return parseInt(s, 10)
+          return parseIntegerText(s, { min: 0, max: outputInfo.length - 1 })
         })
-        .filter(n => Number.isInteger(n) && n >= 0 && n < outputInfo.length),
+        .filter((n): n is number => n !== null),
     ),
   ).sort((a, b) => a - b)
   const [input, setInput] = useState('')
@@ -65,8 +64,8 @@ function ChannelEditor({
   }
 
   const addChannel = (val: string) => {
-    const n = parseInt(val.trim())
-    if (isNaN(n) || n < 0) {
+    const n = parseIntegerText(val, { min: 0 })
+    if (n === null) {
       setLocalErr('请输入非负整数通道索引')
       return
     }
@@ -255,8 +254,8 @@ function parseTimeModeName(fixed: string): { type: TimeModeName; step: number } 
   if (fixed === 'weekly') return { type: 'weekly', step: 7 }
   if (fixed === 'full') return { type: 'full', step: 1 }
   if (fixed.startsWith('every_')) {
-    const n = parseInt(fixed.slice(6))
-    return { type: 'every_n', step: isNaN(n) || n <= 0 ? 10 : n }
+    const n = parseIntegerText(fixed.slice(6), { min: 1 })
+    return { type: 'every_n', step: n ?? 10 }
   }
   return { type: 'monthly', step: 10 }
 }
@@ -293,7 +292,7 @@ export function ObsConfigEditor({
   const [stepInput, setStepInput] = useState(String(everyStep))
 
   const selectMode = (type: TimeModeName, step?: number) => {
-    const n = step ?? (type === 'every_n' ? parseInt(stepInput) || 10 : 10)
+    const n = step ?? (type === 'every_n' ? parseIntegerField(stepInput, 10, { min: 1 }) : 10)
     const modeStr = type === 'every_n' ? `every_${n}` : type
     const { indices, desc_en, desc_zh } = buildTimeModeEntry(type, n)
     onChange({ ...obs, fixed_time_mode: modeStr, time_modes: [{ name: modeStr, indices, desc_en, desc_zh }] })
@@ -301,8 +300,8 @@ export function ObsConfigEditor({
 
   const handleStepChange = (val: string) => {
     setStepInput(val)
-    const n = parseInt(val)
-    if (n > 0) selectMode('every_n', n)
+    const n = parseIntegerText(val, { min: 1 })
+    if (n !== null) selectMode('every_n', n)
   }
 
   return (
@@ -375,7 +374,7 @@ export function DomainTab({
   entry: RegistryEntry
   saving: boolean
   saveErr: string | null
-  onSave: (patch: Partial<RegistryEntry>) => Promise<void>
+  onSave: (patch: Partial<RegistryEntry>) => Promise<boolean>
 }) {
   const [dcVal, setDcVal] = useState(entry.domain_context ?? '')
   const [odVal, setOdVal] = useState(entry.output_description ?? '')
@@ -398,8 +397,7 @@ export function DomainTab({
                 className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
                 disabled={saving}
                 onClick={async () => {
-                  await onSave({ domain_context: dcVal })
-                  setDcDirty(false)
+                  if (await onSave({ domain_context: dcVal })) setDcDirty(false)
                 }}
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
@@ -440,8 +438,7 @@ export function DomainTab({
                 className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
                 disabled={saving}
                 onClick={async () => {
-                  await onSave({ output_description: odVal })
-                  setOdDirty(false)
+                  if (await onSave({ output_description: odVal })) setOdDirty(false)
                 }}
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
@@ -492,7 +489,7 @@ export function OutputInfoTab({
   outputInfo: OutputInfoItem[]
   saving: boolean
   saveErr: string | null
-  onSave: (updated: OutputInfoItem[]) => Promise<void>
+  onSave: (updated: OutputInfoItem[]) => Promise<boolean>
 }) {
   const [items, setItems] = useState<OutputInfoItem[]>(outputInfo)
   const [dirty, setDirty] = useState(false)
@@ -507,6 +504,15 @@ export function OutputInfoTab({
     const start = last ? (last.slice?.[1] ?? 0) : 0
     setItems([...items, { name: '', description: '', unit: '-', slice: [start, null] }])
     setDirty(true)
+  }
+  const updateSliceStart = (i: number, item: OutputInfoItem, value: string) => {
+    const start = parseIntegerField(value, item.slice?.[0] ?? 0, { min: 0 })
+    const end = item.slice?.[1] ?? null
+    update(i, { slice: [start, end !== null && end < start ? start : end] })
+  }
+  const updateSliceEnd = (i: number, item: OutputInfoItem, value: string) => {
+    const start = item.slice?.[0] ?? 0
+    update(i, { slice: [start, parseOptionalIntegerField(value, item.slice?.[1] ?? null, { min: start })] })
   }
   const removeItem = (i: number) => {
     setItems(items.filter((_, j) => j !== i))
@@ -527,8 +533,7 @@ export function OutputInfoTab({
                 className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
                 disabled={saving}
                 onClick={async () => {
-                  await onSave(items)
-                  setDirty(false)
+                  if (await onSave(items)) setDirty(false)
                 }}
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存
@@ -608,19 +613,18 @@ export function OutputInfoTab({
                   type="number"
                   className="input w-full text-xs py-1 px-2 font-mono"
                   placeholder="0"
+                  min={0}
                   value={o.slice?.[0] ?? 0}
-                  onChange={e => update(i, { slice: [parseInt(e.target.value) || 0, o.slice?.[1] ?? null] })}
+                  onChange={e => updateSliceStart(i, o, e.target.value)}
                 />
                 <span className="text-slate-600 text-xs">:</span>
                 <input
                   type="number"
                   className="input w-full text-xs py-1 px-2 font-mono"
+                  min={o.slice?.[0] ?? 0}
                   placeholder="null"
                   value={o.slice?.[1] ?? ''}
-                  onChange={e => {
-                    const v = e.target.value === '' ? null : parseInt(e.target.value)
-                    update(i, { slice: [o.slice?.[0] ?? 0, v] })
-                  }}
+                  onChange={e => updateSliceEnd(i, o, e.target.value)}
                 />
               </div>
             </div>
@@ -648,7 +652,7 @@ export function ParamInfoTab({
   params: Record<string, [string, string]>
   saving: boolean
   saveErr: string | null
-  onSave: (updated: Record<string, [string, string]>) => Promise<void>
+  onSave: (updated: Record<string, [string, string]>) => Promise<boolean>
 }) {
   type Row = { name: string; meaning: string; unit: string }
   const [rows, setRows] = useState<Row[]>(
@@ -692,8 +696,7 @@ export function ParamInfoTab({
                 className="btn-ghost py-0.5 px-2 text-xs text-emerald-400"
                 disabled={saving}
                 onClick={async () => {
-                  await onSave(toParamInfo())
-                  setDirty(false)
+                  if (await onSave(toParamInfo())) setDirty(false)
                 }}
               >
                 {saving ? <Loader2 size={12} className="animate-spin" /> : <Save size={12} />} 保存

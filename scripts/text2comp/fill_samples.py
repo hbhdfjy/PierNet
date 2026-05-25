@@ -29,7 +29,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from piern.core.storage import load_dataset
 from piern.shared.storage import portable
-from piern.synth.text2comp.pipeline import _scan_h5_files, _scenario_name_from_path, load_config
+from piern.synth.text2comp.pipeline import (
+    _resolve_data_path,
+    _scan_h5_files,
+    _scenario_name_from_path,
+    assert_unique_stage_scenarios,
+    load_config,
+)
 from piern.synth.text2comp.template_store import fill_sample, load_templates
 
 logging.basicConfig(
@@ -201,26 +207,36 @@ def _parallel_fill_part_worker(args: tuple[int, int, int, str]) -> dict[str, obj
     }
 
 
-def _has_nonempty_jsonl(path: Path) -> bool:
+def _jsonl_row_count(path: Path) -> int:
     try:
         if not path.exists() or path.stat().st_size == 0:
-            return False
+            return 0
         with path.open("r", encoding="utf-8") as handle:
-            return any(line.strip() for line in handle)
+            return sum(1 for line in handle if line.strip())
     except OSError:
-        return False
+        return 0
 
 
-def _has_nonempty_partition(root: Path, simulator: str, scenario: str) -> bool:
+def _partition_row_count(root: Path, simulator: str, scenario: str) -> int:
     part_dir = portable.partition_dir_for("text2comp", simulator, scenario, root)
     manifest_path = part_dir / "_manifest.json"
     if manifest_path.exists():
         try:
             payload = json.loads(manifest_path.read_text(encoding="utf-8"))
-            return int(payload.get("row_count") or 0) > 0
+            return max(0, int(payload.get("row_count") or 0))
         except Exception:
             pass
-    return any(part_dir.glob("*.parquet"))
+
+    parquet_files = sorted(part_dir.glob("*.parquet"))
+    if not parquet_files:
+        return 0
+    try:
+        _, pq = portable.require_parquet_modules()
+        return sum(int(pq.ParquetFile(str(path)).metadata.num_rows) for path in parquet_files)
+    except Exception:
+        # Existing legacy partitions without readable metadata are treated as
+        # non-empty so skip-existing remains conservative.
+        return 1
 
 
 def _source_signature(path: Path) -> dict[str, object]:
@@ -228,6 +244,18 @@ def _source_signature(path: Path) -> dict[str, object]:
         return portable.source_signature(path)
     except FileNotFoundError:
         return {"path": str(path), "missing": True}
+
+
+def _valid_time_indices(indices: Iterable[int], n_timesteps: int) -> np.ndarray:
+    arr = np.asarray(list(indices), dtype=np.int64)
+    return arr[(arr >= 0) & (arr < n_timesteps)]
+
+
+def _valid_channel_indices(indices: Iterable[int] | None, n_channels: int) -> np.ndarray | None:
+    if indices is None:
+        return None
+    arr = np.asarray(list(indices), dtype=np.int64)
+    return arr[(arr >= 0) & (arr < n_channels)]
 
 
 def run_fill_samples(
@@ -273,15 +301,15 @@ def run_fill_samples(
         except Exception:
             pass
 
-    tmpl_dir = Path(templates_dir) if templates_dir else base_dir / "data" / "templates"
+    tmpl_dir = Path(templates_dir) if templates_dir else _resolve_data_path("data/templates", base_dir)
     parquet_dir = None
     jsonl_dir = None
     if output_format in {"parquet", "both"}:
         default_parquet = cfg.get("parquet_output_dir", "data/text2comp_parquet")
-        parquet_dir = Path(output_dir) if output_dir else base_dir / default_parquet
+        parquet_dir = Path(output_dir) if output_dir else _resolve_data_path(default_parquet, base_dir)
         parquet_dir.mkdir(parents=True, exist_ok=True)
     if output_format in {"jsonl", "both"}:
-        jsonl_dir = Path(output_dir) if output_dir else base_dir / cfg.get("output_dir", "data/text2comp")
+        jsonl_dir = Path(output_dir) if output_dir else _resolve_data_path(cfg.get("output_dir", "data/text2comp"), base_dir)
         jsonl_dir.mkdir(parents=True, exist_ok=True)
 
     h5_files = _scan_h5_files(cfg, base_dir)
@@ -294,6 +322,10 @@ def run_fill_samples(
             (p, s, sfx) for p, s, sfx in h5_files
             if _scenario_name_from_path(p, sfx) in scenarios_set
         ]
+        if not h5_files:
+            raise RuntimeError(f"未找到所选场景: {', '.join(sorted(scenarios_set))}")
+
+    assert_unique_stage_scenarios(h5_files)
 
     log_lock = threading.Lock()
 
@@ -303,9 +335,17 @@ def run_fill_samples(
             if on_log:
                 on_log(line)
 
+    failures: list[str] = []
+    failures_lock = threading.Lock()
+
     def _raise_if_stopped() -> None:
         if should_stop is not None and should_stop():
             raise InterruptedError("任务已终止")
+
+    def _record_failure(scenario: str, message: str) -> None:
+        _log(f"[错误] {scenario}: {message}")
+        with failures_lock:
+            failures.append(f"{scenario}: {message}")
 
     _log(f"\n找到 {len(h5_files)} 个场景，每场景生成 {n_per_scenario} 条样本")
     _log(f"输出格式: {output_format}")
@@ -333,19 +373,30 @@ def run_fill_samples(
         local_outputs: list[Path] = []
 
         if skip_existing:
-            if parquet_dir is not None and _has_nonempty_partition(parquet_dir, simulator, scenario_name):
-                _log(f"[跳过] {scenario_name} Parquet 分区已存在")
-                return
-            if jsonl_out_path is not None and _has_nonempty_jsonl(jsonl_out_path):
-                _log(f"[跳过] {jsonl_out_path.name} 已存在")
-                local_outputs.append(jsonl_out_path)
-                with stats_lock:
-                    written_outputs.extend(local_outputs)
+            existing_outputs: list[tuple[str, int]] = []
+            if parquet_dir is not None:
+                existing_outputs.append(("Parquet", _partition_row_count(parquet_dir, simulator, scenario_name)))
+            if jsonl_out_path is not None:
+                existing_outputs.append(("JSONL", _jsonl_row_count(jsonl_out_path)))
+
+            if existing_outputs and all(count >= n_per_scenario for _label, count in existing_outputs):
+                counts = ", ".join(f"{label}={count}/{n_per_scenario}" for label, count in existing_outputs)
+                _log(f"[跳过] {scenario_name} 已达到目标（{counts}）")
+                if on_progress:
+                    on_progress(scenario_name, n_per_scenario)
+                if jsonl_out_path is not None and _jsonl_row_count(jsonl_out_path) > 0:
+                    local_outputs.append(jsonl_out_path)
+                    with stats_lock:
+                        written_outputs.extend(local_outputs)
                 return
 
+            partial_outputs = [(label, count) for label, count in existing_outputs if count > 0]
+            if partial_outputs:
+                counts = ", ".join(f"{label}={count}/{n_per_scenario}" for label, count in partial_outputs)
+                _log(f"[重建] {scenario_name} 已有输出未达到目标（{counts}）")
+
         if not tmpl_path.exists():
-            logger.warning(f"模板文件不存在，跳过: {tmpl_path}")
-            logger.warning(f"  → 请先运行 generate_templates.py 为 {scenario_name} 生成模板")
+            _record_failure(scenario_name, f"模板文件不存在: {tmpl_path}")
             return
 
         _log(f"\n[处理] {scenario_name}")
@@ -362,13 +413,13 @@ def run_fill_samples(
 
         templates = load_templates(tmpl_path)
         if not templates:
-            logger.warning(f"模板文件为空，跳过: {tmpl_path}")
+            _record_failure(scenario_name, f"模板文件为空: {tmpl_path}")
             return
 
         try:
             timeseries, params, param_names = load_dataset(str(h5_path))
         except Exception as exc:
-            logger.error(f"加载 {h5_path} 失败: {exc}")
+            _record_failure(scenario_name, f"加载 HDF5 失败: {exc}")
             return
 
         n_avail_t = len(templates)
@@ -383,13 +434,8 @@ def run_fill_samples(
         n_channels = int(timeseries.shape[1])
         template_specs = []
         for template in templates:
-            time_idx = np.asarray(template.time_indices, dtype=np.int64)
-            valid_time_idx = time_idx[time_idx < ts_len]
-            if template.channel_indices is None:
-                valid_ch = None
-            else:
-                ch_arr = np.asarray(template.channel_indices, dtype=np.int64)
-                valid_ch = ch_arr[ch_arr < n_channels]
+            valid_time_idx = _valid_time_indices(template.time_indices, ts_len)
+            valid_ch = _valid_channel_indices(template.channel_indices, n_channels)
             template_specs.append((template, valid_time_idx, valid_ch))
 
         rng = np.random.default_rng(_seed)
@@ -609,6 +655,10 @@ def run_fill_samples(
                 if jsonl_out_path is not None:
                     local_outputs.append(jsonl_out_path)
 
+        if written == 0:
+            _record_failure(scenario_name, f"没有写出任何样本（跳过 {skipped} 条）")
+            return
+
         if nan_skipped > 0:
             nan_ratio = nan_skipped / max(n, 1)
             if nan_ratio > 0.1:
@@ -644,6 +694,11 @@ def run_fill_samples(
                     for pending in futures:
                         pending.cancel()
                     raise
+
+    if failures:
+        preview = "; ".join(failures[:5])
+        suffix = f"；另有 {len(failures) - 5} 个失败" if len(failures) > 5 else ""
+        raise RuntimeError(f"样本填充失败: {preview}{suffix}")
 
     total_merged = 0
     merged_path = None

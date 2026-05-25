@@ -48,6 +48,26 @@ def _env_path(name: str, default: Path) -> Path:
     return value.resolve()
 
 
+def _default_conda_env(project_root: Path) -> Path:
+    repo_env = project_root / ".conda" / "env"
+    if (repo_env / "bin" / "python").exists():
+        return repo_env
+    return Path.home() / ".conda" / "envs" / "piern"
+
+
+def _default_node_bin(project_root: Path) -> Path | None:
+    current = project_root / ".node" / "current" / "bin" / "node"
+    if current.exists():
+        return current.resolve()
+    node_root = project_root / ".node"
+    if node_root.exists():
+        for candidate_dir in sorted(node_root.glob("node-v*/bin")):
+            candidate = candidate_dir / "node"
+            if candidate.exists():
+                return candidate.resolve()
+    return None
+
+
 def _split_csv(value: str) -> Tuple[str, ...]:
     return tuple(item.strip() for item in value.split(",") if item.strip())
 
@@ -154,10 +174,11 @@ def load_runtime_config() -> RuntimeConfig:
             "http://localhost:4173",
             f"http://127.0.0.1:{frontend_port}",
         )
-    conda_env = _env_path("PIERN_CONDA_ENV", Path.home() / ".conda" / "envs" / "piern")
+    conda_env = _env_path("PIERN_CONDA_ENV", _default_conda_env(project_root))
     python = _env_path("PIERN_PYTHON", conda_env / "bin" / "python")
     training_python = _env_path("PIERN_TRAINING_PYTHON", python)
     node_raw = _env("PIERN_NODE_BIN") or _env("PIERN_NODE")
+    default_node = _default_node_bin(project_root)
     qwen_default = Path.home() / "Qwen" / "Qwen2.5-0.5B-Instruct"
     model = _env_path("PIERN_QWEN_EMBEDDING_MODEL", qwen_default)
     return RuntimeConfig(
@@ -183,7 +204,7 @@ def load_runtime_config() -> RuntimeConfig:
         python=python,
         training_python=training_python,
         npm=_env("PIERN_NPM", "npm") or "npm",
-        node_bin=Path(os.path.expandvars(node_raw)).expanduser().resolve() if node_raw else None,
+        node_bin=Path(os.path.expandvars(node_raw)).expanduser().resolve() if node_raw else default_node,
         qwen_embedding_model=model,
         qwen_embedding_tokenizer=_env_path("PIERN_QWEN_EMBEDDING_TOKENIZER", model),
         modflow_exe=_env_path("PIERN_MODFLOW_EXE", Path("/__missing_modflow__")) if _env("PIERN_MODFLOW_EXE") else None,

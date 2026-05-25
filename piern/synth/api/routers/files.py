@@ -1,33 +1,26 @@
-"""文件管理路由：/api/files/templates, /api/files/samples。"""
+"""模板浏览辅助路由：/api/files/templates。"""
 
 import json
 
 from fastapi import APIRouter, HTTPException, Query
 
 from piern.shared.runtime.paths import TEMPLATES_DIR
-from piern.synth.services import file_manager, job_manager, jsonl_filter_index, jsonl_index, manifest_store
-from piern.synth.api.schemas.jobs import TemplateFileInfo, SampleFileInfo
+from piern.synth.services import file_manager, jsonl_filter_index, jsonl_index, manifest_store
+from piern.synth.api.schemas.jobs import TemplateFileInfo
 
 router = APIRouter()
 
-def _reject_active_jobs(job_types: set[str], message: str) -> None:
-    try:
-        job_manager.assert_no_running_jobs(job_types, message=message)
-    except RuntimeError as exc:
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
+def _template_path_for_scenario(scenario: str):
+    if not file_manager._is_safe_name_component(scenario):
+        raise HTTPException(status_code=400, detail="scenario must be a file name component")
+    return TEMPLATES_DIR / f"{scenario}_templates.jsonl"
 
 
 @router.get("/files/templates", response_model=list[TemplateFileInfo])
 def list_template_files():
     """列出所有模板文件。"""
     return file_manager.list_template_files()
-
-
-@router.get("/files/samples", response_model=list[SampleFileInfo])
-def list_sample_files():
-    """列出所有样本文件。"""
-    return file_manager.list_sample_files()
 
 
 @router.get("/files/templates/{scenario}/items")
@@ -39,7 +32,7 @@ def get_template_items(
     style: str = Query(None),
 ):
     """分页读取指定场景的模板条目（TemplateRecord）。"""
-    path = TEMPLATES_DIR / f"{scenario}_templates.jsonl"
+    path = _template_path_for_scenario(scenario)
     if not path.exists():
         raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
 
@@ -115,64 +108,6 @@ def get_template_items(
         raise HTTPException(500, f"读取模板文件失败: {e}")
 
     return {"total": total, "page": page, "page_size": page_size, "items": items}
-
-
-@router.post("/files/templates/{scenario}/trim")
-def trim_template_file(scenario: str, n: int = Query(..., ge=1, description="保留的模板条数")):
-    """将指定场景的模板文件截断到 n 条。"""
-    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
-    path = TEMPLATES_DIR / f"{scenario}_templates.jsonl"
-    if not path.exists():
-        raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            lines = [line for line in f if line.strip()]
-        original = len(lines)
-        if n >= original:
-            return {"ok": True, "scenario": scenario, "before": original, "after": original, "changed": False}
-        with open(path, "w", encoding="utf-8") as f:
-            for line in lines[:n]:
-                f.write(line if line.endswith("\n") else line + "\n")
-        manifest_store.rebuild_template_manifest()
-        jsonl_index.rebuild_index(path)
-        jsonl_filter_index.rebuild_filter_index(path, "template_language_style")
-        return {"ok": True, "scenario": scenario, "before": original, "after": n, "changed": True}
-    except Exception as e:
-        raise HTTPException(500, f"截断失败: {e}")
-
-
-@router.delete("/files/templates/{scenario}")
-def delete_template_file(scenario: str):
-    """删除指定场景的模板文件。"""
-    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
-    if not file_manager.delete_template_file(scenario):
-        raise HTTPException(404, f"场景 {scenario} 的模板文件不存在")
-    return {"ok": True, "scenario": scenario}
-
-
-@router.delete("/files/samples/{scenario}")
-def delete_sample_file(scenario: str):
-    """删除指定场景的样本文件。"""
-    _reject_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
-    if not file_manager.delete_sample_file(scenario):
-        raise HTTPException(404, f"场景 {scenario} 的样本文件不存在")
-    return {"ok": True, "scenario": scenario}
-
-
-@router.delete("/files/templates")
-def clear_all_templates():
-    """清空所有模板文件。"""
-    _reject_active_jobs({"generate_templates", "fill_samples"}, "模板正在被生成或样本填充任务读取")
-    count = file_manager.clear_all_templates()
-    return {"ok": True, "deleted": count}
-
-
-@router.delete("/files/samples")
-def clear_all_samples():
-    """清空所有样本文件（保留 all_training_data.jsonl）。"""
-    _reject_active_jobs({"fill_samples", "router"}, "样本正在被填充或路由构建任务读取")
-    count = file_manager.clear_all_samples()
-    return {"ok": True, "deleted": count}
 
 
 def _template_total_from_manifest(scenario: str) -> int | None:

@@ -8,6 +8,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from piern.shared.runtime.paths import DATA_ROOT  # noqa: E402
 from piern.training.router import RouterTrainingConfig, run_training  # noqa: E402
 
 
@@ -15,8 +16,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Train a full-sequence Token Router.")
     parser.add_argument("--simulator", default="modflow")
     parser.add_argument("--scenarios", nargs="*")
-    parser.add_argument("--router-dir", default="data/router")
-    parser.add_argument("--artifact-root", default="artifacts/token_router/modflow")
+    parser.add_argument("--router-dir", default=str(DATA_ROOT / "router"))
+    parser.add_argument("--artifact-root")
     parser.add_argument("--prepared-name")
     parser.add_argument("--run-name")
     parser.add_argument("--test-ratio", type=float, default=0.10)

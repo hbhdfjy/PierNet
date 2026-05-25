@@ -4,19 +4,15 @@ from __future__ import annotations
 
 import json
 import os
-import random
-import subprocess
-import sys
 import threading
 import time
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
 
-from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.runtime.paths import DATA_ROOT
 from piern.shared.storage import portable
 from piern.synth.services import job_manager, jsonl_filter_index, jsonl_index, manifest_store, router_executor, worker_queue
-from piern.training.services import training_manager
 from piern.synth.services.job_manager import publish
 
 router = APIRouter()
@@ -33,32 +29,6 @@ def _running_job_ids(job_types: set[str]) -> list[str]:
     return [job.job_id for job in job_manager.running_jobs(job_types)]
 
 
-def _running_training_job_ids() -> list[str]:
-    try:
-        return [
-            str(job["job_id"])
-            for job in training_manager.list_jobs(refresh=True)
-            if job.get("status") in training_manager.TRAINING_ACTIVE_STATUSES
-        ]
-    except Exception:
-        return []
-
-
-def _assert_router_data_mutable() -> None:
-    active_router_jobs = _running_job_ids({"router"})
-    active_training_jobs = _running_training_job_ids()
-    if active_router_jobs or active_training_jobs:
-        pieces = []
-        if active_router_jobs:
-            pieces.append("路由构建任务 " + ", ".join(active_router_jobs))
-        if active_training_jobs:
-            pieces.append("训练任务 " + ", ".join(active_training_jobs))
-        raise HTTPException(
-            status_code=409,
-            detail="路由数据正在被使用，不能删除或重建：" + "；".join(pieces),
-        )
-
-
 def _count_lines(path: Path) -> int:
     try:
         with path.open("rb") as handle:
@@ -67,49 +37,190 @@ def _count_lines(path: Path) -> int:
         return 0
 
 
-def _load_jsonl_samples(path: Path) -> list[dict]:
-    samples: list[dict] = []
-    if not path.exists():
-        return samples
-    with path.open("r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if line:
-                samples.append(json.loads(line))
-    return samples
+def _manifest_item_key(item: dict) -> tuple[str, str]:
+    return (str(item.get("simulator") or "unknown"), str(item.get("scenario") or ""))
 
 
-def _rewrite_train_from_scenarios(seed: int = 0) -> int:
-    ROUTER_DIR.mkdir(parents=True, exist_ok=True)
-    SCENARIO_DIR.mkdir(parents=True, exist_ok=True)
+def _scenario_selector(simulator: str, scenario: str) -> str:
+    return f"{simulator or 'unknown'}/{scenario}"
 
-    samples: list[dict] = []
-    for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
-        try:
-            samples.extend(_load_jsonl_samples(path))
-        except Exception:
+
+def _parse_scenario_selector(selector: str) -> tuple[str | None, str]:
+    value = str(selector or "").strip()
+    if not value:
+        return None, ""
+    if "::" in value:
+        simulator, scenario = value.split("::", 1)
+        return simulator.strip() or "unknown", scenario.strip()
+    if "/" in value:
+        simulator, scenario = value.split("/", 1)
+        return simulator.strip() or "unknown", scenario.strip()
+    return None, value
+
+
+def _sample_manifest_selector_index(sample_manifest: dict) -> tuple[set[str], dict[str, set[str]]]:
+    selectors: set[str] = set()
+    simulators_by_scenario: dict[str, set[str]] = {}
+    for item in sample_manifest.get("items", []):
+        scenario = str(item.get("scenario") or "").strip()
+        if not scenario:
             continue
+        simulator = str(item.get("simulator") or "unknown").strip() or "unknown"
+        selectors.add(_scenario_selector(simulator, scenario))
+        simulators_by_scenario.setdefault(scenario, set()).add(simulator)
+    return selectors, simulators_by_scenario
 
-    rng = random.Random(seed)
-    rng.shuffle(samples)
 
-    out_path = ROUTER_DIR / "train.jsonl"
-    with out_path.open("w", encoding="utf-8") as handle:
-        for sample in samples:
-            handle.write(json.dumps(sample, ensure_ascii=False) + "\n")
-    return len(samples)
+def _split_router_build_scenario_query(scenarios: str | list[str] | None) -> list[str]:
+    if not scenarios:
+        return []
+    raw_values = [scenarios] if isinstance(scenarios, str) else scenarios
+    requested: list[str] = []
+    for value in raw_values:
+        requested.extend(item.strip() for item in str(value).split(",") if item.strip())
+    return requested
+
+
+def _normalize_router_build_scenarios(scenarios: list[str]) -> list[str]:
+    if not scenarios:
+        return []
+
+    sample_manifest = _combined_sample_manifest()
+    selectors, simulators_by_scenario = _sample_manifest_selector_index(sample_manifest)
+    normalized: list[str] = []
+    seen: set[str] = set()
+
+    for raw_selector in scenarios:
+        simulator, scenario = _parse_scenario_selector(raw_selector)
+        if not scenario:
+            continue
+        if simulator is not None:
+            selector = _scenario_selector(simulator, scenario)
+            if selector not in selectors:
+                raise HTTPException(status_code=400, detail=f"阶段 3 样本中未找到场景: {selector}")
+        else:
+            simulators = sorted(simulators_by_scenario.get(scenario, set()))
+            if not simulators:
+                raise HTTPException(status_code=400, detail=f"阶段 3 样本中未找到场景: {scenario}")
+            if len(simulators) > 1:
+                choices = ", ".join(_scenario_selector(candidate, scenario) for candidate in simulators)
+                raise HTTPException(status_code=400, detail=f"场景 {scenario} 同时存在于多个模拟器，请使用完整选择器: {choices}")
+            selector = _scenario_selector(simulators[0], scenario)
+        if selector in seen:
+            continue
+        seen.add(selector)
+        normalized.append(selector)
+
+    return normalized
+
+
+def _is_safe_name_component(value: str | None) -> bool:
+    component = str(value or "")
+    return (
+        bool(component)
+        and component not in {".", ".."}
+        and "\x00" not in component
+        and Path(component).name == component
+        and "\\" not in component
+    )
+
+
+def _router_record_matches_identity(
+    record: dict,
+    fallback_scenario: str,
+    scenario: str,
+    simulator: str | None,
+) -> bool:
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    if not isinstance(metadata, dict):
+        metadata = {}
+    record_scenario = str(metadata.get("scenario") or fallback_scenario).strip()
+    record_simulator = str(metadata.get("simulator") or "").strip() or None
+    return record_scenario == scenario and (simulator is None or record_simulator in {None, simulator})
+
+
+def _router_record_matches_query(
+    record: dict,
+    fallback_scenario: str,
+    scenario: str,
+    simulator: str | None,
+) -> bool:
+    if scenario:
+        return _router_record_matches_identity(record, fallback_scenario, scenario, simulator)
+    if simulator is None:
+        return True
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    if not isinstance(metadata, dict):
+        return False
+    return str(metadata.get("simulator") or "").strip() == simulator
+
+
+def _router_label_value(record: dict) -> int | None:
+    label = record.get("label")
+    if label in (0, 1, "0", "1"):
+        return int(label)
+    return None
+
+
+def _router_label_matches(record: dict, label: int) -> bool:
+    if label not in (0, 1):
+        return True
+    return _router_label_value(record) == label
+
+
+def _router_jsonl_contains_identity(path: Path, scenario: str, simulator: str | None = None) -> bool:
+    saw_record = False
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if not isinstance(record, dict):
+                    continue
+                saw_record = True
+                if _router_record_matches_identity(record, path.stem, scenario, simulator):
+                    return True
+    except OSError:
+        return False
+    return not saw_record and path.stem == scenario
+
+
+def _resolve_router_jsonl_file(scenario: str, simulator: str | None = None) -> Path | None:
+    if not _is_safe_name_component(scenario) or (simulator is not None and not _is_safe_name_component(simulator)):
+        return None
+    direct = SCENARIO_DIR / f"{scenario}.jsonl"
+    matches: list[Path] = []
+    if direct.exists() and _router_jsonl_contains_identity(direct, scenario, simulator=simulator):
+        matches.append(direct)
+
+    if SCENARIO_DIR.exists():
+        for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
+            if path == direct:
+                continue
+            if _router_jsonl_contains_identity(path, scenario, simulator=simulator):
+                matches.append(path)
+
+    if len(matches) > 1:
+        target = f"{simulator}/{scenario}" if simulator else scenario
+        raise HTTPException(status_code=409, detail=f"路由场景匹配到多个 JSONL 文件: {target}")
+    return matches[0] if matches else None
 
 
 def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: dict) -> dict:
-    sample_items = {item["scenario"]: item for item in sample_manifest.get("items", [])}
-    source_by_scenario = {
-        scenario: item.get("sample_count", 0)
-        for scenario, item in sample_items.items()
-    }
+    sample_items = {_manifest_item_key(item): item for item in sample_manifest.get("items", [])}
+    source_by_scenario: dict[str, int] = {}
+    for item in sample_items.values():
+        scenario = str(item.get("scenario") or "unknown")
+        simulator = str(item.get("simulator") or "unknown")
+        source_by_scenario[_scenario_selector(simulator, scenario)] = int(item.get("sample_count") or 0)
 
-    scenario_map: dict[str, dict] = {
+    scenario_map: dict[tuple[str, str], dict] = {
         scenario: {
-            "scenario": scenario,
+            "scenario": item.get("scenario", "unknown"),
             "simulator": item.get("simulator", "unknown"),
             "source_count": item.get("sample_count", 0),
         }
@@ -117,8 +228,9 @@ def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: 
     }
 
     for item in router_manifest.get("scenarios", []):
+        key = _manifest_item_key(item)
         entry = scenario_map.setdefault(
-            item["scenario"],
+            key,
             {
                 "scenario": item["scenario"],
                 "simulator": item.get("simulator", "unknown"),
@@ -146,7 +258,7 @@ def _build_router_status_from_manifests(router_manifest: dict, sample_manifest: 
         ),
         "total": router_manifest.get("total", 0),
         "label_counts": router_manifest.get("label_counts", {"0": 0, "1": 0}),
-        "scenarios": sorted(scenario_map.values(), key=lambda item: item["scenario"]),
+        "scenarios": sorted(scenario_map.values(), key=_manifest_item_key),
         "source_count": sample_manifest.get("summary", {}).get("total_samples", 0),
         "source_by_scenario": source_by_scenario,
         "router_dir": str(portable.ROUTER_PARQUET_DIR if router_manifest.get("storage") == "parquet" else ROUTER_DIR),
@@ -179,10 +291,9 @@ def _legacy_get_router_status() -> dict:
                     line = line.strip()
                     if not line:
                         continue
-                    label = json.loads(line).get("label", -1)
-                    key = str(label)
-                    if key in label_counts:
-                        label_counts[key] += 1
+                    label = _router_label_value(json.loads(line))
+                    if label is not None:
+                        label_counts[str(label)] += 1
         except Exception:
             pass
 
@@ -191,6 +302,7 @@ def _legacy_get_router_status() -> dict:
         for path in sorted(SCENARIO_DIR.glob("*.jsonl")):
             stat = path.stat()
             simulator = "unknown"
+            scenario = path.stem
             count = 0
             try:
                 with path.open("r", encoding="utf-8") as handle:
@@ -203,12 +315,14 @@ def _legacy_get_router_status() -> dict:
                         if first is None:
                             first = line
                     if first:
-                        simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
+                        metadata = json.loads(first).get("metadata", {})
+                        simulator = metadata.get("simulator", "unknown")
+                        scenario = str(metadata.get("scenario") or path.stem)
             except Exception:
                 pass
             scenarios.append(
                 {
-                    "scenario": path.stem,
+                    "scenario": scenario,
                     "simulator": simulator,
                     "count": count,
                     "file_size_bytes": stat.st_size,
@@ -223,6 +337,7 @@ def _legacy_get_router_status() -> dict:
             if path.name == "all_training_data.jsonl":
                 continue
             simulator = "unknown"
+            scenario = path.stem
             count = 0
             try:
                 with path.open("r", encoding="utf-8") as handle:
@@ -235,22 +350,25 @@ def _legacy_get_router_status() -> dict:
                         if first is None:
                             first = line
                     if first:
-                        simulator = json.loads(first).get("metadata", {}).get("simulator", "unknown")
+                        metadata = json.loads(first).get("metadata", {})
+                        simulator = metadata.get("simulator", "unknown")
+                        scenario = str(metadata.get("scenario") or path.stem)
             except Exception:
                 pass
-            source_by_scenario[path.stem] = count
+            source_by_scenario[_scenario_selector(simulator, scenario)] = count
             source_scenarios.append(
                 {
-                    "scenario": path.stem,
+                    "scenario": scenario,
                     "simulator": simulator,
                     "source_count": count,
                 }
             )
 
-    scenario_map = {item["scenario"]: item for item in source_scenarios}
+    scenario_map = {_manifest_item_key(item): item for item in source_scenarios}
     for item in scenarios:
+        key = _manifest_item_key(item)
         entry = scenario_map.setdefault(
-            item["scenario"],
+            key,
             {
                 "scenario": item["scenario"],
                 "simulator": item.get("simulator", "unknown"),
@@ -267,7 +385,7 @@ def _legacy_get_router_status() -> dict:
         "splits": splits,
         "total": total,
         "label_counts": label_counts,
-        "scenarios": sorted(scenario_map.values(), key=lambda item: item["scenario"]),
+        "scenarios": sorted(scenario_map.values(), key=_manifest_item_key),
         "source_count": sum(source_by_scenario.values()),
         "source_by_scenario": source_by_scenario,
         "router_dir": str(ROUTER_DIR),
@@ -286,21 +404,32 @@ def _combined_sample_manifest() -> dict:
         return parquet_manifest
 
     parquet_items = list(parquet_manifest.get("items", []))
-    parquet_scenarios = {item.get("scenario") for item in parquet_items}
+    parquet_scenarios = {_manifest_item_key(item) for item in parquet_items}
     items = [*parquet_items]
     items.extend(
         {**item, "storage": "jsonl"}
         for item in jsonl_manifest.get("items", [])
-        if item.get("scenario") not in parquet_scenarios
+        if _manifest_item_key(item) not in parquet_scenarios
     )
     total = sum(int(item.get("sample_count") or 0) for item in items)
     return {
         "version": 2,
         "kind": "sample_manifest",
         "storage": "mixed" if len(items) != len(parquet_items) else "parquet",
-        "items": sorted(items, key=lambda item: item.get("scenario", "")),
+        "items": sorted(items, key=_manifest_item_key),
         "summary": {"total_samples": total},
     }
+
+
+def _merge_label_counts(*sources: dict) -> dict[str, int]:
+    counts: dict[str, int] = {"0": 0, "1": 0}
+    for source in sources:
+        for key, value in (source.get("label_counts") or {}).items():
+            try:
+                counts[str(key)] = counts.get(str(key), 0) + int(value or 0)
+            except (TypeError, ValueError):
+                continue
+    return counts
 
 
 def _combined_router_manifest() -> dict:
@@ -314,19 +443,17 @@ def _combined_router_manifest() -> dict:
     if not jsonl_manifest:
         return parquet_manifest
 
-    parquet_scenarios = {item.get("scenario") for item in parquet_manifest.get("scenarios", [])}
+    parquet_scenarios = {_manifest_item_key(item) for item in parquet_manifest.get("scenarios", [])}
     scenarios = [*parquet_manifest.get("scenarios", [])]
     scenarios.extend(
         {**item, "storage": "jsonl"}
         for item in jsonl_manifest.get("scenarios", [])
-        if item.get("scenario") not in parquet_scenarios
+        if _manifest_item_key(item) not in parquet_scenarios
     )
     total = sum(int(item.get("router_count") or 0) for item in scenarios)
     size = sum(int(item.get("file_size_bytes") or 0) for item in scenarios)
     mtime = max((float(item.get("mtime") or 0) for item in scenarios), default=0.0)
-    label_counts = parquet_manifest.get("label_counts", {"0": 0, "1": 0})
-    if len(scenarios) != len(parquet_manifest.get("scenarios", [])):
-        label_counts = jsonl_manifest.get("label_counts", label_counts)
+    label_counts = _merge_label_counts(parquet_manifest, jsonl_manifest)
     return {
         "version": 2,
         "kind": "router_manifest",
@@ -335,21 +462,150 @@ def _combined_router_manifest() -> dict:
         "splits": {"train": {"exists": bool(scenarios), "count": total, "file_size_bytes": size, "mtime": mtime}},
         "total": total,
         "label_counts": label_counts,
-        "scenarios": sorted(scenarios, key=lambda item: item.get("scenario", "")),
+        "scenarios": sorted(scenarios, key=_manifest_item_key),
     }
 
 
-def _router_total_from_manifest(split: str, scenario: str) -> int | None:
+def _router_manifest_items_for_path(source_path: Path) -> list[dict]:
+    try:
+        manifest = _combined_router_manifest()
+    except Exception:
+        return []
+
+    source = str(source_path)
+    items: list[dict] = []
+    for item in manifest.get("scenarios", []):
+        item_path = item.get("path")
+        if not item_path:
+            continue
+        try:
+            if str(Path(str(item_path))) == source:
+                items.append(item)
+        except Exception:
+            continue
+    return items
+
+
+def _router_jsonl_paths_from_manifest(manifest: dict) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    for item in manifest.get("scenarios", []):
+        if item.get("storage") == "parquet":
+            continue
+        raw_path = item.get("path")
+        if not raw_path:
+            continue
+        try:
+            path = Path(str(raw_path))
+        except Exception:
+            continue
+        if path in seen or not path.exists():
+            continue
+        seen.add(path)
+        paths.append(path)
+    return paths
+
+
+def _iter_router_jsonl_records(path: Path):
+    with path.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict):
+                yield obj
+
+
+def _router_requires_record_filter(manifest_items: list[dict], scenario: str, simulator: str | None) -> bool:
+    if not scenario or not manifest_items:
+        return False
+
+    target_scenario = str(scenario)
+    target_simulator = str(simulator) if simulator else None
+    matching = [
+        item
+        for item in manifest_items
+        if str(item.get("scenario") or "") == target_scenario
+        and (target_simulator is None or str(item.get("simulator") or "unknown") == target_simulator)
+    ]
+    return len(matching) != len(manifest_items)
+
+
+def _read_mixed_router_page(
+    *,
+    page: int,
+    page_size: int,
+    label: int,
+    simulator: str | None,
+) -> dict | None:
+    try:
+        manifest = _combined_router_manifest()
+    except Exception:
+        return None
+    if manifest.get("storage") != "mixed":
+        return None
+
+    filters: list[tuple[str, object]] = []
+    if simulator:
+        filters.append(("simulator", simulator))
+    if label in (0, 1):
+        filters.append(("label", label))
+
+    start = page * page_size
+    end = start + page_size
+    items: list[dict] = []
+    total = 0
+    try:
+        if portable.has_partitions("router"):
+            for obj in portable.iter_records("router", filters=filters):
+                if start <= total < end:
+                    items.append(obj)
+                total += 1
+
+        for path in _router_jsonl_paths_from_manifest(manifest):
+            for obj in _iter_router_jsonl_records(path):
+                if not _router_record_matches_query(obj, path.stem, "", simulator):
+                    continue
+                if not _router_label_matches(obj, label):
+                    continue
+                if start <= total < end:
+                    items.append(obj)
+                total += 1
+    except Exception as exc:
+        return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": f"读取 mixed 路由数据失败: {exc}"}
+
+    return {"total": total, "page": page, "page_size": page_size, "items": items, "storage": "mixed"}
+
+
+def _router_total_from_manifest(
+    split: str,
+    scenario: str,
+    simulator: str | None = None,
+    source_path: Path | None = None,
+) -> int | None:
     try:
         manifest = _combined_router_manifest()
     except Exception:
         return None
 
     if scenario:
+        total = 0
+        matched = False
+        source = str(source_path) if source_path is not None else None
         for item in manifest.get("scenarios", []):
-            if item.get("scenario") == scenario:
-                return int(item.get("router_count", 0))
-        return 0
+            if source is not None and str(Path(str(item.get("path") or ""))) != source:
+                continue
+            if str(item.get("scenario") or "") != scenario:
+                continue
+            if simulator is not None and str(item.get("simulator") or "unknown") != simulator:
+                continue
+            total += int(item.get("router_count", 0))
+            matched = True
+        return total if matched else 0
 
     splits = manifest.get("splits", {})
     split_info = splits.get(split)
@@ -375,10 +631,10 @@ def get_router_status():
 
 @router.post("/router/build")
 async def build_router_data(
-    seed: int = Query(42),
+    seed: int = Query(42, ge=0, le=2_147_483_647),
     neg_ratio: int = Query(1, ge=1, le=10),
     max_workers: int = Query(8, ge=1, le=64),
-    scenarios: str = Query(""),
+    scenarios: list[str] = Query(default_factory=list),
 ):
     """Start Stage 4 router build and return a job id for SSE."""
     active_jobs = _running_job_ids({"fill_samples", "router"})
@@ -391,7 +647,8 @@ async def build_router_data(
                 + "）。请先终止或等待完成后再构建路由，避免从正在写入的样本数据生成不完整路由集。"
             ),
         )
-    scenario_list = [s.strip() for s in scenarios.split(",") if s.strip()] if scenarios else []
+    requested_scenarios = _split_router_build_scenario_query(scenarios)
+    scenario_list = _normalize_router_build_scenarios(requested_scenarios)
     router_lock_scenarios = scenario_list or ["all"]
     queued = _use_worker_queue()
     payload = {"seed": seed, "neg_ratio": neg_ratio, "max_workers": max_workers, "scenarios": scenario_list}
@@ -414,66 +671,48 @@ async def build_router_data(
     return {"job_id": record.job_id, "status": record.status}
 
 
-@router.delete("/router/scenario/{scenario}")
-def delete_router_scenario(scenario: str):
-    """Delete one scenario file and rewrite train.jsonl."""
-    _assert_router_data_mutable()
-    path = SCENARIO_DIR / f"{scenario}.jsonl"
-    meta_path = path.with_suffix(".meta.json")
-    if portable.delete_partition("router", scenario):
-        return {"ok": True, "train_count": 0, "storage": "parquet"}
-    if not path.exists():
-        return {"ok": False, "message": "scenario file does not exist"}
-    path.unlink()
-    if meta_path.exists():
-        meta_path.unlink()
-    total = _rewrite_train_from_scenarios(seed=0)
-    try:
-        manifest_store.rebuild_router_manifest()
-    except Exception:
-        pass
-    return {"ok": True, "train_count": total}
-
-
-@router.delete("/router/all")
-def delete_all_router_data():
-    """Delete all per-scenario router files and train.jsonl."""
-    _assert_router_data_mutable()
-    deleted = 0
-    if SCENARIO_DIR.exists():
-        for path in SCENARIO_DIR.glob("*.jsonl"):
-            path.unlink()
-            deleted += 1
-        for meta_path in SCENARIO_DIR.glob("*.meta.json"):
-            meta_path.unlink()
-            deleted += 1
-    train_path = ROUTER_DIR / "train.jsonl"
-    if train_path.exists():
-        train_path.unlink()
-        deleted += 1
-    try:
-        manifest_store.rebuild_router_manifest()
-    except Exception:
-        pass
-    return {"ok": True, "deleted": deleted}
-
-
 @router.get("/router/samples")
 def get_router_samples(
     split: str = Query("train"),
     scenario: str = Query(""),
+    simulator: str = Query(""),
     page: int = Query(0, ge=0),
     page_size: int = Query(20, ge=1, le=100),
     label: int = Query(-1, ge=-1, le=1),
 ):
     """Read router samples page-wise, optionally filtered by split, scenario and label."""
-    if portable.has_partitions("router"):
+    split_filter = split if isinstance(split, str) and split else "train"
+    scenario_filter = scenario.strip() if isinstance(scenario, str) and scenario.strip() else ""
+    label_filter = label if isinstance(label, int) else -1
+    simulator_filter = simulator.strip() if isinstance(simulator, str) and simulator.strip() else None
+    if not _is_safe_name_component(split_filter):
+        raise HTTPException(status_code=400, detail="split 只能是单个文件名组件")
+    if scenario_filter and not _is_safe_name_component(scenario_filter):
+        raise HTTPException(status_code=400, detail="scenario 只能是单个文件名组件")
+    if simulator_filter is not None and not _is_safe_name_component(simulator_filter):
+        raise HTTPException(status_code=400, detail="simulator 只能是单个文件名组件")
+    if not scenario_filter:
+        mixed_page = _read_mixed_router_page(
+            page=page,
+            page_size=page_size,
+            label=label_filter,
+            simulator=simulator_filter,
+        )
+        if mixed_page is not None:
+            return mixed_page
+    has_matching_parquet = (
+        portable.has_partitions("router")
+        if not scenario_filter
+        else portable.partition_for("router", scenario_filter, simulator=simulator_filter) is not None
+    )
+    if has_matching_parquet:
         try:
             parquet_page = portable.read_router_page(
-                scenario=scenario,
+                scenario=scenario_filter,
                 page=page,
                 page_size=page_size,
-                label=label,
+                label=label_filter,
+                simulator=simulator_filter,
             )
             if parquet_page is not None:
                 total, items = parquet_page
@@ -481,17 +720,29 @@ def get_router_samples(
         except Exception as exc:
             return {"total": 0, "page": page, "page_size": page_size, "items": [], "error": f"读取 Parquet 失败: {exc}"}
 
-    path = SCENARIO_DIR / f"{scenario}.jsonl" if scenario else ROUTER_DIR / f"{split}.jsonl"
-    if not path.exists():
+    path = (
+        _resolve_router_jsonl_file(scenario_filter, simulator=simulator_filter)
+        if scenario_filter
+        else ROUTER_DIR / f"{split_filter}.jsonl"
+    )
+    if path is None or not path.exists():
         return {"total": 0, "page": page, "page_size": page_size, "items": []}
 
-    has_label_filter = label in (0, 1)
+    router_manifest_items = _router_manifest_items_for_path(path) if scenario_filter else []
+    requires_record_filter = _router_requires_record_filter(router_manifest_items, scenario_filter, simulator_filter)
+    requires_record_filter = requires_record_filter or bool(scenario_filter and path.stem != scenario_filter)
+    has_filter = label_filter in (0, 1) or bool(simulator_filter) or requires_record_filter
     start = page * page_size
     end = start + page_size
 
     try:
-        if not has_label_filter:
-            total_hint = _router_total_from_manifest(split=split, scenario=scenario)
+        if not has_filter:
+            total_hint = _router_total_from_manifest(
+                split=split_filter,
+                scenario=scenario_filter,
+                simulator=simulator_filter,
+                source_path=path if scenario_filter else None,
+            )
             try:
                 total, items = jsonl_index.read_page(
                     path,
@@ -503,12 +754,12 @@ def get_router_samples(
             except Exception:
                 pass
 
-        if has_label_filter:
+        if label_filter in (0, 1) and not simulator_filter and not requires_record_filter:
             try:
                 total, items = jsonl_filter_index.read_filtered_page(
                     path,
                     profile="router_label",
-                    key=f"label={label}",
+                    key=f"label={label_filter}",
                     page=page,
                     page_size=page_size,
                 )
@@ -527,7 +778,9 @@ def get_router_samples(
                     obj = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                if has_label_filter and obj.get("label") != label:
+                if not _router_record_matches_query(obj, path.stem, scenario_filter, simulator_filter):
+                    continue
+                if not _router_label_matches(obj, label_filter):
                     continue
                 if start <= total < end:
                     items.append(obj)

@@ -10,6 +10,8 @@ from pathlib import Path
 from typing import Iterable
 
 from piern.shared.runtime.paths import DATA_DIR, DATA_ROOT, PROJECT_ROOT, TEMPLATES_DIR
+from piern.shared.storage.path_ids import source_relative_path
+from piern.shared.storage.scenario_summary import duplicate_scenario_names, scenario_summary_key
 
 ROUTER_DIR = DATA_ROOT / "router"
 ROUTER_SCENARIO_DIR = ROUTER_DIR / "by_scenario"
@@ -54,7 +56,7 @@ def _snapshot(paths: Iterable[Path]) -> list[dict]:
         snapshot.append(
             {
                 "name": path.name,
-                "relative_path": str(path.relative_to(PROJECT_ROOT)),
+                "relative_path": str(source_relative_path(path, roots=(PROJECT_ROOT, DATA_ROOT))),
                 "size": stat.st_size,
                 "mtime_ns": stat.st_mtime_ns,
             }
@@ -110,6 +112,18 @@ def _iter_jsonl(path: Path):
                 continue
 
 
+
+def _record_metadata(record: dict) -> dict:
+    metadata = record.get("metadata", {}) if isinstance(record, dict) else {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _record_identity(record: dict, fallback_scenario: str) -> tuple[str, str]:
+    metadata = _record_metadata(record)
+    simulator = str(metadata.get("simulator") or "unknown")
+    scenario = str(metadata.get("scenario") or fallback_scenario)
+    return simulator, scenario
+
 def _template_manifest_payload(snapshot: list[dict]) -> dict:
     items: list[dict] = []
     total_templates = 0
@@ -121,10 +135,13 @@ def _template_manifest_payload(snapshot: list[dict]) -> dict:
         template_count = 0
         item_language: Counter = Counter()
         item_style: Counter = Counter()
-        scenario = path.stem.replace("_templates", "")
+        scenario = path.stem.removesuffix("_templates")
+        simulator = ""
 
         for record in _iter_jsonl(path):
             template_count += 1
+            if not simulator:
+                simulator = str(record.get("simulator") or "").strip()
             language = str(record.get("language") or "unknown")
             style = str(record.get("style") or "unknown")
             item_language[language] += 1
@@ -136,6 +153,7 @@ def _template_manifest_payload(snapshot: list[dict]) -> dict:
         items.append(
             {
                 "scenario": scenario,
+                "simulator": simulator,
                 "template_count": template_count,
                 "file_size_bytes": stat.st_size,
                 "mtime": stat.st_mtime,
@@ -171,51 +189,74 @@ def _sample_manifest_payload(snapshot: list[dict]) -> dict:
 
     for path in _iter_sample_files():
         stat = path.stat()
-        scenario = path.stem
-        sample_count = 0
-        simulator = "unknown"
-        item_language: Counter = Counter()
-        item_style: Counter = Counter()
-        item_time_mode: Counter = Counter()
-        timeseries_shape_obs = None
+        groups: dict[tuple[str, str], dict] = {}
 
         for record in _iter_jsonl(path):
-            sample_count += 1
-            metadata = record.get("metadata", {})
-            simulator = metadata.get("simulator", simulator) or simulator
-            item_language[str(metadata.get("language") or "unknown")] += 1
-            item_style[str(metadata.get("style") or "unknown")] += 1
+            simulator, scenario = _record_identity(record, path.stem)
+            group = groups.setdefault(
+                (simulator, scenario),
+                {
+                    "sample_count": 0,
+                    "by_language": Counter(),
+                    "by_style": Counter(),
+                    "by_time_mode": Counter(),
+                    "timeseries_shape_obs": None,
+                },
+            )
+            metadata = _record_metadata(record)
+            group["sample_count"] += 1
+            group["by_language"][str(metadata.get("language") or "unknown")] += 1
+            group["by_style"][str(metadata.get("style") or "unknown")] += 1
             observation = metadata.get("observation", {})
-            item_time_mode[str(observation.get("time_mode") or "unknown")] += 1
-            if timeseries_shape_obs is None:
+            if not isinstance(observation, dict):
+                observation = {}
+            group["by_time_mode"][str(observation.get("time_mode") or "unknown")] += 1
+            if group["timeseries_shape_obs"] is None:
                 shape_obs = metadata.get("timeseries_shape_obs")
                 if isinstance(shape_obs, list):
-                    timeseries_shape_obs = shape_obs
+                    group["timeseries_shape_obs"] = shape_obs
                 elif isinstance(shape_obs, tuple):
-                    timeseries_shape_obs = list(shape_obs)
+                    group["timeseries_shape_obs"] = list(shape_obs)
 
-        total_samples += sample_count
-        by_simulator[simulator] += sample_count
-        by_scenario[scenario] += sample_count
-        by_language.update(item_language)
-        by_style.update(item_style)
-        by_time_mode.update(item_time_mode)
-        if simulator not in timeseries_shapes and timeseries_shape_obs is not None:
-            timeseries_shapes[simulator] = timeseries_shape_obs
-
-        items.append(
-            {
-                "scenario": scenario,
-                "simulator": simulator,
-                "sample_count": sample_count,
-                "file_size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-                "path": str(path),
-                "by_language": dict(item_language),
-                "by_style": dict(item_style),
-                "by_time_mode": dict(item_time_mode),
-                "timeseries_shape_obs": timeseries_shape_obs,
+        if not groups:
+            groups[("unknown", path.stem)] = {
+                "sample_count": 0,
+                "by_language": Counter(),
+                "by_style": Counter(),
+                "by_time_mode": Counter(),
+                "timeseries_shape_obs": None,
             }
+
+        for (simulator, scenario), group in sorted(groups.items()):
+            sample_count = int(group["sample_count"])
+            total_samples += sample_count
+            by_simulator[simulator] += sample_count
+            by_language.update(group["by_language"])
+            by_style.update(group["by_style"])
+            by_time_mode.update(group["by_time_mode"])
+            timeseries_shape_obs = group["timeseries_shape_obs"]
+            if simulator not in timeseries_shapes and timeseries_shape_obs is not None:
+                timeseries_shapes[simulator] = timeseries_shape_obs
+
+            items.append(
+                {
+                    "scenario": scenario,
+                    "simulator": simulator,
+                    "sample_count": sample_count,
+                    "file_size_bytes": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "path": str(path),
+                    "by_language": dict(group["by_language"]),
+                    "by_style": dict(group["by_style"]),
+                    "by_time_mode": dict(group["by_time_mode"]),
+                    "timeseries_shape_obs": timeseries_shape_obs,
+                }
+            )
+
+    duplicate_scenarios = duplicate_scenario_names(items)
+    for item in items:
+        by_scenario[scenario_summary_key(item.get("simulator"), item.get("scenario"), duplicate_scenarios)] += int(
+            item.get("sample_count") or 0
         )
 
     return {
@@ -244,29 +285,30 @@ def _router_manifest_payload(snapshot: list[dict]) -> dict:
     scenario_files = _iter_router_scenario_files()
     for path in scenario_files:
         stat = path.stat()
-        scenario = path.stem
-        simulator = "unknown"
-        router_count = 0
+        groups: dict[tuple[str, str], int] = Counter()
 
         for record in _iter_jsonl(path):
-            router_count += 1
-            metadata = record.get("metadata", {})
-            simulator = metadata.get("simulator", simulator) or simulator
+            simulator, scenario = _record_identity(record, path.stem)
+            groups[(simulator, scenario)] += 1
+            total += 1
             label = str(record.get("label"))
             if label in ("0", "1"):
                 label_counts[label] += 1
 
-        total += router_count
-        items.append(
-            {
-                "scenario": scenario,
-                "simulator": simulator,
-                "router_count": router_count,
-                "file_size_bytes": stat.st_size,
-                "mtime": stat.st_mtime,
-                "path": str(path),
-            }
-        )
+        if not groups:
+            groups[("unknown", path.stem)] = 0
+
+        for (simulator, scenario), router_count in sorted(groups.items()):
+            items.append(
+                {
+                    "scenario": scenario,
+                    "simulator": simulator,
+                    "router_count": int(router_count),
+                    "file_size_bytes": stat.st_size,
+                    "mtime": stat.st_mtime,
+                    "path": str(path),
+                }
+            )
 
     train_path = ROUTER_DIR / "train.jsonl"
     if train_path.exists():

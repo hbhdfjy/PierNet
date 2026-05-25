@@ -18,6 +18,15 @@ from scripts.text2comp.fill_samples import run_fill_samples
 from scripts.text2comp.generate_templates import run_generate_templates
 
 
+def _invalidate_text2comp_scenarios_cache() -> None:
+    try:
+        from piern.synth.api.routers.config import invalidate_text2comp_scenarios_cache
+
+        invalidate_text2comp_scenarios_cache()
+    except Exception:
+        pass
+
+
 def _model_validate(model, payload: dict[str, Any]):
     if hasattr(model, "model_validate"):
         return model.model_validate(payload)
@@ -152,6 +161,7 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
             on_log=on_log,
             should_stop=lambda: job_manager.should_stop(record),
         )
+        _invalidate_text2comp_scenarios_cache()
         if not job_manager.should_stop(record):
             record.status = "done"
             publish(record, {"type": "done", "ts": time.time(), "message": "样本填充完成"})

@@ -1,6 +1,9 @@
 # Python
 __pycache__/
 .pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.cache/
 *.py[cod]
 *.egg-info/
 dist/
@@ -11,6 +14,9 @@ build/
 .venv/
 venv/
 env/
+.conda/
+.node/
+
 
 # Stage 3：样本填充结果（体积过大，不追踪）
 data/text2comp/
@@ -37,6 +43,10 @@ data/**/*.npz
 *.pth
 *.ckpt
 
+# Local runtimes
+.flopy_bin/
+.tmp/
+
 # Logs & outputs
 outputs/
 logs/
@@ -45,6 +55,9 @@ wandb/
 *.log
 frontend/test-results/
 frontend/playwright-report/
+
+# Generated patent review deliverables; Markdown drafts are the source of truth.
+docs/*.docx
 
 # IDE
 .vscode/
@@ -76,3 +89,4 @@ migration_exports/
 
 # Router training artifacts
 artifacts/
+models/

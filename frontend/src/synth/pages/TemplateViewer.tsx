@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { TemplateFileInfo, TemplateRecord, TemplatesResponse, Text2CompScenariosConfig } from '../../lib/types'
@@ -28,6 +28,7 @@ import {
   Target,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
+import { templateScenarioSimulatorMap } from '../templateData'
 
 const PAGE_SIZE = 10
 
@@ -252,19 +253,13 @@ export default function TemplateViewer() {
   )
 
   const scenarioSimMap = useMemo(() => {
-    const m: Record<string, string> = {}
-    if (scenariosCfg) {
-      for (const items of Object.values(scenariosCfg)) {
-        for (const s of items) m[s.name] = s.simulator
-      }
-    }
-    return m
+    return templateScenarioSimulatorMap(scenariosCfg)
   }, [scenariosCfg])
 
   const grouped = useMemo(() => {
     const g: Record<string, TemplateFileInfo[]> = {}
     for (const f of templateFiles ?? []) {
-      const sim = scenarioSimMap[f.scenario] ?? 'unknown'
+      const sim = f.simulator || scenarioSimMap[f.scenario] || 'unknown'
       if (!g[sim]) g[sim] = []
       g[sim].push(f)
     }
@@ -272,6 +267,14 @@ export default function TemplateViewer() {
   }, [templateFiles, scenarioSimMap])
 
   const selectedScenario = scenario || templateFiles?.[0]?.scenario || ''
+
+  useEffect(() => {
+    if (!templateFiles || !scenario) return
+    if (!templateFiles.some(file => file.scenario === scenario)) {
+      setScenario('')
+      setPage(0)
+    }
+  }, [templateFiles, scenario])
 
   const { data: templatesData, isLoading: tLoading } = useSWR<TemplatesResponse>(
     selectedScenario ? ['template-items', selectedScenario, page, language, style] : null,
@@ -337,6 +340,7 @@ export default function TemplateViewer() {
                       )}
                     >
                       <div className="font-medium truncate">{f.scenario}</div>
+                      {f.simulator && <div className="text-slate-700 mt-0.5 font-mono">{f.simulator}</div>}
                       <div className="text-slate-600 mt-0.5 tabular-nums">{f.template_count.toLocaleString()} 条</div>
                     </button>
                   ))}

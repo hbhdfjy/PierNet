@@ -34,6 +34,7 @@ import time
 import numpy as np
 import yaml
 
+from piern.simulators.naming import scenario_name_from_output
 from piern.simulators.modflow.generator import generate_batch, resolve_modflow_executable
 from piern.simulators.modflow.generator_with_params import generate_batch_from_params
 from piern.simulators.modflow.unified_params import UnifiedParamConverter
@@ -273,10 +274,8 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
     seed = cfg.get("seed", 42)
     output_path = os.path.join(cfg["output_dir"], cfg["output_file"])
 
-    # 提取场景名称：去掉 .h5 后缀，再去掉 "大场景_" 前缀（如 modflow_unified_aquifer → unified_aquifer）
-    output_stem = os.path.basename(cfg.get("output_file", "unknown")).removesuffix(".h5")
-    dir_name = os.path.basename(cfg.get("output_dir", ""))
-    scenario_name = output_stem[len(dir_name) + 1:] if output_stem.startswith(dir_name + "_") else output_stem
+    # 提取场景名称：去掉 HDF5 后缀，再去掉 "大场景_" 前缀（如 modflow_unified_aquifer → unified_aquifer）
+    scenario_name = scenario_name_from_output(cfg.get("output_dir"), cfg.get("output_file"))
 
     logger.info("===== MODFLOW 数据合成管线 V2 启动 =====")
     logger.info(f"场景名称: {scenario_name}")
@@ -316,8 +315,8 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
         logger.info("Step 3/4: 直接采样已满足配置数量，跳过增强")
         aug_ts = timeseries[:n_samples]
         aug_params = params[:n_samples]
-    elif seed_ratio >= 1.0:
-        # seed_ratio=1.0：不做参数扰动，继续用真实物理采样补充不足部分
+    elif seed_ratio >= 1.0 or not aug_cfg.get("enabled", True):
+        # 不做参数扰动时，继续用真实物理采样补充不足部分。
         still_needed = n_samples - timeseries.shape[0]
         logger.info(f"Step 3/4: 直接采样不足，继续补充 {still_needed} 个样本（真实采样）...")
         extra_ts_list = [timeseries]
@@ -360,6 +359,8 @@ def run_pipeline(cfg_path: str, parallel: bool = False, max_workers: int = 10, n
             progress_callback=progress_callback,
         )
     logger.info(f"  → 增强后共 {aug_ts.shape[0]} 个样本")
+    if aug_ts.shape[0] < n_samples:
+        raise RuntimeError(f"MODFLOW 有效样本不足，仅得到 {aug_ts.shape[0]}/{n_samples} 条")
 
     # Step 3.5: 转换为统一参数表示
     logger.info("Step 3.5/5: 转换为统一参数表示...")
@@ -412,7 +413,7 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="configs/data_synthesis/modflow.yaml",
+        default="configs/modflow/default.yaml",
         help="配置文件路径",
     )
     parser.add_argument(

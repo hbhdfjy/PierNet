@@ -2,7 +2,7 @@ import { Suspense, useEffect, useState, type CSSProperties, type ElementType, ty
 import { Moon, Shuffle, Sun } from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
-import { SeedContext, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
+import { SEED_MAX, SeedContext, parseSeedInput, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
 import { PlatformSwitcher } from './PlatformSwitcher'
 
@@ -171,15 +171,15 @@ export function AppShell({
               <input
                 type="number"
                 min={0}
+                max={SEED_MAX}
                 value={seedInput}
                 onChange={event => {
                   setSeedInput(event.target.value)
-                  const parsed = parseInt(event.target.value, 10)
-                  if (!isNaN(parsed) && parsed >= 0) setSeed(parsed)
+                  const parsed = parseSeedInput(event.target.value)
+                  if (parsed !== null) setSeed(parsed)
                 }}
                 onBlur={() => {
-                  const parsed = parseInt(seedInput, 10)
-                  const value = isNaN(parsed) ? 42 : Math.max(0, parsed)
+                  const value = parseSeedInput(seedInput) ?? 42
                   setSeed(value)
                   setSeedInput(String(value))
                 }}

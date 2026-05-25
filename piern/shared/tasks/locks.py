@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from threading import RLock
+from threading import Event, RLock, Thread
 from typing import Any, Iterator
 
 from piern.shared.db.migrations import Migration, ensure_sqlite_schema
@@ -16,6 +17,7 @@ from piern.shared.runtime.paths import RUNLOG_ROOT
 
 LOCK_STORE_PATH = Path(os.getenv("PIERN_LOCK_STORE_PATH", RUNLOG_ROOT / "job_locks.sqlite"))
 DEFAULT_TTL_SECONDS = float(os.getenv("PIERN_LOCK_TTL_SECONDS", str(24 * 3600)))
+LOGGER = logging.getLogger(__name__)
 
 _LOCK = RLock()
 _INITIALIZED = False
@@ -115,6 +117,33 @@ def release_owner(owner: str) -> int:
     with _LOCK, _connect() as conn:
         cur = conn.execute("DELETE FROM job_locks WHERE owner=?", (owner,))
     return int(cur.rowcount or 0)
+
+
+@contextmanager
+def refresh_lock_while(
+    lock_key: str,
+    owner: str,
+    *,
+    ttl_seconds: float = DEFAULT_TTL_SECONDS,
+    interval: float | None = None,
+) -> Iterator[None]:
+    refresh_interval = max(0.01, float(interval) if interval is not None else min(30.0, float(ttl_seconds) / 2.0))
+    stop_event = Event()
+
+    def _refresh_loop() -> None:
+        while not stop_event.wait(refresh_interval):
+            try:
+                refresh_lock(lock_key, owner, ttl_seconds=ttl_seconds)
+            except Exception:
+                LOGGER.exception("Failed to refresh task lock lock_key=%s owner=%s", lock_key, owner)
+
+    thread = Thread(target=_refresh_loop, name=f"piern-lock-refresh-{lock_key}", daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        stop_event.set()
+        thread.join(timeout=min(2.0, refresh_interval))
 
 
 def cleanup_expired(now: float | None = None) -> int:

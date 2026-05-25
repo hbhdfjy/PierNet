@@ -45,10 +45,18 @@ import {
   formatDateTime,
   formatDuration,
   formatMetric,
+  isTrainingJobDeletable,
+  isTrainingJobStoppable,
   statusBadgeClass,
   statusLabel,
   trainingJobNotice,
+  trainingJobRefreshInterval,
 } from '../shared'
+
+function actionErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return String(error || '未知错误')
+}
 
 export default function TrainingJobDetailPage() {
   const { jobId = '' } = useParams()
@@ -61,25 +69,22 @@ export default function TrainingJobDetailPage() {
   const [scenarioHover, setScenarioHover] = useState<ChartHoverSnapshot | null>(null)
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
 
   const { data: job, error: jobError } = useSWR<TrainingJobDetail>(
     jobId ? `training-job-${jobId}` : null,
     () => api.getTrainingJob(jobId),
     {
       refreshInterval: current => {
-        if (!current) return 2000
-        if (current.status === 'starting' || current.status === 'stopping') return 2000
-        return ['running', 'evaluating'].includes(current.status) ? 5000 : 0
+        return trainingJobRefreshInterval(current?.status)
       },
       revalidateOnFocus: false,
     },
   )
 
   const refreshInterval = useMemo(() => {
-    if (!job) return 2000
-    if (job.status === 'starting' || job.status === 'stopping') return 2000
-    return ['running', 'evaluating'].includes(job.status) ? 5000 : 0
-  }, [job])
+    return trainingJobRefreshInterval(job?.status)
+  }, [job?.status])
 
   const notice = job ? trainingJobNotice(job) : null
 
@@ -196,6 +201,7 @@ export default function TrainingJobDetailPage() {
   const stopJob = async () => {
     if (isStopping || job?.status === 'stopping') return
     setIsStopping(true)
+    setActionError(null)
     try {
       await api.stopTrainingJob(jobId)
       await Promise.all([
@@ -206,6 +212,8 @@ export default function TrainingJobDetailPage() {
         mutate('training-overview'),
         mutate('training-gpus'),
       ])
+    } catch (error) {
+      setActionError(`终止失败：${actionErrorMessage(error)}`)
     } finally {
       setIsStopping(false)
     }
@@ -214,6 +222,7 @@ export default function TrainingJobDetailPage() {
   const deleteJob = async () => {
     if (!job || isDeleting) return
     setIsDeleting(true)
+    setActionError(null)
     try {
       await api.deleteTrainingJob(job.job_id)
       await Promise.all([
@@ -225,6 +234,8 @@ export default function TrainingJobDetailPage() {
         mutate(`training-logs-${job.job_id}`),
       ])
       navigate('/training/jobs')
+    } catch (error) {
+      setActionError(`删除失败：${actionErrorMessage(error)}`)
     } finally {
       setIsDeleting(false)
       setConfirmDeleteOpen(false)
@@ -274,7 +285,7 @@ export default function TrainingJobDetailPage() {
                   <RefreshCcw size={14} />
                   刷新
                 </button>
-                {job && ['starting', 'running', 'evaluating', 'stopping'].includes(job.status) ? (
+                {job && (isTrainingJobStoppable(job.status) || job.status === 'stopping') ? (
                   <button
                     type="button"
                     className="btn-danger"
@@ -282,9 +293,13 @@ export default function TrainingJobDetailPage() {
                     disabled={isStopping || job.status === 'stopping'}
                   >
                     <PauseCircle size={14} />
-                    {isStopping || job.status === 'stopping' ? '\u7ec8\u6b62\u4e2d...' : '\u7ec8\u6b62\u8bad\u7ec3'}
+                    {isStopping || job.status === 'stopping'
+                      ? '终止中...'
+                      : job.status === 'queued'
+                        ? '取消排队'
+                        : '终止训练'}
                   </button>
-                ) : job ? (
+                ) : job && isTrainingJobDeletable(job.status) ? (
                   <button type="button" className="btn-ghost" onClick={() => setConfirmDeleteOpen(true)}>
                     <Trash2 size={14} />
                     删除任务
@@ -332,6 +347,13 @@ export default function TrainingJobDetailPage() {
           {jobError && (
             <div className="card border border-rose-500/20 bg-rose-500/8 p-4 text-sm text-rose-300">
               加载训练任务失败：{jobError.message}
+            </div>
+          )}
+
+          {actionError && (
+            <div className="flex items-start gap-2 rounded-xl border border-amber-400/25 bg-amber-400/8 px-3 py-2 text-sm text-amber-200">
+              <AlertTriangle size={15} className="mt-0.5 flex-shrink-0" />
+              <span>{actionError}</span>
             </div>
           )}
 

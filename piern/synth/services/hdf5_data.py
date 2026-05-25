@@ -12,6 +12,8 @@ import numpy as np
 import yaml
 
 from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT
+from piern.shared.storage.hdf5_files import hdf5_scenario_from_path as _hdf5_scenario_from_path
+from piern.shared.storage.hdf5_files import iter_hdf5_files
 
 
 BUILTIN_SIMULATORS = ("modflow", "simpeg", "power_flow", "transient", "gcam")
@@ -37,10 +39,7 @@ def canonical_hdf5_path(simulator: str, scenario: str) -> Path:
 
 
 def scenario_from_hdf5_path(path: Path, simulator: str | None = None) -> str:
-    sim = simulator or path.parent.name
-    prefix = f"{sim}_"
-    stem = path.stem
-    return stem[len(prefix):] if stem.startswith(prefix) else stem
+    return _hdf5_scenario_from_path(path, simulator or path.parent.name)
 
 
 def _display_path(path: Path) -> str:
@@ -50,6 +49,17 @@ def _display_path(path: Path) -> str:
     except ValueError:
         pass
     return str(path)
+
+
+def _resolve_data_path(value: str | None, *, default: str = "data") -> Path:
+    raw = (value or default).strip()
+    path = Path(raw).expanduser()
+    if path.is_absolute():
+        return path
+    parts = path.parts
+    if parts and parts[0] == "data":
+        return DATA_ROOT.joinpath(*parts[1:])
+    return PROJECT_ROOT / path
 
 
 def _json_scalar(value: Any) -> Any:
@@ -267,7 +277,7 @@ def list_hdf5_data_files() -> list[dict[str, Any]]:
         if not sim_dir.is_dir() or sim_dir.name in SKIP_DATA_DIRS:
             continue
         simulator = sim_dir.name
-        for path in sorted([*sim_dir.glob("*.h5"), *sim_dir.glob("*.hdf5")]):
+        for path in iter_hdf5_files(sim_dir):
             validation = validate_hdf5_file(path)
             items.append({
                 **validation,
@@ -289,7 +299,7 @@ def _load_text2comp_scenarios(config_path: str) -> tuple[Path, list[tuple[str, s
     with cfg_path.open("r", encoding="utf-8") as f:
         cfg = yaml.safe_load(f) or {}
 
-    data_root = PROJECT_ROOT / cfg.get("data_root", "data")
+    data_root = _resolve_data_path(cfg.get("data_root", "data"))
     scenarios_cfg = cfg.get("scenarios", [])
     pairs: list[tuple[str, str]] = []
 
@@ -311,15 +321,23 @@ def _load_text2comp_scenarios(config_path: str) -> tuple[Path, list[tuple[str, s
     return data_root, pairs
 
 
+def _resolve_hdf5_path_for_scenario(data_root: Path, simulator: str, scenario: str) -> Path:
+    sim_dir = data_root / simulator
+    for h5_file in iter_hdf5_files(sim_dir):
+        if scenario_from_hdf5_path(h5_file, simulator) == scenario:
+            return h5_file
+    return sim_dir / f"{simulator}_{scenario}.h5"
+
+
 def _infer_simulator_for_scenario(data_root: Path, scenario: str) -> tuple[str, str]:
     for simulator in BUILTIN_SIMULATORS:
-        if (data_root / simulator / f"{simulator}_{scenario}.h5").exists():
+        if _resolve_hdf5_path_for_scenario(data_root, simulator, scenario).exists():
             return simulator, scenario
     for sim_dir in sorted(data_root.iterdir()) if data_root.exists() else []:
         if not sim_dir.is_dir() or sim_dir.name in SKIP_DATA_DIRS:
             continue
         prefix = f"{sim_dir.name}_"
-        for h5_file in sim_dir.glob("*.h5"):
+        for h5_file in iter_hdf5_files(sim_dir):
             derived = h5_file.stem[len(prefix):] if h5_file.stem.startswith(prefix) else h5_file.stem
             if derived == scenario:
                 return sim_dir.name, scenario
@@ -334,7 +352,7 @@ def _scan_hdf5_pairs(data_root: Path) -> list[tuple[str, str]]:
         if not sim_dir.is_dir() or sim_dir.name in SKIP_DATA_DIRS:
             continue
         simulator = sim_dir.name
-        for h5_file in sorted([*sim_dir.glob("*.h5"), *sim_dir.glob("*.hdf5")]):
+        for h5_file in iter_hdf5_files(sim_dir):
             pairs.append((simulator, scenario_from_hdf5_path(h5_file, simulator)))
     return pairs
 
@@ -381,7 +399,7 @@ def collect_registration_hdf5_validations(
         if key in seen:
             continue
         seen.add(key)
-        path = data_root / simulator / f"{simulator}_{scenario}.h5"
+        path = _resolve_hdf5_path_for_scenario(data_root, simulator, scenario)
         validation = validate_hdf5_file(path)
         results.append({
             **validation,

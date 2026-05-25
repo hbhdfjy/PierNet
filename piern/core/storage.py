@@ -3,7 +3,18 @@
 import numpy as np
 import h5py
 import os
-from typing import Dict, Any
+from typing import Any
+
+
+def _decode_hdf5_text(value: object) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (bytes, bytearray, np.bytes_)):
+        return bytes(value).decode("utf-8")
+    decode = getattr(value, "decode", None)
+    if callable(decode):
+        return str(decode("utf-8"))
+    return str(value)
 
 
 def save_dataset(
@@ -11,7 +22,7 @@ def save_dataset(
     timeseries: np.ndarray,
     params: np.ndarray,
     param_names: list[str],
-    metadata: Dict[str, Any] | None = None,
+    metadata: dict[str, Any] | None = None,
     compression_level: int = 4,
 ) -> None:
     """
@@ -91,5 +102,5 @@ def load_dataset(
     with h5py.File(input_path, "r") as f:
         timeseries = f["timeseries"][:]
         params = f["params"][:]
-        param_names = [n.decode("utf-8") for n in f["param_names"][:]]
+        param_names = [_decode_hdf5_text(n) for n in f["param_names"][:]]
     return timeseries, params, param_names

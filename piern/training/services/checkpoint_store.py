@@ -8,6 +8,28 @@ from typing import Any
 from piern.training.router.data import PRETRAINED_EMBEDDINGS
 
 
+def _optional_dict(value: Any) -> dict[str, Any] | None:
+    if value is None:
+        return {}
+    return value if isinstance(value, dict) else None
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted(str(item) for item in value if str(item).strip())
+
+
+def _finite_float_or_none(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if math.isfinite(parsed) else None
+
+
 @lru_cache(maxsize=256)
 def load_checkpoint_metadata(path_str: str, mtime_ns: int, size_bytes: int) -> dict[str, Any] | None:
     del mtime_ns, size_bytes
@@ -17,21 +39,34 @@ def load_checkpoint_metadata(path_str: str, mtime_ns: int, size_bytes: int) -> d
         checkpoint = torch.load(path_str, map_location="cpu", weights_only=True)
     except Exception:
         return None
-    prepared_summary = checkpoint.get("prepared_summary") or {}
-    config = checkpoint.get("config") or {}
+    if not isinstance(checkpoint, dict):
+        return None
+
+    prepared_summary = _optional_dict(checkpoint.get("prepared_summary"))
+    config = _optional_dict(checkpoint.get("config"))
+    if prepared_summary is None or config is None:
+        return None
     epoch = checkpoint.get("epoch")
     try:
         parsed_epoch = int(epoch) if epoch is not None else None
     except (TypeError, ValueError):
         parsed_epoch = None
 
+    raw_scenarios = prepared_summary.get("scenarios") or config.get("scenarios")
+    if raw_scenarios is not None and not isinstance(raw_scenarios, list):
+        return None
+    raw_test_ratio = (
+        prepared_summary.get("test_ratio") if prepared_summary.get("test_ratio") is not None else config.get("test_ratio")
+    )
+    parsed_test_ratio = _finite_float_or_none(raw_test_ratio)
+    if raw_test_ratio is not None and parsed_test_ratio is None:
+        return None
+
     return {
         "epoch": parsed_epoch,
         "simulator": prepared_summary.get("simulator") or config.get("simulator"),
-        "scenarios": sorted(prepared_summary.get("scenarios") or config.get("scenarios") or []),
-        "test_ratio": prepared_summary.get("test_ratio")
-        if prepared_summary.get("test_ratio") is not None
-        else config.get("test_ratio"),
+        "scenarios": _string_list(raw_scenarios),
+        "test_ratio": parsed_test_ratio,
         "input_representation": prepared_summary.get("input_representation") or config.get("input_representation"),
         "embedding_model": prepared_summary.get("embedding_model") or config.get("embedding_model"),
         "embedding_tokenizer": prepared_summary.get("embedding_tokenizer") or config.get("embedding_tokenizer"),
@@ -54,7 +89,10 @@ def checkpoint_entries(run_dir: Path) -> list[dict[str, Any]]:
     if not run_dir.exists():
         return entries
     for path in sorted(run_dir.glob("router*.pt")):
-        stat = path.stat()
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
         epoch = None
         stem = path.stem
         if stem.startswith("router_epoch_"):

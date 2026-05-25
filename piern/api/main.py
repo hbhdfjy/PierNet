@@ -29,6 +29,7 @@ from piern.training.api.routers import training
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
+    simulation.cleanup_stale_tmp_configs()
     log_runtime_config()
     yield
 
