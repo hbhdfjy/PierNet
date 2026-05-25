@@ -8,7 +8,7 @@ import tempfile
 import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Any, List, Literal, Optional
 
 import yaml
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -16,6 +16,7 @@ from pydantic import BaseModel, Field
 
 from PierNet.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from PierNet.synth.api.routers.config import invalidate_text2comp_scenarios_cache
+from PierNet.synth.services import expert_models
 from PierNet.synth.services import job_manager
 from PierNet.synth.services.job_manager import JobRecord, publish
 from PierNet.synth.services.hdf5_data import (
@@ -100,6 +101,35 @@ class JobStartResponse(BaseModel):
     job_id: str
     status: Literal["queued", "running"] = "running"
     scenario_totals: dict[str, int] = Field(default_factory=dict)
+
+
+class ExpertInputPlanRequest(BaseModel):
+    prompt: str = Field(..., min_length=1, max_length=20_000)
+    input_dim: Optional[int] = Field(None, ge=1, le=32)
+
+
+class ExpertInputPlanResponse(BaseModel):
+    ok: bool = True
+    model_id: str
+    plan: dict[str, Any]
+    preview: list[list[float]]
+    summary: str
+    warnings: list[str] = Field(default_factory=list)
+
+
+class ExpertGenerateRequest(ExpertInputPlanRequest):
+    scenario: str
+    overwrite: bool = False
+
+
+class ExpertGenerateResponse(BaseModel):
+    ok: bool = True
+    model: dict[str, Any]
+    simulator: str
+    scenario: str
+    saved_path: str
+    input_plan: dict[str, Any]
+    validation: dict[str, Any]
 
 
 # ── 场景扫描 ─────────────────────────────────────────────────────
@@ -274,6 +304,101 @@ def _canonical_simulate_request(req: SimulateRequest) -> SimulateRequest:
 def get_simulation_data_files():
     """列出 data/ 下已存在的 Stage 1 HDF5 文件及校验状态。"""
     return list_hdf5_data_files()
+
+
+@router.get("/simulation/expert-models")
+def list_expert_models():
+    """列出已上传专家模型，以及服务器假定的最小模型接口。"""
+    return {
+        "interface": expert_models.EXPERT_INTERFACE,
+        "interface_version": expert_models.EXPERT_INTERFACE_VERSION,
+        "models": expert_models.list_models(),
+    }
+
+
+@router.post("/simulation/expert-models/upload")
+async def upload_expert_model(
+    request: Request,
+    name: str = Query(..., min_length=1, max_length=180),
+):
+    """上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float])."""
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        async for chunk in request.stream():
+            if not chunk:
+                continue
+            chunks.append(chunk)
+            total += len(chunk)
+            if total > expert_models.MAX_MODEL_BYTES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"专家模型文件不能超过 {expert_models.MAX_MODEL_BYTES // (1024 * 1024)} MB",
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"上传写入失败: {exc}") from exc
+
+    try:
+        model = expert_models.upload_model(name, b"".join(chunks))
+    except expert_models.ExpertModelError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"专家模型加载失败: {exc}") from exc
+    return {
+        "ok": True,
+        "interface": expert_models.EXPERT_INTERFACE,
+        "model": model,
+    }
+
+
+@router.post("/simulation/expert-models/{model_id}/input-plan", response_model=ExpertInputPlanResponse)
+def plan_expert_model_inputs(model_id: str, req: ExpertInputPlanRequest):
+    """对话式解析专家模型输入设定，返回可审计输入计划和预览。"""
+    try:
+        expert_models.get_model(model_id)
+        result = expert_models.build_input_plan(req.prompt, input_dim=req.input_dim)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"专家模型不存在: {model_id}") from exc
+    except (ValueError, expert_models.ExpertModelError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    plan = result["plan"]
+    return ExpertInputPlanResponse(
+        model_id=model_id,
+        plan=plan,
+        preview=result["preview"],
+        summary=str(plan.get("summary") or ""),
+        warnings=list(plan.get("warnings") or []),
+    )
+
+
+@router.post("/simulation/expert-models/{model_id}/generate", response_model=ExpertGenerateResponse)
+def generate_expert_model_data(model_id: str, req: ExpertGenerateRequest):
+    """调用专家模型生成 Stage 1 HDF5 数据，格式与内置物理仿真输出一致。"""
+    try:
+        result = expert_models.generate_dataset(
+            model_id=model_id,
+            scenario=req.scenario,
+            prompt=req.prompt,
+            input_dim=req.input_dim,
+            overwrite=req.overwrite,
+        )
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"专家模型不存在: {model_id}") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FileExistsError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except (ValueError, expert_models.ExpertModelError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"专家模型数据生成失败: {exc}") from exc
+
+    result["saved_path"] = _display_path(Path(result["saved_path"]))
+    _invalidate_cache()
+    invalidate_text2comp_scenarios_cache()
+    return result
 
 
 @router.post("/simulation/upload")

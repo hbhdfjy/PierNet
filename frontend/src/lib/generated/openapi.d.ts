@@ -712,6 +712,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/simulation/expert-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Expert Models
+         * @description 列出已上传专家模型，以及服务器假定的最小模型接口。
+         */
+        get: operations["list_expert_models_api_simulation_expert_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/simulation/expert-models/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Expert Model
+         * @description 上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float]).
+         */
+        post: operations["upload_expert_model_api_simulation_expert_models_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/simulation/expert-models/{model_id}/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Expert Model Data
+         * @description 调用专家模型生成 Stage 1 HDF5 数据，格式与内置物理仿真输出一致。
+         */
+        post: operations["generate_expert_model_data_api_simulation_expert_models__model_id__generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/simulation/expert-models/{model_id}/input-plan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Plan Expert Model Inputs
+         * @description 对话式解析专家模型输入设定，返回可审计输入计划和预览。
+         */
+        post: operations["plan_expert_model_inputs_api_simulation_expert_models__model_id__input_plan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/simulation/scenarios": {
         parameters: {
             query?: never;
@@ -943,6 +1023,73 @@ export interface components {
              * @default false
              */
             skip_existing: boolean;
+        };
+        /** ExpertGenerateRequest */
+        ExpertGenerateRequest: {
+            /** Input Dim */
+            input_dim?: number | null;
+            /**
+             * Overwrite
+             * @default false
+             */
+            overwrite: boolean;
+            /** Prompt */
+            prompt: string;
+            /** Scenario */
+            scenario: string;
+        };
+        /** ExpertGenerateResponse */
+        ExpertGenerateResponse: {
+            /** Input Plan */
+            input_plan: {
+                [key: string]: unknown;
+            };
+            /** Model */
+            model: {
+                [key: string]: unknown;
+            };
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Saved Path */
+            saved_path: string;
+            /** Scenario */
+            scenario: string;
+            /** Simulator */
+            simulator: string;
+            /** Validation */
+            validation: {
+                [key: string]: unknown;
+            };
+        };
+        /** ExpertInputPlanRequest */
+        ExpertInputPlanRequest: {
+            /** Input Dim */
+            input_dim?: number | null;
+            /** Prompt */
+            prompt: string;
+        };
+        /** ExpertInputPlanResponse */
+        ExpertInputPlanResponse: {
+            /** Model Id */
+            model_id: string;
+            /**
+             * Ok
+             * @default true
+             */
+            ok: boolean;
+            /** Plan */
+            plan: {
+                [key: string]: unknown;
+            };
+            /** Preview */
+            preview: number[][];
+            /** Summary */
+            summary: string;
+            /** Warnings */
+            warnings?: string[];
         };
         /** FillSamplesRequest */
         FillSamplesRequest: {
@@ -2795,6 +2942,127 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_expert_models_api_simulation_expert_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    upload_expert_model_api_simulation_expert_models_upload_post: {
+        parameters: {
+            query: {
+                name: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_expert_model_data_api_simulation_expert_models__model_id__generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpertGenerateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpertGenerateResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    plan_expert_model_inputs_api_simulation_expert_models__model_id__input_plan_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpertInputPlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpertInputPlanResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

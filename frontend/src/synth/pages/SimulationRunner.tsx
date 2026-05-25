@@ -1,9 +1,15 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useSeed } from '../../lib/seedContext'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
-import type { JobStatus, SimulationScenario } from '../../lib/types'
+import type {
+  ExpertGenerateResponse,
+  ExpertInputPlanResponse,
+  Hdf5DataFileInfo,
+  JobStatus,
+  SimulationScenario,
+} from '../../lib/types'
 import {
   Zap,
   RefreshCw,
@@ -16,6 +22,10 @@ import {
   Layers,
   Play,
   BarChart2,
+  Bot,
+  FileCode2,
+  UploadCloud,
+  Wand2,
 } from 'lucide-react'
 import { cn, formatBytes } from '../../lib/utils'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
@@ -84,6 +94,14 @@ const SIM_META: Record<
     bg: 'bg-teal-500/10',
     border: 'border-teal-500/25',
     dot: 'bg-teal-500',
+  },
+  expert_model: {
+    label: 'Expert Model',
+    shortLabel: 'EX',
+    color: 'text-fuchsia-300',
+    bg: 'bg-fuchsia-500/10',
+    border: 'border-fuchsia-500/25',
+    dot: 'bg-fuchsia-400',
   },
 }
 
@@ -235,6 +253,249 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
   )
 }
 
+function ExpertModelPanel({ onGenerated }: { onGenerated: () => void }) {
+  const { data, isLoading, mutate } = useSWR('simulation-expert-models', () => api.listExpertModels(), {
+    refreshInterval: 30000,
+    revalidateOnMount: true,
+  })
+  const models = useMemo(() => data?.models ?? [], [data?.models])
+  const [modelId, setModelId] = useState('')
+  const [file, setFile] = useState<File | null>(null)
+  const [modelName, setModelName] = useState('')
+  const [scenario, setScenario] = useState('expert_demo')
+  const [prompt, setPrompt] = useState('有100个点，每个点从0开始依次加10')
+  const [overwrite, setOverwrite] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [planning, setPlanning] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [plan, setPlan] = useState<ExpertInputPlanResponse | null>(null)
+  const [result, setResult] = useState<ExpertGenerateResponse | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!modelId && models.length > 0) setModelId(models[0].model_id)
+  }, [modelId, models])
+
+  const selectedModel = models.find(model => model.model_id === modelId) ?? null
+  const planCount = typeof plan?.plan.count === 'number' ? plan.plan.count : null
+  const planDim = typeof plan?.plan.input_dim === 'number' ? plan.plan.input_dim : null
+
+  const handleUpload = async () => {
+    if (!file) {
+      setError('请选择 .py 专家模型文件')
+      return
+    }
+    setError(null)
+    setUploading(true)
+    try {
+      const response = await api.uploadExpertModel({ name: modelName.trim() || file.name, file })
+      setModelId(response.model.model_id)
+      setModelName('')
+      setFile(null)
+      await mutate()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '上传专家模型失败')
+    } finally {
+      setUploading(false)
+    }
+  }
+
+  const handlePlan = async () => {
+    if (!modelId) {
+      setError('请先上传或选择专家模型')
+      return
+    }
+    setError(null)
+    setPlanning(true)
+    try {
+      const response = await api.planExpertInputs({ modelId, prompt })
+      setPlan(response)
+      setResult(null)
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '解析专家模型输入失败')
+    } finally {
+      setPlanning(false)
+    }
+  }
+
+  const handleGenerate = async () => {
+    if (!modelId) {
+      setError('请先上传或选择专家模型')
+      return
+    }
+    setError(null)
+    setGenerating(true)
+    try {
+      const response = await api.generateExpertData({ modelId, scenario, prompt, overwrite })
+      setResult(response)
+      setPlan({
+        ok: true,
+        model_id: modelId,
+        plan: response.input_plan,
+        preview: Array.isArray(response.input_plan.preview) ? (response.input_plan.preview as number[][]) : [],
+        summary: typeof response.input_plan.summary === 'string' ? response.input_plan.summary : '',
+        warnings: Array.isArray(response.input_plan.warnings) ? (response.input_plan.warnings as string[]) : [],
+      })
+      onGenerated()
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : '生成专家模型数据失败')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <div className="card px-4 py-3 space-y-3 animate-fade-in">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-fuchsia-500/15 border border-fuchsia-500/25 flex items-center justify-center flex-shrink-0">
+            <Bot size={14} className="text-fuchsia-300" />
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-slate-100 text-base">专家模型</span>
+              <span className="badge bg-fuchsia-500/10 text-fuchsia-200 border border-fuchsia-500/20 text-xs py-0.5">
+                {models.length}
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 font-mono truncate">{data?.interface ?? 'predict(inputs) -> float'}</p>
+          </div>
+        </div>
+        {isLoading && <RefreshCw size={13} className="animate-spin text-fuchsia-300 flex-shrink-0" />}
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(260px,0.82fr)_minmax(360px,1.18fr)] gap-3">
+        <div className="rounded-lg border border-slate-700/35 bg-slate-900/25 p-3 space-y-3">
+          <div className="flex items-center gap-2">
+            <input
+              id="expert-model-file"
+              type="file"
+              accept=".py,text/x-python"
+              className="hidden"
+              onChange={e => {
+                const nextFile = e.target.files?.[0] ?? null
+                setFile(nextFile)
+                if (nextFile && !modelName) setModelName(nextFile.name.replace(/\.py$/i, ''))
+              }}
+            />
+            <label className="btn-ghost py-1.5 px-2 text-xs cursor-pointer flex-shrink-0" htmlFor="expert-model-file">
+              <UploadCloud size={12} />
+              选择文件
+            </label>
+            <span className="text-xs text-slate-500 truncate min-w-0">{file ? file.name : '未选择文件'}</span>
+          </div>
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <input
+              className="input text-xs py-1.5 px-2"
+              value={modelName}
+              onChange={e => setModelName(e.target.value)}
+              placeholder="模型名称"
+            />
+            <button className="btn py-1.5 px-3 text-xs" onClick={handleUpload} disabled={uploading || !file}>
+              {uploading ? <RefreshCw size={12} className="animate-spin" /> : <FileCode2 size={12} />}
+              上传
+            </button>
+          </div>
+          <div>
+            <label className="label block mb-1">当前模型</label>
+            <select
+              className="input w-full text-xs py-1.5 px-2"
+              value={modelId}
+              onChange={e => setModelId(e.target.value)}
+            >
+              {models.length === 0 && <option value="">暂无模型</option>}
+              {models.map(model => (
+                <option key={model.model_id} value={model.model_id}>
+                  {model.name}
+                </option>
+              ))}
+            </select>
+            {selectedModel && (
+              <div className="flex items-center justify-between gap-2 mt-1.5 text-xs text-slate-500">
+                <span className="font-mono truncate">{selectedModel.model_id}</span>
+                <span className="tabular-nums flex-shrink-0">{formatBytes(selectedModel.file_size_bytes)}</span>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-slate-700/35 bg-slate-900/25 p-3 space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(150px,0.34fr)_1fr] gap-2">
+            <div>
+              <label className="label block mb-1">场景名</label>
+              <input
+                className="input w-full text-xs py-1.5 px-2 font-mono"
+                value={scenario}
+                onChange={e => setScenario(e.target.value)}
+                placeholder="expert_demo"
+              />
+            </div>
+            <div>
+              <label className="label block mb-1">输入设定</label>
+              <input
+                className="input w-full text-xs py-1.5 px-2"
+                value={prompt}
+                onChange={e => setPrompt(e.target.value)}
+                placeholder="有100个点，每个点从0开始依次加10"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <button className="btn-ghost py-1.5 px-2 text-xs" onClick={handlePlan} disabled={planning || !modelId}>
+              {planning ? <RefreshCw size={12} className="animate-spin" /> : <Wand2 size={12} />}
+              预览输入
+            </button>
+            <button
+              className="btn py-1.5 px-3 text-xs bg-fuchsia-600 hover:bg-fuchsia-500"
+              onClick={handleGenerate}
+              disabled={generating || !modelId || !scenario.trim() || !prompt.trim()}
+            >
+              {generating ? <RefreshCw size={12} className="animate-spin" /> : <Play size={12} />}
+              生成 HDF5
+            </button>
+            <label className="flex items-center gap-1.5 text-xs text-slate-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={overwrite}
+                onChange={e => setOverwrite(e.target.checked)}
+                className="accent-fuchsia-500"
+              />
+              覆盖同名
+            </label>
+          </div>
+
+          {plan && (
+            <div className="rounded-lg border border-fuchsia-500/15 bg-fuchsia-500/5 px-3 py-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                {planCount !== null && <span className="badge bg-slate-800/70 text-slate-300">{planCount} 点</span>}
+                {planDim !== null && <span className="badge bg-slate-800/70 text-slate-300">{planDim} 维输入</span>}
+                <span className="text-fuchsia-200 truncate">{plan.summary}</span>
+              </div>
+              <div className="font-mono text-slate-500 truncate">
+                {plan.preview.map(row => `[${row.map(v => Number(v).toLocaleString()).join(', ')}]`).join('  ')}
+              </div>
+            </div>
+          )}
+
+          {result && (
+            <div className="rounded-lg border border-emerald-500/15 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-300">
+              已生成 {result.validation.sample_count.toLocaleString()} 条，保存到{' '}
+              <span className="font-mono text-emerald-200">{result.saved_path}</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="flex items-start gap-2 rounded-lg border border-red-500/20 bg-red-500/8 px-3 py-2 text-xs text-red-300">
+              <AlertCircle size={12} className="mt-0.5 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── 主页面 ────────────────────────────────────────────────────────
 
 export default function SimulationRunner() {
@@ -255,6 +516,39 @@ export default function SimulationRunner() {
     refreshInterval: 20000,
     revalidateOnMount: true,
   })
+  const { data: hdf5Files, mutate: refreshHdf5Files } = useSWR<Hdf5DataFileInfo[]>(
+    'simulation-data-files',
+    () => api.listHdf5DataFiles(),
+    {
+      refreshInterval: 20000,
+      revalidateOnMount: true,
+    },
+  )
+
+  const stage1DataRows = useMemo<SimulationScenario[]>(() => {
+    const rows = [...(scenarios ?? [])]
+    const seen = new Set(rows.map(simulationScenarioKey))
+    for (const item of hdf5Files ?? []) {
+      const key = `${item.simulator}/${item.scenario}`
+      if (seen.has(key)) continue
+      rows.push({
+        simulator: item.simulator,
+        scenario: item.scenario,
+        config_path: '',
+        h5_path: item.path,
+        sample_count: item.sample_count,
+        output_shape: item.output_shape,
+        file_size_bytes: item.file_size_bytes,
+      })
+      seen.add(key)
+    }
+    return rows
+  }, [hdf5Files, scenarios])
+
+  const refreshStage1Data = useCallback(() => {
+    refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
+    refreshHdf5Files(() => api.listHdf5DataFiles(), { revalidate: true })
+  }, [refreshHdf5Files, refreshScenarios])
 
   // ── 状态 ──
   const [selected, setSelected] = useState<Set<string>>(new Set())
@@ -349,16 +643,16 @@ export default function SimulationRunner() {
   // 每个场景完成后立即刷新场景列表（批量仿真时实时更新样本数）
   useEffect(() => {
     if (monitor.scenarioDoneCount > 0) {
-      refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
+      refreshStage1Data()
     }
-  }, [monitor.scenarioDoneCount, refreshScenarios])
+  }, [monitor.scenarioDoneCount, refreshStage1Data])
 
   // 全部完成后也刷新一次
   useEffect(() => {
     if (isTerminalJobStatus(monitor.status)) {
-      refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
+      refreshStage1Data()
     }
-  }, [monitor.status, refreshScenarios])
+  }, [monitor.status, refreshStage1Data])
 
   const selectedScenarios = useMemo(
     () => (scenarios ?? []).filter(s => selected.has(simulationScenarioKey(s))),
@@ -382,7 +676,7 @@ export default function SimulationRunner() {
             <button
               className="btn-ghost py-1 px-2 text-xs"
               onClick={() => {
-                refreshScenarios(() => api.getSimulationScenarios(true), { revalidate: true })
+                refreshStage1Data()
               }}
               title="刷新"
             >
@@ -653,8 +947,14 @@ export default function SimulationRunner() {
 
       {/* ── 右栏 ── */}
       <div className="workbench-main-scroll">
+        <ExpertModelPanel
+          onGenerated={() => {
+            refreshStage1Data()
+          }}
+        />
+
         {/* 数据总览卡片 */}
-        {scenarios && scenarios.length > 0 && <DataOverviewCards scenarios={scenarios} />}
+        {stage1DataRows.length > 0 && <DataOverviewCards scenarios={stage1DataRows} />}
 
         {/* Job 监控面板 */}
         <JobMonitorPanel
@@ -697,7 +997,7 @@ export default function SimulationRunner() {
               <span className="font-medium text-slate-200 text-base">HDF5 文件详情</span>
               {scenarios && (
                 <span className="badge bg-slate-700/50 text-slate-400 border border-slate-600/30 text-xs py-0.5">
-                  {scenarios.filter(s => s.h5_path).length} / {scenarios.length}
+                  {stage1DataRows.filter(s => s.h5_path).length} / {stage1DataRows.length}
                 </span>
               )}
             </div>
@@ -722,7 +1022,7 @@ export default function SimulationRunner() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(scenarios ?? []).map(s => {
+                  {stage1DataRows.map(s => {
                     return (
                       <tr
                         key={`${s.simulator}/${s.scenario}`}

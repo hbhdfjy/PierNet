@@ -428,6 +428,49 @@ export interface Hdf5UploadResponse {
   validation: Hdf5ValidationResult
 }
 
+export interface ExpertModelInfo {
+  model_id: string
+  name: string
+  file_name: string
+  path: string
+  created_at: number
+  file_size_bytes: number
+  interface: string
+  interface_version: number
+  exists?: boolean
+}
+
+export interface ExpertModelListResponse {
+  interface: string
+  interface_version: number
+  models: ExpertModelInfo[]
+}
+
+export interface ExpertModelUploadResponse {
+  ok: boolean
+  interface: string
+  model: ExpertModelInfo
+}
+
+export interface ExpertInputPlanResponse {
+  ok: boolean
+  model_id: string
+  plan: Record<string, unknown>
+  preview: number[][]
+  summary: string
+  warnings: string[]
+}
+
+export interface ExpertGenerateResponse {
+  ok: boolean
+  model: ExpertModelInfo
+  simulator: string
+  scenario: string
+  saved_path: string
+  input_plan: Record<string, unknown>
+  validation: Hdf5ValidationResult
+}
+
 export interface SimulateRequest {
   simulator: string
   scenario: string

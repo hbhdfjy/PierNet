@@ -20,6 +20,10 @@ import type {
   BatchSimulateRequest,
   Hdf5DataFileInfo,
   Hdf5UploadResponse,
+  ExpertModelListResponse,
+  ExpertModelUploadResponse,
+  ExpertInputPlanResponse,
+  ExpertGenerateResponse,
   FileCatalogResponse,
   FileCatalogMutationResponse,
   RouterStatus,
@@ -330,6 +334,58 @@ export const api = {
       body: args.file,
     })
     await ensureOk(res, '上传失败')
+    return res.json()
+  },
+
+  listExpertModels: (): Promise<ExpertModelListResponse> => get('/simulation/expert-models'),
+
+  uploadExpertModel: async (args: { name: string; file: File }): Promise<ExpertModelUploadResponse> => {
+    const url = new URL(`${BASE}/simulation/expert-models/upload`, window.location.origin)
+    url.searchParams.set('name', args.name)
+    const res = await apiFetch(url.toString(), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: args.file,
+    })
+    await ensureOk(res, '上传专家模型失败')
+    return res.json()
+  },
+
+  planExpertInputs: async (args: {
+    modelId: string
+    prompt: string
+    inputDim?: number | null
+  }): Promise<ExpertInputPlanResponse> => {
+    const body: { prompt: string; input_dim?: number | null } = { prompt: args.prompt }
+    if (args.inputDim != null) body.input_dim = args.inputDim
+    const res = await apiFetch(`${BASE}/simulation/expert-models/${encodeURIComponent(args.modelId)}/input-plan`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    await ensureOk(res, '解析专家模型输入失败')
+    return res.json()
+  },
+
+  generateExpertData: async (args: {
+    modelId: string
+    scenario: string
+    prompt: string
+    inputDim?: number | null
+    overwrite: boolean
+  }): Promise<ExpertGenerateResponse> => {
+    const body: { scenario: string; prompt: string; input_dim?: number | null; overwrite: boolean } = {
+      scenario: args.scenario,
+      prompt: args.prompt,
+      overwrite: args.overwrite,
+    }
+    if (args.inputDim != null) body.input_dim = args.inputDim
+    const res = await apiFetch(`${BASE}/simulation/expert-models/${encodeURIComponent(args.modelId)}/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    await ensureOk(res, '生成专家模型数据失败')
     return res.json()
   },
 

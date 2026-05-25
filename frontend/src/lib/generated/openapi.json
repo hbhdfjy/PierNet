@@ -48,6 +48,165 @@
         "title": "BatchSimulateRequest",
         "type": "object"
       },
+      "ExpertGenerateRequest": {
+        "properties": {
+          "input_dim": {
+            "anyOf": [
+              {
+                "maximum": 32.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Dim"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "prompt": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "scenario"
+        ],
+        "title": "ExpertGenerateRequest",
+        "type": "object"
+      },
+      "ExpertGenerateResponse": {
+        "properties": {
+          "input_plan": {
+            "additionalProperties": true,
+            "title": "Input Plan",
+            "type": "object"
+          },
+          "model": {
+            "additionalProperties": true,
+            "title": "Model",
+            "type": "object"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "saved_path": {
+            "title": "Saved Path",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "validation": {
+            "additionalProperties": true,
+            "title": "Validation",
+            "type": "object"
+          }
+        },
+        "required": [
+          "model",
+          "simulator",
+          "scenario",
+          "saved_path",
+          "input_plan",
+          "validation"
+        ],
+        "title": "ExpertGenerateResponse",
+        "type": "object"
+      },
+      "ExpertInputPlanRequest": {
+        "properties": {
+          "input_dim": {
+            "anyOf": [
+              {
+                "maximum": 32.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Dim"
+          },
+          "prompt": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt"
+        ],
+        "title": "ExpertInputPlanRequest",
+        "type": "object"
+      },
+      "ExpertInputPlanResponse": {
+        "properties": {
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          },
+          "ok": {
+            "default": true,
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "plan": {
+            "additionalProperties": true,
+            "title": "Plan",
+            "type": "object"
+          },
+          "preview": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "title": "Preview",
+            "type": "array"
+          },
+          "summary": {
+            "title": "Summary",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "model_id",
+          "plan",
+          "preview",
+          "summary"
+        ],
+        "title": "ExpertInputPlanResponse",
+        "type": "object"
+      },
       "FillSamplesRequest": {
         "properties": {
           "batch_size": {
@@ -3473,6 +3632,163 @@
           }
         },
         "summary": "Get Simulation Data Files"
+      }
+    },
+    "/api/simulation/expert-models": {
+      "get": {
+        "description": "列出已上传专家模型，以及服务器假定的最小模型接口。",
+        "operationId": "list_expert_models_api_simulation_expert_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Expert Models"
+      }
+    },
+    "/api/simulation/expert-models/upload": {
+      "post": {
+        "description": "上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float]).",
+        "operationId": "upload_expert_model_api_simulation_expert_models_upload_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 180,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Expert Model"
+      }
+    },
+    "/api/simulation/expert-models/{model_id}/generate": {
+      "post": {
+        "description": "调用专家模型生成 Stage 1 HDF5 数据，格式与内置物理仿真输出一致。",
+        "operationId": "generate_expert_model_data_api_simulation_expert_models__model_id__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertGenerateResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Expert Model Data"
+      }
+    },
+    "/api/simulation/expert-models/{model_id}/input-plan": {
+      "post": {
+        "description": "对话式解析专家模型输入设定，返回可审计输入计划和预览。",
+        "operationId": "plan_expert_model_inputs_api_simulation_expert_models__model_id__input_plan_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertInputPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpertInputPlanResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Plan Expert Model Inputs"
       }
     },
     "/api/simulation/scenarios": {
