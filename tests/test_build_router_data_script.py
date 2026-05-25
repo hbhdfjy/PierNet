@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-from piern.shared.storage import portable
-from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
+from PierNet.shared.storage import portable
+from PierNet.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
 
 
 def test_build_router_data_script_auto_reads_mixed_parquet_and_jsonl_sources(tmp_path: Path):

@@ -4,7 +4,7 @@ source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 cd "$ROOT"
 
 echo "prod: validating runtime configuration"
-env PATH="$SERVICE_PATH" "$PYTHON" -m piern.shared.runtime.config
+env PATH="$SERVICE_PATH" "$PYTHON" -m PierNet.shared.runtime.config
 
 echo "prod: building frontend static bundle"
 env PATH="$SERVICE_PATH" "$NPM" --prefix frontend run build

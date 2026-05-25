@@ -36,9 +36,9 @@ import h5py
 # 将项目根目录加入 sys.path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from piern.core.llm_client import LLMClient
-from piern.synth.text2comp.generator import LLMTextGenerator
-from piern.synth.text2comp.pipeline import (
+from PierNet.core.llm_client import LLMClient
+from PierNet.synth.text2comp.generator import LLMTextGenerator
+from PierNet.synth.text2comp.pipeline import (
     _load_registry,
     _resolve_data_path,
     _resolve_domain,

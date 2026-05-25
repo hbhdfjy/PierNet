@@ -1,6 +1,6 @@
-# PiERN
+# PierNet
 
-PiERN 是一个面向物理与工程时序数据的双平台系统，当前由同一个 FastAPI + React 应用交付。
+PierNet 是一个面向物理与工程时序数据的双平台系统，当前由同一个 FastAPI + React 应用交付。
 
 - `/synth`：Stage 1-4 数据合成工作台。
 - `/training`：单 GPU Token Router 自动训练工作台。
@@ -27,10 +27,10 @@ PiERN 是一个面向物理与工程时序数据的双平台系统，当前由�
 自动训练   http://localhost:8000/training
 文件管理   http://localhost:8000/synth/files（/files 会重定向）
 API 文档   http://localhost:8000/docs
-Vite 开发  http://localhost:5173/
+Vite 开发  http://localhost:3000/
 ```
 
-`8000` 是 FastAPI 端口；当 `frontend/dist` 存在时，后端也会托管构建后的前端资源。`5173` 是 Vite 开发服务器端口。
+`8000` 是 FastAPI 端口；当 `frontend/dist` 存在时，后端也会托管构建后的前端资源。`3000` 是 Vite 开发服务器端口。
 
 ## 安装
 
@@ -52,12 +52,12 @@ npm install
 
 ### Conda 环境
 
-`scripts/services/*` 和 `start_ui.sh` 会在 `.env` 存在时加载它；若仓库内存在 `.conda/env/bin/python` 会优先使用该环境，否则默认使用 `$HOME/.conda/envs/piern`。迁移部署时建议复制 `.env.example`：
+`scripts/services/*` 和 `start_ui.sh` 会在 `.env` 存在时加载它；若仓库内存在 `.conda/env/bin/python` 会优先使用该环境，否则默认使用 `$HOME/.conda/envs/PierNet`。迁移部署时建议复制 `.env.example`：
 
 ```bash
 cp .env.example .env
-export PIERN_CONDA_ENV=$HOME/.conda/envs/piern
-export PIERN_QWEN_EMBEDDING_MODEL=$HOME/Qwen/Qwen2.5-0.5B-Instruct
+export PierNet_CONDA_ENV=$HOME/.conda/envs/PierNet
+export PierNet_QWEN_EMBEDDING_MODEL=$HOME/Qwen/Qwen2.5-0.5B-Instruct
 ```
 
 修改完变量后，在同一个 shell 中启动服务。
@@ -77,7 +77,7 @@ PY2
 然后设置：
 
 ```bash
-export PIERN_MODFLOW_EXE=/path/to/mf2005
+export PierNet_MODFLOW_EXE=/path/to/mf2005
 ```
 
 ## 启动应用
@@ -103,7 +103,7 @@ scripts/services/stop.sh
 两种方式都会启动：
 
 - FastAPI：`0.0.0.0:8000`
-- Vite：`0.0.0.0:5173`
+- Vite：`0.0.0.0:3000`
 
 手动启动后端：
 
@@ -226,23 +226,23 @@ artifacts/token_router/{simulator}/runs/{run_name}/
 ### Stage 1
 
 ```bash
-python -m piern.simulators.modflow.pipeline \
+python -m PierNet.simulators.modflow.pipeline \
   --config configs/modflow/variants/unified_aquifer.yaml \
   --n-samples 1000
 
-python -m piern.simulators.simpeg.pipeline \
+python -m PierNet.simulators.simpeg.pipeline \
   --config configs/simpeg/variants/dc_resistivity.yaml \
   --n-samples 1000
 
-python -m piern.simulators.power_flow.pipeline \
+python -m PierNet.simulators.power_flow.pipeline \
   --config configs/power_flow/variants/ieee14_baseload.yaml \
   --n-samples 1000
 
-python -m piern.simulators.transient.pipeline \
+python -m PierNet.simulators.transient.pipeline \
   --config configs/transient/variants/ieee14_fault.yaml \
   --n-samples 500
 
-python -m piern.simulators.gcam.pipeline \
+python -m PierNet.simulators.gcam.pipeline \
   --config configs/gcam/variants/energy_transition.yaml \
   --n-samples 1000
 ```
@@ -250,7 +250,7 @@ python -m piern.simulators.gcam.pipeline \
 ### Stage 2
 
 ```bash
-python -m piern.synth.text2comp.auto_register \
+python -m PierNet.synth.text2comp.auto_register \
   --config configs/text2comp/default.yaml \
   --output configs/text2comp/registry.yaml
 
@@ -294,7 +294,7 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 
 - 模型：`FullSeqDilatedConvRouter`。
 - 输入表示：Qwen tokenizer + 冻结的预训练 embedding 表。
-- 默认 embedding backbone：优先使用 `PIERN_QWEN_EMBEDDING_MODEL`，否则回退到 `~/Qwen/Qwen2.5-0.5B-Instruct`。
+- 默认 embedding backbone：优先使用 `PierNet_QWEN_EMBEDDING_MODEL`，否则回退到 `~/Qwen/Qwen2.5-0.5B-Instruct`。
 - 数据切分：只使用 train/test。
 - embedding 在训练时查表，不离线保存。
 
@@ -319,13 +319,13 @@ python scripts/utils/rebuild_indexes.py
 ## 仓库结构
 
 ```text
-api_server.py                  # 兼容入口，导出 piern.api.main.app
-piern/api/main.py              # 统一 FastAPI 应用组装
-piern/core/                    # 共享底层存储、校验和 LLM 客户端
-piern/shared/                  # 静态托管和运行时路径
-piern/simulators/              # Stage 1 仿真实现
-piern/synth/                   # 数据合成后端和 text2comp 核心
-piern/training/                # 训练 API、管理器和 Token Router 核心
+api_server.py                  # 兼容入口，导出 PierNet.api.main.app
+PierNet/api/main.py              # 统一 FastAPI 应用组装
+PierNet/core/                    # 共享底层存储、校验和 LLM 客户端
+PierNet/shared/                  # 静态托管和运行时路径
+PierNet/simulators/              # Stage 1 仿真实现
+PierNet/synth/                   # 数据合成后端和 text2comp 核心
+PierNet/training/                # 训练 API、管理器和 Token Router 核心
 frontend/src/platform/         # 首页和顶层路由
 frontend/src/synth/            # 数据合成前端
 frontend/src/training/         # 自动训练前端
@@ -340,7 +340,7 @@ scripts/utils/                 # manifest、索引、检查和工具脚本
 后端语法检查：
 
 ```bash
-python -m compileall piern scripts api_server.py
+python -m compileall PierNet scripts api_server.py
 ```
 
 前端构建：

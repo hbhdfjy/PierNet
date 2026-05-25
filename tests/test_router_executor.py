@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from piern.synth.services import router_executor
+from PierNet.synth.services import router_executor
 
 
 def _option_value(command: list[str], option: str) -> str:

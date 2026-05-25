@@ -1,4 +1,4 @@
-from piern.training.services import job_store
+from PierNet.training.services import job_store
 
 
 def _use_tmp_store(monkeypatch, tmp_path):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from piern.synth.text2comp.template_store import (
+from PierNet.synth.text2comp.template_store import (
     OutputSlot,
     PlaceholderSlot,
     TemplateRecord,

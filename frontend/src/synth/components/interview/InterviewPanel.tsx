@@ -1250,11 +1250,11 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
   if (!sessionId) {
     const canStart = simulator.trim() && (mode === 'simulator' || scenario.trim())
     return (
-      <div className="flex-1 flex flex-col items-center justify-center p-8 overflow-y-auto">
-        <div className="w-full max-w-2xl space-y-5">
+      <div className="register-start-shell">
+        <div className="register-start-card w-full max-w-2xl space-y-5">
           {/* 页头 */}
-          <div className="text-center">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500/20 to-sky-600/10 border border-sky-500/25 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-900/10">
+          <div className="register-start-intro text-center">
+            <div className="register-start-icon w-14 h-14 rounded-2xl bg-gradient-to-br from-sky-500/20 to-sky-600/10 border border-sky-500/25 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-sky-900/10">
               <Bot size={26} className="text-sky-400" />
             </div>
             <h2 className="text-xl font-bold text-white">智能注册向导</h2>

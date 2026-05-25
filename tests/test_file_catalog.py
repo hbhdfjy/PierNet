@@ -5,12 +5,12 @@ from pathlib import Path
 
 from fastapi import HTTPException
 
-from piern.shared.storage import portable
-from piern.shared.storage.portable import PartitionInfo
-from piern.synth.api.routers import config as config_router
-from piern.synth.api.routers import files as files_router
-from piern.synth.api.routers import generation as generation_router
-from piern.synth.services import file_catalog, file_manager, manifest_store
+from PierNet.shared.storage import portable
+from PierNet.shared.storage.portable import PartitionInfo
+from PierNet.synth.api.routers import config as config_router
+from PierNet.synth.api.routers import files as files_router
+from PierNet.synth.api.routers import generation as generation_router
+from PierNet.synth.services import file_catalog, file_manager, manifest_store
 
 
 def _partition(kind: str, simulator: str, scenario: str, path: Path) -> PartitionInfo:
@@ -69,7 +69,7 @@ def test_clear_router_deletes_jsonl_train_metadata_and_parquet_partitions(monkey
 
     monkeypatch.setattr(file_catalog, "ROUTER_DIR", router_dir)
     monkeypatch.setattr(file_catalog, "ROUTER_SCENARIO_DIR", scenario_dir)
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(router_dir / ".parquet_jsonl_cache"))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(router_dir / ".parquet_jsonl_cache"))
     monkeypatch.setattr(file_catalog, "_assert_no_active_jobs", lambda *args, **kwargs: None)
     monkeypatch.setattr(file_catalog, "_assert_no_active_training_jobs", lambda *args, **kwargs: None)
     monkeypatch.setattr(file_catalog.manifest_store, "rebuild_router_manifest", lambda: {})
@@ -106,7 +106,7 @@ def test_catalog_lists_router_jsonl_cache(monkeypatch, tmp_path: Path) -> None:
         encoding="utf-8",
     )
 
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
 
     assets = file_catalog._router_cache_assets()
 
@@ -129,7 +129,7 @@ def test_delete_router_parquet_asset_removes_materialized_cache(monkeypatch, tmp
     meta_path.write_text("{}", encoding="utf-8")
     asset_id = file_catalog.encode_asset_id("router_parquet", "modflow", "case_a")
 
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
     monkeypatch.setattr(file_catalog, "_assert_no_active_jobs", lambda *args, **kwargs: None)
     monkeypatch.setattr(file_catalog, "_assert_no_active_training_jobs", lambda *args, **kwargs: None)
     monkeypatch.setattr(file_catalog.portable, "delete_partition", lambda kind, scenario, simulator=None: True)
@@ -151,7 +151,7 @@ def test_delete_router_cache_asset_removes_jsonl_and_meta(monkeypatch, tmp_path:
     meta_path.write_text("{}", encoding="utf-8")
     asset_id = file_catalog.encode_asset_id("router_cache", "modflow", "case_a")
 
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
     monkeypatch.setattr(file_catalog, "_assert_no_active_training_jobs", lambda *args, **kwargs: None)
 
     result = file_catalog.delete_asset(asset_id)
@@ -171,7 +171,7 @@ def test_delete_encoded_router_cache_asset_preserves_portable_scenario(monkeypat
     cache_path.write_text('{"label":1}\n', encoding="utf-8")
     meta_path.write_text(json.dumps({"simulator": "modflow", "scenario": scenario, "row_count": 1}), encoding="utf-8")
 
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
     monkeypatch.setattr(file_catalog, "_assert_no_active_training_jobs", lambda *args, **kwargs: None)
 
     asset = file_catalog._router_cache_assets()[0]

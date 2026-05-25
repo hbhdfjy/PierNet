@@ -25,11 +25,11 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.storage import portable  # noqa: E402
+from PierNet.shared.storage import portable  # noqa: E402
 
 DEFAULT_LOCAL_QWEN_DIR = str(Path.home() / "Qwen" / "Qwen2.5-0.5B-Instruct")
-DEFAULT_QWEN_EMBEDDING_MODEL = os.getenv("PIERN_QWEN_EMBEDDING_MODEL", DEFAULT_LOCAL_QWEN_DIR)
-DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PIERN_QWEN_EMBEDDING_TOKENIZER", DEFAULT_QWEN_EMBEDDING_MODEL)
+DEFAULT_QWEN_EMBEDDING_MODEL = os.getenv("PierNet_QWEN_EMBEDDING_MODEL", DEFAULT_LOCAL_QWEN_DIR)
+DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PierNet_QWEN_EMBEDDING_TOKENIZER", DEFAULT_QWEN_EMBEDDING_MODEL)
 
 QWEN_TEMPLATE = {
     "_name": "qwen",
@@ -671,7 +671,7 @@ def main() -> None:
     parser.add_argument(
         "--max-workers",
         type=int,
-        default=int(os.getenv("PIERN_ROUTER_BUILD_WORKERS", "8")),
+        default=int(os.getenv("PierNet_ROUTER_BUILD_WORKERS", "8")),
         help="Parquet 路由数据构建的场景内并行进程数",
     )
     args = parser.parse_args()

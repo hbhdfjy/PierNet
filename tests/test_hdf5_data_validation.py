@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 import yaml
 
-from piern.synth.services import hdf5_data
-from piern.synth.text2comp import pipeline as text2comp_pipeline
+from PierNet.synth.services import hdf5_data
+from PierNet.synth.text2comp import pipeline as text2comp_pipeline
 
 
 def _write_valid_hdf5(path, *, n=3, c=2, t=4, p=2):

@@ -1,5 +1,5 @@
 #!/bin/bash
-# PiERN 前后端一键启动脚本
+# PierNet 前后端一键启动脚本
 # 用法：
 #   ./start_ui.sh          # 启动后端和前端开发服务
 #   ./start_ui.sh --dev    # 后端启用 --reload，便于修改 Python 代码后自动重载
@@ -7,7 +7,7 @@
 set -e
 cd "$(dirname "$0")"
 
-ENV_FILE=${PIERN_ENV_FILE:-"$PWD/.env"}
+ENV_FILE=${PierNet_ENV_FILE:-"$PWD/.env"}
 if [[ -f "$ENV_FILE" ]]; then
     set -a
     # shellcheck disable=SC1090
@@ -20,12 +20,12 @@ if [[ "${1:-}" == "--dev" ]]; then
     DEV_MODE=true
 fi
 
-CONDA_BASE="${PIERN_CONDA_BASE:-/usr/local/miniconda3}"
-DEFAULT_CONDA_ENV="$HOME/.conda/envs/piern"
+CONDA_BASE="${PierNet_CONDA_BASE:-/usr/local/miniconda3}"
+DEFAULT_CONDA_ENV="$HOME/.conda/envs/PierNet"
 if [[ -x "$PWD/.conda/env/bin/python" ]]; then
     DEFAULT_CONDA_ENV="$PWD/.conda/env"
 fi
-CONDA_ENV_PATH="${PIERN_CONDA_ENV:-$DEFAULT_CONDA_ENV}"
+CONDA_ENV_PATH="${PierNet_CONDA_ENV:-$DEFAULT_CONDA_ENV}"
 if [[ -f "$CONDA_BASE/bin/activate" && -d "$CONDA_ENV_PATH" ]]; then
     # shellcheck disable=SC1090
     source "$CONDA_BASE/bin/activate" "$CONDA_ENV_PATH"
@@ -46,8 +46,8 @@ elif compgen -G "$PWD/.node/node-v*/bin/node" >/dev/null; then
         [[ -x "$candidate" ]] && DEFAULT_NODE_BIN="$candidate" && break
     done
 fi
-NODE_BIN_CANDIDATE="${PIERN_NODE_BIN:-${PIERN_NODE:-$DEFAULT_NODE_BIN}}"
-NODE_BIN_DIR="${PIERN_NODE_BIN_DIR:-}"
+NODE_BIN_CANDIDATE="${PierNet_NODE_BIN:-${PierNet_NODE:-$DEFAULT_NODE_BIN}}"
+NODE_BIN_DIR="${PierNet_NODE_BIN_DIR:-}"
 if [[ -n "$NODE_BIN_CANDIDATE" ]]; then
     if [[ ! -x "$NODE_BIN_CANDIDATE" ]]; then
         echo "配置的 Node 不存在或不可执行：$NODE_BIN_CANDIDATE"
@@ -63,7 +63,7 @@ NVM_DIR="${NVM_DIR:-$HOME/.nvm}"
 if [[ -z "$NODE_BIN_CANDIDATE" && -z "$NODE_BIN_DIR" && -s "$NVM_DIR/nvm.sh" ]]; then
     # shellcheck disable=SC1090
     source "$NVM_DIR/nvm.sh"
-    nvm use "${PIERN_NODE_VERSION:-default}" >/dev/null 2>&1 || \
+    nvm use "${PierNet_NODE_VERSION:-default}" >/dev/null 2>&1 || \
         nvm use --lts >/dev/null 2>&1 || \
         nvm use 20 >/dev/null 2>&1 || true
 fi
@@ -71,16 +71,16 @@ if ! command -v node >/dev/null 2>&1; then
     echo "未找到 node，请先安装 Node.js 20.19.0+"
     exit 1
 fi
-NPM_BIN="${PIERN_NPM:-npm}"
+NPM_BIN="${PierNet_NPM:-npm}"
 if ! command -v "$NPM_BIN" >/dev/null 2>&1; then
     echo "未找到 npm：$NPM_BIN"
     exit 1
 fi
 
 MIN_NODE_VERSION="20.19.0"
-BACKEND_PORT="${PIERN_BACKEND_PORT:-8000}"
-FRONTEND_PORT="${PIERN_FRONTEND_PORT:-5173}"
-HOST="${PIERN_HOST:-0.0.0.0}"
+BACKEND_PORT="${PierNet_BACKEND_PORT:-8000}"
+FRONTEND_PORT="${PierNet_FRONTEND_PORT:-3000}"
+HOST="${PierNet_HOST:-0.0.0.0}"
 if ! node -e "const min='$MIN_NODE_VERSION'.split('.').map(Number); const cur=process.versions.node.split('.').map(Number); process.exit(cur[0] > min[0] || (cur[0] === min[0] && (cur[1] > min[1] || (cur[1] === min[1] && cur[2] >= min[2]))) ? 0 : 1)" >/dev/null 2>&1; then
     echo "当前 Node.js 版本过低：$(node --version 2>&1)，请安装或切换到 Node.js ${MIN_NODE_VERSION}+"
     exit 1
@@ -88,7 +88,7 @@ fi
 
 HOST_IP="$(hostname -I 2>/dev/null | awk '{print $1}')"
 
-echo "启动 PiERN 前后端开发环境..."
+echo "启动 PierNet 前后端开发环境..."
 echo ""
 
 echo "Python: $(python --version 2>&1)"

@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from piern.shared.storage.portable import PartitionInfo
-from piern.synth.services import file_catalog
+from PierNet.shared.storage.portable import PartitionInfo
+from PierNet.synth.services import file_catalog
 
 
 def _partition(kind: str, simulator: str, scenario: str, path: Path) -> PartitionInfo:

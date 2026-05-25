@@ -2,4 +2,4 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 cd "$ROOT"
-exec env PATH="$SERVICE_PATH" "$PYTHON" -m piern.worker
+exec env PATH="$SERVICE_PATH" "$PYTHON" -m PierNet.worker

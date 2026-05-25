@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert PiERN patent Markdown drafts to Word documents.
+"""Convert PierNet patent Markdown drafts to Word documents.
 
 The Markdown files remain the source of truth. This script regenerates Word
 documents on demand so reviewers can work with docx files without manually
@@ -462,7 +462,7 @@ def resolve_template(path_arg: str | None) -> Path | None:
     candidates: list[Path] = []
     if path_arg:
         candidates.append(Path(path_arg).expanduser())
-    env_template = os.environ.get("PIERN_PATENT_TEMPLATE")
+    env_template = os.environ.get("PierNet_PATENT_TEMPLATE")
     if env_template:
         candidates.append(Path(env_template).expanduser())
     candidates.extend(DEFAULT_TEMPLATE_CANDIDATES)
@@ -489,7 +489,7 @@ def default_output_name(draft: PatentDraft, suffix: str = "") -> str:
 
 
 def build_arg_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="将 PiERN 专利 Markdown 草案转换为中文命名的 Word 文件。")
+    parser = argparse.ArgumentParser(description="将 PierNet 专利 Markdown 草案转换为中文命名的 Word 文件。")
     parser.add_argument(
         "markdown",
         nargs="*",
@@ -506,7 +506,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         "--template",
         type=str,
         default=None,
-        help="可选 Word 模板路径；也可通过 PIERN_PATENT_TEMPLATE 环境变量指定。",
+        help="可选 Word 模板路径；也可通过 PierNet_PATENT_TEMPLATE 环境变量指定。",
     )
     parser.add_argument(
         "--figure-dir",

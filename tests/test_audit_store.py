@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from piern.shared.api.audit import install_audit
-from piern.shared.audit import store as audit_store
+from PierNet.shared.api.audit import install_audit
+from PierNet.shared.audit import store as audit_store
 
 
 def _use_tmp_store(monkeypatch, tmp_path):

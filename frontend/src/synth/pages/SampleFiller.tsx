@@ -46,7 +46,7 @@ export default function SampleFiller() {
     defaultWidth: 720,
     minWidth: 360,
     maxWidth: 920,
-    storageKey: 'piern_fill_sidebar_width_v2',
+    storageKey: 'PierNet_fill_sidebar_width_v2',
   })
 
   const {
@@ -429,7 +429,7 @@ export default function SampleFiller() {
         />
 
         {monitor.status === 'idle' && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 text-center py-16">
+          <div className="workbench-idle-panel text-center">
             <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center">
               <FlaskConical size={24} className="text-emerald-400/60" />
             </div>
@@ -441,21 +441,21 @@ export default function SampleFiller() {
         )}
 
         {/* File management lives in /synth/files */}
-        <div className="card overflow-hidden">
+        <div className="card workbench-files-card overflow-hidden">
           <div className="card-header justify-between py-3">
             <div className="flex items-center gap-2">
               <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">Sample files</span>
+              <span className="font-medium text-slate-200 text-base">样本文件</span>
             </div>
             <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
               打开文件管理
             </button>
           </div>
           <div className="p-4">
-            <div className="rounded-2xl border border-slate-700/35 bg-slate-900/30 p-4">
-              <div className="font-semibold text-slate-100">Centralized file manager</div>
+            <div className="workbench-file-note">
+              <div className="font-semibold text-slate-100">统一文件管理</div>
               <p className="mt-1 text-sm leading-6 text-slate-400">
-                Sample delete, clear, and merged-file state now live in the unified file manager.
+                样本删除、清空和合并文件状态已迁移到统一文件管理，避免在生成页面误删正在使用的数据。
               </p>
               <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/synth/files')}>
                 打开统一文件管理

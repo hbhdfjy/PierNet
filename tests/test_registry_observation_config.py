@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 from fastapi import HTTPException
 
-from piern.synth.api.routers import registry as registry_router
-from piern.synth.api.routers.registry import _registry_key_parts, _validate_registry_entry
-from piern.synth.text2comp.generator import LLMTextGenerator, _get_time_indices
-from piern.synth.text2comp.template_store import OutputSlot, TemplateRecord, fill_sample
+from PierNet.synth.api.routers import registry as registry_router
+from PierNet.synth.api.routers.registry import _registry_key_parts, _validate_registry_entry
+from PierNet.synth.text2comp.generator import LLMTextGenerator, _get_time_indices
+from PierNet.synth.text2comp.template_store import OutputSlot, TemplateRecord, fill_sample
 
 
 def test_registry_key_parts_rejects_nested_or_invalid_components():

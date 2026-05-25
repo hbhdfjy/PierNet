@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a portable SQLite catalog for PiERN data assets.
+"""Build a portable SQLite catalog for PierNet data assets.
 
 The catalog is derived state. It is safe to delete and rebuild after moving the
 project to a new server.
@@ -17,10 +17,10 @@ from typing import Any
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
-from piern.shared.storage import portable  # noqa: E402
-from piern.shared.storage.hdf5_files import hdf5_scenario_from_path  # noqa: E402
-from piern.shared.storage.hdf5_files import iter_hdf5_files_in_child_dirs  # noqa: E402
+from PierNet.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT  # noqa: E402
+from PierNet.shared.storage import portable  # noqa: E402
+from PierNet.shared.storage.hdf5_files import hdf5_scenario_from_path  # noqa: E402
+from PierNet.shared.storage.hdf5_files import iter_hdf5_files_in_child_dirs  # noqa: E402
 
 CATALOG_PATH = portable.CATALOG_DB_PATH
 

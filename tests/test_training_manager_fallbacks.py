@@ -5,11 +5,11 @@ from pathlib import Path
 
 import torch
 
-from piern.training.api.schemas.training import TrainingJobSummary
-from piern.training.services import job_store as training_job_store
-from piern.training.services import gpu_inventory, training_cleanup, training_manager
-from piern.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
-from piern.training.router.train import _prune_epoch_checkpoints
+from PierNet.training.api.schemas.training import TrainingJobSummary
+from PierNet.training.services import job_store as training_job_store
+from PierNet.training.services import gpu_inventory, training_cleanup, training_manager
+from PierNet.training.router.data import DEFAULT_QWEN_EMBEDDING_MODEL
+from PierNet.training.router.train import _prune_epoch_checkpoints
 
 
 def _use_tmp_training_store(monkeypatch, tmp_path: Path):

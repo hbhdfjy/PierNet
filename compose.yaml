@@ -1,44 +1,44 @@
-x-piern-common: &piern-common
+x-PierNet-common: &PierNet-common
   build:
     context: .
     dockerfile: Dockerfile
   env_file:
     - .env
-  environment: &piern-env
-    PIERN_ROOT: /app
-    PIERN_DATA_ROOT: /app/data
-    PIERN_ARTIFACT_ROOT: /app/artifacts
-    PIERN_RUNLOG_ROOT: /app/.runlogs
-    PIERN_JOB_STORE_PATH: /app/.runlogs/jobs.sqlite
-    PIERN_TRAINING_JOB_STORE_PATH: /app/.runlogs/training_jobs.sqlite
-    PIERN_LOCK_STORE_PATH: /app/.runlogs/job_locks.sqlite
-    PIERN_AUDIT_STORE_PATH: /app/.runlogs/audit_events.sqlite
-    PIERN_WORKER_STORE_PATH: /app/.runlogs/worker_heartbeats.sqlite
-    PIERN_ROUTER_JSONL_CACHE_DIR: /app/data/router/.parquet_jsonl_cache
-    PIERN_WORKER_QUEUE_SYNTH: "${PIERN_WORKER_QUEUE_SYNTH:-1}"
-    PIERN_WORKER_QUEUE_TRAINING: "${PIERN_WORKER_QUEUE_TRAINING:-1}"
-    PIERN_WORKER_QUEUE_LOCK_TTL_SECONDS: "${PIERN_WORKER_QUEUE_LOCK_TTL_SECONDS:-60}"
-    PIERN_SERVICE_RUN_DIR: /app/.runlogs/services
-    PIERN_PYTHON: /usr/local/bin/python
-    PIERN_TRAINING_PYTHON: /usr/local/bin/python
-    PIERN_CONDA_ENV: /usr/local
-    PIERN_NPM: npm
-    PIERN_NODE_BIN: ""
-    PIERN_QWEN_EMBEDDING_MODEL: /models/qwen
-    PIERN_QWEN_EMBEDDING_TOKENIZER: /models/qwen
-  volumes: &piern-volumes
+  environment: &PierNet-env
+    PierNet_ROOT: /app
+    PierNet_DATA_ROOT: /app/data
+    PierNet_ARTIFACT_ROOT: /app/artifacts
+    PierNet_RUNLOG_ROOT: /app/.runlogs
+    PierNet_JOB_STORE_PATH: /app/.runlogs/jobs.sqlite
+    PierNet_TRAINING_JOB_STORE_PATH: /app/.runlogs/training_jobs.sqlite
+    PierNet_LOCK_STORE_PATH: /app/.runlogs/job_locks.sqlite
+    PierNet_AUDIT_STORE_PATH: /app/.runlogs/audit_events.sqlite
+    PierNet_WORKER_STORE_PATH: /app/.runlogs/worker_heartbeats.sqlite
+    PierNet_ROUTER_JSONL_CACHE_DIR: /app/data/router/.parquet_jsonl_cache
+    PierNet_WORKER_QUEUE_SYNTH: "${PierNet_WORKER_QUEUE_SYNTH:-1}"
+    PierNet_WORKER_QUEUE_TRAINING: "${PierNet_WORKER_QUEUE_TRAINING:-1}"
+    PierNet_WORKER_QUEUE_LOCK_TTL_SECONDS: "${PierNet_WORKER_QUEUE_LOCK_TTL_SECONDS:-60}"
+    PierNet_SERVICE_RUN_DIR: /app/.runlogs/services
+    PierNet_PYTHON: /usr/local/bin/python
+    PierNet_TRAINING_PYTHON: /usr/local/bin/python
+    PierNet_CONDA_ENV: /usr/local
+    PierNet_NPM: npm
+    PierNet_NODE_BIN: ""
+    PierNet_QWEN_EMBEDDING_MODEL: /models/qwen
+    PierNet_QWEN_EMBEDDING_TOKENIZER: /models/qwen
+  volumes: &PierNet-volumes
     - ./data:/app/data
     - ./artifacts:/app/artifacts
     - ./.runlogs:/app/.runlogs
-    - ${PIERN_QWEN_EMBEDDING_MODEL:-./models/Qwen/Qwen2.5-0.5B-Instruct}:/models/qwen:ro
+    - ${PierNet_QWEN_EMBEDDING_MODEL:-./models/Qwen/Qwen2.5-0.5B-Instruct}:/models/qwen:ro
   restart: unless-stopped
 
 services:
   backend:
-    <<: *piern-common
+    <<: *PierNet-common
     ports:
-      - "${PIERN_BACKEND_PORT:-8000}:8000"
+      - "${PierNet_BACKEND_PORT:-8000}:8000"
 
   worker:
-    <<: *piern-common
-    command: ["python", "-m", "piern.worker", "--interval", "5"]
+    <<: *PierNet-common
+    command: ["python", "-m", "PierNet.worker", "--interval", "5"]

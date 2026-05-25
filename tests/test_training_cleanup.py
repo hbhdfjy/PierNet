@@ -1,4 +1,4 @@
-from piern.training.services import training_cleanup
+from PierNet.training.services import training_cleanup
 
 
 def test_stage_and_restore_training_artifacts(monkeypatch, tmp_path):

@@ -6,7 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const MIN_NODE_VERSION = [20, 19, 0]
 const MIN_NODE_LABEL = '20.19.0'
-const REEXEC_ENV = 'PIERN_VITE_NODE_REEXEC'
+const REEXEC_ENV = 'PierNet_VITE_NODE_REEXEC'
 
 const scriptPath = fileURLToPath(import.meta.url)
 const projectRoot = resolve(dirname(scriptPath), '../..')
@@ -36,8 +36,8 @@ function candidateNodes() {
     nodes.push(candidate)
   }
 
-  add(process.env.PIERN_NODE_BIN)
-  add(process.env.PIERN_NODE)
+  add(process.env.PierNet_NODE_BIN)
+  add(process.env.PierNet_NODE)
   add(join(projectRoot, '.node', 'current', 'bin', 'node'))
   const localNodeRoot = join(projectRoot, '.node')
   if (existsSync(localNodeRoot)) {
@@ -47,9 +47,9 @@ function candidateNodes() {
   }
   if (process.env.CONDA_PREFIX) add(join(process.env.CONDA_PREFIX, 'bin', 'node'))
   if (process.env.HOME) {
-    add(join(process.env.HOME, '.conda', 'envs', 'piern', 'bin', 'node'))
-    add(join(process.env.HOME, 'miniconda3', 'envs', 'piern', 'bin', 'node'))
-    add(join(process.env.HOME, 'anaconda3', 'envs', 'piern', 'bin', 'node'))
+    add(join(process.env.HOME, '.conda', 'envs', 'PierNet', 'bin', 'node'))
+    add(join(process.env.HOME, 'miniconda3', 'envs', 'PierNet', 'bin', 'node'))
+    add(join(process.env.HOME, 'anaconda3', 'envs', 'PierNet', 'bin', 'node'))
   }
   return nodes
 }
@@ -81,7 +81,7 @@ function reexecWithCompatibleNode() {
 
   console.error(
     `Vite 需要 Node ${MIN_NODE_LABEL}+，当前是 ${process.version}。` +
-    ' 请设置 PIERN_NODE_BIN=/path/to/node，或激活包含新版 Node 的 piern conda 环境。',
+    ' 请设置 PierNet_NODE_BIN=/path/to/node，或激活包含新版 Node 的 PierNet conda 环境。',
   )
   process.exit(1)
 }

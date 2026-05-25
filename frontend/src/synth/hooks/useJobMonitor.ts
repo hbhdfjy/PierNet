@@ -17,7 +17,7 @@ export interface JobMonitorState {
   scenarioDoneCount: number // 每完成一个场景递增，用于触发外部刷新
 }
 
-const JOBS_KEY = (stageKey: string) => `piern_jobs_${stageKey}`
+const JOBS_KEY = (stageKey: string) => `PierNet_jobs_${stageKey}`
 const EXPECTED_JOB_TYPES: Record<string, string[]> = {
   templates: ['generate_templates'],
   fill: ['fill_samples'],

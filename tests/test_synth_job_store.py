@@ -2,8 +2,8 @@ import asyncio
 from contextlib import contextmanager
 import time
 
-from piern.shared.tasks import locks as task_locks, workers
-from piern.synth.services import job_manager, job_store, worker_queue
+from PierNet.shared.tasks import locks as task_locks, workers
+from PierNet.synth.services import job_manager, job_store, worker_queue
 
 
 def _use_tmp_store(monkeypatch, tmp_path):
@@ -234,7 +234,7 @@ def test_queued_jobs_survive_api_process_recovery(monkeypatch, tmp_path):
 
 def test_synth_worker_marks_uncaught_dispatch_error_terminal(monkeypatch, tmp_path):
     _use_tmp_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_SYNTH", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_SYNTH", "1")
     job_store.upsert_job(
         job_id="fill-bad",
         job_type="fill_samples",
@@ -264,7 +264,7 @@ def test_synth_worker_marks_uncaught_dispatch_error_terminal(monkeypatch, tmp_pa
 
 def test_synth_worker_refreshes_queue_lock_while_dispatching(monkeypatch, tmp_path):
     _use_tmp_store(monkeypatch, tmp_path)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_SYNTH", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_SYNTH", "1")
     job_store.upsert_job(
         job_id="fill-refresh",
         job_type="fill_samples",

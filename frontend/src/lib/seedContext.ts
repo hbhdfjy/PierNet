@@ -33,13 +33,13 @@ export function useSeed(): SeedContextValue {
 
 export function readStoredSeed(): number {
   if (typeof localStorage === 'undefined') return 42
-  return parseSeedInput(localStorage.getItem('piern-seed') ?? '42') ?? 42
+  return parseSeedInput(localStorage.getItem('PierNet-seed') ?? '42') ?? 42
 }
 
 export function writeStoredSeed(value: number): number {
   const seed = normalizeSeed(value)
   if (typeof localStorage !== 'undefined') {
-    localStorage.setItem('piern-seed', String(seed))
+    localStorage.setItem('PierNet-seed', String(seed))
   }
   return seed
 }

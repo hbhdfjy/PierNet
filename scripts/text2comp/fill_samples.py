@@ -27,16 +27,16 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from piern.core.storage import load_dataset
-from piern.shared.storage import portable
-from piern.synth.text2comp.pipeline import (
+from PierNet.core.storage import load_dataset
+from PierNet.shared.storage import portable
+from PierNet.synth.text2comp.pipeline import (
     _resolve_data_path,
     _scan_h5_files,
     _scenario_name_from_path,
     assert_unique_stage_scenarios,
     load_config,
 )
-from piern.synth.text2comp.template_store import fill_sample, load_templates
+from PierNet.synth.text2comp.template_store import fill_sample, load_templates
 
 logging.basicConfig(
     level=logging.INFO,

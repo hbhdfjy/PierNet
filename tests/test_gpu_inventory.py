@@ -1,4 +1,4 @@
-from piern.training.services import gpu_inventory
+from PierNet.training.services import gpu_inventory
 
 
 def test_gpu_inventory_marks_busy_and_locked(monkeypatch):

@@ -7,10 +7,10 @@ import numpy as np
 import pytest
 import yaml
 
-from piern.simulators.gcam import pipeline as gcam_pipeline
-from piern.simulators.power_flow import pipeline as power_flow_pipeline
-from piern.simulators.simpeg import pipeline as simpeg_pipeline
-from piern.simulators.transient import pipeline as transient_pipeline
+from PierNet.simulators.gcam import pipeline as gcam_pipeline
+from PierNet.simulators.power_flow import pipeline as power_flow_pipeline
+from PierNet.simulators.simpeg import pipeline as simpeg_pipeline
+from PierNet.simulators.transient import pipeline as transient_pipeline
 
 
 class _DummyConverter:

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from piern.simulators.naming import scenario_name_from_output
+from PierNet.simulators.naming import scenario_name_from_output
 
 
 def test_scenario_name_from_output_strips_hdf5_suffix_and_simulator_prefix():

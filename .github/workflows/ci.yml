@@ -48,7 +48,7 @@ jobs:
         run: python scripts/ci/check_migration_ready.py
 
       - name: OpenAPI export
-        run: python scripts/ci/export_openapi.py /tmp/piern-openapi.json
+        run: python scripts/ci/export_openapi.py /tmp/PierNet-openapi.json
 
       - name: Set up Node for OpenAPI contract
         uses: actions/setup-node@v4
@@ -108,10 +108,10 @@ jobs:
 
       - name: Playwright smoke
         env:
-          PIERN_E2E_START_SERVER: '1'
+          PierNet_E2E_START_SERVER: '1'
         run: npm run e2e:smoke
 
       - name: Playwright visual
         env:
-          PIERN_E2E_START_SERVER: '1'
+          PierNet_E2E_START_SERVER: '1'
         run: npm run e2e:visual

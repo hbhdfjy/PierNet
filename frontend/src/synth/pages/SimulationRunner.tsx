@@ -220,12 +220,12 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
   ]
 
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+    <div className="data-overview-grid">
       {cards.map(({ id, label, value, sub, icon: Icon, color }) => (
-        <div key={id} className="card px-3 py-2.5">
+        <div key={id} className="card data-overview-card px-3 py-2.5">
           <div className="flex items-center gap-1.5 mb-1">
             <Icon size={12} className={color} />
-            <span className="label text-xs">{label}</span>
+            <span className="label min-w-0 truncate text-xs">{label}</span>
           </div>
           <div className={cn('text-xl font-bold tabular-nums', color)}>{value}</div>
           <div className="text-xs text-slate-600 mt-0.5">{sub}</div>
@@ -244,7 +244,7 @@ export default function SimulationRunner() {
     defaultWidth: 720,
     minWidth: 360,
     maxWidth: 920,
-    storageKey: 'piern_simulate_sidebar_width_v2',
+    storageKey: 'PierNet_simulate_sidebar_width_v2',
   })
 
   const {

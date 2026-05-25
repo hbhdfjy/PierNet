@@ -7,8 +7,8 @@ import argparse
 import json
 from pathlib import Path
 
-from piern.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT as DEFAULT_PROJECT_ROOT
-from piern.shared.storage import integrity
+from PierNet.shared.runtime.paths import DATA_ROOT, PROJECT_ROOT as DEFAULT_PROJECT_ROOT
+from PierNet.shared.storage import integrity
 
 PROJECT_ROOT = DEFAULT_PROJECT_ROOT
 DEFAULT_MANIFEST = integrity.DEFAULT_MANIFEST

@@ -4,7 +4,7 @@ export type Theme = 'dark' | 'light'
 
 export function useTheme(): [Theme, () => void] {
   const [theme, setTheme] = useState<Theme>(() => {
-    const stored = localStorage.getItem('piern-theme')
+    const stored = localStorage.getItem('PierNet-theme')
     if (stored === 'dark' || stored === 'light') return stored
     return window.matchMedia?.('(prefers-color-scheme: light)').matches ? 'light' : 'dark'
   })
@@ -14,7 +14,7 @@ export function useTheme(): [Theme, () => void] {
     root.classList.toggle('light', theme === 'light')
     root.classList.toggle('dark', theme === 'dark')
     root.dataset.theme = theme
-    localStorage.setItem('piern-theme', theme)
+    localStorage.setItem('PierNet-theme', theme)
   }, [theme])
 
   return [theme, () => setTheme(current => (current === 'dark' ? 'light' : 'dark'))]

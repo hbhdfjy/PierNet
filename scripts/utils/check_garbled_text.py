@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path(__file__).resolve().parents[2]
     base_paths = [repo_root / path for path in args.paths] if args.paths else [
         repo_root / "frontend",
-        repo_root / "piern",
+        repo_root / "PierNet",
         repo_root / "scripts",
         repo_root / "tests",
     ]

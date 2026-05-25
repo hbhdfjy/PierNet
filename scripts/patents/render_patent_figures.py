@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render deterministic Chinese patent figures for the PiERN patent drafts.
+"""Render deterministic Chinese patent figures for the PierNet patent drafts.
 
 The figures are text-heavy patent diagrams. A deterministic renderer keeps all
 Chinese labels exact while still giving the drawings a polished, review-ready
@@ -635,7 +635,7 @@ RENDERERS = (
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Render PiERN patent figures.")
+    parser = argparse.ArgumentParser(description="Render PierNet patent figures.")
     parser.add_argument(
         "--style",
         choices=("polished", "patent"),

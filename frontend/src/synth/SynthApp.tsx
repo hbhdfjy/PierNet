@@ -85,7 +85,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
     <AppShell
       platform="synth"
       mark="P"
-      title="PiERN 数据"
+      title="PierNet 数据"
       subtitle="数据合成工作台"
       navGroups={navGroups}
       theme={theme}

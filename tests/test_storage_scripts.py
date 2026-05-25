@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from piern.shared.storage import portable
+from PierNet.shared.storage import portable
 from scripts.ci import check_migration_ready
 from scripts.storage import build_catalog_db, migrate_jsonl_to_parquet
 

@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
-from piern.synth.api.routers import interview
+from PierNet.synth.api.routers import interview
 
 
 def _set_roots(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> tuple[Path, Path]:

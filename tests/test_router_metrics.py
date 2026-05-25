@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from piern.training.router.metrics import binary_classification_metrics, sigmoid
+from PierNet.training.router.metrics import binary_classification_metrics, sigmoid
 
 
 def test_sigmoid_handles_extreme_logits_without_overflow_warning():

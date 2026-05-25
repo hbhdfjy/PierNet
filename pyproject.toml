@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "piern-data-synthesis"
+name = "PierNet-data-synthesis"
 version = "0.1.0"
-description = "PiERN multi-simulator data synthesis and Token Router training platform"
+description = "PierNet multi-simulator data synthesis and Token Router training platform"
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -47,14 +47,14 @@ dev = [
 ]
 
 [project.scripts]
-piern-modflow = "piern.simulators.modflow.pipeline:main"
-piern-simpeg = "piern.simulators.simpeg.pipeline:main"
-piern-power = "piern.simulators.power_flow.pipeline:main"
-piern-transient = "piern.simulators.transient.pipeline:main"
-piern-gcam = "piern.simulators.gcam.pipeline:main"
+PierNet-modflow = "PierNet.simulators.modflow.pipeline:main"
+PierNet-simpeg = "PierNet.simulators.simpeg.pipeline:main"
+PierNet-power = "PierNet.simulators.power_flow.pipeline:main"
+PierNet-transient = "PierNet.simulators.transient.pipeline:main"
+PierNet-gcam = "PierNet.simulators.gcam.pipeline:main"
 
 [tool.setuptools.packages.find]
-include = ["piern*"]
+include = ["PierNet*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

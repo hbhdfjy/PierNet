@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 
-ENV_FILE=${PIERN_ENV_FILE:-"$ROOT/.env"}
+ENV_FILE=${PierNet_ENV_FILE:-"$ROOT/.env"}
 if [[ -f "$ENV_FILE" ]]; then
   set -a
   # shellcheck disable=SC1090
@@ -11,23 +11,23 @@ if [[ -f "$ENV_FILE" ]]; then
   set +a
 fi
 
-RUN_DIR=${PIERN_SERVICE_RUN_DIR:-"$ROOT/.runlogs/services"}
+RUN_DIR=${PierNet_SERVICE_RUN_DIR:-"$ROOT/.runlogs/services"}
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
 WORKER_PID_FILE="$RUN_DIR/worker.pid"
 BACKEND_LOG="$RUN_DIR/backend.log"
 FRONTEND_LOG="$RUN_DIR/frontend.log"
 WORKER_LOG="$RUN_DIR/worker.log"
-HOST=${PIERN_HOST:-${PIERN_SERVICE_HOST:-0.0.0.0}}
-BACKEND_PORT=${PIERN_BACKEND_PORT:-8000}
-FRONTEND_PORT=${PIERN_FRONTEND_PORT:-5173}
-DEFAULT_CONDA_ENV="$HOME/.conda/envs/piern"
+HOST=${PierNet_HOST:-${PierNet_SERVICE_HOST:-0.0.0.0}}
+BACKEND_PORT=${PierNet_BACKEND_PORT:-8000}
+FRONTEND_PORT=${PierNet_FRONTEND_PORT:-3000}
+DEFAULT_CONDA_ENV="$HOME/.conda/envs/PierNet"
 if [[ -x "$ROOT/.conda/env/bin/python" ]]; then
   DEFAULT_CONDA_ENV="$ROOT/.conda/env"
 fi
-CONDA_ENV=${PIERN_CONDA_ENV:-"$DEFAULT_CONDA_ENV"}
-PYTHON=${PIERN_PYTHON:-"$CONDA_ENV/bin/python"}
-NPM=${PIERN_NPM:-npm}
+CONDA_ENV=${PierNet_CONDA_ENV:-"$DEFAULT_CONDA_ENV"}
+PYTHON=${PierNet_PYTHON:-"$CONDA_ENV/bin/python"}
+NPM=${PierNet_NPM:-npm}
 DEFAULT_NODE_BIN=""
 if [[ -x "$ROOT/.node/current/bin/node" ]]; then
   DEFAULT_NODE_BIN="$ROOT/.node/current/bin/node"
@@ -36,11 +36,11 @@ elif compgen -G "$ROOT/.node/node-v*/bin/node" >/dev/null; then
     [[ -x "$candidate" ]] && DEFAULT_NODE_BIN="$candidate" && break
   done
 fi
-NODE_BIN=${PIERN_NODE_BIN:-${PIERN_NODE:-$DEFAULT_NODE_BIN}}
-NODE_BIN_DIR=${PIERN_NODE_BIN_DIR:-}
+NODE_BIN=${PierNet_NODE_BIN:-${PierNet_NODE:-$DEFAULT_NODE_BIN}}
+NODE_BIN_DIR=${PierNet_NODE_BIN_DIR:-}
 [[ -n "$NODE_BIN" && -z "$NODE_BIN_DIR" ]] && NODE_BIN_DIR=$(dirname "$NODE_BIN")
 SERVICE_PATH="${NODE_BIN_DIR:+$NODE_BIN_DIR:}$CONDA_ENV/bin:$PATH"
-SERVICE_USER=${PIERN_SERVICE_USER:-$(id -un)}
+SERVICE_USER=${PierNet_SERVICE_USER:-$(id -un)}
 
 mkdir -p "$RUN_DIR"
 
@@ -94,17 +94,17 @@ find_frontend_pid() {
 }
 
 find_worker_pid() {
-  first_matching_pid "python.*-m piern.worker" || true
+  first_matching_pid "python.*-m PierNet.worker" || true
 }
 
 worker_should_start() {
-  local setting=${PIERN_SERVICE_WORKER:-auto}
+  local setting=${PierNet_SERVICE_WORKER:-auto}
   case "${setting,,}" in
     1|true|yes|on) return 0 ;;
     0|false|no|off) return 1 ;;
   esac
-  local synth=${PIERN_WORKER_QUEUE_SYNTH:-1}
-  local training=${PIERN_WORKER_QUEUE_TRAINING:-1}
+  local synth=${PierNet_WORKER_QUEUE_SYNTH:-1}
+  local training=${PierNet_WORKER_QUEUE_TRAINING:-1}
   case "${synth,,}" in
     1|true|yes|on) return 0 ;;
   esac

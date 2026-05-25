@@ -1,6 +1,6 @@
-# PiERN 专利文件
+# PierNet 专利文件
 
-本目录集中存放 PiERN 项目的正式专利文本、专利化附图和 Word 生成说明。Markdown 文件是源文件，Word 文件是可重复生成的审稿交付件。
+本目录集中存放 PierNet 项目的正式专利文本、专利化附图和 Word 生成说明。Markdown 文件是源文件，Word 文件是可重复生成的审稿交付件。
 
 ## 文件清单
 
@@ -25,7 +25,7 @@ python3 scripts/patents/patent_md_to_docx.py --template /path/to/专利模板.do
 也可以通过环境变量指定模板：
 
 ```bash
-PIERN_PATENT_TEMPLATE=/path/to/专利模板.docx python3 scripts/patents/patent_md_to_docx.py --output-suffix '（专利化附图版）'
+PierNet_PATENT_TEMPLATE=/path/to/专利模板.docx python3 scripts/patents/patent_md_to_docx.py --output-suffix '（专利化附图版）'
 ```
 
 ## 生成附图

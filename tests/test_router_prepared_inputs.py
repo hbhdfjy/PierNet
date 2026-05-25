@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 import torch
 
-from piern.shared.storage import portable
-from piern.training.router.data import (
+from PierNet.shared.storage import portable
+from PierNet.training.router.data import (
     DEFAULT_QWEN_EMBEDDING_MODEL,
     PREPARED_FORMAT,
     PRETRAINED_EMBEDDINGS,
@@ -23,7 +23,7 @@ from piern.training.router.data import (
 
 @pytest.fixture(autouse=True)
 def _isolate_router_jsonl_cache_env(monkeypatch):
-    monkeypatch.delenv("PIERN_ROUTER_JSONL_CACHE_DIR", raising=False)
+    monkeypatch.delenv("PierNet_ROUTER_JSONL_CACHE_DIR", raising=False)
 
 
 def _write_router_jsonl(path, records):
@@ -87,8 +87,8 @@ def test_prepare_router_dataset_embedding_mode_indexes_router_records(tmp_path, 
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     prepared_dir = tmp_path / "prepared"
     summary = prepare_router_dataset(
@@ -114,7 +114,7 @@ def test_prepare_router_dataset_embedding_mode_indexes_router_records(tmp_path, 
         def __init__(self, spec):
             raise AssertionError("token cache dataset should not initialize tokenizer")
 
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FailingEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FailingEncoder)
     dataset = PackedSequenceDataset(
         prepared_dir=prepared_dir,
         split="train",
@@ -159,8 +159,8 @@ def test_prepare_router_dataset_embedding_defaults_to_qwen_backbone(tmp_path, mo
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     summary = prepare_router_dataset(
         simulator="modflow",
@@ -216,9 +216,9 @@ def test_prepare_router_dataset_parallel_token_cache_preserves_records(tmp_path,
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data.TOKEN_CACHE_MIN_CHUNK_BYTES", 256)
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.TOKEN_CACHE_MIN_CHUNK_BYTES", 256)
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     prepared_dir = tmp_path / "prepared"
     summary = prepare_router_dataset(
@@ -270,7 +270,7 @@ def test_prepare_router_dataset_embedding_requires_resolvable_backbone(tmp_path,
         },
     )
     monkeypatch.setattr(
-        "piern.training.router.data.can_resolve_embedding_backbone",
+        "PierNet.training.router.data.can_resolve_embedding_backbone",
         lambda spec: (False, "unreachable backbone"),
     )
 
@@ -356,13 +356,13 @@ def _router_partition(tmp_path, scenario="coastal_seawater", metadata=None):
 
 def test_inspect_router_input_representation_reads_parquet_manifest_without_jsonl_export(tmp_path, monkeypatch):
     partition = _router_partition(tmp_path)
-    monkeypatch.setattr("piern.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
-    monkeypatch.setattr("piern.training.router.data.portable.discover_partitions", lambda kind: [partition])
+    monkeypatch.setattr("PierNet.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
+    monkeypatch.setattr("PierNet.training.router.data.portable.discover_partitions", lambda kind: [partition])
     monkeypatch.setattr(
-        "piern.training.router.data.portable.export_records_to_jsonl",
+        "PierNet.training.router.data.portable.export_records_to_jsonl",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("should not export parquet for inspection")),
     )
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     representation, metadata = inspect_router_input_representation(
         simulator="modflow",
@@ -382,7 +382,7 @@ def test_materialize_parquet_router_files_rebuilds_when_cache_meta_counts_are_in
     router_dir = tmp_path / "router"
     partition = _router_partition(tmp_path, scenario="coastal_seawater")
     cache_root = tmp_path / "router-cache"
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
     cache_dir = cache_root / "modflow"
     cache_dir.mkdir(parents=True)
     cached_path = cache_dir / "coastal_seawater.jsonl"
@@ -414,7 +414,7 @@ def test_materialize_parquet_router_files_rebuilds_when_cache_meta_counts_are_in
         )
         return partition.row_count
 
-    monkeypatch.setattr("piern.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
+    monkeypatch.setattr("PierNet.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
 
     files = _materialize_parquet_router_files(router_dir, "modflow", partitions=[partition])
 
@@ -433,7 +433,7 @@ def test_materialize_parquet_router_files_uses_safe_cache_name_for_special_scena
     scenario = "case/a"
     partition = _router_partition(tmp_path, scenario=scenario)
     cache_root = tmp_path / "router-cache"
-    monkeypatch.setenv("PIERN_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
     exports: list[Path] = []
 
     def fake_export_records_to_jsonl(kind, output_path, *, simulator=None, scenario=None, **kwargs):
@@ -450,7 +450,7 @@ def test_materialize_parquet_router_files_uses_safe_cache_name_for_special_scena
         )
         return partition.row_count
 
-    monkeypatch.setattr("piern.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
+    monkeypatch.setattr("PierNet.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
 
     files = _materialize_parquet_router_files(router_dir, "modflow", partitions=[partition])
 
@@ -474,13 +474,13 @@ def test_prepare_router_dataset_reuses_cached_parquet_summary_without_jsonl_expo
         scenarios=scenarios,
         source_fingerprint=source_fingerprint,
     )
-    monkeypatch.setattr("piern.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
-    monkeypatch.setattr("piern.training.router.data.portable.discover_partitions", lambda kind: [partition])
+    monkeypatch.setattr("PierNet.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
+    monkeypatch.setattr("PierNet.training.router.data.portable.discover_partitions", lambda kind: [partition])
     monkeypatch.setattr(
-        "piern.training.router.data.portable.export_records_to_jsonl",
+        "PierNet.training.router.data.portable.export_records_to_jsonl",
         lambda *args, **kwargs: (_ for _ in ()).throw(AssertionError("cached parquet path should not export JSONL")),
     )
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     summary = prepare_router_dataset(
         simulator="modflow",
@@ -536,8 +536,8 @@ def test_prepare_router_dataset_rebuilds_when_jsonl_source_changes(tmp_path, mon
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     prepared_dir = tmp_path / "prepared"
     write_records(1)
@@ -589,7 +589,7 @@ def test_inspect_router_input_representation_ignores_unrelated_corrupt_jsonl(tmp
         ],
     )
     corrupt_path.write_text("{bad json\n", encoding="utf-8")
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     representation, metadata = inspect_router_input_representation(
         simulator="modflow",
@@ -635,8 +635,8 @@ def test_prepare_router_dataset_selects_jsonl_by_metadata_scenario(tmp_path, mon
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     prepared_dir = tmp_path / "prepared"
     summary = prepare_router_dataset(
@@ -719,11 +719,11 @@ def test_prepare_router_dataset_combines_jsonl_and_parquet_selected_scenarios(tm
         def encode_ids_batch(self, texts: list[str]):
             return [self.encode_ids(text) for text in texts]
 
-    monkeypatch.setattr("piern.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
-    monkeypatch.setattr("piern.training.router.data.portable.discover_partitions", lambda kind: [partition])
-    monkeypatch.setattr("piern.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
-    monkeypatch.setattr("piern.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
-    monkeypatch.setattr("piern.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+    monkeypatch.setattr("PierNet.training.router.data._router_dir_uses_default_parquet", lambda router_dir: True)
+    monkeypatch.setattr("PierNet.training.router.data.portable.discover_partitions", lambda kind: [partition])
+    monkeypatch.setattr("PierNet.training.router.data.portable.export_records_to_jsonl", fake_export_records_to_jsonl)
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", FakeEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
 
     prepared_dir = tmp_path / "prepared"
     summary = prepare_router_dataset(

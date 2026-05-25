@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from piern.api.main import app
+from PierNet.api.main import app
 
 
 def test_http_errors_are_structured():

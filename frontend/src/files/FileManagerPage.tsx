@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import useSWR from 'swr'
-import { FolderOpen, Lock, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
+import { FileSearch, FolderOpen, Lock, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import type { FileAsset, FileCatalogResponse } from '../lib/types'
 import { cn, formatBytes } from '../lib/utils'
@@ -135,8 +135,14 @@ function DetailPanel({
 }) {
   if (!asset) {
     return (
-      <div className="training-card file-manager-detail-panel file-manager-detail-empty">
-        选择一个文件资产查看详情。
+      <div className="file-manager-detail-panel file-manager-detail-empty">
+        <div className="empty-state px-4 py-8">
+          <div className="empty-state__icon mx-auto">
+            <FileSearch size={18} />
+          </div>
+          <div className="empty-state__title">选择文件查看详情</div>
+          <p className="empty-state__description">左侧列表会显示路径、阶段、类型、大小和可管理状态。</p>
+        </div>
       </div>
     )
   }
@@ -144,7 +150,7 @@ function DetailPanel({
   const detailEntries = Object.entries(asset.details ?? {})
 
   return (
-    <div className="training-card file-manager-detail-panel overflow-hidden">
+    <div className="file-manager-detail-panel overflow-hidden">
       <div className="card-header items-start">
         <ShieldCheck size={17} className="mt-0.5 text-sky-400" />
         <div className="min-w-0 flex-1">
@@ -230,6 +236,28 @@ function Metric({ label, value }: { label: string; value: string }) {
   )
 }
 
+function FileTableStateRow({ loading, hasFilters }: { loading: boolean; hasFilters: boolean }) {
+  return (
+    <tr>
+      <td colSpan={7} className="px-5 py-16">
+        <div className="empty-state mx-auto max-w-md">
+          <div className="empty-state__icon mx-auto">
+            {loading ? <RefreshCw size={18} className="animate-spin" /> : <FileSearch size={18} />}
+          </div>
+          <div className="empty-state__title">{loading ? '正在扫描文件目录' : '没有匹配的文件'}</div>
+          <p className="empty-state__description">
+            {loading
+              ? '正在读取统一文件目录、训练产物和索引状态。'
+              : hasFilters
+                ? '当前筛选条件下没有结果，可以清空搜索或切换平台、阶段、类型和状态。'
+                : '当前目录尚未返回文件资产，可以刷新或手动重建索引后再查看。'}
+          </p>
+        </div>
+      </td>
+    </tr>
+  )
+}
+
 export function FileManagerContent({
   initialPlatform = ALL,
   lockPlatform = false,
@@ -285,6 +313,9 @@ export function FileManagerContent({
       return true
     })
   }, [scopedAssets, lockPlatform, platform, stage, kind, status, query])
+
+  const hasActiveFilters =
+    query.trim() !== '' || (!lockPlatform && platform !== ALL) || stage !== ALL || kind !== ALL || status !== ALL
 
   const selectedAsset = filtered.find(asset => asset.id === selectedId) ?? filtered[0] ?? null
   const scopedSummary = useMemo(
@@ -515,12 +546,8 @@ export function FileManagerContent({
                       </td>
                     </tr>
                   ))}
-                  {!isLoading && filtered.length === 0 && (
-                    <tr>
-                      <td colSpan={7} className="px-5 py-14 text-center text-slate-500">
-                        没有匹配的文件
-                      </td>
-                    </tr>
+                  {(isLoading || filtered.length === 0) && (
+                    <FileTableStateRow loading={isLoading} hasFilters={hasActiveFilters} />
                   )}
                 </tbody>
               </table>

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Migrate legacy PiERN JSONL datasets to partitioned Parquet.
+"""Migrate legacy PierNet JSONL datasets to partitioned Parquet.
 
 The migration is side-by-side: existing JSONL files are not deleted.  For low
 free-disk environments, migrate one kind or scenario at a time and delete legacy
@@ -22,8 +22,8 @@ from typing import Any, Iterable
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.runtime.paths import DATA_ROOT  # noqa: E402
-from piern.shared.storage import portable  # noqa: E402
+from PierNet.shared.runtime.paths import DATA_ROOT  # noqa: E402
+from PierNet.shared.storage import portable  # noqa: E402
 
 try:
     import pyarrow as pa
@@ -68,7 +68,7 @@ def parquet_schema():
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Migrate PiERN JSONL data to partitioned Parquet.")
+    parser = argparse.ArgumentParser(description="Migrate PierNet JSONL data to partitioned Parquet.")
     parser.add_argument("--kind", choices=["text2comp", "router", "all"], default="all")
     parser.add_argument("--scenarios", nargs="*", default=None, help="Only migrate these scenario names.")
     parser.add_argument("--batch-size", type=int, default=8192)

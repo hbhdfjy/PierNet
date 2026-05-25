@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lightweight migration readiness checks for PiERN."""
+"""Lightweight migration readiness checks for PierNet."""
 
 from __future__ import annotations
 
@@ -12,35 +12,35 @@ from typing import List, Set
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from piern.shared.storage.hdf5_files import is_hdf5_path, iter_hdf5_files_in_child_dirs  # noqa: E402
+from PierNet.shared.storage.hdf5_files import is_hdf5_path, iter_hdf5_files_in_child_dirs  # noqa: E402
 
 REQUIRED_ENV_EXAMPLE_KEYS = [
-    "PIERN_ROOT",
-    "PIERN_DATA_ROOT",
-    "PIERN_ARTIFACT_ROOT",
-    "PIERN_RUNLOG_ROOT",
-    "PIERN_BACKEND_PORT",
-    "PIERN_FRONTEND_PORT",
-    "PIERN_CONDA_BASE",
-    "PIERN_CONDA_ENV",
-    "PIERN_PYTHON",
-    "PIERN_NODE_BIN",
-    "PIERN_QWEN_EMBEDDING_MODEL",
-    "PIERN_QWEN_EMBEDDING_TOKENIZER",
-    "PIERN_MODFLOW_EXE",
-    "PIERN_JOB_STORE_PATH",
-    "PIERN_TRAINING_JOB_STORE_PATH",
-    "PIERN_ROUTER_JSONL_CACHE_DIR",
-    "PIERN_WORKER_QUEUE_SYNTH",
-    "PIERN_WORKER_QUEUE_TRAINING",
-    "PIERN_LOCK_TTL_SECONDS",
-    "PIERN_SYNTH_LOCK_TTL_SECONDS",
-    "PIERN_GPU_LOCK_TTL_SECONDS",
-    "PIERN_TRAINING_QUEUE_DEFAULT_PRIORITY",
-    "PIERN_SERVICE_WORKER",
-    "PIERN_SYSTEMD_USER_DIR",
-    "PIERN_INSTALL_WORKER",
-    "PIERN_ROUTER_BUILD_WORKERS",
+    "PierNet_ROOT",
+    "PierNet_DATA_ROOT",
+    "PierNet_ARTIFACT_ROOT",
+    "PierNet_RUNLOG_ROOT",
+    "PierNet_BACKEND_PORT",
+    "PierNet_FRONTEND_PORT",
+    "PierNet_CONDA_BASE",
+    "PierNet_CONDA_ENV",
+    "PierNet_PYTHON",
+    "PierNet_NODE_BIN",
+    "PierNet_QWEN_EMBEDDING_MODEL",
+    "PierNet_QWEN_EMBEDDING_TOKENIZER",
+    "PierNet_MODFLOW_EXE",
+    "PierNet_JOB_STORE_PATH",
+    "PierNet_TRAINING_JOB_STORE_PATH",
+    "PierNet_ROUTER_JSONL_CACHE_DIR",
+    "PierNet_WORKER_QUEUE_SYNTH",
+    "PierNet_WORKER_QUEUE_TRAINING",
+    "PierNet_LOCK_TTL_SECONDS",
+    "PierNet_SYNTH_LOCK_TTL_SECONDS",
+    "PierNet_GPU_LOCK_TTL_SECONDS",
+    "PierNet_TRAINING_QUEUE_DEFAULT_PRIORITY",
+    "PierNet_SERVICE_WORKER",
+    "PierNet_SYSTEMD_USER_DIR",
+    "PierNet_INSTALL_WORKER",
+    "PierNet_ROUTER_BUILD_WORKERS",
 ]
 DERIVED_PREFIXES = (
     "data/text2comp/",
@@ -56,7 +56,7 @@ DERIVED_PREFIXES = (
 
 def load_local_env() -> None:
     """Load local .env defaults without overriding explicit environment values."""
-    env_file = Path(os.getenv("PIERN_ENV_FILE", ROOT / ".env")).expanduser()
+    env_file = Path(os.getenv("PierNet_ENV_FILE", ROOT / ".env")).expanduser()
     if not env_file.exists():
         return
     for raw in env_file.read_text(encoding="utf-8").splitlines():
@@ -167,7 +167,7 @@ def check_env_example(report: Report) -> None:
 
 
 def check_local_source_data(report: Report) -> None:
-    data_root = Path(os.getenv("PIERN_DATA_ROOT", ROOT / "data")).expanduser()
+    data_root = Path(os.getenv("PierNet_DATA_ROOT", ROOT / "data")).expanduser()
     templates = sorted((data_root / "templates").glob("*_templates.jsonl"))
     hdf5 = iter_hdf5_files_in_child_dirs(data_root)
     if templates:
@@ -191,14 +191,14 @@ def check_derived_not_tracked(report: Report, tracked: List[str]) -> None:
 
 def check_model_paths(report: Report) -> None:
     default_model = Path.home() / "Qwen" / "Qwen2.5-0.5B-Instruct"
-    model = Path(os.getenv("PIERN_QWEN_EMBEDDING_MODEL", str(default_model))).expanduser()
-    tokenizer = Path(os.getenv("PIERN_QWEN_EMBEDDING_TOKENIZER", str(model))).expanduser()
+    model = Path(os.getenv("PierNet_QWEN_EMBEDDING_MODEL", str(default_model))).expanduser()
+    tokenizer = Path(os.getenv("PierNet_QWEN_EMBEDDING_TOKENIZER", str(model))).expanduser()
     missing = [str(path) for path in [model, tokenizer] if not path.exists()]
     if missing:
         report.warn(
             "embedding model/tokenizer path not found: "
             + ", ".join(missing)
-            + "; download Qwen/Qwen2.5-0.5B-Instruct or set PIERN_QWEN_EMBEDDING_MODEL/PIERN_QWEN_EMBEDDING_TOKENIZER in .env"
+            + "; download Qwen/Qwen2.5-0.5B-Instruct or set PierNet_QWEN_EMBEDDING_MODEL/PierNet_QWEN_EMBEDDING_TOKENIZER in .env"
         )
     else:
         report.ok("embedding model/tokenizer paths exist")

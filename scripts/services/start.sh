@@ -33,7 +33,7 @@ if worker_should_start; then
     : > "$WORKER_LOG"
     echo "worker: starting"
     start_detached worker_pid "$WORKER_LOG" \
-      env PATH="$SERVICE_PATH" "$PYTHON" -m piern.worker --interval 2
+      env PATH="$SERVICE_PATH" "$PYTHON" -m PierNet.worker --interval 2
     write_pid "$WORKER_PID_FILE" "$worker_pid"
   fi
 else

@@ -9,7 +9,7 @@ const frontendRoot = join(repoRoot, 'frontend')
 const schemaPath = join(frontendRoot, 'src', 'lib', 'generated', 'openapi.json')
 const typesPath = join(frontendRoot, 'src', 'lib', 'generated', 'openapi.d.ts')
 const localPython = join(repoRoot, '.conda', 'env', 'bin', 'python')
-const python = process.env.PIERN_PYTHON || (existsSync(localPython) ? localPython : 'python3')
+const python = process.env.PierNet_PYTHON || (existsSync(localPython) ? localPython : 'python3')
 const openapiTypescript = join(frontendRoot, 'node_modules', '.bin', process.platform === 'win32' ? 'openapi-typescript.cmd' : 'openapi-typescript')
 
 function run(command, args, options = {}) {

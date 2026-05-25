@@ -913,6 +913,70 @@
     scrollbar-gutter: stable;
   }
 
+  .workbench-idle-panel {
+    display: flex;
+    width: 100%;
+    max-width: 72rem;
+    min-height: clamp(13rem, 32dvh, 22rem);
+    flex: 0 0 auto;
+    align-self: center;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.85rem;
+    padding: 2rem 1rem;
+    border: 1px dashed hsl(var(--border) / 0.52);
+    border-radius: var(--radius-md);
+    background: hsl(var(--surface) / 0.34);
+  }
+
+  .workbench-files-card {
+    width: 100%;
+    max-width: 72rem;
+    flex: 0 0 auto;
+    align-self: center;
+  }
+
+  .workbench-file-note {
+    padding: 0.9rem;
+    border-left: 2px solid hsl(var(--border-hi) / 0.5);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.32);
+  }
+
+  .data-overview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.75rem), 1fr));
+    gap: 0.5rem;
+  }
+
+  .data-overview-card {
+    min-width: 0;
+  }
+
+  .data-overview-card .tabular-nums {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .register-start-shell {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+    padding: clamp(1rem, 2vw, 2rem);
+    scrollbar-gutter: stable;
+  }
+
+  .register-start-card,
+  .register-start-intro {
+    min-width: 0;
+  }
+
   .workbench-sidebar-header {
     padding: 0.78rem 0.85rem;
   }
@@ -995,6 +1059,7 @@
     overflow: visible;
   }
   .training-card__body {
+    min-width: 0;
     min-height: 0;
     flex: 1;
     padding: 0.85rem;
@@ -1031,6 +1096,15 @@
     display: grid;
     gap: 0.65rem;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.5rem), 1fr));
+  }
+  .training-card__body > .grid,
+  .training-card__body > .grid > *,
+  .training-surface,
+  .training-surface--dense,
+  .training-surface--compact,
+  .training-meta-grid > *,
+  .training-stat-grid > * {
+    min-width: 0;
   }
   .training-kpi-grid {
     display: grid;
@@ -2085,6 +2159,16 @@
       grid-template-columns: 1fr;
     }
 
+    .workbench-idle-panel {
+      min-height: 10.5rem;
+      padding: 1.5rem 0.85rem;
+    }
+
+    .register-start-shell {
+      align-items: flex-start;
+      padding: 1rem;
+    }
+
     .page-rail {
       width: 100% !important;
       max-height: 12.5rem;
@@ -2494,6 +2578,43 @@
   }
 
   @media (min-width: 1280px) {
+    .register-start-shell {
+      align-items: flex-start;
+      justify-content: flex-start;
+      padding: clamp(3rem, 7vh, 5.5rem) clamp(2rem, 5vw, 6rem);
+    }
+
+    .register-start-card {
+      display: grid;
+      width: min(100%, 68rem);
+      max-width: 68rem !important;
+      gap: 1.1rem 1.25rem;
+      grid-template-columns: minmax(18rem, 0.75fr) minmax(32rem, 1fr);
+      align-items: start;
+    }
+
+    .register-start-card > :not([hidden]) ~ :not([hidden]) {
+      margin-top: 0 !important;
+    }
+
+    .register-start-card > :first-child {
+      position: sticky;
+      top: 1rem;
+      grid-column: 1;
+      grid-row: 1 / span 8;
+      padding: 1rem 0.5rem 0 0.25rem;
+      text-align: left;
+    }
+
+    .register-start-card > :not(:first-child) {
+      grid-column: 2;
+    }
+
+    .register-start-icon {
+      margin-right: 0;
+      margin-left: 0;
+    }
+
     .file-manager-workspace {
       grid-template-columns: minmax(0, 1fr) 26rem;
       height: clamp(28rem, calc(100dvh - 23.5rem), 42rem);
@@ -2655,7 +2776,21 @@
   }
 
   .training-gpu-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .training-gpu-grid > label {
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .training-gpu-grid .badge {
+    max-width: min(12rem, 46%);
+    flex-shrink: 1;
+    justify-content: flex-end;
+    line-height: 1.2;
+    text-align: right;
+    white-space: normal;
   }
 
   @media (min-width: 901px) {

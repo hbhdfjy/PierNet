@@ -8,8 +8,8 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from piern.shared.runtime.paths import DATA_ROOT  # noqa: E402
-from piern.training.router import RouterTrainingConfig, run_training  # noqa: E402
+from PierNet.shared.runtime.paths import DATA_ROOT  # noqa: E402
+from PierNet.training.router import RouterTrainingConfig, run_training  # noqa: E402
 
 
 def build_parser() -> argparse.ArgumentParser:

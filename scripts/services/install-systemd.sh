@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-UNIT_DIR=${PIERN_SYSTEMD_USER_DIR:-"$HOME/.config/systemd/user"}
+UNIT_DIR=${PierNet_SYSTEMD_USER_DIR:-"$HOME/.config/systemd/user"}
 DRY_RUN=0
 ENABLE=0
 START_NOW=0
-INSTALL_WORKER=${PIERN_INSTALL_WORKER:-1}
+INSTALL_WORKER=${PierNet_INSTALL_WORKER:-1}
 
 usage() {
   cat <<USAGE
 Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--worker] [--no-worker]
 
-Installs user-level systemd units for PiERN backend, frontend, and worker.
+Installs user-level systemd units for PierNet backend, frontend, and worker.
 The worker consumes queued synthesis/training jobs and performs shared housekeeping; use --no-worker only for API/UI-only deployments.
 USAGE
 }
@@ -29,9 +29,9 @@ while [[ $# -gt 0 ]]; do
   shift
 done
 
-units=(piern-backend.service piern-frontend.service)
+units=(PierNet-backend.service PierNet-frontend.service)
 if [[ "$INSTALL_WORKER" == "1" ]]; then
-  units+=(piern-worker.service)
+  units+=(PierNet-worker.service)
 fi
 
 render_unit() {

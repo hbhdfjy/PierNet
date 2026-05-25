@@ -1,21 +1,21 @@
-# PiERN Project Overview
+# PierNet Project Overview
 
 ## Purpose
 
-This is the maintained high-level overview for PiERN. Read it first when you need the system boundary, platform split, stage ownership, data contracts, and runtime surfaces. Keep implementation notebook details in `CLAUDE.md` and usage commands in `README.md`.
+This is the maintained high-level overview for PierNet. Read it first when you need the system boundary, platform split, stage ownership, data contracts, and runtime surfaces. Keep implementation notebook details in `CLAUDE.md` and usage commands in `README.md`.
 
 ## One-Sentence Summary
 
-PiERN is one FastAPI + React application with two product surfaces: a Stage 1-4 data synthesis workbench and a single-GPU Token Router training workbench.
+PierNet is one FastAPI + React application with two product surfaces: a Stage 1-4 data synthesis workbench and a single-GPU Token Router training workbench.
 
 ## Product Surfaces
 
 | Surface | Route | Frontend Namespace | Backend Namespace | Scope |
 | --- | --- | --- | --- | --- |
-| Landing | `/` | `frontend/src/platform/` | `piern/api/main.py` | entry into synth, training, and files |
-| Synthesis | `/synth/*` | `frontend/src/synth/` | `piern/synth/` | Stage 1-4 data pipeline |
-| Training | `/training/*` | `frontend/src/training/` | `piern/training/` | Token Router training jobs |
-| Files | `/synth/files`, `/training/files`; `/files` redirects to `/synth/files` | `frontend/src/files/` | `piern/synth/services/file_catalog.py` | unified data/artifact management |
+| Landing | `/` | `frontend/src/platform/` | `PierNet/api/main.py` | entry into synth, training, and files |
+| Synthesis | `/synth/*` | `frontend/src/synth/` | `PierNet/synth/` | Stage 1-4 data pipeline |
+| Training | `/training/*` | `frontend/src/training/` | `PierNet/training/` | Token Router training jobs |
+| Files | `/synth/files`, `/training/files`; `/files` redirects to `/synth/files` | `frontend/src/files/` | `PierNet/synth/services/file_catalog.py` | unified data/artifact management |
 
 The surfaces are separated at product and namespace level, but still share one repository, one frontend package, one FastAPI app, one static hosting path, and one startup script.
 
@@ -23,16 +23,16 @@ The surfaces are separated at product and namespace level, but still share one r
 
 Runtime entrypoints:
 
-- `piern/api/main.py`: real FastAPI app assembly
-- `api_server.py`: compatibility entry that re-exports `piern.api.main.app`
+- `PierNet/api/main.py`: real FastAPI app assembly
+- `api_server.py`: compatibility entry that re-exports `PierNet.api.main.app`
 
-`piern/api/main.py` mounts:
+`PierNet/api/main.py` mounts:
 
-- synthesis routers from `piern.synth.api.routers.*`
-- training router from `piern.training.api.routers.training`
-- built frontend assets through `piern.shared.api.static.SPAStaticFiles`
+- synthesis routers from `PierNet.synth.api.routers.*`
+- training router from `PierNet.training.api.routers.training`
+- built frontend assets through `PierNet.shared.api.static.SPAStaticFiles`
 
-`piern/api/` is app assembly only. Business routers, schemas, services, and models belong under `piern/synth/` or `piern/training/`.
+`PierNet/api/` is app assembly only. Business routers, schemas, services, and models belong under `PierNet/synth/` or `PierNet/training/`.
 
 ## Frontend Assembly
 
@@ -71,9 +71,9 @@ The HDF5 contract is the hard gate for registration:
 
 Implementation:
 
-- API: `piern/synth/api/routers/simulation.py`
-- validation: `piern/synth/services/hdf5_data.py`
-- built-in simulators: `piern/simulators/*`
+- API: `PierNet/synth/api/routers/simulation.py`
+- validation: `PierNet/synth/services/hdf5_data.py`
+- built-in simulators: `PierNet/simulators/*`
 
 ### Stage 2: Registry And Templates
 
@@ -91,10 +91,10 @@ data/templates/{scenario}_templates.jsonl
 
 Implementation:
 
-- auto registration: `piern/synth/text2comp/auto_register.py`
-- interactive registration: `piern/synth/text2comp/interview_agent.py`
-- template generation: `piern/synth/text2comp/generator.py`
-- template schema/filling helpers: `piern/synth/text2comp/template_store.py`
+- auto registration: `PierNet/synth/text2comp/auto_register.py`
+- interactive registration: `PierNet/synth/text2comp/interview_agent.py`
+- template generation: `PierNet/synth/text2comp/generator.py`
+- template schema/filling helpers: `PierNet/synth/text2comp/template_store.py`
 - CLI: `scripts/text2comp/generate_templates.py`
 
 ### Stage 3: Sample Filling
@@ -117,7 +117,7 @@ Stage 3 is local filling. It should not call an LLM.
 Implementation:
 
 - CLI: `scripts/text2comp/fill_samples.py`
-- file management: `piern/synth/services/file_manager.py`
+- file management: `PierNet/synth/services/file_manager.py`
 
 ### Stage 4: Router Data
 
@@ -137,7 +137,7 @@ Each Stage 3 sample becomes one positive expert-prefix sample plus negative LLM-
 
 Implementation:
 
-- API: `piern/synth/api/routers/router_data.py`
+- API: `PierNet/synth/api/routers/router_data.py`
 - CLI: `scripts/router/build_router_data.py`
 
 ## Training Workflow
@@ -157,11 +157,11 @@ Current assumptions:
 
 Primary implementation:
 
-- `piern/training/services/training_manager.py`
-- `piern/training/router/pretrained_embeddings.py`
-- `piern/training/router/data.py`
-- `piern/training/router/model.py`
-- `piern/training/router/train.py`
+- `PierNet/training/services/training_manager.py`
+- `PierNet/training/router/pretrained_embeddings.py`
+- `PierNet/training/router/data.py`
+- `PierNet/training/router/model.py`
+- `PierNet/training/router/train.py`
 - `scripts/router/train_token_router.py`
 
 Training jobs are persisted in:
@@ -193,10 +193,10 @@ Stage 2 templates are JSONL. Stage 3/4 primary artifacts are portable Parquet pa
 
 Related implementation:
 
-- `piern/synth/services/manifest_store.py`
-- `piern/synth/services/jsonl_index.py`
-- `piern/synth/services/jsonl_filter_index.py`
-- `piern/synth/services/file_catalog.py`
+- `PierNet/synth/services/manifest_store.py`
+- `PierNet/synth/services/jsonl_index.py`
+- `PierNet/synth/services/jsonl_filter_index.py`
+- `PierNet/synth/services/file_catalog.py`
 - `scripts/utils/rebuild_manifests.py`
 - `scripts/utils/rebuild_indexes.py`
 
@@ -224,7 +224,7 @@ Static frontend serving uses browser-history fallback through `SPAStaticFiles`, 
 ## Operational Contracts
 
 - `start_ui.sh` is the main combined backend/frontend development startup path.
-- Startup scripts prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/piern`; set `PIERN_CONDA_ENV` before startup to override.
+- Startup scripts prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/PierNet`; set `PierNet_CONDA_ENV` before startup to override.
 - Frontend nested scroll behavior depends on `frontend/src/lib/scrollAssist.ts`; scroll changes are application behavior, not only CSS.
 - Root docs expected by consistency checks are `README.md`, `PROJECT_OVERVIEW.md`, and `CLAUDE.md`.
 

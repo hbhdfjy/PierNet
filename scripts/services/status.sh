@@ -2,8 +2,8 @@
 set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/_common.sh"
 
-DATA_ROOT=${PIERN_DATA_ROOT:-"$ROOT/data"}
-STATUS_TAIL_LINES=${PIERN_STATUS_TAIL_LINES:-20}
+DATA_ROOT=${PierNet_DATA_ROOT:-"$ROOT/data"}
+STATUS_TAIL_LINES=${PierNet_STATUS_TAIL_LINES:-20}
 
 section() {
   printf '\n== %s ==\n' "$1"

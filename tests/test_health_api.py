@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from piern.api.main import app
+from PierNet.api.main import app
 
 
 def test_health_live_and_storage_endpoints():
@@ -31,7 +31,7 @@ def test_health_ready_reports_core_paths():
 
 
 def test_health_gpu_degrades_when_inventory_fails(monkeypatch):
-    from piern.shared.api import health
+    from PierNet.shared.api import health
 
     monkeypatch.setattr(
         health.training_manager,

@@ -4,7 +4,7 @@ from scripts.ci import check_repo_hygiene
 
 
 def test_egg_info_paths_are_banned() -> None:
-    reason = check_repo_hygiene.is_banned_path("piern_data_synthesis.egg-info/PKG-INFO")
+    reason = check_repo_hygiene.is_banned_path("PierNet_data_synthesis.egg-info/PKG-INFO")
 
     assert reason is not None
     assert "egg-info" in reason

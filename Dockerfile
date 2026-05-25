@@ -17,7 +17,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt pyproject.toml README.md ./
-COPY piern ./piern
+COPY PierNet ./PierNet
 COPY scripts ./scripts
 COPY configs ./configs
 COPY api_server.py ./

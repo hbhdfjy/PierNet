@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from piern.synth.services import jsonl_filter_index, jsonl_index, manifest_store
+from PierNet.synth.services import jsonl_filter_index, jsonl_index, manifest_store
 
 
 def test_jsonl_indexes_support_data_root_outside_project_root(monkeypatch, tmp_path: Path) -> None:

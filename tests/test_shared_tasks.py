@@ -1,8 +1,8 @@
 import sqlite3
 
-from piern.shared.db.migrations import Migration, ensure_sqlite_schema
-from piern.shared.tasks import locks
-from piern.shared.tasks.state import IllegalStatusTransition, normalize_status, validate_transition
+from PierNet.shared.db.migrations import Migration, ensure_sqlite_schema
+from PierNet.shared.tasks import locks
+from PierNet.shared.tasks.state import IllegalStatusTransition, normalize_status, validate_transition
 
 
 def test_task_state_normalizes_aliases_and_rejects_illegal_transition():

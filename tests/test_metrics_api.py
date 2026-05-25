@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from piern.shared.api.routers import metrics
-from piern.shared.tasks import workers
-from piern.synth.services import job_store
+from PierNet.shared.api.routers import metrics
+from PierNet.shared.tasks import workers
+from PierNet.synth.services import job_store
 
 
 def _use_tmp_store(monkeypatch, tmp_path):
@@ -29,7 +29,7 @@ def test_metrics_summary_reports_queues_workers_and_resources(monkeypatch, tmp_p
         progress={},
         stats={},
     )
-    workers.upsert_worker(worker_id="worker-1", kind="piern-worker", current_job_id="fill-1")
+    workers.upsert_worker(worker_id="worker-1", kind="PierNet-worker", current_job_id="fill-1")
 
     app = FastAPI()
     app.include_router(metrics.router, prefix="/api")

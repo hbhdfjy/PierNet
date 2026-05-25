@@ -7,11 +7,11 @@ import pytest
 from pydantic import ValidationError
 from fastapi import HTTPException
 
-from piern.shared.storage import portable
-from piern.synth.api.routers import config as config_router
-from piern.synth.api.routers import generation
-from piern.synth.services import generation_executor
-from piern.synth.services.job_manager import JobRecord
+from PierNet.shared.storage import portable
+from PierNet.synth.api.routers import config as config_router
+from PierNet.synth.api.routers import generation
+from PierNet.synth.services import generation_executor
+from PierNet.synth.services.job_manager import JobRecord
 from scripts.text2comp import fill_samples as fill_samples_script
 from scripts.text2comp import generate_templates as generate_templates_script
 

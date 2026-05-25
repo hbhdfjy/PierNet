@@ -470,7 +470,7 @@ export default function LLMConfig() {
 
         {/* 空状态 */}
         {testState === 'idle' && (
-          <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <div className="workbench-idle-panel text-center">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center">
               <Zap size={24} className="text-amber-400/60" />
             </div>

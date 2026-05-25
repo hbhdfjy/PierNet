@@ -3,7 +3,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from piern.training.router import train as router_train
+from PierNet.training.router import train as router_train
 from scripts.router import train_token_router
 
 

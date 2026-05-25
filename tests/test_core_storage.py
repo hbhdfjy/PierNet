@@ -1,7 +1,7 @@
 import h5py
 import numpy as np
 
-from piern.core.storage import load_dataset, save_dataset
+from PierNet.core.storage import load_dataset, save_dataset
 
 
 def test_save_and_load_dataset_roundtrip(tmp_path):

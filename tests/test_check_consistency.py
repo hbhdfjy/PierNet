@@ -33,8 +33,8 @@ const api = {
 
 def test_api_alignment_warns_for_missing_base_prefix(monkeypatch, tmp_path: Path) -> None:
     frontend_dir = tmp_path / "frontend" / "src" / "lib"
-    synth_router_dir = tmp_path / "piern" / "synth" / "api" / "routers"
-    training_router_dir = tmp_path / "piern" / "training" / "api" / "routers"
+    synth_router_dir = tmp_path / "PierNet" / "synth" / "api" / "routers"
+    training_router_dir = tmp_path / "PierNet" / "training" / "api" / "routers"
     frontend_dir.mkdir(parents=True)
     synth_router_dir.mkdir(parents=True)
     training_router_dir.mkdir(parents=True)
@@ -235,7 +235,7 @@ def test_removed_docs_and_simulator_requirement_files_warn(monkeypatch, tmp_path
     stale_paths = [
         "docs/INDUSTRIALIZATION_PLAN.md",
         "docs/generated-review.docx",
-        "piern/simulators/modflow/requirements.txt",
+        "PierNet/simulators/modflow/requirements.txt",
         "scripts/utils/rebuild_filter_indexes.py",
     ]
     for rel in stale_paths:
@@ -249,7 +249,7 @@ def test_removed_docs_and_simulator_requirement_files_warn(monkeypatch, tmp_path
     checker.check_stale_files()
 
     assert "WARN: stale path still exists: docs/INDUSTRIALIZATION_PLAN.md" in checker.warnings
-    assert "WARN: stale path still exists: piern/simulators/modflow/requirements.txt" in checker.warnings
+    assert "WARN: stale path still exists: PierNet/simulators/modflow/requirements.txt" in checker.warnings
     assert "WARN: stale path still exists: scripts/utils/rebuild_filter_indexes.py" in checker.warnings
     assert "WARN: stale generated document remains: docs/generated-review.docx" in checker.warnings
 
@@ -278,7 +278,7 @@ def test_docs_structure_errors_for_stale_api_server_stage2_claim(monkeypatch, tm
     (tmp_path / "README.md").write_text("README\n", encoding="utf-8")
     (tmp_path / "PROJECT_OVERVIEW.md").write_text("overview\n", encoding="utf-8")
     (tmp_path / "CLAUDE.md").write_text("notes\n", encoding="utf-8")
-    (tmp_path / "api_server.py").write_text("PiERN Stage 2 API 入口\n", encoding="utf-8")
+    (tmp_path / "api_server.py").write_text("PierNet Stage 2 API 入口\n", encoding="utf-8")
 
     monkeypatch.setattr(check_consistency, "ROOT", tmp_path)
     checker = check_consistency.Checker()
@@ -318,7 +318,7 @@ demo:
 
 
 def test_simulator_default_config_check_errors_for_missing_path(monkeypatch, tmp_path: Path) -> None:
-    pipeline = tmp_path / "piern" / "simulators" / "modflow" / "pipeline.py"
+    pipeline = tmp_path / "PierNet" / "simulators" / "modflow" / "pipeline.py"
     pipeline.parent.mkdir(parents=True)
     pipeline.write_text('parser.add_argument("--config", default="configs/missing.yaml")\n', encoding="utf-8")
 
@@ -328,7 +328,7 @@ def test_simulator_default_config_check_errors_for_missing_path(monkeypatch, tmp
     checker.check_simulator_default_configs()
 
     assert (
-        "ERROR: piern/simulators/modflow/pipeline.py references missing default config: configs/missing.yaml"
+        "ERROR: PierNet/simulators/modflow/pipeline.py references missing default config: configs/missing.yaml"
         in checker.errors
     )
 
@@ -340,19 +340,19 @@ def test_frontend_node_runtime_check_rejects_stale_stage2_package_name(
     (tmp_path / "frontend").mkdir()
     (tmp_path / "scripts" / "frontend").mkdir(parents=True)
     (tmp_path / "frontend" / "package.json").write_text(
-        '{"name": "piern-stage2-ui", "engines": {"node": ">=20.19.0"}}',
+        '{"name": "PierNet-stage2-ui", "engines": {"node": ">=20.19.0"}}',
         encoding="utf-8",
     )
     (tmp_path / "frontend" / "package-lock.json").write_text(
-        '{"name": "piern-other-ui", "packages": {"": {"name": "piern-other-ui"}}}',
+        '{"name": "PierNet-other-ui", "packages": {"": {"name": "PierNet-other-ui"}}}',
         encoding="utf-8",
     )
     (tmp_path / "scripts" / "frontend" / "run-vite.mjs").write_text(
-        "const MIN_NODE_LABEL = '20.19.0'\nprocess.env.PIERN_NODE_BIN\n",
+        "const MIN_NODE_LABEL = '20.19.0'\nprocess.env.PierNet_NODE_BIN\n",
         encoding="utf-8",
     )
     (tmp_path / "start_ui.sh").write_text(
-        'MIN_NODE_VERSION="20.19.0"\nPIERN_NODE_BIN:-${PIERN_NODE:-}\nPIERN_NPM:-npm\n',
+        'MIN_NODE_VERSION="20.19.0"\nPierNet_NODE_BIN:-${PierNet_NODE:-}\nPierNet_NPM:-npm\n',
         encoding="utf-8",
     )
     (tmp_path / "README.md").write_text("要求 Python 3.11 和 Node.js 20.19.0+。\n", encoding="utf-8")
@@ -386,7 +386,7 @@ def test_frontend_node_runtime_check_requires_script_and_doc_alignment(monkeypat
     checker.check_frontend_node_runtime()
 
     assert "ERROR: scripts/frontend/run-vite.mjs does not mirror frontend Node minimum 20.19.0" in checker.errors
-    assert "ERROR: scripts/frontend/run-vite.mjs does not mirror PIERN_NODE_BIN support 20.19.0" in checker.errors
+    assert "ERROR: scripts/frontend/run-vite.mjs does not mirror PierNet_NODE_BIN support 20.19.0" in checker.errors
 
 
 def test_frontend_node_runtime_check_does_not_report_ok_when_node_bin_support_is_missing(
@@ -411,7 +411,7 @@ def test_frontend_node_runtime_check_does_not_report_ok_when_node_bin_support_is
 
     checker.check_frontend_node_runtime()
 
-    assert "ERROR: scripts/frontend/run-vite.mjs does not mirror PIERN_NODE_BIN support 20.19.0" in checker.errors
+    assert "ERROR: scripts/frontend/run-vite.mjs does not mirror PierNet_NODE_BIN support 20.19.0" in checker.errors
     assert "OK: frontend Node runtime minimum: 20.19.0" not in checker.info
 
 
@@ -426,60 +426,60 @@ def test_frontend_node_runtime_check_rejects_public_node_bin_dir_config(
         encoding="utf-8",
     )
     (tmp_path / "scripts" / "frontend" / "run-vite.mjs").write_text(
-        "const MIN_NODE_LABEL = '20.19.0'\nprocess.env.PIERN_NODE_BIN\n",
+        "const MIN_NODE_LABEL = '20.19.0'\nprocess.env.PierNet_NODE_BIN\n",
         encoding="utf-8",
     )
     (tmp_path / "start_ui.sh").write_text(
-        'MIN_NODE_VERSION="20.19.0"\nPIERN_NODE_BIN:-${PIERN_NODE:-}\nPIERN_NPM:-npm\n',
+        'MIN_NODE_VERSION="20.19.0"\nPierNet_NODE_BIN:-${PierNet_NODE:-}\nPierNet_NPM:-npm\n',
         encoding="utf-8",
     )
     (tmp_path / "README.md").write_text("要求 Python 3.11 和 Node.js 20.19.0+。\n", encoding="utf-8")
-    (tmp_path / ".env.example").write_text("PIERN_NODE=/old/node\nPIERN_NODE_BIN_DIR=/old/path\n", encoding="utf-8")
-    (tmp_path / "compose.yaml").write_text("PIERN_NODE: /old/node\nPIERN_NODE_BIN_DIR: /old/path\n", encoding="utf-8")
+    (tmp_path / ".env.example").write_text("PierNet_NODE=/old/node\nPierNet_NODE_BIN_DIR=/old/path\n", encoding="utf-8")
+    (tmp_path / "compose.yaml").write_text("PierNet_NODE: /old/node\nPierNet_NODE_BIN_DIR: /old/path\n", encoding="utf-8")
 
     monkeypatch.setattr(check_consistency, "ROOT", tmp_path)
     checker = check_consistency.Checker()
 
     checker.check_frontend_node_runtime()
 
-    assert "ERROR: .env.example exposes legacy PIERN_NODE; use PIERN_NODE_BIN instead" in checker.errors
-    assert "ERROR: .env.example exposes legacy PIERN_NODE_BIN_DIR; use PIERN_NODE_BIN instead" in checker.errors
-    assert "ERROR: compose.yaml exposes legacy PIERN_NODE; use PIERN_NODE_BIN instead" in checker.errors
-    assert "ERROR: compose.yaml exposes legacy PIERN_NODE_BIN_DIR; use PIERN_NODE_BIN instead" in checker.errors
+    assert "ERROR: .env.example exposes legacy PierNet_NODE; use PierNet_NODE_BIN instead" in checker.errors
+    assert "ERROR: .env.example exposes legacy PierNet_NODE_BIN_DIR; use PierNet_NODE_BIN instead" in checker.errors
+    assert "ERROR: compose.yaml exposes legacy PierNet_NODE; use PierNet_NODE_BIN instead" in checker.errors
+    assert "ERROR: compose.yaml exposes legacy PierNet_NODE_BIN_DIR; use PierNet_NODE_BIN instead" in checker.errors
 
 
 def test_python_entrypoint_check_errors_for_missing_targets(monkeypatch, tmp_path: Path) -> None:
-    (tmp_path / "piern" / "ok").mkdir(parents=True)
-    (tmp_path / "piern" / "ok" / "tool.py").write_text("def main():\n    return 0\n", encoding="utf-8")
-    (tmp_path / "piern" / "ok" / "bad_func.py").write_text("def other():\n    return 0\n", encoding="utf-8")
+    (tmp_path / "PierNet" / "ok").mkdir(parents=True)
+    (tmp_path / "PierNet" / "ok" / "tool.py").write_text("def main():\n    return 0\n", encoding="utf-8")
+    (tmp_path / "PierNet" / "ok" / "bad_func.py").write_text("def other():\n    return 0\n", encoding="utf-8")
     (tmp_path / "pyproject.toml").write_text(
         """
 [project]
 name = "demo"
 
 [project.scripts]
-ok-tool = "piern.ok.tool:main"
-missing-module = "piern.missing.tool:main"
-missing-func = "piern.ok.bad_func:main"
+ok-tool = "PierNet.ok.tool:main"
+missing-module = "PierNet.missing.tool:main"
+missing-func = "PierNet.ok.bad_func:main"
 """.strip(),
         encoding="utf-8",
     )
-    (tmp_path / "README.md").write_text("python -m piern.docs.missing\n", encoding="utf-8")
+    (tmp_path / "README.md").write_text("python -m PierNet.docs.missing\n", encoding="utf-8")
 
     monkeypatch.setattr(check_consistency, "ROOT", tmp_path)
     checker = check_consistency.Checker()
 
     checker.check_python_entrypoints()
 
-    assert "ERROR: pyproject script missing-module references missing module: piern.missing.tool" in checker.errors
-    assert "ERROR: pyproject script missing-func references missing function: piern.ok.bad_func:main" in checker.errors
-    assert "ERROR: documented python -m module is missing: piern.docs.missing" in checker.errors
+    assert "ERROR: pyproject script missing-module references missing module: PierNet.missing.tool" in checker.errors
+    assert "ERROR: pyproject script missing-func references missing function: PierNet.ok.bad_func:main" in checker.errors
+    assert "ERROR: documented python -m module is missing: PierNet.docs.missing" in checker.errors
 
 
 def test_compose_model_mount_default_matches_repo_model_path(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / "models" / "Qwen" / "Qwen2.5-0.5B-Instruct").mkdir(parents=True)
     (tmp_path / "compose.yaml").write_text(
-        "${PIERN_QWEN_EMBEDDING_MODEL:-./models/Qwen/Qwen2.5-0.5B-Instruct}:/models/qwen:ro\n",
+        "${PierNet_QWEN_EMBEDDING_MODEL:-./models/Qwen/Qwen2.5-0.5B-Instruct}:/models/qwen:ro\n",
         encoding="utf-8",
     )
 
@@ -494,7 +494,7 @@ def test_compose_model_mount_default_matches_repo_model_path(monkeypatch, tmp_pa
 
 def test_compose_model_mount_default_rejects_missing_qwen_directory(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / "compose.yaml").write_text(
-        "${PIERN_QWEN_EMBEDDING_MODEL:-./models/Qwen2.5-0.5B-Instruct}:/models/qwen:ro\n",
+        "${PierNet_QWEN_EMBEDDING_MODEL:-./models/Qwen2.5-0.5B-Instruct}:/models/qwen:ro\n",
         encoding="utf-8",
     )
 
@@ -513,7 +513,7 @@ def test_container_runtime_assets_requires_configs_copy(monkeypatch, tmp_path: P
     (tmp_path / "Dockerfile").write_text(
         "\n".join(
             [
-                "COPY piern ./piern",
+                "COPY PierNet ./PierNet",
                 "COPY scripts ./scripts",
                 "COPY api_server.py ./",
             ]
@@ -536,7 +536,7 @@ def test_container_runtime_assets_accepts_required_copies(monkeypatch, tmp_path:
     (tmp_path / "Dockerfile").write_text(
         "\n".join(
             [
-                "COPY piern ./piern",
+                "COPY PierNet ./PierNet",
                 "COPY scripts ./scripts",
                 "COPY configs ./configs",
                 "COPY api_server.py ./",

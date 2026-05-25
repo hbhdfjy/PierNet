@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from piern.api.main import app
+from PierNet.api.main import app
 
 
 def export_schema(output: Path) -> dict[str, Any]:

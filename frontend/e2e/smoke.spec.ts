@@ -189,7 +189,7 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 async function setTheme(page: Page, theme: 'dark' | 'light') {
   await page.addInitScript(value => {
-    localStorage.setItem('piern-theme', value)
+    localStorage.setItem('PierNet-theme', value)
   }, theme)
 }
 
@@ -201,12 +201,12 @@ test('platform entry and core workbenches render without layout overflow', async
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await gotoApp(page, '/')
-  await expect(page.getByText('PiERN 控制台')).toBeVisible()
+  await expect(page.getByText('PierNet 控制台')).toBeVisible()
   await expect(page.getByRole('link', { name: /打开训练平台/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/training')
-  await expect(page.getByText('PiERN 训练')).toBeVisible()
+  await expect(page.getByText('PierNet 训练')).toBeVisible()
   await expect(page.getByText('训练平台')).toBeVisible()
   await expect(page.getByRole('link', { name: /任务管理/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
@@ -223,7 +223,7 @@ test('platform entry and core workbenches render without layout overflow', async
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/synth/fill')
-  await expect(page.getByText('PiERN 数据')).toBeVisible()
+  await expect(page.getByText('PierNet 数据')).toBeVisible()
   await expect(page.getByRole('heading', { name: '样本填充' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
@@ -232,7 +232,7 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
 
   await gotoApp(page, '/')
-  await expect(page.getByText('PiERN 控制台')).toBeVisible()
+  await expect(page.getByText('PierNet 控制台')).toBeVisible()
   await expect(page.getByRole('link', { name: /打开数据平台/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })

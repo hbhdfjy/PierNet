@@ -1,0 +1,15 @@
+[Unit]
+Description=PierNet maintenance worker
+After=PierNet-backend.service
+Wants=PierNet-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+Environment=PierNet_ENV_FILE=__ROOT__/.env
+Restart=on-failure
+RestartSec=10
+ExecStart=__ROOT__/scripts/services/run-worker.sh
+
+[Install]
+WantedBy=default.target

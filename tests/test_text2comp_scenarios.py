@@ -10,9 +10,9 @@ import pytest
 import numpy as np
 import yaml
 
-from piern.shared.storage.portable import PartitionInfo
-from piern.synth.api.schemas.config import LLMConfigRequest
-from piern.synth.api.routers import config as config_router
+from PierNet.shared.storage.portable import PartitionInfo
+from PierNet.synth.api.schemas.config import LLMConfigRequest
+from PierNet.synth.api.routers import config as config_router
 
 
 def _write_hdf5(path: Path) -> None:

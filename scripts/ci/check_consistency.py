@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Repository consistency checks for PiERN."""
+"""Repository consistency checks for PierNet."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from piern.synth.api.routers.registry import _validate_registry_entry  # noqa: E402
+from PierNet.synth.api.routers.registry import _validate_registry_entry  # noqa: E402
 from scripts.utils.check_garbled_text import find_garbled_text, iter_files as iter_text_files  # noqa: E402
 
 
@@ -56,8 +56,8 @@ def python_entrypoint_function_exists(module_path: Path, function_name: str) -> 
     return re.search(rf"(?m)^def\s+{re.escape(function_name)}\s*\(", text) is not None
 
 
-def documented_piern_modules(text: str) -> set[str]:
-    return set(re.findall(r"python\s+-m\s+(piern(?:\.[A-Za-z_][\w]*)+)", text))
+def documented_PierNet_modules(text: str) -> set[str]:
+    return set(re.findall(r"python\s+-m\s+(PierNet(?:\.[A-Za-z_][\w]*)+)", text))
 
 
 def iter_project_markdown_files(root: Path) -> Iterable[Path]:
@@ -315,17 +315,17 @@ class Checker:
             self.ok("no OS trash files")
 
         stale_paths = [
-            "piern/api/routers",
-            "piern/api/schemas",
-            "piern/api/services",
-            "piern/api/deps.py",
-            "piern/text2comp",
-            "piern/simulators/power_system",
-            "piern/simulators/gcam/requirements.txt",
-            "piern/simulators/modflow/requirements.txt",
-            "piern/simulators/power_flow/requirements.txt",
-            "piern/simulators/simpeg/requirements.txt",
-            "piern/simulators/transient/requirements.txt",
+            "PierNet/api/routers",
+            "PierNet/api/schemas",
+            "PierNet/api/services",
+            "PierNet/api/deps.py",
+            "PierNet/text2comp",
+            "PierNet/simulators/power_system",
+            "PierNet/simulators/gcam/requirements.txt",
+            "PierNet/simulators/modflow/requirements.txt",
+            "PierNet/simulators/power_flow/requirements.txt",
+            "PierNet/simulators/simpeg/requirements.txt",
+            "PierNet/simulators/transient/requirements.txt",
             "TOKEN_ROUTER_TRAINING_PLAN.md",
             "PERFORMANCE_IMPLEMENTATION_PLAN.md",
             "UPGRADE_PLAN.md",
@@ -347,7 +347,7 @@ class Checker:
             ROOT / "CLAUDE.md",
             ROOT / "docs",
             ROOT / "frontend",
-            ROOT / "piern",
+            ROOT / "PierNet",
             ROOT / "scripts",
             ROOT / "tests",
         ]
@@ -366,14 +366,14 @@ class Checker:
             self.error(f"text encoding marker scan truncated: {len(findings) - 50} additional finding(s)")
 
     def check_backend_routes(self) -> None:
-        main_py = ROOT / "piern/api/main.py"
+        main_py = ROOT / "PierNet/api/main.py"
         if not main_py.exists():
-            self.error("missing piern/api/main.py")
+            self.error("missing PierNet/api/main.py")
             return
 
         content = main_py.read_text(encoding="utf-8")
         registered = set(re.findall(r"\b([A-Za-z_]\w*)\.router", content))
-        for router_dir in [ROOT / "piern/synth/api/routers", ROOT / "piern/training/api/routers"]:
+        for router_dir in [ROOT / "PierNet/synth/api/routers", ROOT / "PierNet/training/api/routers"]:
             if not router_dir.exists():
                 self.error(f"missing router dir: {router_dir.relative_to(ROOT)}")
                 continue
@@ -384,7 +384,7 @@ class Checker:
                 if router_file.stem in registered:
                     self.ok(f"registered router: {rel}")
                 else:
-                    self.warn(f"router not included by piern/api/main.py: {rel}")
+                    self.warn(f"router not included by PierNet/api/main.py: {rel}")
 
     def check_docs_structure(self) -> None:
         required_files = [
@@ -392,10 +392,10 @@ class Checker:
             "PROJECT_OVERVIEW.md",
             "CLAUDE.md",
             "api_server.py",
-            "piern/api/main.py",
-            "piern/synth/text2comp/generator.py",
-            "piern/synth/text2comp/interview_agent.py",
-            "piern/synth/text2comp/template_store.py",
+            "PierNet/api/main.py",
+            "PierNet/synth/text2comp/generator.py",
+            "PierNet/synth/text2comp/interview_agent.py",
+            "PierNet/synth/text2comp/template_store.py",
             "scripts/text2comp/generate_templates.py",
             "scripts/text2comp/fill_samples.py",
             "configs/text2comp/default.yaml",
@@ -408,12 +408,12 @@ class Checker:
                 self.error(f"missing documented file: {rel}")
 
         stale_refs = [
-            "piern/text2comp",
-            "piern.synth.text2comp/",
-            "piern/api/routers",
-            "piern/api/schemas",
-            "piern/api/services",
-            "piern/simulators/power_system",
+            "PierNet/text2comp",
+            "PierNet.synth.text2comp/",
+            "PierNet/api/routers",
+            "PierNet/api/schemas",
+            "PierNet/api/services",
+            "PierNet/simulators/power_system",
             "TOKEN_ROUTER_TRAINING_PLAN.md",
             "PERFORMANCE_IMPLEMENTATION_PLAN.md",
             "UPGRADE_PLAN.md",
@@ -471,7 +471,7 @@ class Checker:
         frontend_paths = frontend_api_prefixes(api_text)
 
         router_files = []
-        for router_dir in [ROOT / "piern/synth/api/routers", ROOT / "piern/training/api/routers"]:
+        for router_dir in [ROOT / "PierNet/synth/api/routers", ROOT / "PierNet/training/api/routers"]:
             router_files.extend(p for p in router_dir.glob("*.py") if p.stem != "__init__")
         backend_prefixes = self._router_prefixes(router_files)
         missing = frontend_paths - backend_prefixes - {""}
@@ -567,14 +567,14 @@ class Checker:
         for path in docs:
             if not path.exists():
                 continue
-            for module in documented_piern_modules(path.read_text(encoding="utf-8")):
+            for module in documented_PierNet_modules(path.read_text(encoding="utf-8")):
                 if python_module_path(module) is None:
                     missing_modules.add(module)
         for module in sorted(missing_modules):
             self.error(f"documented python -m module is missing: {module}")
 
         if not any("pyproject script" in error or "documented python -m" in error for error in self.errors):
-            self.ok("python entrypoints and documented piern modules resolve")
+            self.ok("python entrypoints and documented PierNet modules resolve")
 
     def check_dependency_metadata(self) -> None:
         pyproject_path = ROOT / "pyproject.toml"
@@ -622,9 +622,9 @@ class Checker:
                 self.warn(f"default.yaml {key} path missing: {rel}")
 
     def check_simulator_default_configs(self) -> None:
-        simulator_root = ROOT / "piern/simulators"
+        simulator_root = ROOT / "PierNet/simulators"
         if not simulator_root.exists():
-            self.error("missing piern/simulators")
+            self.error("missing PierNet/simulators")
             return
         for pipeline in sorted(simulator_root.glob("*/pipeline.py")):
             text = pipeline.read_text(encoding="utf-8")
@@ -660,7 +660,7 @@ class Checker:
 
         text = dockerfile.read_text(encoding="utf-8")
         required = {
-            "piern": "Python package",
+            "PierNet": "Python package",
             "scripts": "runtime scripts",
             "configs": "text2comp and simulator configs",
             "api_server.py": "FastAPI compatibility entrypoint",
@@ -716,18 +716,18 @@ class Checker:
         errors_before = len(self.errors)
         checks = [
             ("scripts/frontend/run-vite.mjs", f"MIN_NODE_LABEL = '{minimum}'", "frontend Node minimum"),
-            ("scripts/frontend/run-vite.mjs", "process.env.PIERN_NODE_BIN", "PIERN_NODE_BIN support"),
+            ("scripts/frontend/run-vite.mjs", "process.env.PierNet_NODE_BIN", "PierNet_NODE_BIN support"),
             ("start_ui.sh", f'MIN_NODE_VERSION="{minimum}"', "frontend Node minimum"),
-            ("start_ui.sh", "PIERN_NODE_BIN:-${PIERN_NODE:-", "PIERN_NODE_BIN support"),
-            ("start_ui.sh", "PIERN_NPM:-npm", "PIERN_NPM support"),
+            ("start_ui.sh", "PierNet_NODE_BIN:-${PierNet_NODE:-", "PierNet_NODE_BIN support"),
+            ("start_ui.sh", "PierNet_NPM:-npm", "PierNet_NPM support"),
             ("README.md", f"Node.js {minimum}+", "frontend Node minimum"),
         ]
         for rel, needle, label in checks:
             if needle not in (ROOT / rel).read_text(encoding="utf-8"):
                 self.error(f"{rel} does not mirror {label} {minimum}")
         legacy_public_node_patterns = {
-            "PIERN_NODE": r"(?m)^\s*PIERN_NODE\s*[:=]",
-            "PIERN_NODE_BIN_DIR": r"(?m)^\s*PIERN_NODE_BIN_DIR\s*[:=]",
+            "PierNet_NODE": r"(?m)^\s*PierNet_NODE\s*[:=]",
+            "PierNet_NODE_BIN_DIR": r"(?m)^\s*PierNet_NODE_BIN_DIR\s*[:=]",
         }
         for rel in [".env.example", "compose.yaml"]:
             path = ROOT / rel
@@ -736,7 +736,7 @@ class Checker:
             text = path.read_text(encoding="utf-8")
             for key, pattern in legacy_public_node_patterns.items():
                 if re.search(pattern, text):
-                    self.error(f"{rel} exposes legacy {key}; use PIERN_NODE_BIN instead")
+                    self.error(f"{rel} exposes legacy {key}; use PierNet_NODE_BIN instead")
 
         if len(self.errors) == errors_before:
             self.ok(f"frontend Node runtime minimum: {minimum}")

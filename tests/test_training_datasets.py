@@ -1,7 +1,7 @@
 import json
 
-from piern.training.api.schemas.training import TrainingDatasetInfo
-from piern.training.services import training_datasets
+from PierNet.training.api.schemas.training import TrainingDatasetInfo
+from PierNet.training.services import training_datasets
 
 
 def test_training_datasets_groups_router_manifest(tmp_path):

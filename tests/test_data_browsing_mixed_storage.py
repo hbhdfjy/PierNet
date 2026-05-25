@@ -8,9 +8,9 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from piern.shared.storage import portable
-from piern.synth.api.routers import datasets, router_data
-from piern.synth.services import jsonl_filter_index, jsonl_index, manifest_store
+from PierNet.shared.storage import portable
+from PierNet.synth.api.routers import datasets, router_data
+from PierNet.synth.services import jsonl_filter_index, jsonl_index, manifest_store
 
 
 @pytest.fixture(autouse=True)

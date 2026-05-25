@@ -2,10 +2,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
-from piern.shared.tasks import locks, workers
-from piern.training.services import job_store as training_job_store
-from piern.training.services import training_manager
-from piern.training.services import worker_queue as training_worker_queue
+from PierNet.shared.tasks import locks, workers
+from PierNet.training.services import job_store as training_job_store
+from PierNet.training.services import training_manager
+from PierNet.training.services import worker_queue as training_worker_queue
 
 
 def _use_tmp_runtime(monkeypatch, tmp_path: Path):
@@ -79,7 +79,7 @@ def _payload() -> dict:
 def test_training_create_job_queues_when_worker_queue_enabled(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
 
     entry = training_manager.create_job(_payload())
     jobs = training_manager.list_jobs(refresh=True)
@@ -87,13 +87,13 @@ def test_training_create_job_queues_when_worker_queue_enabled(monkeypatch, tmp_p
     assert entry["status"] == "queued"
     assert entry["started_at"] is None
     assert jobs[0]["status"] == "queued"
-    assert "waiting for piern-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
+    assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
 
 
 def test_training_queue_accepts_busy_existing_gpu(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     monkeypatch.setattr(
         training_manager,
         "get_gpu_inventory",
@@ -115,13 +115,13 @@ def test_training_queue_accepts_busy_existing_gpu(monkeypatch, tmp_path):
 
     assert entry["status"] == "queued"
     assert entry["gpu_id"] == 0
-    assert "waiting for piern-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
+    assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
 
 
 def test_training_worker_launches_queued_job(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     entry = training_manager.create_job(_payload())
     launched = {}
 
@@ -140,7 +140,7 @@ def test_training_worker_launches_queued_job(monkeypatch, tmp_path):
 def test_training_worker_refreshes_queue_lock_while_launching(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     entry = training_manager.create_job(_payload())
     calls: list[tuple[str, str, float]] = []
 
@@ -166,7 +166,7 @@ def test_training_worker_refreshes_queue_lock_while_launching(monkeypatch, tmp_p
 def test_training_worker_skips_not_ready_job_and_launches_next(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     first = training_manager.create_job({**_payload(), "name": "first"})
     second = training_manager.create_job({**_payload(), "name": "second"})
     attempts: list[str] = []
@@ -190,7 +190,7 @@ def test_training_worker_skips_not_ready_job_and_launches_next(monkeypatch, tmp_
 def test_training_worker_marks_invalid_queued_payload_as_error(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     entry = training_manager.create_job(_payload())
 
     def fake_run_queued_job(job_id: str):
@@ -210,7 +210,7 @@ def test_training_worker_marks_invalid_queued_payload_as_error(monkeypatch, tmp_
 def test_training_worker_does_not_overwrite_cancelled_queued_job(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     entry = training_manager.create_job(_payload())
 
     def fake_run_queued_job(job_id: str):
@@ -232,7 +232,7 @@ def test_training_worker_does_not_overwrite_cancelled_queued_job(monkeypatch, tm
 def test_training_worker_continues_when_queued_job_was_cancelled(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     first = training_manager.create_job({**_payload(), "name": "first"})
     second = training_manager.create_job({**_payload(), "name": "second"})
     attempts: list[str] = []
@@ -266,7 +266,7 @@ def test_training_launch_passes_runtime_router_dir(monkeypatch, tmp_path):
         captured["cwd"] = kwargs.get("cwd")
         return FakeProcess()
 
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "0")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "0")
     monkeypatch.setattr(training_manager, "ROUTER_DATA_DIR", router_dir)
     monkeypatch.setattr(training_manager, "_refresh_entry", lambda entry: entry)
     monkeypatch.setattr(training_manager.subprocess, "Popen", fake_popen)
@@ -281,7 +281,7 @@ def test_training_launch_passes_runtime_router_dir(monkeypatch, tmp_path):
 def test_launch_job_does_not_start_cancelled_queued_entry(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
-    monkeypatch.setenv("PIERN_WORKER_QUEUE_TRAINING", "1")
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
     entry = training_manager.create_job(_payload())
     payload = training_manager._payload_from_queued_entry(entry)
 

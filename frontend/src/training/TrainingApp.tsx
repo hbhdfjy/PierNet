@@ -38,7 +38,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
     <AppShell
       platform="training"
       mark="T"
-      title="PiERN 训练"
+      title="PierNet 训练"
       subtitle="模型训练工作台"
       navGroups={navGroups}
       theme={theme}

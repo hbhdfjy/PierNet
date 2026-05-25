@@ -6,7 +6,7 @@ This file is the implementation playbook for developers and coding agents workin
 
 ## Mental Model
 
-PiERN is one repository and one deployable FastAPI + React app with two product surfaces:
+PierNet is one repository and one deployable FastAPI + React app with two product surfaces:
 
 - `/synth`: Stage 1-4 data synthesis
 - `/training`: single-GPU Token Router training
@@ -38,7 +38,7 @@ Legacy synth routes still redirect into `/synth/...`. If changing top-level rout
 - `frontend/src/platform/PlatformRouter.tsx`
 - `frontend/src/synth/SynthApp.tsx`
 - `frontend/src/training/TrainingApp.tsx`
-- `piern/shared/api/static.py`
+- `PierNet/shared/api/static.py`
 
 `SPAStaticFiles` must preserve API 404 behavior for both `/api` and `/api/*` while falling back to `index.html` for browser routes.
 
@@ -46,20 +46,20 @@ Legacy synth routes still redirect into `/synth/...`. If changing top-level rout
 
 Runtime entrypoints:
 
-- `piern/api/main.py`: real FastAPI app assembly
-- `api_server.py`: compatibility re-export of `piern.api.main.app`
+- `PierNet/api/main.py`: real FastAPI app assembly
+- `api_server.py`: compatibility re-export of `PierNet.api.main.app`
 
-`piern/api/` is assembly only. Business logic belongs under platform namespaces:
+`PierNet/api/` is assembly only. Business logic belongs under platform namespaces:
 
 ```text
-piern/synth/api/routers/       # synthesis HTTP routers
-piern/synth/api/schemas/       # synthesis schemas
-piern/synth/services/          # synthesis services
-piern/synth/text2comp/         # Stage 2/3 core
-piern/training/api/routers/    # training HTTP router
-piern/training/api/schemas/    # training schemas
-piern/training/services/       # training job manager
-piern/training/router/         # Token Router data/model/train core
+PierNet/synth/api/routers/       # synthesis HTTP routers
+PierNet/synth/api/schemas/       # synthesis schemas
+PierNet/synth/services/          # synthesis services
+PierNet/synth/text2comp/         # Stage 2/3 core
+PierNet/training/api/routers/    # training HTTP router
+PierNet/training/api/schemas/    # training schemas
+PierNet/training/services/       # training job manager
+PierNet/training/router/         # Token Router data/model/train core
 ```
 
 ## Frontend Layout
@@ -93,7 +93,7 @@ frontend/src/files/            # unified file manager
 - `/synth/registry`: `RegistryPage.tsx`
 - `/synth/llm-config`: `LLMConfig.tsx`
 
-Synthesis routers in `piern/synth/api/routers/`:
+Synthesis routers in `PierNet/synth/api/routers/`:
 
 - `config.py`: config, LLM config, scenario scans
 - `datasets.py`: Stage 3 datasets, samples, dashboard summary
@@ -106,7 +106,7 @@ Synthesis routers in `piern/synth/api/routers/`:
 - `interview.py`: interactive registry assistant
 - `jobs.py`: unified synth job status/SSE/stop/delete
 
-Synthesis services in `piern/synth/services/`:
+Synthesis services in `PierNet/synth/services/`:
 
 - `job_manager.py`: in-memory generation job records, SSE replay, subprocess termination
 - `hdf5_data.py`: HDF5 discovery, canonical paths, strict Stage 1 validation
@@ -169,11 +169,11 @@ artifacts/token_router/{simulator}/runs/{run_name}/
 
 Core files:
 
-- `piern/synth/text2comp/pipeline.py`
-- `piern/synth/text2comp/auto_register.py`
-- `piern/synth/text2comp/interview_agent.py`
-- `piern/synth/text2comp/generator.py`
-- `piern/synth/text2comp/template_store.py`
+- `PierNet/synth/text2comp/pipeline.py`
+- `PierNet/synth/text2comp/auto_register.py`
+- `PierNet/synth/text2comp/interview_agent.py`
+- `PierNet/synth/text2comp/generator.py`
+- `PierNet/synth/text2comp/template_store.py`
 - `scripts/text2comp/generate_templates.py`
 - `scripts/text2comp/fill_samples.py`
 
@@ -196,9 +196,9 @@ Important assumptions:
 
 Training API implementation:
 
-- `piern/training/api/routers/training.py`
-- `piern/training/api/schemas/training.py`
-- `piern/training/services/training_manager.py`
+- `PierNet/training/api/routers/training.py`
+- `PierNet/training/api/schemas/training.py`
+- `PierNet/training/services/training_manager.py`
 
 Current training statuses:
 
@@ -218,11 +218,11 @@ GPU availability is conservative: free memory at least 2048 MiB and utilization 
 
 Primary files:
 
-- `piern/training/router/pretrained_embeddings.py`
-- `piern/training/router/data.py`
-- `piern/training/router/model.py`
-- `piern/training/router/train.py`
-- `piern/training/router/metrics.py`
+- `PierNet/training/router/pretrained_embeddings.py`
+- `PierNet/training/router/data.py`
+- `PierNet/training/router/model.py`
+- `PierNet/training/router/train.py`
+- `PierNet/training/router/metrics.py`
 - `scripts/router/build_router_data.py`
 - `scripts/router/train_token_router.py`
 
@@ -241,25 +241,25 @@ Current assumptions:
 
 | Namespace | Implementation Notes |
 | --- | --- |
-| `piern/simulators/modflow/` | FloPy + MODFLOW-2005, groundwater scenarios, 18-D unified params |
-| `piern/simulators/simpeg/` | SimPEG 0.25.x geophysics forward models, `(1,100)` output |
-| `piern/simulators/power_flow/` | pandapower IEEE-14 steady-state load profiles, `(43,365)` output |
-| `piern/simulators/transient/` | ANDES transient stability DAE runs, `(5,1000)` output |
-| `piern/simulators/gcam/` | PyPSA/HiGHS simplified energy-climate LP, `(5,16)` output |
+| `PierNet/simulators/modflow/` | FloPy + MODFLOW-2005, groundwater scenarios, 18-D unified params |
+| `PierNet/simulators/simpeg/` | SimPEG 0.25.x geophysics forward models, `(1,100)` output |
+| `PierNet/simulators/power_flow/` | pandapower IEEE-14 steady-state load profiles, `(43,365)` output |
+| `PierNet/simulators/transient/` | ANDES transient stability DAE runs, `(5,1000)` output |
+| `PierNet/simulators/gcam/` | PyPSA/HiGHS simplified energy-climate LP, `(5,16)` output |
 
 Root `requirements.txt` and `pyproject.toml` are the dependency sources of truth; simulator directories do not carry separate dependency lock-ins. Do not reintroduce `setup.py`; editable installs and console scripts are defined by `pyproject.toml`.
 
 ## Read Path And File Catalog
 
-Stage 2 and legacy JSONL reads should prefer manifests/indexes and avoid full scans unless necessary. Stage 3/4 primary Parquet reads should go through `piern.shared.storage.portable`, partition manifests, and the file catalog.
+Stage 2 and legacy JSONL reads should prefer manifests/indexes and avoid full scans unless necessary. Stage 3/4 primary Parquet reads should go through `PierNet.shared.storage.portable`, partition manifests, and the file catalog.
 
 Check these together when changing formats, deletion, trimming, or clearing:
 
-- `piern/synth/services/manifest_store.py`
-- `piern/synth/services/jsonl_index.py`
-- `piern/synth/services/jsonl_filter_index.py`
-- `piern/synth/services/file_manager.py`
-- `piern/synth/services/file_catalog.py`
+- `PierNet/synth/services/manifest_store.py`
+- `PierNet/synth/services/jsonl_index.py`
+- `PierNet/synth/services/jsonl_filter_index.py`
+- `PierNet/synth/services/file_manager.py`
+- `PierNet/synth/services/file_catalog.py`
 - `scripts/utils/rebuild_manifests.py`
 - `scripts/utils/rebuild_indexes.py`
 
@@ -287,7 +287,7 @@ Do not treat scroll issues as CSS-only.
 Backend syntax:
 
 ```bash
-python -m compileall piern scripts api_server.py
+python -m compileall PierNet scripts api_server.py
 ```
 
 Frontend checks:
@@ -320,16 +320,16 @@ python scripts/ci/check_consistency.py
 
 ## Current Sharp Edges
 
-- Service scripts and `start_ui.sh` prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/piern`; use `PIERN_CONDA_ENV` to override.
-- `piern/training/services/training_manager.py` launches UI-created training jobs with the backend process Python by default; override `PIERN_TRAINING_PYTHON` if a different interpreter is needed.
-- `piern/core/llm_client.py` has provider-specific paths; test the provider branch you change instead of assuming OpenAI-compatible behavior covers all providers.
+- Service scripts and `start_ui.sh` prefer the repo-local `.conda/env` when present, otherwise default to `$HOME/.conda/envs/PierNet`; use `PierNet_CONDA_ENV` to override.
+- `PierNet/training/services/training_manager.py` launches UI-created training jobs with the backend process Python by default; override `PierNet_TRAINING_PYTHON` if a different interpreter is needed.
+- `PierNet/core/llm_client.py` has provider-specific paths; test the provider branch you change instead of assuming OpenAI-compatible behavior covers all providers.
 - Dependency changes must keep root `requirements.txt` and `pyproject.toml` aligned; simulator-local requirement files should stay absent.
 - Frontend has focused unit coverage, but layout and routing changes still need `npm run build` plus a browser smoke check when behavior is visual.
 
 ## Change Rules
 
 1. Keep synth and training business code inside their platform namespaces.
-2. Keep `piern/api/main.py` as assembly, not a business-logic module.
+2. Keep `PierNet/api/main.py` as assembly, not a business-logic module.
 3. Preserve Stage 1 HDF5, Stage 2 template, Stage 3 sample, Stage 4 router, and training artifact contracts unless the whole pipeline is updated.
 4. Keep Token Router assumptions explicit: Qwen chat format, dynamic tokenization, frozen embedding table, single GPU.
 5. Keep manifests, indexes, and Parquet partition manifests in sync with any Stage 2-4 file lifecycle change.

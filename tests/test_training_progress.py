@@ -1,4 +1,4 @@
-from piern.training.services import training_progress
+from PierNet.training.services import training_progress
 
 
 def test_training_progress_handles_corrupt_logs_and_metrics(tmp_path):

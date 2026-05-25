@@ -11,16 +11,16 @@ ROOT = Path(__file__).resolve().parents[1]
 def _worker_should_start(tmp_path: Path, **overrides: str) -> bool:
     env = os.environ.copy()
     for key in (
-        "PIERN_ENV_FILE",
-        "PIERN_SERVICE_WORKER",
-        "PIERN_WORKER_QUEUE_SYNTH",
-        "PIERN_WORKER_QUEUE_TRAINING",
+        "PierNet_ENV_FILE",
+        "PierNet_SERVICE_WORKER",
+        "PierNet_WORKER_QUEUE_SYNTH",
+        "PierNet_WORKER_QUEUE_TRAINING",
     ):
         env.pop(key, None)
     env.update(
         {
-            "PIERN_ENV_FILE": str(tmp_path / "missing.env"),
-            "PIERN_SERVICE_RUN_DIR": str(tmp_path / "services"),
+            "PierNet_ENV_FILE": str(tmp_path / "missing.env"),
+            "PierNet_SERVICE_RUN_DIR": str(tmp_path / "services"),
         }
     )
     env.update(overrides)
@@ -40,36 +40,36 @@ def test_worker_auto_starts_when_queue_env_is_unset(tmp_path):
 def test_worker_auto_starts_when_synth_queue_enabled(tmp_path):
     assert _worker_should_start(
         tmp_path,
-        PIERN_WORKER_QUEUE_SYNTH="1",
-        PIERN_WORKER_QUEUE_TRAINING="0",
+        PierNet_WORKER_QUEUE_SYNTH="1",
+        PierNet_WORKER_QUEUE_TRAINING="0",
     )
 
 
 def test_worker_auto_starts_when_training_queue_enabled(tmp_path):
     assert _worker_should_start(
         tmp_path,
-        PIERN_WORKER_QUEUE_SYNTH="0",
-        PIERN_WORKER_QUEUE_TRAINING="true",
+        PierNet_WORKER_QUEUE_SYNTH="0",
+        PierNet_WORKER_QUEUE_TRAINING="true",
     )
 
 
 def test_worker_auto_stays_disabled_when_all_queues_disabled(tmp_path):
     assert not _worker_should_start(
         tmp_path,
-        PIERN_WORKER_QUEUE_SYNTH="0",
-        PIERN_WORKER_QUEUE_TRAINING="false",
+        PierNet_WORKER_QUEUE_SYNTH="0",
+        PierNet_WORKER_QUEUE_TRAINING="false",
     )
 
 
 def test_worker_override_disables_auto_queue_start(tmp_path):
-    assert not _worker_should_start(tmp_path, PIERN_SERVICE_WORKER="off")
+    assert not _worker_should_start(tmp_path, PierNet_SERVICE_WORKER="off")
 
 
 def test_worker_override_enables_worker_when_queues_disabled(tmp_path):
-    assert _worker_should_start(tmp_path, PIERN_SERVICE_WORKER="on")
+    assert _worker_should_start(tmp_path, PierNet_SERVICE_WORKER="on")
 
 
-def test_service_common_accepts_legacy_piern_node_env(tmp_path):
+def test_service_common_accepts_legacy_PierNet_node_env(tmp_path):
     node = tmp_path / "bin" / "node"
     node.parent.mkdir(parents=True)
     node.write_text("#!/bin/sh\n", encoding="utf-8")
@@ -77,13 +77,13 @@ def test_service_common_accepts_legacy_piern_node_env(tmp_path):
     env = os.environ.copy()
     env.update(
         {
-            "PIERN_ENV_FILE": str(tmp_path / "missing.env"),
-            "PIERN_CONDA_ENV": str(tmp_path / "conda"),
-            "PIERN_NODE": str(node),
+            "PierNet_ENV_FILE": str(tmp_path / "missing.env"),
+            "PierNet_CONDA_ENV": str(tmp_path / "conda"),
+            "PierNet_NODE": str(node),
         }
     )
-    env.pop("PIERN_NODE_BIN", None)
-    env.pop("PIERN_NODE_BIN_DIR", None)
+    env.pop("PierNet_NODE_BIN", None)
+    env.pop("PierNet_NODE_BIN_DIR", None)
 
     result = subprocess.run(
         ["bash", "-c", "source scripts/services/_common.sh; printf '%s\n' \"$NODE_BIN_DIR\""],
@@ -107,9 +107,9 @@ def test_service_common_prefers_repo_local_conda_env(tmp_path):
     python_bin.chmod(0o755)
     (script_dir / "_common.sh").write_text((ROOT / "scripts/services/_common.sh").read_text(encoding="utf-8"), encoding="utf-8")
     env = os.environ.copy()
-    env.update({"PIERN_ENV_FILE": str(fake_root / "missing.env")})
-    env.pop("PIERN_CONDA_ENV", None)
-    env.pop("PIERN_PYTHON", None)
+    env.update({"PierNet_ENV_FILE": str(fake_root / "missing.env")})
+    env.pop("PierNet_CONDA_ENV", None)
+    env.pop("PierNet_PYTHON", None)
 
     result = subprocess.run(
         [
@@ -144,8 +144,8 @@ def test_service_common_prefers_repo_local_node_when_unset(tmp_path):
         encoding="utf-8",
     )
     env = os.environ.copy()
-    env.update({"PIERN_ENV_FILE": str(fake_root / "missing.env")})
-    for key in ("PIERN_NODE_BIN", "PIERN_NODE", "PIERN_NODE_BIN_DIR"):
+    env.update({"PierNet_ENV_FILE": str(fake_root / "missing.env")})
+    for key in ("PierNet_NODE_BIN", "PierNet_NODE", "PierNet_NODE_BIN_DIR"):
         env.pop(key, None)
 
     result = subprocess.run(
@@ -167,7 +167,7 @@ def test_service_common_prefers_repo_local_node_when_unset(tmp_path):
 def test_install_systemd_includes_worker_by_default_and_reports_all_units():
     install_script = (ROOT / "scripts/services/install-systemd.sh").read_text(encoding="utf-8")
 
-    assert "INSTALL_WORKER=${PIERN_INSTALL_WORKER:-1}" in install_script
+    assert "INSTALL_WORKER=${PierNet_INSTALL_WORKER:-1}" in install_script
     assert "--no-worker) INSTALL_WORKER=0 ;;" in install_script
     assert 'systemctl --user enable "${units[@]}"' in install_script
     assert 'systemctl --user restart "${units[@]}"' in install_script
@@ -185,8 +185,8 @@ def test_status_script_checks_backend_static_frontend_in_prod_mode():
 def test_compose_worker_uses_package_entrypoint():
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
 
-    assert '["python", "-m", "piern.worker", "--interval", "5"]' in compose
-    assert "piern.worker.runner" not in compose
+    assert '["python", "-m", "PierNet.worker", "--interval", "5"]' in compose
+    assert "PierNet.worker.runner" not in compose
 
 
 def test_start_script_uses_backend_readiness_endpoint():
@@ -199,10 +199,10 @@ def test_start_script_uses_backend_readiness_endpoint():
 def test_start_ui_prefers_repo_local_conda_env():
     start_ui = (ROOT / "start_ui.sh").read_text(encoding="utf-8")
 
-    assert 'DEFAULT_CONDA_ENV="$HOME/.conda/envs/piern"' in start_ui
+    assert 'DEFAULT_CONDA_ENV="$HOME/.conda/envs/PierNet"' in start_ui
     assert 'if [[ -x "$PWD/.conda/env/bin/python" ]]; then' in start_ui
     assert 'DEFAULT_CONDA_ENV="$PWD/.conda/env"' in start_ui
-    assert 'CONDA_ENV_PATH="${PIERN_CONDA_ENV:-$DEFAULT_CONDA_ENV}"' in start_ui
+    assert 'CONDA_ENV_PATH="${PierNet_CONDA_ENV:-$DEFAULT_CONDA_ENV}"' in start_ui
     assert 'export PATH="$CONDA_ENV_PATH/bin:$PATH"' in start_ui
     assert 'DEFAULT_NODE_BIN="$PWD/.node/current/bin/node"' in start_ui
-    assert 'NODE_BIN_CANDIDATE="${PIERN_NODE_BIN:-${PIERN_NODE:-$DEFAULT_NODE_BIN}}"' in start_ui
+    assert 'NODE_BIN_CANDIDATE="${PierNet_NODE_BIN:-${PierNet_NODE:-$DEFAULT_NODE_BIN}}"' in start_ui

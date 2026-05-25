@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from fastapi import HTTPException
 import yaml
 
-from piern.synth.api.routers import simulation
+from PierNet.synth.api.routers import simulation
 
 
 def test_cleanup_stale_tmp_configs_removes_only_yaml(tmp_path: Path) -> None:
@@ -27,7 +27,7 @@ def test_cleanup_stale_tmp_configs_removes_only_yaml(tmp_path: Path) -> None:
 
 
 def test_api_lifespan_cleans_stale_simulation_configs(monkeypatch) -> None:
-    from piern.api import main as api_main
+    from PierNet.api import main as api_main
 
     calls: list[str] = []
     monkeypatch.setattr(api_main.simulation, "cleanup_stale_tmp_configs", lambda: calls.append("cleanup"))
@@ -44,7 +44,7 @@ def test_api_lifespan_cleans_stale_simulation_configs(monkeypatch) -> None:
 
 def test_simulator_pipeline_default_config_paths_exist() -> None:
     root = Path(__file__).resolve().parents[1]
-    for pipeline in sorted((root / "piern" / "simulators").glob("*/pipeline.py")):
+    for pipeline in sorted((root / "PierNet" / "simulators").glob("*/pipeline.py")):
         text = pipeline.read_text(encoding="utf-8")
         for match in re.finditer(r"default=[\"'](configs/[^\"']+\.ya?ml)[\"']", text):
             rel = match.group(1)
@@ -454,7 +454,7 @@ def test_start_simulate_reports_conflicting_output_lock(monkeypatch) -> None:
 def test_start_batch_simulate_rejects_duplicate_output_file(monkeypatch) -> None:
     created: list[dict] = []
     recorder = _SubmitRecorder()
-    shared_output = Path("/tmp/piern-shared-output.h5")
+    shared_output = Path("/tmp/PierNet-shared-output.h5")
 
     monkeypatch.setattr(
         simulation,

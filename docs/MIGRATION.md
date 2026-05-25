@@ -1,4 +1,4 @@
-# PiERN 迁移与便携式存储手册
+# PierNet 迁移与便携式存储手册
 
 本项目需要频繁迁移服务器。迁移原则是：GitHub 只保存可复现源数据和工程源文件，派生数据在新服务器上通过平台重新生成。
 
@@ -24,16 +24,16 @@ GitHub 不保存：
 ## 新服务器恢复
 
 ```bash
-git clone git@github-hbhdfjy:hbhdfjy/piern.git piern
-cd piern
+git clone git@github-hbhdfjy:hbhdfjy/PierNet.git PierNet
+cd PierNet
 git checkout main
 ```
 
 创建环境：
 
 ```bash
-conda create -n piern python=3.11 -y
-conda activate piern
+conda create -n PierNet python=3.11 -y
+conda activate PierNet
 pip install -r requirements.txt
 pip install -e .
 cd frontend
@@ -49,15 +49,15 @@ cp .env.example .env
 
 必须按服务器实际情况确认：
 
-- `PIERN_ROOT`
-- `PIERN_DATA_ROOT`
-- `PIERN_ARTIFACT_ROOT`
-- `PIERN_CONDA_ENV`
-- `PIERN_PYTHON`
-- `PIERN_NODE_BIN`
-- `PIERN_QWEN_EMBEDDING_MODEL`
-- `PIERN_QWEN_EMBEDDING_TOKENIZER`
-- `PIERN_MODFLOW_EXE`
+- `PierNet_ROOT`
+- `PierNet_DATA_ROOT`
+- `PierNet_ARTIFACT_ROOT`
+- `PierNet_CONDA_ENV`
+- `PierNet_PYTHON`
+- `PierNet_NODE_BIN`
+- `PierNet_QWEN_EMBEDDING_MODEL`
+- `PierNet_QWEN_EMBEDDING_TOKENIZER`
+- `PierNet_MODFLOW_EXE`
 
 ## 迁移前验收
 
@@ -66,7 +66,7 @@ cp .env.example .env
 ```bash
 python scripts/ci/check_repo_hygiene.py
 python scripts/ci/check_migration_ready.py
-python -m piern.shared.runtime.config
+python -m PierNet.shared.runtime.config
 ```
 
 这些检查只做静态和轻量文件检查，不生成样本、不下载模型、不启动 GPU 训练。模型目录缺失会给出警告和下载提示，不阻止 CI。
@@ -83,7 +83,7 @@ scripts/services/status.sh
 默认端口：
 
 - FastAPI：`0.0.0.0:8000`
-- Vite：`0.0.0.0:5173`
+- Vite：`0.0.0.0:3000`
 
 端口、CORS 来源、数据目录和模型路径都可以通过 `.env` 修改。
 
@@ -94,8 +94,8 @@ scripts/services/status.sh
 ```bash
 scripts/services/install-systemd.sh --dry-run
 scripts/services/install-systemd.sh --enable --now
-systemctl --user status piern-backend
-systemctl --user status piern-frontend
+systemctl --user status PierNet-backend
+systemctl --user status PierNet-frontend
 curl -fsS http://127.0.0.1:8000/api/health/ready
 ```
 

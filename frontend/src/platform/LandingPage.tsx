@@ -94,7 +94,7 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
           <div className="platform-brand-lockup">
             <div className="platform-brand-lockup__mark">P</div>
             <div>
-              <div className="platform-brand-lockup__title">PiERN 控制台</div>
+              <div className="platform-brand-lockup__title">PierNet 控制台</div>
               <div className="platform-brand-lockup__subtitle">物理工程数据合成与 Token Router 训练</div>
             </div>
           </div>
@@ -136,7 +136,7 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
             <div className="platform-system-panel" aria-label="平台运行链路">
               <div className="platform-system-panel__top">
                 <span>运行链路</span>
-                <strong>API :8000 · UI :5173</strong>
+                <strong>API :8000 · UI :3000</strong>
               </div>
               <div className="platform-system-panel__metrics">
                 <div>
