@@ -310,8 +310,7 @@ def get_simulation_data_files():
 def list_expert_models():
     """列出已上传专家模型，以及服务器假定的最小模型接口。"""
     return {
-        "interface": expert_models.EXPERT_INTERFACE,
-        "interface_version": expert_models.EXPERT_INTERFACE_VERSION,
+        **expert_models.describe_constraints(),
         "models": expert_models.list_models(),
     }
 
@@ -348,7 +347,7 @@ async def upload_expert_model(
         raise HTTPException(status_code=400, detail=f"专家模型加载失败: {exc}") from exc
     return {
         "ok": True,
-        "interface": expert_models.EXPERT_INTERFACE,
+        **expert_models.describe_constraints(),
         "model": model,
     }
 

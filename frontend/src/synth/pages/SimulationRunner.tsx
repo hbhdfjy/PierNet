@@ -253,6 +253,18 @@ function DataOverviewCards({ scenarios }: { scenarios: SimulationScenario[] }) {
   )
 }
 
+const FALLBACK_EXPERT_CONSTRAINTS: Record<string, string[]> = {
+  interface: ['必须定义可调用函数 predict(inputs)。', 'inputs 必须按 list[float] 处理，所有数值必须是有限 float。'],
+  output: ['predict 必须返回有限 float 或一维 finite float 数组。'],
+}
+
+const FALLBACK_EXPERT_EXAMPLE = `# expert_model.py
+EXAMPLE_INPUT = [0.0]
+
+def predict(inputs):
+    x = float(inputs[0])
+    return [x, x * x]`
+
 function ExpertModelPanel({ onGenerated }: { onGenerated: () => void }) {
   const { data, isLoading, mutate } = useSWR('simulation-expert-models', () => api.listExpertModels(), {
     refreshInterval: 30000,
@@ -277,6 +289,8 @@ function ExpertModelPanel({ onGenerated }: { onGenerated: () => void }) {
   }, [modelId, models])
 
   const selectedModel = models.find(model => model.model_id === modelId) ?? null
+  const constraintGroups = data?.constraints ?? FALLBACK_EXPERT_CONSTRAINTS
+  const exampleSource = data?.example_source ?? FALLBACK_EXPERT_EXAMPLE
   const planCount = typeof plan?.plan.count === 'number' ? plan.plan.count : null
   const planDim = typeof plan?.plan.input_dim === 'number' ? plan.plan.input_dim : null
 
@@ -364,6 +378,32 @@ function ExpertModelPanel({ onGenerated }: { onGenerated: () => void }) {
         {isLoading && <RefreshCw size={13} className="animate-spin text-fuchsia-300 flex-shrink-0" />}
       </div>
 
+      <div className="rounded-lg border border-fuchsia-500/15 bg-fuchsia-500/5 p-3 space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className="label text-fuchsia-200">接口约束</span>
+          <span className="text-xs text-slate-500">符合约束的模型可直接上传并用于生成 HDF5</span>
+        </div>
+        <div className="grid grid-cols-1 xl:grid-cols-[1fr_0.9fr] gap-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-2">
+            {Object.entries(constraintGroups).map(([group, items]) => (
+              <div key={group} className="min-w-0">
+                <div className="text-xs font-mono text-fuchsia-200/80 mb-1">{group}</div>
+                <ul className="space-y-1 text-xs text-slate-400">
+                  {items.map(item => (
+                    <li key={item} className="leading-5">
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+          <pre className="rounded-md border border-slate-700/40 bg-slate-950/45 px-3 py-2 text-xs text-slate-300 overflow-x-auto font-mono">
+            {exampleSource}
+          </pre>
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(260px,0.82fr)_minmax(360px,1.18fr)] gap-3">
         <div className="rounded-lg border border-slate-700/35 bg-slate-900/25 p-3 space-y-3">
           <div className="flex items-center gap-2">
@@ -414,6 +454,12 @@ function ExpertModelPanel({ onGenerated }: { onGenerated: () => void }) {
               <div className="flex items-center justify-between gap-2 mt-1.5 text-xs text-slate-500">
                 <span className="font-mono truncate">{selectedModel.model_id}</span>
                 <span className="tabular-nums flex-shrink-0">{formatBytes(selectedModel.file_size_bytes)}</span>
+              </div>
+            )}
+            {selectedModel?.example_input_dim && (
+              <div className="flex items-center justify-between gap-2 mt-1 text-xs text-slate-600">
+                <span>校验输入维度 {selectedModel.example_input_dim}</span>
+                {selectedModel.smoke_output_dim && <span>输出维度 {selectedModel.smoke_output_dim}</span>}
               </div>
             )}
           </div>

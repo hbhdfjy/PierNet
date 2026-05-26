@@ -42,6 +42,30 @@ def test_build_input_plan_accepts_explicit_json_values() -> None:
     assert result["preview"] == [[1.0, 2.0], [3.0, 4.0]]
 
 
+def test_describe_constraints_exposes_upload_contract() -> None:
+    payload = expert_models.describe_constraints()
+
+    assert payload["interface"] == "def predict(inputs: list[float]) -> float | list[float]"
+    assert "constraints" in payload
+    assert "EXAMPLE_INPUT" in payload["example_source"]
+    assert payload["max_input_dim"] == expert_models.MAX_INPUT_DIM
+
+
+def test_upload_model_accepts_declared_example_input_for_multidim(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    model_source = """EXAMPLE_INPUT = [0.0, 0.0]
+
+def predict(inputs):
+    return float(inputs[0]) + float(inputs[1])
+"""
+
+    model = expert_models.upload_model("two_dim.py", model_source.encode("utf-8"))
+
+    assert model["example_input"] == [0.0, 0.0]
+    assert model["example_input_dim"] == 2
+    assert model["smoke_output_dim"] == 1
+
+
 def test_upload_and_generate_expert_dataset_uses_stage1_hdf5_contract(monkeypatch, tmp_path: Path) -> None:
     data_root, project_root = _patch_expert_roots(monkeypatch, tmp_path)
     model_source = """def predict(inputs):
@@ -49,6 +73,8 @@ def test_upload_and_generate_expert_dataset_uses_stage1_hdf5_contract(monkeypatc
     return [x, x + 1.0]
 """
     model = expert_models.upload_model("linear.py", model_source.encode("utf-8"))
+    assert model["example_input_dim"] == 1
+    assert model["smoke_output_dim"] == 2
 
     result = expert_models.generate_dataset(
         model_id=model["model_id"],

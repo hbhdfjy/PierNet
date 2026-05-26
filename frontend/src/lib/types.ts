@@ -437,18 +437,29 @@ export interface ExpertModelInfo {
   file_size_bytes: number
   interface: string
   interface_version: number
+  constraints_version?: number
+  example_input?: number[]
+  example_input_dim?: number
+  smoke_output_dim?: number
   exists?: boolean
 }
 
-export interface ExpertModelListResponse {
+export interface ExpertModelContract {
   interface: string
   interface_version: number
+  constraints: Record<string, string[]>
+  example_source: string
+  max_model_bytes: number
+  max_input_dim: number
+  max_input_points: number
+}
+
+export interface ExpertModelListResponse extends ExpertModelContract {
   models: ExpertModelInfo[]
 }
 
-export interface ExpertModelUploadResponse {
+export interface ExpertModelUploadResponse extends ExpertModelContract {
   ok: boolean
-  interface: string
   model: ExpertModelInfo
 }
 

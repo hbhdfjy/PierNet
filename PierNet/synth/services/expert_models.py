@@ -21,8 +21,8 @@ from PierNet.synth.services.hdf5_data import validate_hdf5_file, validate_name
 
 
 EXPERT_SIMULATOR = "expert_model"
-EXPERT_INTERFACE = "predict(inputs: list[float]) -> float | list[float]"
-EXPERT_INTERFACE_VERSION = 1
+EXPERT_INTERFACE = "def predict(inputs: list[float]) -> float | list[float]"
+EXPERT_INTERFACE_VERSION = 2
 EXPERT_MODEL_ROOT = DATA_ROOT / "expert_models"
 EXPERT_MODEL_FILES = EXPERT_MODEL_ROOT / "files"
 EXPERT_METADATA_PATH = EXPERT_MODEL_ROOT / "models.json"
@@ -30,12 +30,51 @@ EXPERT_CONFIG_ROOT = PROJECT_ROOT / "configs" / EXPERT_SIMULATOR / "variants"
 MAX_MODEL_BYTES = 20 * 1024 * 1024
 MAX_INPUT_DIM = 32
 MAX_INPUT_POINTS = 1_000_000
+DEFAULT_EXAMPLE_INPUT = [0.0]
+EXPERT_MODEL_CONSTRAINTS = {
+    "file": [
+        "上传文件必须是单个 Python .py 文件，大小不超过 20 MB。",
+        "模块在上传校验和生成数据时会被导入执行；请不要在模块顶层启动长任务、读写大文件或访问外部网络。",
+    ],
+    "interface": [
+        "必须定义可调用函数 predict(inputs)。",
+        f"inputs 必须按 list[float] 处理，长度为 1 到 {MAX_INPUT_DIM}，所有数值必须是有限 float。",
+        "如果模型需要多维输入，可选定义 EXAMPLE_INPUT = [0.0, 0.0, ...] 作为上传时的最小校验输入。",
+    ],
+    "output": [
+        "predict 必须返回一个有限 float，或一维 finite float 列表/元组/numpy.ndarray。",
+        "同一次数据生成中，每个输入点返回的输出维度必须一致。",
+    ],
+    "dataset": [
+        "生成结果会写入 Stage 1 HDF5：params 形状为 [N, input_dim]，timeseries 形状为 [N, output_dim, 1]。",
+        f"一次输入规划最多生成 {MAX_INPUT_POINTS} 个点。",
+    ],
+}
+EXPERT_MODEL_EXAMPLE_SOURCE = """# expert_model.py
+EXAMPLE_INPUT = [0.0]
+
+def predict(inputs):
+    x = float(inputs[0])
+    return [x, x * x]
+"""
 
 _NUMBER = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
 
 class ExpertModelError(ValueError):
     """Raised when uploaded expert model content or prompts are invalid."""
+
+
+def describe_constraints() -> dict[str, Any]:
+    return {
+        "interface": EXPERT_INTERFACE,
+        "interface_version": EXPERT_INTERFACE_VERSION,
+        "constraints": EXPERT_MODEL_CONSTRAINTS,
+        "example_source": EXPERT_MODEL_EXAMPLE_SOURCE,
+        "max_model_bytes": MAX_MODEL_BYTES,
+        "max_input_dim": MAX_INPUT_DIM,
+        "max_input_points": MAX_INPUT_POINTS,
+    }
 
 
 def _now() -> float:
@@ -68,7 +107,7 @@ def _write_models(models: list[dict[str, Any]]) -> None:
     tmp = EXPERT_METADATA_PATH.with_suffix(".json.tmp")
     tmp.write_text(
         json.dumps(
-            {"version": 1, "interface": EXPERT_INTERFACE, "models": models},
+            {"version": 1, **describe_constraints(), "models": models},
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -121,6 +160,35 @@ def _load_predict(model: dict[str, Any]) -> Callable[[list[float]], Any]:
     return predict
 
 
+def _finite_vector(value: Any, label: str) -> list[float]:
+    if isinstance(value, np.ndarray):
+        value = value.tolist()
+    if not isinstance(value, (list, tuple)) or not value:
+        raise ExpertModelError(f"{label} 必须是非空 list[float]")
+    if len(value) > MAX_INPUT_DIM:
+        raise ExpertModelError(f"{label} 长度不能超过 {MAX_INPUT_DIM}")
+    return [_finite_float(item, f"{label}[{idx}]") for idx, item in enumerate(value)]
+
+
+def validate_model_contract(model: dict[str, Any]) -> dict[str, Any]:
+    model_id = str(model.get("model_id") or "")
+    path = Path(str(model.get("path") or ""))
+    module = _load_module(path, model_id)
+    predict = getattr(module, "predict", None)
+    if not callable(predict):
+        raise ExpertModelError(f"专家模型必须实现接口: {EXPERT_INTERFACE}")
+    example_input = _finite_vector(getattr(module, "EXAMPLE_INPUT", DEFAULT_EXAMPLE_INPUT), "EXAMPLE_INPUT")
+    try:
+        smoke_output = _normalise_output(predict(list(example_input)))
+    except Exception as exc:
+        raise ExpertModelError(f"专家模型上传校验失败：predict(EXAMPLE_INPUT) 无法返回合法 float 输出（{exc}）") from exc
+    return {
+        "example_input": example_input,
+        "example_input_dim": len(example_input),
+        "smoke_output_dim": len(smoke_output),
+    }
+
+
 def upload_model(name: str, content: bytes) -> dict[str, Any]:
     if not content:
         raise ExpertModelError("上传文件为空")
@@ -143,9 +211,10 @@ def upload_model(name: str, content: bytes) -> dict[str, Any]:
         "file_size_bytes": target.stat().st_size,
         "interface": EXPERT_INTERFACE,
         "interface_version": EXPERT_INTERFACE_VERSION,
+        "constraints_version": EXPERT_INTERFACE_VERSION,
     }
     try:
-        _load_predict(model)
+        model.update(validate_model_contract(model))
     except Exception:
         target.unlink(missing_ok=True)
         raise
