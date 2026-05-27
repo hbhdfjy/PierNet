@@ -721,7 +721,7 @@ export interface paths {
         };
         /**
          * List Expert Models
-         * @description 列出已上传专家模型，以及服务器假定的最小模型接口。
+         * @description 列出已上传专家模型，以及服务器支持的专家模型上传约束。
          */
         get: operations["list_expert_models_api_simulation_expert_models_get"];
         put?: never;
@@ -743,7 +743,7 @@ export interface paths {
         put?: never;
         /**
          * Upload Expert Model
-         * @description 上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float]).
+         * @description 上传专家模型 .py 文件或带 manifest 的压缩包；入口必须满足 predict(inputs: list[float]).
          */
         post: operations["upload_expert_model_api_simulation_expert_models_upload_post"];
         delete?: never;
@@ -1253,6 +1253,8 @@ export interface components {
             job_id: string;
             /** Job Type */
             job_type?: string | null;
+            /** Lock Keys */
+            lock_keys?: string[];
             /** Progress */
             progress?: {
                 [key: string]: {

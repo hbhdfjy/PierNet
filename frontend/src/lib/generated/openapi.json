@@ -586,6 +586,13 @@
             ],
             "title": "Job Type"
           },
+          "lock_keys": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Lock Keys",
+            "type": "array"
+          },
           "progress": {
             "additionalProperties": {
               "additionalProperties": true,
@@ -3636,7 +3643,7 @@
     },
     "/api/simulation/expert-models": {
       "get": {
-        "description": "列出已上传专家模型，以及服务器假定的最小模型接口。",
+        "description": "列出已上传专家模型，以及服务器支持的专家模型上传约束。",
         "operationId": "list_expert_models_api_simulation_expert_models_get",
         "responses": {
           "200": {
@@ -3653,7 +3660,7 @@
     },
     "/api/simulation/expert-models/upload": {
       "post": {
-        "description": "上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float]).",
+        "description": "上传专家模型 .py 文件或带 manifest 的压缩包；入口必须满足 predict(inputs: list[float]).",
         "operationId": "upload_expert_model_api_simulation_expert_models_upload_post",
         "parameters": [
           {

@@ -308,7 +308,7 @@ def get_simulation_data_files():
 
 @router.get("/simulation/expert-models")
 def list_expert_models():
-    """列出已上传专家模型，以及服务器假定的最小模型接口。"""
+    """列出已上传专家模型，以及服务器支持的专家模型上传约束。"""
     return {
         **expert_models.describe_constraints(),
         "models": expert_models.list_models(),
@@ -320,7 +320,7 @@ async def upload_expert_model(
     request: Request,
     name: str = Query(..., min_length=1, max_length=180),
 ):
-    """上传专家模型 Python 文件；文件必须实现 predict(inputs: list[float])."""
+    """上传专家模型 .py 文件或带 manifest 的压缩包；入口必须满足 predict(inputs: list[float])."""
     chunks: list[bytes] = []
     total = 0
     try:
@@ -332,7 +332,7 @@ async def upload_expert_model(
             if total > expert_models.MAX_MODEL_BYTES:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"专家模型文件不能超过 {expert_models.MAX_MODEL_BYTES // (1024 * 1024)} MB",
+                    detail=f"专家模型上传体不能超过 {expert_models.MAX_MODEL_BYTES_LABEL}",
                 )
     except HTTPException:
         raise

@@ -27,6 +27,7 @@ class JobStatusResponse(BaseModel):
     stats: dict[str, float] = Field(default_factory=dict)
     finished_at: Optional[float] = None
     error_message: Optional[str] = None
+    lock_keys: list[str] = Field(default_factory=list)
 
 
 class TemplateFileInfo(BaseModel):

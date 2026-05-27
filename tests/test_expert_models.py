@@ -1,8 +1,12 @@
 from __future__ import annotations
 
+import io
+import json
+import zipfile
 from pathlib import Path
 
 import h5py
+import pytest
 
 from PierNet.synth.services import expert_models
 
@@ -21,6 +25,14 @@ def _patch_expert_roots(monkeypatch, tmp_path: Path) -> tuple[Path, Path]:
         project_root / "configs" / expert_models.EXPERT_SIMULATOR / "variants",
     )
     return data_root, project_root
+
+
+def _zip_bundle(files: dict[str, str]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return buffer.getvalue()
 
 
 def test_build_input_plan_parses_chinese_linear_sweep() -> None:
@@ -47,8 +59,11 @@ def test_describe_constraints_exposes_upload_contract() -> None:
 
     assert payload["interface"] == "def predict(inputs: list[float]) -> float | list[float]"
     assert "constraints" in payload
-    assert "EXAMPLE_INPUT" in payload["example_source"]
+    assert payload["manifest_name"] == expert_models.MANIFEST_NAME
+    assert ".zip" in payload["supported_upload_suffixes"]
     assert payload["max_input_dim"] == expert_models.MAX_INPUT_DIM
+    assert payload["max_model_bytes"] == 1024 * 1024 * 1024
+    assert payload["max_bundle_files"] == expert_models.MAX_BUNDLE_FILES
 
 
 def test_upload_model_accepts_declared_example_input_for_multidim(monkeypatch, tmp_path: Path) -> None:
@@ -61,9 +76,79 @@ def predict(inputs):
 
     model = expert_models.upload_model("two_dim.py", model_source.encode("utf-8"))
 
+    assert model["package_type"] == "python_file"
     assert model["example_input"] == [0.0, 0.0]
     assert model["example_input_dim"] == 2
     assert model["smoke_output_dim"] == 1
+
+
+def test_upload_bundle_and_generate_dataset_with_assets(monkeypatch, tmp_path: Path) -> None:
+    data_root, project_root = _patch_expert_roots(monkeypatch, tmp_path)
+    manifest = {
+        "schema_version": 1,
+        "runtime": "python",
+        "entrypoint": "adapter.py",
+        "callable": "predict",
+        "example_input": [1.0, 2.0],
+    }
+    adapter = """import json
+from pathlib import Path
+
+
+def predict(inputs):
+    config = json.loads(Path("coefficients.json").read_text(encoding="utf-8"))
+    return [float(inputs[0]) * float(config["scale"]) + float(inputs[1])]
+"""
+    content = _zip_bundle(
+        {
+            expert_models.MANIFEST_NAME: json.dumps(manifest),
+            "adapter.py": adapter,
+            "coefficients.json": '{"scale": 2.0}',
+        }
+    )
+
+    model = expert_models.upload_model("bundle.zip", content)
+
+    assert model["package_type"] == "zip"
+    assert model["entrypoint"] == "adapter.py"
+    assert model["callable"] == "predict"
+    assert model["example_input"] == [1.0, 2.0]
+    assert model["example_input_dim"] == 2
+    assert model["smoke_output_dim"] == 1
+    assert model["asset_count"] == 3
+
+    result = expert_models.generate_dataset(
+        model_id=model["model_id"],
+        scenario="bundle_case",
+        prompt='{"values": [[1.0, 2.0], [3.0, 4.0]]}',
+    )
+
+    h5_path = data_root / "expert_model" / "expert_model_bundle_case.h5"
+    cfg_path = project_root / "configs" / "expert_model" / "variants" / "bundle_case.yaml"
+    assert result["validation"]["valid"] is True
+    assert h5_path.exists()
+    assert cfg_path.exists()
+    with h5py.File(h5_path, "r") as hf:
+        assert hf["params"].shape == (2, 2)
+        assert hf["timeseries"].shape == (2, 1, 1)
+        assert hf["timeseries"][:, 0, 0].tolist() == [4.0, 10.0]
+        assert int(hf.attrs["n_params"]) == 2
+
+
+def test_upload_bundle_rejects_path_traversal(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    content = _zip_bundle({"../adapter.py": "def predict(inputs): return 1.0"})
+
+    with pytest.raises(expert_models.ExpertModelError, match="非法路径"):
+        expert_models.upload_model("bad.zip", content)
+
+
+def test_upload_bundle_rejects_absolute_path(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    content = _zip_bundle({"/adapter.py": "def predict(inputs): return 1.0"})
+
+    with pytest.raises(expert_models.ExpertModelError, match="绝对路径"):
+        expert_models.upload_model("bad.zip", content)
 
 
 def test_upload_and_generate_expert_dataset_uses_stage1_hdf5_contract(monkeypatch, tmp_path: Path) -> None:

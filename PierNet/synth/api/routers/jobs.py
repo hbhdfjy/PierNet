@@ -25,6 +25,7 @@ def _job_status_response(job) -> JobStatusResponse:
         stats=job.stats,
         finished_at=job.finished_at,
         error_message=job.error_message,
+        lock_keys=list(getattr(job, "lock_keys", []) or []),
     )
 
 

@@ -161,7 +161,10 @@ def run_fill_samples_job(record: JobRecord, payload: dict[str, Any]) -> None:
             on_log=on_log,
             should_stop=lambda: job_manager.should_stop(record),
         )
+        publish(record, {"type": "log", "line": "[收尾] 落盘中：样本数据已写入，正在刷新样本状态", "ts": time.time()})
+        publish(record, {"type": "log", "line": "[收尾] 重建索引中：刷新样本场景清单", "ts": time.time()})
         _invalidate_text2comp_scenarios_cache()
+        publish(record, {"type": "log", "line": "[收尾] 释放锁中：正在释放填充任务资源锁", "ts": time.time()})
         if not job_manager.should_stop(record):
             record.status = "done"
             publish(record, {"type": "done", "ts": time.time(), "message": "样本填充完成"})

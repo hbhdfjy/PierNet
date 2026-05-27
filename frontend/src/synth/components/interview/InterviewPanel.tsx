@@ -27,6 +27,10 @@ import { parseIntegerField, parseIntegerText, parseOptionalIntegerField } from '
 
 interface Props {
   onRegistryUpdate: () => void
+  initialMode?: 'simulator' | 'scenario'
+  initialSimulator?: string
+  initialScenario?: string
+  initialHdf5Path?: string
 }
 
 // ── 步骤进度指示器 ────────────────────────────────────────────────
@@ -835,7 +839,13 @@ function ExtractionPreview({
 
 // ── 主组件 ────────────────────────────────────────────────────────
 
-export default function InterviewPanel({ onRegistryUpdate }: Props) {
+export default function InterviewPanel({
+  onRegistryUpdate,
+  initialMode = 'simulator',
+  initialSimulator = '',
+  initialScenario = '',
+  initialHdf5Path = '',
+}: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [agentStatus, setAgentStatus] = useState<'interviewing' | 'confirming' | 'done' | 'error'>('interviewing')
@@ -853,10 +863,10 @@ export default function InterviewPanel({ onRegistryUpdate }: Props) {
   const [error, setError] = useState<string | null>(null)
 
   // 设置表单
-  const [mode, setMode] = useState<'simulator' | 'scenario'>('simulator')
-  const [simulator, setSimulator] = useState('')
-  const [scenario, setScenario] = useState('')
-  const [hdf5Path, setHdf5Path] = useState('')
+  const [mode, setMode] = useState<'simulator' | 'scenario'>(initialMode)
+  const [simulator, setSimulator] = useState(initialSimulator)
+  const [scenario, setScenario] = useState(initialScenario)
+  const [hdf5Path, setHdf5Path] = useState(initialHdf5Path)
 
   // 从 registry 提取已注册的 simulator 列表（用于 scenario 模式的下拉选择）
   const { data: registry } = useSWR<Record<string, unknown>>('registry-for-interview', () => api.getRegistry(), {

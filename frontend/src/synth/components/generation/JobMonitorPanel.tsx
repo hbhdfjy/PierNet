@@ -227,6 +227,75 @@ function OverallRing({
   )
 }
 
+function FinalizationTimeline({
+  status,
+  logs,
+  overallPct,
+}: {
+  status: JobStatus
+  logs: LogLine[]
+  overallPct: number
+}) {
+  const text = logs.map(log => log.line).join('\n')
+  const sawFinalizing = text.includes('[收尾]') || text.includes('落盘') || text.includes('释放任务锁')
+  const active = status === 'done' || sawFinalizing || (ACTIVE_JOB_STATUSES.has(status) && overallPct >= 99.9)
+  if (!active) return null
+
+  const steps = [
+    { key: 'run', label: '运行中', done: overallPct >= 99.9 || status === 'done' },
+    {
+      key: 'flush',
+      label: '落盘中',
+      done: text.includes('重建') || text.includes('释放任务锁') || status === 'done',
+      active: text.includes('写入') || text.includes('刷新') || (overallPct >= 99.9 && status !== 'done'),
+    },
+    {
+      key: 'index',
+      label: '重建索引中',
+      done: text.includes('释放任务锁') || status === 'done',
+      active: text.includes('重建'),
+    },
+    {
+      key: 'lock',
+      label: '释放锁中',
+      done: status === 'done',
+      active: text.includes('释放任务锁'),
+    },
+    { key: 'done', label: '完成', done: status === 'done', active: status === 'done' },
+  ]
+
+  return (
+    <div className="mt-3 rounded-xl border border-slate-700/35 bg-slate-950/28 p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div className="text-sm font-semibold text-slate-200">任务收尾阶段</div>
+        <div className="text-xs text-slate-500">100% 后仍需落盘、重建索引并释放锁</div>
+      </div>
+      <div className="grid grid-cols-5 gap-1.5">
+        {steps.map(step => (
+          <div
+            key={step.key}
+            className={cn(
+              'flex min-w-0 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-xs',
+              step.done
+                ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-200'
+                : step.active
+                  ? 'border-sky-500/25 bg-sky-500/10 text-sky-200'
+                  : 'border-slate-700/35 bg-slate-900/35 text-slate-500',
+            )}
+          >
+            {step.done ? (
+              <CheckCircle size={11} />
+            ) : step.active ? (
+              <Loader2 size={11} className="animate-spin" />
+            ) : null}
+            <span className="truncate">{step.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 // ── 主组件 ────────────────────────────────────────────────────────
 
 export default function JobMonitorPanel({
@@ -396,6 +465,7 @@ export default function JobMonitorPanel({
                   style={{ width: `${overallPct}%` }}
                 />
               </div>
+              <FinalizationTimeline status={status} logs={logs} overallPct={overallPct} />
             </div>
           )}
 

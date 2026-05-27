@@ -244,6 +244,7 @@ export interface JobStatusSnapshot extends Omit<
   scenario_totals: Record<string, number>
   progress: Record<string, ScenarioProgress>
   stats: LiveStats
+  lock_keys?: string[]
 }
 
 // 模板库状态（来自 /api/templates）
@@ -435,6 +436,13 @@ export interface ExpertModelInfo {
   path: string
   created_at: number
   file_size_bytes: number
+  package_type?: string
+  archive_path?: string
+  entrypoint?: string
+  callable?: string
+  asset_count?: number
+  asset_size_bytes?: number
+  manifest?: Record<string, unknown>
   interface: string
   interface_version: number
   constraints_version?: number
@@ -452,6 +460,9 @@ export interface ExpertModelContract {
   max_model_bytes: number
   max_input_dim: number
   max_input_points: number
+  max_bundle_files?: number
+  supported_upload_suffixes?: string[]
+  manifest_name?: string
 }
 
 export interface ExpertModelListResponse extends ExpertModelContract {

@@ -2,13 +2,22 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import math
+import os
 import re
+import shutil
+import stat
+import sys
+import tarfile
+import threading
 import time
-from pathlib import Path
+import zipfile
+from pathlib import Path, PurePosixPath
 from types import ModuleType
 from typing import Any, Callable
 
@@ -22,27 +31,39 @@ from PierNet.synth.services.hdf5_data import validate_hdf5_file, validate_name
 
 EXPERT_SIMULATOR = "expert_model"
 EXPERT_INTERFACE = "def predict(inputs: list[float]) -> float | list[float]"
-EXPERT_INTERFACE_VERSION = 2
+EXPERT_INTERFACE_VERSION = 3
 EXPERT_MODEL_ROOT = DATA_ROOT / "expert_models"
 EXPERT_MODEL_FILES = EXPERT_MODEL_ROOT / "files"
 EXPERT_METADATA_PATH = EXPERT_MODEL_ROOT / "models.json"
 EXPERT_CONFIG_ROOT = PROJECT_ROOT / "configs" / EXPERT_SIMULATOR / "variants"
-MAX_MODEL_BYTES = 20 * 1024 * 1024
+MANIFEST_NAME = "piernet_expert_model.json"
+MAX_MODEL_BYTES = 1 * 1024 * 1024 * 1024
+MAX_MODEL_BYTES_LABEL = "1 GB"
 MAX_INPUT_DIM = 32
 MAX_INPUT_POINTS = 1_000_000
+MAX_BUNDLE_FILES = 512
 DEFAULT_EXAMPLE_INPUT = [0.0]
+SUPPORTED_UPLOAD_SUFFIXES = (".py", ".zip", ".tar.gz", ".tgz")
+_MODULE_CONTEXT_LOCK = threading.RLock()
 EXPERT_MODEL_CONSTRAINTS = {
     "file": [
-        "上传文件必须是单个 Python .py 文件，大小不超过 20 MB。",
-        "模块在上传校验和生成数据时会被导入执行；请不要在模块顶层启动长任务、读写大文件或访问外部网络。",
+        "可直接上传单个 Python .py 文件，或上传 .zip/.tar.gz/.tgz 专家模型包。",
+        f"上传体大小不超过 {MAX_MODEL_BYTES_LABEL}；压缩包最多 {MAX_BUNDLE_FILES} 个文件，禁止绝对路径、.. 路径穿越和软链接。",
+        "压缩包内可以包含权重、配置、JSON、CSV 等模型资产，但必须提供 piernet_expert_model.json 和 Python 入口适配器。",
+        "第一版假定服务器已有模型需要的运行环境；不会自动安装 requirements。",
+    ],
+    "manifest": [
+        "压缩包必须包含 piernet_expert_model.json。",
+        "manifest 必须声明 runtime=python、entrypoint、callable 和 example_input。",
+        "entrypoint 必须指向包内 Python 文件；callable 通常为 predict。",
     ],
     "interface": [
-        "必须定义可调用函数 predict(inputs)。",
-        f"inputs 必须按 list[float] 处理，长度为 1 到 {MAX_INPUT_DIM}，所有数值必须是有限 float。",
-        "如果模型需要多维输入，可选定义 EXAMPLE_INPUT = [0.0, 0.0, ...] 作为上传时的最小校验输入。",
+        "入口 callable 必须接收 inputs，并按 list[float] 处理。",
+        f"inputs 长度必须为 1 到 {MAX_INPUT_DIM}，所有数值必须是有限 float。",
+        "单 .py 文件可选定义 EXAMPLE_INPUT = [0.0, ...]；压缩包从 manifest.example_input 读取上传校验输入。",
     ],
     "output": [
-        "predict 必须返回一个有限 float，或一维 finite float 列表/元组/numpy.ndarray。",
+        "callable 必须返回一个有限 float，或一维 finite float 列表/元组/numpy.ndarray。",
         "同一次数据生成中，每个输入点返回的输出维度必须一致。",
     ],
     "dataset": [
@@ -50,9 +71,21 @@ EXPERT_MODEL_CONSTRAINTS = {
         f"一次输入规划最多生成 {MAX_INPUT_POINTS} 个点。",
     ],
 }
-EXPERT_MODEL_EXAMPLE_SOURCE = """# expert_model.py
-EXAMPLE_INPUT = [0.0]
+EXPERT_MODEL_EXAMPLE_SOURCE = """# expert_model.zip
+# ├── piernet_expert_model.json
+# ├── adapter.py
+# └── model/config/weights 等任意资产
 
+# piernet_expert_model.json
+{
+  "schema_version": 1,
+  "runtime": "python",
+  "entrypoint": "adapter.py",
+  "callable": "predict",
+  "example_input": [0.0]
+}
+
+# adapter.py
 def predict(inputs):
     x = float(inputs[0])
     return [x, x * x]
@@ -74,6 +107,9 @@ def describe_constraints() -> dict[str, Any]:
         "max_model_bytes": MAX_MODEL_BYTES,
         "max_input_dim": MAX_INPUT_DIM,
         "max_input_points": MAX_INPUT_POINTS,
+        "max_bundle_files": MAX_BUNDLE_FILES,
+        "supported_upload_suffixes": list(SUPPORTED_UPLOAD_SUFFIXES),
+        "manifest_name": MANIFEST_NAME,
     }
 
 
@@ -81,12 +117,42 @@ def _now() -> float:
     return time.time()
 
 
+def _strip_supported_suffix(value: str) -> str:
+    name = Path(str(value or "expert_model")).name
+    lower = name.lower()
+    for suffix in (".tar.gz", ".tgz", ".zip", ".py"):
+        if lower.endswith(suffix):
+            return name[: -len(suffix)]
+    return Path(name).stem
+
+
 def _safe_stem(value: str) -> str:
-    raw = Path(str(value or "expert_model")).stem.strip() or "expert_model"
+    raw = _strip_supported_suffix(value).strip() or "expert_model"
     cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", raw).strip("_-") or "expert_model"
     if not cleaned[0].isalnum():
         cleaned = f"model_{cleaned}"
     return cleaned[:64]
+
+
+def _safe_file_name(value: str, fallback: str) -> str:
+    name = Path(str(value or fallback)).name or fallback
+    cleaned = re.sub(r"[^A-Za-z0-9_.-]+", "_", name).strip("._-") or fallback
+    if not cleaned.lower().endswith(".py") and fallback.lower().endswith(".py"):
+        cleaned = f"{cleaned}.py"
+    return cleaned[:160]
+
+
+def _upload_kind(name: str) -> str:
+    lower = str(name or "").lower()
+    if lower.endswith(".tar.gz"):
+        return "tar.gz"
+    if lower.endswith(".tgz"):
+        return "tgz"
+    if lower.endswith(".zip"):
+        return "zip"
+    if lower.endswith(".py"):
+        return "python_file"
+    raise ExpertModelError("上传文件必须是 .py、.zip、.tar.gz 或 .tgz；普通模型资产请放入压缩包并提供适配器")
 
 
 def _read_models() -> list[dict[str, Any]]:
@@ -124,7 +190,10 @@ def list_models() -> list[dict[str, Any]]:
         copy = dict(item)
         copy["exists"] = bool(path.exists())
         if path.exists():
-            copy["file_size_bytes"] = path.stat().st_size
+            if path.is_file():
+                copy["file_size_bytes"] = path.stat().st_size
+            elif path.is_dir():
+                copy["file_size_bytes"] = int(copy.get("file_size_bytes") or _directory_size(path))
         models.append(copy)
     return sorted(models, key=lambda item: float(item.get("created_at") or 0), reverse=True)
 
@@ -140,24 +209,251 @@ def get_model(model_id: str) -> dict[str, Any]:
     raise KeyError(model_id)
 
 
-def _load_module(path: Path, model_id: str) -> ModuleType:
+def _directory_size(path: Path) -> int:
+    total = 0
+    for item in path.rglob("*"):
+        if item.is_file():
+            total += item.stat().st_size
+    return total
+
+
+def _assert_inside(root: Path, candidate: Path) -> None:
+    try:
+        candidate.resolve(strict=False).relative_to(root.resolve(strict=False))
+    except ValueError as exc:
+        raise ExpertModelError(f"压缩包包含非法路径: {candidate}") from exc
+
+
+def _safe_archive_member(raw: str) -> Path | None:
+    if not raw or "\x00" in raw:
+        raise ExpertModelError("压缩包包含空路径或非法路径")
+    normalized = raw.replace("\\", "/")
+    raw_path = PurePosixPath(normalized)
+    if raw_path.is_absolute():
+        raise ExpertModelError(f"压缩包包含绝对路径: {raw}")
+    normalized = normalized.strip("/")
+    if not normalized:
+        return None
+    posix_path = PurePosixPath(normalized)
+    parts = posix_path.parts
+    if any(part in {"", ".", ".."} or ":" in part for part in parts):
+        raise ExpertModelError(f"压缩包包含非法路径: {raw}")
+    return Path(*parts)
+
+
+def _check_archive_limits(total_bytes: int, file_count: int) -> None:
+    if total_bytes > MAX_MODEL_BYTES:
+        raise ExpertModelError(f"压缩包解压后文件总大小不能超过 {MAX_MODEL_BYTES_LABEL}")
+    if file_count > MAX_BUNDLE_FILES:
+        raise ExpertModelError(f"压缩包文件数量不能超过 {MAX_BUNDLE_FILES}")
+
+
+def _extract_zip(content: bytes, dest: Path) -> tuple[int, int]:
+    total = 0
+    count = 0
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        for info in archive.infolist():
+            member_path = _safe_archive_member(info.filename)
+            if member_path is None:
+                continue
+            target = dest / member_path
+            _assert_inside(dest, target)
+            mode = (info.external_attr >> 16) & 0o170000
+            if mode == stat.S_IFLNK:
+                raise ExpertModelError(f"压缩包不允许包含软链接: {info.filename}")
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            count += 1
+            total += int(info.file_size)
+            _check_archive_limits(total, count)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with archive.open(info, "r") as source, target.open("wb") as handle:
+                shutil.copyfileobj(source, handle)
+    return total, count
+
+
+def _extract_tar(content: bytes, dest: Path) -> tuple[int, int]:
+    total = 0
+    count = 0
+    with tarfile.open(fileobj=io.BytesIO(content), mode="r:*") as archive:
+        for member in archive.getmembers():
+            member_path = _safe_archive_member(member.name)
+            if member_path is None:
+                continue
+            target = dest / member_path
+            _assert_inside(dest, target)
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+                continue
+            if not member.isfile():
+                raise ExpertModelError(f"压缩包只允许普通文件和目录: {member.name}")
+            count += 1
+            total += int(member.size)
+            _check_archive_limits(total, count)
+            extracted = archive.extractfile(member)
+            if extracted is None:
+                raise ExpertModelError(f"无法读取压缩包文件: {member.name}")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with extracted, target.open("wb") as handle:
+                shutil.copyfileobj(extracted, handle)
+    return total, count
+
+
+def _safe_relative_file(value: str, label: str) -> Path:
+    path = _safe_archive_member(str(value or ""))
+    if path is None:
+        raise ExpertModelError(f"{label} 不能为空")
+    return path
+
+
+def _load_bundle_manifest(root: Path) -> dict[str, Any]:
+    manifest_path = root / MANIFEST_NAME
+    if not manifest_path.exists():
+        raise ExpertModelError(f"专家模型包必须包含 {MANIFEST_NAME}")
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ExpertModelError(f"{MANIFEST_NAME} 不是有效 JSON: {exc}") from exc
+    if not isinstance(manifest, dict):
+        raise ExpertModelError(f"{MANIFEST_NAME} 必须是 JSON object")
+    runtime = str(manifest.get("runtime") or "").strip().lower()
+    if runtime != "python":
+        raise ExpertModelError("专家模型包第一版仅支持 runtime=python")
+    entrypoint = _safe_relative_file(str(manifest.get("entrypoint") or ""), "entrypoint")
+    callable_name = str(manifest.get("callable") or "predict").strip()
+    if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", callable_name):
+        raise ExpertModelError("callable 必须是 Python 标识符")
+    if "example_input" not in manifest:
+        raise ExpertModelError("专家模型包 manifest 必须提供 example_input")
+    example_input = _finite_vector(manifest.get("example_input"), "example_input")
+    entrypoint_path = root / entrypoint
+    _assert_inside(root, entrypoint_path)
+    if not entrypoint_path.exists() or not entrypoint_path.is_file():
+        raise ExpertModelError(f"entrypoint 文件不存在: {entrypoint}")
+    if entrypoint_path.suffix.lower() != ".py":
+        raise ExpertModelError("entrypoint 必须是 Python .py 文件")
+    return {
+        "schema_version": int(manifest.get("schema_version") or 1),
+        "runtime": "python",
+        "entrypoint": str(entrypoint.as_posix()),
+        "callable": callable_name,
+        "example_input": example_input,
+    }
+
+
+def _prepare_python_file(model_id: str, name: str, content: bytes) -> dict[str, Any]:
+    model_dir = EXPERT_MODEL_FILES / model_id
+    model_dir.mkdir(parents=True, exist_ok=True)
+    file_name = _safe_file_name(name, f"{model_id}.py")
+    target = model_dir / file_name
+    target.write_bytes(content)
+    return {
+        "package_type": "python_file",
+        "file_name": file_name,
+        "path": str(target),
+        "entrypoint": file_name,
+        "callable": "predict",
+        "asset_count": 1,
+        "asset_size_bytes": len(content),
+    }
+
+
+def _prepare_bundle(model_id: str, name: str, content: bytes, kind: str) -> dict[str, Any]:
+    model_dir = EXPERT_MODEL_FILES / model_id
+    source_dir = model_dir / "source"
+    source_dir.mkdir(parents=True, exist_ok=True)
+    archive_name = _safe_file_name(name, f"{model_id}.{kind}")
+    archive_path = model_dir / archive_name
+    archive_path.write_bytes(content)
+    if kind == "zip":
+        total, count = _extract_zip(content, source_dir)
+    else:
+        total, count = _extract_tar(content, source_dir)
+    manifest = _load_bundle_manifest(source_dir)
+    return {
+        "package_type": kind,
+        "file_name": archive_name,
+        "path": str(source_dir),
+        "archive_path": str(archive_path),
+        "entrypoint": manifest["entrypoint"],
+        "callable": manifest["callable"],
+        "example_input": manifest["example_input"],
+        "manifest": manifest,
+        "asset_count": count,
+        "asset_size_bytes": total,
+    }
+
+
+@contextlib.contextmanager
+def _module_context(root: Path, entrypoint: Path):
+    with _MODULE_CONTEXT_LOCK:
+        previous_cwd = os.getcwd()
+        added: list[str] = []
+        for candidate in (str(root), str(entrypoint.parent)):
+            if candidate not in sys.path:
+                sys.path.insert(0, candidate)
+                added.append(candidate)
+        try:
+            os.chdir(root)
+            yield
+        finally:
+            os.chdir(previous_cwd)
+            for candidate in added:
+                try:
+                    sys.path.remove(candidate)
+                except ValueError:
+                    pass
+
+
+def _model_entrypoint(model: dict[str, Any]) -> tuple[Path, Path, str]:
+    path = Path(str(model.get("path") or ""))
+    callable_name = str(model.get("callable") or "predict")
+    if path.is_file():
+        return path.parent, path, callable_name
+    root = path
+    entrypoint = _safe_relative_file(str(model.get("entrypoint") or ""), "entrypoint")
+    entrypoint_path = root / entrypoint
+    _assert_inside(root, entrypoint_path)
+    if not entrypoint_path.exists():
+        raise FileNotFoundError(f"专家模型入口文件不存在: {entrypoint}")
+    return root, entrypoint_path, callable_name
+
+
+def _load_module(path: Path, model_id: str, root: Path | None = None) -> ModuleType:
     module_name = "PierNet_user_expert_" + hashlib.sha256(f"{model_id}:{path}".encode("utf-8")).hexdigest()[:16]
     spec = importlib.util.spec_from_file_location(module_name, path)
     if spec is None or spec.loader is None:
         raise ExpertModelError("无法加载专家模型 Python 文件")
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    with _module_context(root or path.parent, path):
+        spec.loader.exec_module(module)
     return module
 
 
 def _load_predict(model: dict[str, Any]) -> Callable[[list[float]], Any]:
     model_id = str(model.get("model_id") or "")
-    path = Path(str(model.get("path") or ""))
-    module = _load_module(path, model_id)
-    predict = getattr(module, "predict", None)
+    root, entrypoint, callable_name = _model_entrypoint(model)
+    module = _load_module(entrypoint, model_id, root=root)
+    predict = getattr(module, callable_name, None)
     if not callable(predict):
-        raise ExpertModelError(f"专家模型必须实现接口: {EXPERT_INTERFACE}")
-    return predict
+        raise ExpertModelError(f"专家模型必须实现可调用入口: {callable_name}(inputs)")
+
+    def wrapped(inputs: list[float]) -> Any:
+        with _module_context(root, entrypoint):
+            return predict(inputs)
+
+    return wrapped
+
+
+def _finite_float(value: Any, label: str) -> float:
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ExpertModelError(f"{label} 必须是 float") from exc
+    if not math.isfinite(number):
+        raise ExpertModelError(f"{label} 必须是有限 float")
+    return number
 
 
 def _finite_vector(value: Any, label: str) -> list[float]:
@@ -171,17 +467,18 @@ def _finite_vector(value: Any, label: str) -> list[float]:
 
 
 def validate_model_contract(model: dict[str, Any]) -> dict[str, Any]:
+    root, entrypoint, callable_name = _model_entrypoint(model)
     model_id = str(model.get("model_id") or "")
-    path = Path(str(model.get("path") or ""))
-    module = _load_module(path, model_id)
-    predict = getattr(module, "predict", None)
+    module = _load_module(entrypoint, model_id, root=root)
+    predict = getattr(module, callable_name, None)
     if not callable(predict):
-        raise ExpertModelError(f"专家模型必须实现接口: {EXPERT_INTERFACE}")
-    example_input = _finite_vector(getattr(module, "EXAMPLE_INPUT", DEFAULT_EXAMPLE_INPUT), "EXAMPLE_INPUT")
+        raise ExpertModelError(f"专家模型必须实现可调用入口: {callable_name}(inputs)")
+    example_input = _finite_vector(model.get("example_input", getattr(module, "EXAMPLE_INPUT", DEFAULT_EXAMPLE_INPUT)), "EXAMPLE_INPUT")
     try:
-        smoke_output = _normalise_output(predict(list(example_input)))
+        with _module_context(root, entrypoint):
+            smoke_output = _normalise_output(predict(list(example_input)))
     except Exception as exc:
-        raise ExpertModelError(f"专家模型上传校验失败：predict(EXAMPLE_INPUT) 无法返回合法 float 输出（{exc}）") from exc
+        raise ExpertModelError(f"专家模型上传校验失败：{callable_name}(EXAMPLE_INPUT) 无法返回合法 float 输出（{exc}）") from exc
     return {
         "example_input": example_input,
         "example_input_dim": len(example_input),
@@ -193,46 +490,38 @@ def upload_model(name: str, content: bytes) -> dict[str, Any]:
     if not content:
         raise ExpertModelError("上传文件为空")
     if len(content) > MAX_MODEL_BYTES:
-        raise ExpertModelError(f"专家模型文件不能超过 {MAX_MODEL_BYTES // (1024 * 1024)} MB")
+        raise ExpertModelError(f"专家模型文件不能超过 {MAX_MODEL_BYTES_LABEL}")
 
+    kind = _upload_kind(name)
     stem = _safe_stem(name)
     digest = hashlib.sha256(content + str(time.time_ns()).encode("ascii")).hexdigest()[:12]
     model_id = validate_name("model_id", f"{stem}-{digest}")
-    target = EXPERT_MODEL_FILES / f"{model_id}.py"
-    EXPERT_MODEL_FILES.mkdir(parents=True, exist_ok=True)
-    target.write_bytes(content)
+    model_dir = EXPERT_MODEL_FILES / model_id
 
-    model = {
-        "model_id": model_id,
-        "name": stem,
-        "file_name": target.name,
-        "path": str(target),
-        "created_at": _now(),
-        "file_size_bytes": target.stat().st_size,
-        "interface": EXPERT_INTERFACE,
-        "interface_version": EXPERT_INTERFACE_VERSION,
-        "constraints_version": EXPERT_INTERFACE_VERSION,
-    }
     try:
+        if kind == "python_file":
+            prepared = _prepare_python_file(model_id, name, content)
+        else:
+            prepared = _prepare_bundle(model_id, name, content, kind)
+        model = {
+            "model_id": model_id,
+            "name": stem,
+            "created_at": _now(),
+            "file_size_bytes": len(content),
+            "interface": EXPERT_INTERFACE,
+            "interface_version": EXPERT_INTERFACE_VERSION,
+            "constraints_version": EXPERT_INTERFACE_VERSION,
+            **prepared,
+        }
         model.update(validate_model_contract(model))
     except Exception:
-        target.unlink(missing_ok=True)
+        shutil.rmtree(model_dir, ignore_errors=True)
         raise
 
     models = [item for item in _read_models() if item.get("model_id") != model_id]
     models.append(model)
     _write_models(models)
     return model
-
-
-def _finite_float(value: Any, label: str) -> float:
-    try:
-        number = float(value)
-    except (TypeError, ValueError) as exc:
-        raise ExpertModelError(f"{label} 必须是 float") from exc
-    if not math.isfinite(number):
-        raise ExpertModelError(f"{label} 必须是有限 float")
-    return number
 
 
 def _finite_int(value: Any, label: str, *, min_value: int, max_value: int) -> int:
@@ -407,6 +696,9 @@ def _write_expert_config(model: dict[str, Any], scenario: str, output_file: str,
         "output_file": output_file,
         "expert_model_id": model.get("model_id"),
         "expert_model_name": model.get("name"),
+        "expert_package_type": model.get("package_type"),
+        "expert_entrypoint": model.get("entrypoint"),
+        "expert_callable": model.get("callable"),
         "expert_interface": EXPERT_INTERFACE,
         "input_prompt": prompt,
         "input_plan": {key: value for key, value in plan.items() if key != "warnings"},
@@ -452,6 +744,9 @@ def generate_dataset(
         "scenario": scenario,
         "expert_model_id": str(model.get("model_id") or ""),
         "expert_model_name": str(model.get("name") or ""),
+        "expert_package_type": str(model.get("package_type") or ""),
+        "expert_entrypoint": str(model.get("entrypoint") or ""),
+        "expert_callable": str(model.get("callable") or ""),
         "expert_interface_version": EXPERT_INTERFACE_VERSION,
         "input_prompt": prompt,
         "input_plan_summary": str(plan.get("summary") or ""),

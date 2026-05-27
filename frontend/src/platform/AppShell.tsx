@@ -1,10 +1,24 @@
 import { Suspense, useEffect, useState, type CSSProperties, type ElementType, type ReactNode } from 'react'
-import { Moon, Shuffle, Sun } from 'lucide-react'
+import useSWR from 'swr'
+import {
+  Activity,
+  AlertTriangle,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Moon,
+  Shuffle,
+  Square,
+  Sun,
+} from 'lucide-react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { cn } from '../lib/utils'
 import { SEED_MAX, SeedContext, parseSeedInput, readStoredSeed, writeStoredSeed } from '../lib/seedContext'
 import type { Theme } from '../shared/theme'
 import { PlatformSwitcher } from './PlatformSwitcher'
+import { api } from '../lib/api'
+import type { JobStatusSnapshot, TrainingJobSummary } from '../lib/types'
 
 type ShellPlatform = 'synth' | 'training'
 type NavTone = 'amber' | 'sky' | 'violet' | 'emerald' | 'rose' | 'neutral'
@@ -92,6 +106,192 @@ function ShellNavLink({ item }: { item: ShellNavItem }) {
   )
 }
 
+const ACTIVE_SYNTH_STATUSES = new Set(['queued', 'starting', 'running', 'evaluating', 'stopping'])
+const ACTIVE_TRAINING_STATUSES = new Set(['queued', 'starting', 'running', 'evaluating', 'stopping'])
+
+function shortStatus(status: string): string {
+  switch (status) {
+    case 'queued':
+      return '排队'
+    case 'starting':
+      return '启动'
+    case 'running':
+      return '运行'
+    case 'evaluating':
+      return '评估'
+    case 'stopping':
+      return '停止中'
+    default:
+      return status
+  }
+}
+
+function TaskCenter() {
+  const [open, setOpen] = useState(false)
+  const [stoppingId, setStoppingId] = useState<string | null>(null)
+  const { data: synthJobs, mutate: refreshSynth } = useSWR<JobStatusSnapshot[]>(
+    'app-task-center-synth-jobs',
+    () => api.listGenerationJobs(),
+    { refreshInterval: 5000, revalidateOnFocus: false },
+  )
+  const { data: trainingJobs, mutate: refreshTraining } = useSWR<TrainingJobSummary[]>(
+    'app-task-center-training-jobs',
+    api.getTrainingJobs,
+    { refreshInterval: 5000, revalidateOnFocus: false },
+  )
+
+  const activeSynth = (synthJobs ?? []).filter(job => ACTIVE_SYNTH_STATUSES.has(job.status))
+  const activeTraining = (trainingJobs ?? []).filter(job => ACTIVE_TRAINING_STATUSES.has(job.status))
+  const totalActive = activeSynth.length + activeTraining.length
+  const queuedCount = [...activeSynth, ...activeTraining].filter(job => job.status === 'queued').length
+  const runningCount = totalActive - queuedCount
+  const lockKeys = Array.from(new Set(activeSynth.flatMap(job => job.lock_keys ?? []))).slice(0, 4)
+  const isBusy = totalActive > 0
+
+  const stopSynth = async (jobId: string) => {
+    setStoppingId(jobId)
+    try {
+      await api.stopGeneration(jobId)
+      await refreshSynth()
+    } finally {
+      setStoppingId(null)
+    }
+  }
+
+  const stopTraining = async (jobId: string) => {
+    setStoppingId(jobId)
+    try {
+      await api.stopTrainingJob(jobId)
+      await refreshTraining()
+    } finally {
+      setStoppingId(null)
+    }
+  }
+
+  return (
+    <div className={cn('task-center', open && 'task-center--open', isBusy && 'task-center--busy')}>
+      <button className="task-center__summary" onClick={() => setOpen(v => !v)}>
+        <span className="task-center__icon">
+          <Activity size={13} />
+        </span>
+        <span className="task-center__main">
+          <span className="task-center__title-row">
+            <span className="task-center__title">任务中心</span>
+            <span
+              className={cn('task-center__state', isBusy ? 'task-center__state--busy' : 'task-center__state--idle')}
+            >
+              {isBusy ? `${totalActive} 活动` : '空闲'}
+            </span>
+          </span>
+          <span className="task-center__metrics">
+            <span>
+              <strong>{runningCount}</strong>运行
+            </span>
+            <span>
+              <strong>{queuedCount}</strong>排队
+            </span>
+            <span>
+              <strong>{lockKeys.length}</strong>锁
+            </span>
+          </span>
+        </span>
+        {open ? (
+          <ChevronUp size={13} className="task-center__chevron" />
+        ) : (
+          <ChevronDown size={13} className="task-center__chevron" />
+        )}
+      </button>
+
+      {open && (
+        <div className="task-center__body">
+          {totalActive === 0 ? (
+            <div className="task-center__empty">
+              <CheckCircle2 size={14} />
+              <div>
+                <div className="task-center__empty-title">当前无活动任务</div>
+                <div className="task-center__empty-copy">可以直接启动填充、路由构建或训练。</div>
+              </div>
+            </div>
+          ) : (
+            <div className="task-center__list">
+              {activeSynth.map(job => (
+                <div key={job.job_id} className="task-center__item">
+                  <div className="task-center__item-head">
+                    <div className="task-center__item-title">
+                      <span className="task-center__platform">合成</span>
+                      <span>{job.job_type ?? 'job'}</span>
+                    </div>
+                    <span className="task-center__status">{shortStatus(job.status)}</span>
+                  </div>
+                  <div className="task-center__item-meta mono">{job.job_id}</div>
+                  <div className="task-center__locks">
+                    {(job.lock_keys && job.lock_keys.length > 0 ? job.lock_keys : ['fill/router 互斥资源']).map(
+                      lock => (
+                        <span key={lock} className="task-center__lock mono">
+                          {lock}
+                        </span>
+                      ),
+                    )}
+                  </div>
+                  {job.status !== 'stopping' && (
+                    <button
+                      className="task-center__stop"
+                      onClick={() => stopSynth(job.job_id)}
+                      disabled={stoppingId === job.job_id}
+                    >
+                      {stoppingId === job.job_id ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : (
+                        <Square size={11} />
+                      )}
+                      终止
+                    </button>
+                  )}
+                </div>
+              ))}
+
+              {activeTraining.map(job => (
+                <div key={job.job_id} className="task-center__item">
+                  <div className="task-center__item-head">
+                    <div className="task-center__item-title">
+                      <span className="task-center__platform task-center__platform--training">训练</span>
+                      <span>GPU {job.gpu_id}</span>
+                    </div>
+                    <span className="task-center__status">{shortStatus(job.status)}</span>
+                  </div>
+                  <div className="task-center__item-meta mono">{job.job_id}</div>
+                  <div className="task-center__item-note">{job.name}</div>
+                  {job.status !== 'stopping' && (
+                    <button
+                      className="task-center__stop"
+                      onClick={() => stopTraining(job.job_id)}
+                      disabled={stoppingId === job.job_id}
+                    >
+                      {stoppingId === job.job_id ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : (
+                        <Square size={11} />
+                      )}
+                      终止
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {lockKeys.length > 0 && (
+            <div className="task-center__hint">
+              <AlertTriangle size={12} />
+              <span className="truncate">409 时优先检查这些锁：{lockKeys.join('、')}</span>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function AppShell({
   platform,
   mark,
@@ -161,6 +361,8 @@ export function AppShell({
           </nav>
 
           <div className="app-sidebar__footer">
+            <TaskCenter />
+
             <div className="app-seed-card">
               <div className="app-seed-card__label-row">
                 <div className="app-seed-card__label">

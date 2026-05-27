@@ -208,10 +208,13 @@ def run_router_build_job(record: JobRecord, payload: dict[str, Any]) -> None:
             publish(record, {"type": "terminated", "ts": time.time(), "message": "任务已由平台终止。"})
             return
         if proc.returncode == 0:
+            publish(record, {"type": "log", "line": "[收尾] 落盘中：Router 数据已写入，正在刷新清单", "ts": time.time()})
             try:
+                publish(record, {"type": "log", "line": "[收尾] 重建索引中：重建 Router manifest", "ts": time.time()})
                 manifest_store.rebuild_router_manifest()
             except Exception as exc:
                 publish(record, {"type": "log", "line": f"[warn] Router manifest rebuild failed: {exc}", "ts": time.time()})
+            publish(record, {"type": "log", "line": "[收尾] 释放锁中：正在释放 Router 构建资源锁", "ts": time.time()})
             record.status = "done"
             publish(record, {"type": "done", "ts": time.time(), "message": "Router build completed"})
         else:

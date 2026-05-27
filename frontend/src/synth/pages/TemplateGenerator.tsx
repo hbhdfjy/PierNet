@@ -20,6 +20,7 @@ import {
   KeyRound,
   FolderOpen,
   ChevronRight,
+  CheckCircle2,
 } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
@@ -70,6 +71,9 @@ export default function TemplateGenerator() {
   const [genMode, setGenMode] = useState<'overwrite' | 'skip' | 'append'>('append')
   const [launching, setLaunching] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [testingLLM, setTestingLLM] = useState(false)
+  const [llmTest, setLLMTest] = useState<{ ok: boolean; message: string; response_preview?: string } | null>(null)
+  const [lastLLMTestAt, setLastLLMTestAt] = useState<string | null>(null)
 
   const [languageMix, setLanguageMix] = useState<number | null>(null)
   const [transformProb, setTransformProb] = useState<number | null>(null)
@@ -112,6 +116,30 @@ export default function TemplateGenerator() {
       else next.add(name)
       return next
     })
+
+  const handleTestLLM = async () => {
+    if (!llmCfg) return
+    setTestingLLM(true)
+    setLLMTest(null)
+    try {
+      const result = await api.testLLMConfig({
+        provider: llmCfg.provider,
+        model: llmCfg.model,
+        api_key: '',
+        base_url: llmCfg.base_url,
+        temperature: llmCfg.temperature,
+        max_tokens: llmCfg.max_tokens,
+        thinking: llmCfg.thinking,
+      })
+      setLLMTest(result)
+      setLastLLMTestAt(new Date().toLocaleString('zh-CN'))
+    } catch (e: unknown) {
+      setLLMTest({ ok: false, message: e instanceof Error ? e.message : 'LLM 测试失败' })
+      setLastLLMTestAt(new Date().toLocaleString('zh-CN'))
+    } finally {
+      setTestingLLM(false)
+    }
+  }
 
   const handleLaunch = async () => {
     if (selected.size === 0) {
@@ -406,26 +434,60 @@ export default function TemplateGenerator() {
               ))}
             </div>
 
-            {/* LLM 配置入口 */}
-            <button
-              onClick={() => navigate('/synth/llm-config')}
-              className="w-full flex items-center justify-between px-3 py-2 rounded-xl bg-slate-800/40 border border-slate-700/30 hover:border-slate-600/50 hover:bg-slate-700/30 transition-all text-left"
+            {/* LLM 状态与内嵌测试 */}
+            <div
+              className={cn(
+                'rounded-xl border p-3',
+                llmReady ? 'border-emerald-500/20 bg-emerald-500/8' : 'border-amber-500/20 bg-amber-500/8',
+              )}
             >
-              <div className="flex items-center gap-2 min-w-0">
-                <KeyRound size={12} className="text-slate-500 flex-shrink-0" />
-                <span className="text-xs text-slate-400 truncate">
-                  {llmCfg ? `${llmCfg.provider} · ${llmCfg.model || '未设置模型'}` : 'LLM 配置'}
-                </span>
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    {llmReady ? (
+                      <CheckCircle2 size={13} className="text-emerald-300" />
+                    ) : (
+                      <AlertCircle size={13} className="text-amber-300" />
+                    )}
+                    <span className="text-xs font-semibold text-slate-100">
+                      {llmReady ? 'LLM 连接信息已保存' : 'LLM Key 未配置'}
+                    </span>
+                  </div>
+                  <div className="mt-1 truncate text-xs text-slate-500">
+                    {llmCfg ? `${llmCfg.provider} · ${llmCfg.model || '未设置模型'}` : '正在读取配置'}
+                  </div>
+                  {lastLLMTestAt && <div className="mt-1 text-[11px] text-slate-600">最近测试：{lastLLMTestAt}</div>}
+                </div>
+                <button className="btn-ghost flex-shrink-0 py-1 text-xs" onClick={() => navigate('/synth/llm-config')}>
+                  配置
+                </button>
               </div>
-              <div className="flex items-center gap-1.5 flex-shrink-0 ml-2">
-                {llmCfg?.has_api_key ? (
-                  <span className="text-emerald-500 text-xs">✓</span>
-                ) : (
-                  <span className="text-red-400 text-xs">⚠</span>
-                )}
-                <span className="text-xs text-slate-600">→</span>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="btn-ghost flex-1 justify-center py-1.5 text-xs"
+                  onClick={handleTestLLM}
+                  disabled={!llmReady || testingLLM}
+                >
+                  {testingLLM ? <RefreshCw size={12} className="animate-spin" /> : <KeyRound size={12} />}
+                  测试连接
+                </button>
               </div>
-            </button>
+              {llmTest && (
+                <div
+                  className={cn(
+                    'mt-2 rounded-lg border px-2.5 py-2 text-xs leading-5',
+                    llmTest.ok
+                      ? 'border-emerald-500/20 bg-emerald-500/8 text-emerald-200'
+                      : 'border-red-500/20 bg-red-500/8 text-red-200',
+                  )}
+                >
+                  <div>{llmTest.message}</div>
+                  {llmTest.response_preview && (
+                    <div className="mt-1 truncate font-mono opacity-75">{llmTest.response_preview}</div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* 错误 */}

@@ -109,21 +109,52 @@ export function normalizeTrainingTestRatio(value: number, fallback = 0.1): numbe
 const PLATFORM_STOP_PENDING_MESSAGE = 'Platform stop requested; waiting for checkpoint save.'
 const PLATFORM_STOP_PENDING_DISPLAY = '已发送停止请求，正在等待当前 checkpoint 安全保存。'
 
+function summarizeTrainingFailure(message: string | null | undefined): string {
+  const text = (message || '').trim()
+  if (!text || text === PLATFORM_STOP_PENDING_MESSAGE) return '没有记录到最后日志摘要'
+  return text.length > 220 ? `${text.slice(0, 220)}…` : text
+}
+
+function trainingSuggestion(summary: string): string {
+  const lower = summary.toLowerCase()
+  if (lower.includes('cuda') || lower.includes('gpu') || summary.includes('显存') || summary.includes('不可用')) {
+    return '建议动作：检查 GPU 占用、显存和任务参数后重试。'
+  }
+  if (lower.includes('dataset') || summary.includes('数据') || summary.includes('样本')) {
+    return '建议动作：检查训练数据集、Router 数据和场景选择后重试。'
+  }
+  return '建议动作：打开详情查看完整日志，确认资源和参数后重试。'
+}
+
 export function trainingJobNotice(
   job: Pick<TrainingJobSummary, 'error_message' | 'exit_reason' | 'status' | 'stop_requested'>,
 ): TrainingJobNotice | null {
-  const message = job.error_message
-  if (!message) return null
-
+  const summary = summarizeTrainingFailure(job.error_message)
   const platformStop =
     job.exit_reason === 'platform_stop' || job.exit_reason === 'platform_stop_requested' || Boolean(job.stop_requested)
-  if (platformStop && job.status === 'terminated' && message === PLATFORM_STOP_PENDING_MESSAGE) {
-    return null
-  }
-  if (platformStop && job.status === 'stopping' && message === PLATFORM_STOP_PENDING_MESSAGE) {
+
+  if (job.status === 'stopping' && platformStop) {
     return { message: PLATFORM_STOP_PENDING_DISPLAY, tone: 'amber' }
   }
-  return { message, tone: job.status === 'stopping' ? 'amber' : 'rose' }
+  if (job.status === 'terminated') {
+    if (platformStop) {
+      return {
+        message: `用户终止：任务已按平台请求停止。最后日志摘要：${summary}。建议动作：确认 checkpoint 后可重新启动。`,
+        tone: 'amber',
+      }
+    }
+    return { message: `任务终止：${summary}。${trainingSuggestion(summary)}`, tone: 'amber' }
+  }
+  if (job.status === 'external_terminated') {
+    return { message: `进程外部退出：${summary}。${trainingSuggestion(summary)}`, tone: 'rose' }
+  }
+  if (job.status === 'error') {
+    return { message: `训练失败：${summary}。${trainingSuggestion(summary)}`, tone: 'rose' }
+  }
+  if (job.error_message) {
+    return { message: summary, tone: job.status === 'stopping' ? 'amber' : 'rose' }
+  }
+  return null
 }
 
 export function formatCount(value: number | null | undefined): string {

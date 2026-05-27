@@ -1,7 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import useSWR from 'swr'
+import { useNavigate } from 'react-router-dom'
 import { api } from '../../lib/api'
-import type { DashboardSummary } from '../../lib/types'
+import type {
+  DashboardSummary,
+  LLMConfig,
+  TemplateInfo,
+  Text2CompScenariosConfig,
+  TrainingDatasetInfo,
+} from '../../lib/types'
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts'
 import {
   RefreshCw,
@@ -14,6 +21,9 @@ import {
   Activity,
   FolderOpen,
   TrendingUp,
+  CheckCircle2,
+  AlertTriangle,
+  ArrowRight,
 } from 'lucide-react'
 import EmptyState from '../components/ui/EmptyState'
 import { cn } from '../../lib/utils'
@@ -349,13 +359,110 @@ function RouterStatCard({
   )
 }
 
+type PipelineReadinessItem = {
+  stage: string
+  title: string
+  ok: boolean
+  summary: string
+  missing: string[]
+  actionLabel: string
+  actionPath: string
+}
+
+function PipelineReadinessPanel({
+  items,
+  onNavigate,
+}: {
+  items: PipelineReadinessItem[]
+  onNavigate: (path: string) => void
+}) {
+  const readyCount = items.filter(item => item.ok).length
+  const trainingReady = items.every(item => item.ok)
+
+  return (
+    <SectionBlock
+      icon={<CheckCircle2 size={17} />}
+      title="流水线就绪检查"
+      copy={`${readyCount}/${items.length} 个阶段已满足${trainingReady ? '，可进入训练' : '，按缺口继续推进'}`}
+    >
+      <div className="grid grid-cols-1 gap-3 xl:grid-cols-4">
+        {items.map(item => (
+          <div
+            key={item.stage}
+            className={cn(
+              'training-card flex min-h-[14rem] flex-col justify-between p-4',
+              item.ok ? 'border-emerald-500/25 bg-emerald-500/6' : 'border-amber-500/25 bg-amber-500/6',
+            )}
+          >
+            <div className="space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="training-eyebrow">{item.stage}</div>
+                  <div className="mt-1 text-base font-semibold text-slate-100">{item.title}</div>
+                </div>
+                <span
+                  className={cn(
+                    'flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl border',
+                    item.ok
+                      ? 'border-emerald-500/30 bg-emerald-500/12 text-emerald-300'
+                      : 'border-amber-500/30 bg-amber-500/12 text-amber-300',
+                  )}
+                >
+                  {item.ok ? <CheckCircle2 size={16} /> : <AlertTriangle size={16} />}
+                </span>
+              </div>
+              <div className="text-sm font-semibold text-slate-200">{item.summary}</div>
+              {item.missing.length > 0 ? (
+                <div className="space-y-1.5">
+                  {item.missing.map(msg => (
+                    <div key={msg} className="flex gap-1.5 text-xs leading-5 text-amber-200/90">
+                      <span className="mt-0.5 text-amber-300">•</span>
+                      <span>{msg}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-xs leading-5 text-emerald-200/80">当前阶段已满足，可继续下一步。</div>
+              )}
+            </div>
+            <button
+              className="btn-ghost mt-4 w-full justify-center py-2 text-xs"
+              onClick={() => onNavigate(item.actionPath)}
+            >
+              {item.actionLabel}
+              <ArrowRight size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+    </SectionBlock>
+  )
+}
+
 export default function DatasetStats() {
+  const navigate = useNavigate()
   const statsSwrOptions = { revalidateOnFocus: false }
   const {
     data: summary,
     isLoading: loading,
     mutate: refreshSummary,
   } = useSWR<DashboardSummary>('dashboard-summary', () => api.getDashboardSummary(), statsSwrOptions)
+  const { data: scenarioConfig } = useSWR<Text2CompScenariosConfig>(
+    'dashboard-text2comp-scenarios',
+    () => api.getText2CompScenarios(),
+    statsSwrOptions,
+  )
+  const { data: templates } = useSWR<TemplateInfo[]>(
+    'dashboard-templates-status',
+    () => api.getTemplatesStatus(),
+    statsSwrOptions,
+  )
+  const { data: llmConfig } = useSWR<LLMConfig>('dashboard-llm-config', () => api.getLLMConfig(), statsSwrOptions)
+  const { data: trainingDatasets } = useSWR<TrainingDatasetInfo[]>(
+    'dashboard-training-datasets',
+    () => api.getTrainingDatasets(),
+    statsSwrOptions,
+  )
 
   const stats = summary?.stats
   const datasets = summary?.datasets ?? []
@@ -375,6 +482,72 @@ export default function DatasetStats() {
     routerGeneratedTotal > 0 ? ((routerPositive / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
   const routerNegativeRate =
     routerGeneratedTotal > 0 ? ((routerNegative / routerGeneratedTotal) * 100).toFixed(1) : '0.0'
+
+  const pipelineItems = useMemo<PipelineReadinessItem[]>(() => {
+    const scenarios = scenarioConfig ? Object.values(scenarioConfig).flat() : []
+    const h5Scenarios = scenarios.filter(item => item.has_h5)
+    const registeredCount = h5Scenarios.filter(item => item.registered).length
+    const templateTotal = (templates ?? []).reduce((sum, item) => sum + item.template_count, 0)
+    const templateScenarioCount = (templates ?? []).filter(item => item.template_count > 0).length
+    const stage3Samples = stats?.total_samples ?? 0
+    const routerReady = routerGeneratedTotal > 0
+    const trainingDatasetCount = trainingDatasets?.length ?? 0
+
+    return [
+      {
+        stage: 'Stage 1',
+        title: 'HDF5 与注册',
+        ok: h5Scenarios.length > 0 && registeredCount === h5Scenarios.length,
+        summary: h5Scenarios.length > 0 ? `${registeredCount}/${h5Scenarios.length} 已注册` : '还没有可注册的 HDF5',
+        missing: [
+          h5Scenarios.length === 0 ? '需要先生成或上传 HDF5 数据' : '',
+          h5Scenarios.length > 0 && registeredCount < h5Scenarios.length
+            ? `还有 ${h5Scenarios.length - registeredCount} 个 HDF5 场景未注册`
+            : '',
+        ].filter(Boolean) as string[],
+        actionLabel: h5Scenarios.length === 0 ? '进入 Stage 1' : '注册场景',
+        actionPath: h5Scenarios.length === 0 ? '/synth/simulate' : '/synth/register',
+      },
+      {
+        stage: 'Stage 2',
+        title: 'LLM 与模板',
+        ok: Boolean(llmConfig?.has_api_key) && templateTotal > 0,
+        summary: llmConfig?.has_api_key ? `${templateScenarioCount} 个场景已有模板` : 'LLM Key 未配置',
+        missing: [
+          !llmConfig?.has_api_key ? '需要配置 LLM Key 才能生成模板' : '',
+          templateTotal === 0 ? '需要生成语言模板' : '',
+        ].filter(Boolean) as string[],
+        actionLabel: !llmConfig?.has_api_key ? '配置 LLM' : '生成模板',
+        actionPath: !llmConfig?.has_api_key ? '/synth/llm-config' : '/synth/templates',
+      },
+      {
+        stage: 'Stage 3',
+        title: '样本填充',
+        ok: stage3Samples > 0,
+        summary: stage3Samples > 0 ? `${stage3Samples.toLocaleString()} 条样本已生成` : '样本尚未填充',
+        missing: stage3Samples > 0 ? [] : ['需要把模板和 HDF5 数值填充成训练样本'],
+        actionLabel: '填充样本',
+        actionPath: '/synth/fill',
+      },
+      {
+        stage: 'Stage 4',
+        title: 'Router 数据',
+        ok: routerReady,
+        summary: routerReady ? `Router 数据已生成，可进入训练` : 'Router 数据未生成',
+        missing: routerReady ? [] : ['需要从 Stage 3 样本构建 Router 训练数据'],
+        actionLabel: routerReady && trainingDatasetCount > 0 ? '进入训练' : '构建路由',
+        actionPath: routerReady && trainingDatasetCount > 0 ? '/training/jobs/new' : '/synth/router',
+      },
+    ]
+  }, [
+    llmConfig?.has_api_key,
+    routerGeneratedTotal,
+    scenarioConfig,
+    stats?.total_samples,
+    templates,
+    trainingDatasets?.length,
+  ])
+
   const distributionSideRef = useRef<HTMLDivElement | null>(null)
   const [scenarioCardHeight, setScenarioCardHeight] = useState<number | null>(null)
 
@@ -430,6 +603,8 @@ export default function DatasetStats() {
               }}
               loading={loading}
             />
+
+            <PipelineReadinessPanel items={pipelineItems} onNavigate={navigate} />
 
             <SectionBlock icon={<Globe size={17} />} title="内容分布" copy="场景规模、语言、风格和时间采样。">
               <div className="dataset-distribution-grid grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,25rem)]">

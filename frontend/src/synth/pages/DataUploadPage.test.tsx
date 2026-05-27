@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { SWRConfig } from 'swr'
+import { MemoryRouter } from 'react-router-dom'
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { api } from '../../lib/api'
 import DataUploadPage from './DataUploadPage'
@@ -34,9 +35,11 @@ const validation = {
 
 function renderPage() {
   return render(
-    <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
-      <DataUploadPage />
-    </SWRConfig>,
+    <MemoryRouter>
+      <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
+        <DataUploadPage />
+      </SWRConfig>
+    </MemoryRouter>,
   )
 }
 

@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import {
   AlertTriangle,
@@ -12,7 +13,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import { api } from '../../lib/api'
-import type { Hdf5DataFileInfo, Hdf5ValidationResult } from '../../lib/types'
+import type { Hdf5DataFileInfo, Hdf5UploadResponse, Hdf5ValidationResult } from '../../lib/types'
 import { cn, formatBytes, getSimulatorBadgeClass, SIMULATOR_LABELS } from '../../lib/utils'
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
@@ -112,7 +113,8 @@ function FileStatus({ file }: { file: Hdf5DataFileInfo }) {
   )
 }
 
-export default function DataUploadPage() {
+export function DataUploadContent({ compact = false }: { compact?: boolean }) {
+  const navigate = useNavigate()
   const {
     data: files,
     isLoading,
@@ -127,6 +129,7 @@ export default function DataUploadPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<Hdf5ValidationResult | null>(null)
+  const [uploadResponse, setUploadResponse] = useState<Hdf5UploadResponse | null>(null)
 
   const cleanSimulator = simulator.trim()
   const cleanScenario = scenario.trim()
@@ -150,6 +153,7 @@ export default function DataUploadPage() {
   const handleFileChange = (nextFile: File | null) => {
     setFile(nextFile)
     setResult(null)
+    setUploadResponse(null)
     setError(null)
     if (nextFile && !cleanScenario) {
       setScenario(deriveScenarioName(nextFile.name, cleanSimulator))
@@ -172,9 +176,11 @@ export default function DataUploadPage() {
     setUploading(true)
     setError(null)
     setResult(null)
+    setUploadResponse(null)
     try {
       const response = await api.uploadHdf5Data({ simulator: cleanSimulator, scenario: cleanScenario, file, overwrite })
       setResult(response.validation)
+      setUploadResponse(response)
       await mutate()
       await mutateCache('simulation-scenarios', api.getSimulationScenarios(true), { revalidate: false })
     } catch (e: unknown) {
@@ -184,9 +190,17 @@ export default function DataUploadPage() {
     }
   }
 
+  const registrationParams = uploadResponse
+    ? new URLSearchParams({
+        simulator: uploadResponse.simulator,
+        scenario: uploadResponse.scenario,
+        hdf5_path: uploadResponse.saved_path,
+      }).toString()
+    : ''
+
   return (
-    <div className="page-shell">
-      <div className="page-content space-y-4 p-4">
+    <div className={cn(compact ? 'space-y-4' : 'page-content space-y-4 p-4')}>
+      {!compact && (
         <section className="training-hero training-hero--compact">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
@@ -207,202 +221,226 @@ export default function DataUploadPage() {
             </div>
           </div>
         </section>
+      )}
 
-        <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[0.95fr_1.05fr]">
-          <section className="training-card overflow-hidden">
-            <div className="card-header">
-              <UploadCloud size={17} className="text-amber-400" />
-              <div>
-                <div className="training-panel-title">上传与落盘</div>
-                <div className="training-panel-copy path-wrap">
-                  目标路径固定为 data/&lt;big_scene&gt;/&lt;big_scene&gt;_&lt;scenario&gt;.h5
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <section className="training-card overflow-hidden">
+          <div className="card-header">
+            <UploadCloud size={17} className="text-amber-400" />
+            <div>
+              <div className="training-panel-title">上传与落盘</div>
+              <div className="training-panel-copy path-wrap">
+                目标路径固定为 data/&lt;big_scene&gt;/&lt;big_scene&gt;_&lt;scenario&gt;.h5
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3.5 p-4">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_1fr]">
+              <label className="space-y-1.5">
+                <span className="label">仿真器 / 大场景</span>
+                <input
+                  className={cn('input w-full font-mono', simulator && !simulatorValid && 'border-red-500/50')}
+                  value={simulator}
+                  onChange={e => setSimulator(e.target.value)}
+                  placeholder="new_big_scene"
+                />
+                <div className="text-xs text-slate-500">
+                  直接输入大场景命名空间，例如 modflow、simpeg 或 new_big_scene。
+                </div>
+              </label>
+              <label className="space-y-1.5">
+                <span className="label">场景名</span>
+                <input
+                  className={cn('input w-full font-mono', scenario && !scenarioValid && 'border-red-500/50')}
+                  value={scenario}
+                  onChange={e => setScenario(e.target.value)}
+                  placeholder="new_scenario"
+                />
+              </label>
+            </div>
+
+            <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3.5">
+              <div className="flex items-start gap-3">
+                <FileCode2 size={18} className="mt-1 text-sky-300" />
+                <div className="min-w-0 flex-1">
+                  <div className="font-semibold text-slate-100">HDF5 文件</div>
+                  <input
+                    type="file"
+                    accept=".h5,.hdf5"
+                    className="mt-3 block w-full text-sm text-slate-400 file:mr-3 file:rounded-xl file:border file:border-slate-700/40 file:bg-slate-800/70 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-700/70"
+                    onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
+                  />
+                  {file && (
+                    <div className="mt-3 text-sm text-slate-400">
+                      已选择{' '}
+                      <span className="pretty-tooltip inline-block max-w-full align-bottom" data-tooltip={file.name}>
+                        <span className="block truncate font-mono text-slate-200">{file.name}</span>
+                      </span>
+                      ，大小 {formatBytes(file.size)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            <div className="space-y-3.5 p-4">
-              <div className="grid grid-cols-1 gap-3 md:grid-cols-[260px_1fr]">
-                <label className="space-y-1.5">
-                  <span className="label">仿真器 / 大场景</span>
-                  <input
-                    className={cn('input w-full font-mono', simulator && !simulatorValid && 'border-red-500/50')}
-                    value={simulator}
-                    onChange={e => setSimulator(e.target.value)}
-                    placeholder="new_big_scene"
-                  />
-                  <div className="text-xs text-slate-500">
-                    直接输入大场景命名空间，例如 modflow、simpeg 或 new_big_scene。
-                  </div>
-                </label>
-                <label className="space-y-1.5">
-                  <span className="label">场景名</span>
-                  <input
-                    className={cn('input w-full font-mono', scenario && !scenarioValid && 'border-red-500/50')}
-                    value={scenario}
-                    onChange={e => setScenario(e.target.value)}
-                    placeholder="new_scenario"
-                  />
-                </label>
-              </div>
-
-              <div className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3.5">
-                <div className="flex items-start gap-3">
-                  <FileCode2 size={18} className="mt-1 text-sky-300" />
-                  <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-slate-100">HDF5 文件</div>
-                    <input
-                      type="file"
-                      accept=".h5,.hdf5"
-                      className="mt-3 block w-full text-sm text-slate-400 file:mr-3 file:rounded-xl file:border file:border-slate-700/40 file:bg-slate-800/70 file:px-3 file:py-2 file:text-sm file:font-semibold file:text-slate-200 hover:file:bg-slate-700/70"
-                      onChange={e => handleFileChange(e.target.files?.[0] ?? null)}
-                    />
-                    {file && (
-                      <div className="mt-3 text-sm text-slate-400">
-                        已选择{' '}
-                        <span className="pretty-tooltip inline-block max-w-full align-bottom" data-tooltip={file.name}>
-                          <span className="block truncate font-mono text-slate-200">{file.name}</span>
-                        </span>
-                        ，大小 {formatBytes(file.size)}
-                      </div>
-                    )}
+            <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3.5">
+              <div className="flex items-start gap-2">
+                <Info size={16} className="mt-0.5 text-sky-300" />
+                <div>
+                  <div className="text-sm font-semibold text-slate-100">写入位置</div>
+                  <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={targetPath}>
+                    <div className="path-wrap font-mono text-sm text-sky-300">{targetPath}</div>
                   </div>
                 </div>
               </div>
+            </div>
 
-              <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3.5">
-                <div className="flex items-start gap-2">
-                  <Info size={16} className="mt-0.5 text-sky-300" />
-                  <div>
-                    <div className="text-sm font-semibold text-slate-100">写入位置</div>
-                    <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={targetPath}>
-                      <div className="path-wrap font-mono text-sm text-sky-300">{targetPath}</div>
+            <label className="flex items-center gap-2 text-sm text-slate-400">
+              <input type="checkbox" checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />
+              覆盖已存在的同名 HDF5 文件
+            </label>
+
+            {error && (
+              <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-200">{error}</div>
+            )}
+
+            {result && <ValidationPanel validation={result} />}
+
+            {uploadResponse && result?.valid && (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/8 p-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-emerald-200">上传成功，可以进入注册</div>
+                    <div className="pretty-tooltip mt-1 min-w-0" data-tooltip={uploadResponse.saved_path}>
+                      <div className="truncate font-mono text-xs text-emerald-300/80">{uploadResponse.saved_path}</div>
                     </div>
                   </div>
+                  <button
+                    className="btn-primary flex-shrink-0 justify-center py-2 text-sm"
+                    onClick={() => navigate(`/synth/register?${registrationParams}`)}
+                  >
+                    <CheckCircle2 size={14} />
+                    去注册此数据
+                  </button>
                 </div>
               </div>
+            )}
 
-              <label className="flex items-center gap-2 text-sm text-slate-400">
-                <input type="checkbox" checked={overwrite} onChange={e => setOverwrite(e.target.checked)} />
-                覆盖已存在的同名 HDF5 文件
-              </label>
-
-              {error && (
-                <div className="rounded-2xl border border-red-500/25 bg-red-500/10 p-3 text-sm text-red-200">
-                  {error}
-                </div>
-              )}
-
-              {result && <ValidationPanel validation={result} />}
-
-              <button
-                className="btn-primary w-full justify-center py-3 text-sm"
-                disabled={uploading || !file || !simulatorValid || !scenarioValid}
-                onClick={handleUpload}
-              >
-                {uploading ? <RefreshCw size={15} className="animate-spin" /> : <UploadCloud size={15} />}
-                {uploading ? '上传并预检中…' : '上传并预检'}
-              </button>
-            </div>
-          </section>
-
-          <section className="training-card overflow-hidden">
-            <div className="card-header">
-              <ShieldCheck size={17} className="text-emerald-400" />
-              <div>
-                <div className="training-panel-title">校验规范</div>
-                <div className="training-panel-copy">上传页按此规范预检，只有合规 HDF5 会写入数据目录。</div>
-              </div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
-              {SPEC_ITEMS.map((item, index) => (
-                <div key={item} className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
-                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-100">
-                    <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/12 font-mono text-xs text-emerald-300">
-                      {index + 1}
-                    </span>
-                    必需项
-                  </div>
-                  <div className="text-sm leading-6 text-slate-400">{item}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-        </div>
+            <button
+              className="btn-primary w-full justify-center py-3 text-sm"
+              disabled={uploading || !file || !simulatorValid || !scenarioValid}
+              onClick={handleUpload}
+            >
+              {uploading ? <RefreshCw size={15} className="animate-spin" /> : <UploadCloud size={15} />}
+              {uploading ? '上传并预检中…' : '上传并预检'}
+            </button>
+          </div>
+        </section>
 
         <section className="training-card overflow-hidden">
           <div className="card-header">
-            <Database size={17} className="text-sky-400" />
+            <ShieldCheck size={17} className="text-emerald-400" />
             <div>
-              <div className="training-panel-title">已接入 HDF5 文件</div>
-              <div className="training-panel-copy">所有仿真器/大场景的数据都会从 data/ 下扫描。</div>
+              <div className="training-panel-title">校验规范</div>
+              <div className="training-panel-copy">上传页按此规范预检，只有合规 HDF5 会写入数据目录。</div>
             </div>
-            <div className="flex-1" />
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => mutate()}>
-              <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
-              刷新
-            </button>
           </div>
-
-          <div className="steady-table-scroll">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-700/40 bg-slate-800/40">
-                  <th className="px-5 py-3 text-left label">状态</th>
-                  <th className="px-5 py-3 text-left label">仿真器 / 大场景</th>
-                  <th className="px-5 py-3 text-left label">场景</th>
-                  <th className="px-5 py-3 text-right label">样本</th>
-                  <th className="px-5 py-3 text-left label">输出</th>
-                  <th className="px-5 py-3 text-right label">大小</th>
-                  <th className="px-5 py-3 text-right label">修改时间</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(files ?? []).map((item, index) => (
-                  <tr
-                    key={item.path}
-                    className={cn(
-                      'border-b border-slate-800/45 hover:bg-slate-700/18',
-                      index % 2 === 0 ? '' : 'bg-slate-800/10',
-                    )}
-                  >
-                    <td className="px-5 py-3">
-                      <FileStatus file={item} />
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className={cn('badge border', getSimulatorBadgeClass(item.simulator))}>
-                        {SIMULATOR_LABELS[item.simulator] ?? item.simulator}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="font-mono font-semibold text-slate-100">{item.scenario}</div>
-                      <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{item.path}</div>
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-300">
-                      {item.sample_count.toLocaleString()}
-                    </td>
-                    <td className="px-5 py-3 font-mono text-slate-400">
-                      {item.output_shape ? item.output_shape.join(' × ') : '—'}
-                    </td>
-                    <td className="px-5 py-3 text-right font-mono text-slate-400">
-                      {formatBytes(item.file_size_bytes)}
-                    </td>
-                    <td className="px-5 py-3 text-right text-slate-500">
-                      {new Date(item.mtime * 1000).toLocaleString('zh-CN')}
-                    </td>
-                  </tr>
-                ))}
-                {!isLoading && (!files || files.length === 0) && (
-                  <tr>
-                    <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
-                      暂无 HDF5 文件
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+          <div className="grid grid-cols-1 gap-3 p-4 md:grid-cols-2">
+            {SPEC_ITEMS.map((item, index) => (
+              <div key={item} className="rounded-xl border border-slate-700/35 bg-slate-900/30 p-3">
+                <div className="mb-2 flex items-center gap-2 text-sm font-semibold text-slate-100">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/12 font-mono text-xs text-emerald-300">
+                    {index + 1}
+                  </span>
+                  必需项
+                </div>
+                <div className="text-sm leading-6 text-slate-400">{item}</div>
+              </div>
+            ))}
           </div>
         </section>
       </div>
+
+      <section className="training-card overflow-hidden">
+        <div className="card-header">
+          <Database size={17} className="text-sky-400" />
+          <div>
+            <div className="training-panel-title">已接入 HDF5 文件</div>
+            <div className="training-panel-copy">所有仿真器/大场景的数据都会从 data/ 下扫描。</div>
+          </div>
+          <div className="flex-1" />
+          <button className="btn-ghost py-1.5 text-xs" onClick={() => mutate()}>
+            <RefreshCw size={12} className={isLoading ? 'animate-spin' : ''} />
+            刷新
+          </button>
+        </div>
+
+        <div className="steady-table-scroll">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-700/40 bg-slate-800/40">
+                <th className="px-5 py-3 text-left label">状态</th>
+                <th className="px-5 py-3 text-left label">仿真器 / 大场景</th>
+                <th className="px-5 py-3 text-left label">场景</th>
+                <th className="px-5 py-3 text-right label">样本</th>
+                <th className="px-5 py-3 text-left label">输出</th>
+                <th className="px-5 py-3 text-right label">大小</th>
+                <th className="px-5 py-3 text-right label">修改时间</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(files ?? []).map((item, index) => (
+                <tr
+                  key={item.path}
+                  className={cn(
+                    'border-b border-slate-800/45 hover:bg-slate-700/18',
+                    index % 2 === 0 ? '' : 'bg-slate-800/10',
+                  )}
+                >
+                  <td className="px-5 py-3">
+                    <FileStatus file={item} />
+                  </td>
+                  <td className="px-5 py-3">
+                    <span className={cn('badge border', getSimulatorBadgeClass(item.simulator))}>
+                      {SIMULATOR_LABELS[item.simulator] ?? item.simulator}
+                    </span>
+                  </td>
+                  <td className="px-5 py-3">
+                    <div className="font-mono font-semibold text-slate-100">{item.scenario}</div>
+                    <div className="mt-1 max-w-[520px] truncate font-mono text-xs text-slate-600">{item.path}</div>
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono tabular-nums text-sky-300">
+                    {item.sample_count.toLocaleString()}
+                  </td>
+                  <td className="px-5 py-3 font-mono text-slate-400">
+                    {item.output_shape ? item.output_shape.join(' × ') : '—'}
+                  </td>
+                  <td className="px-5 py-3 text-right font-mono text-slate-400">{formatBytes(item.file_size_bytes)}</td>
+                  <td className="px-5 py-3 text-right text-slate-500">
+                    {new Date(item.mtime * 1000).toLocaleString('zh-CN')}
+                  </td>
+                </tr>
+              ))}
+              {!isLoading && (!files || files.length === 0) && (
+                <tr>
+                  <td colSpan={7} className="px-5 py-12 text-center text-slate-500">
+                    暂无 HDF5 文件
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default function DataUploadPage() {
+  return (
+    <div className="page-shell">
+      <DataUploadContent />
     </div>
   )
 }
