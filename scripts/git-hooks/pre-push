@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+ROOT="$(git rev-parse --show-toplevel)"
+cd "$ROOT"
+
+echo "Running local CI before push. Set PIERN_SKIP_PRE_PUSH_CI=1 only for emergency bypass."
+[[ "${PIERN_SKIP_PRE_PUSH_CI:-}" == "1" ]] && exit 0
+
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Working tree has uncommitted changes; commit or stash them before pushing." >&2
+  exit 1
+fi
+
+exec "$ROOT/scripts/ci/run_local_ci.sh"
