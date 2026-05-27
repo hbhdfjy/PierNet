@@ -62,10 +62,11 @@ BANNED_SUFFIXES = (
     ".log",
     ".env",
 )
+TOKEN_LEFT_BOUNDARY = r"(?<![A-Za-z0-9_-])"
 SECRET_PATTERNS = [
-    re.compile(r"github_pat_[A-Za-z0-9_]{20,}"),
-    re.compile(r"gh[pousr]_[A-Za-z0-9_]{20,}"),
-    re.compile(r"sk-[A-Za-z0-9_-]{20,}"),
+    re.compile(TOKEN_LEFT_BOUNDARY + r"github_pat_[A-Za-z0-9_]{20,}"),
+    re.compile(TOKEN_LEFT_BOUNDARY + r"gh[pousr]_[A-Za-z0-9_]{20,}"),
+    re.compile(TOKEN_LEFT_BOUNDARY + r"sk-[A-Za-z0-9_-]{20,}"),
 ]
 GENERIC_SECRET_ASSIGNMENT = re.compile(
     r"(?i)\b(?:api[_-]?key|secret|token)\b\s*[:=]\s*['\"]([A-Za-z0-9][A-Za-z0-9_:+/-]{23,})['\"]"

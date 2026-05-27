@@ -43,3 +43,11 @@ def test_nested_local_runtime_dirs_are_banned() -> None:
     for path in banned_paths:
         reason = check_repo_hygiene.is_banned_path(path)
         assert reason is not None, path
+
+def test_secret_scanner_detects_standalone_tokens() -> None:
+    assert check_repo_hygiene.has_secret_literal("sk-" + "a" * 24)
+
+
+def test_secret_scanner_ignores_token_like_substrings_inside_identifiers() -> None:
+    assert not check_repo_hygiene.has_secret_literal(".task-center__platform--training { color: red; }")
+    assert not check_repo_hygiene.has_secret_literal("'app-task-center-training-jobs'")
