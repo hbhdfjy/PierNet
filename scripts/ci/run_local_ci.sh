@@ -85,13 +85,15 @@ run_env() {
 }
 
 PYTHON_BIN="$(resolve_python)"
+CI_TMPDIR="${TMPDIR:-/tmp}"
+mkdir -p "$CI_TMPDIR"
 
 if [[ "$RUN_BACKEND" -eq 1 ]]; then
   run "$PYTHON_BIN" -m ruff check .
   run "$PYTHON_BIN" scripts/ci/check_consistency.py
   run "$PYTHON_BIN" scripts/ci/check_repo_hygiene.py
   run "$PYTHON_BIN" scripts/ci/check_migration_ready.py
-  run "$PYTHON_BIN" scripts/ci/export_openapi.py /tmp/PierNet-openapi-local.json
+  run "$PYTHON_BIN" scripts/ci/export_openapi.py "$CI_TMPDIR/PierNet-openapi-local.json"
   run npm --prefix frontend run openapi:check
   run "$PYTHON_BIN" -m pytest
 fi
@@ -106,7 +108,12 @@ if [[ "$RUN_FRONTEND" -eq 1 ]]; then
   if [[ "$RUN_E2E" -eq 1 ]]; then
     (
       cd frontend
-      run npx playwright install chromium
+      if node -e 'const fs = require("fs"); const { chromium } = require("playwright"); process.exit(fs.existsSync(chromium.executablePath()) ? 0 : 1)' >/dev/null 2>&1; then
+        echo
+        echo "==> playwright chromium already installed"
+      else
+        run npx playwright install chromium
+      fi
     )
     run_env PierNet_E2E_START_SERVER=1 npm --prefix frontend run e2e:smoke
     run_env PierNet_E2E_START_SERVER=1 npm --prefix frontend run e2e:visual

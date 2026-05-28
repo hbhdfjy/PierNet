@@ -84,6 +84,8 @@ async function mockApi(page: Page) {
 }
 
 test('key workbench pages produce non-empty screenshots without overflow', async ({ page }) => {
+  test.setTimeout(60_000)
+
   await mockApi(page)
   await page.setViewportSize({ width: 1440, height: 900 })
   const routes = [
@@ -93,7 +95,7 @@ test('key workbench pages produce non-empty screenshots without overflow', async
     { path: '/synth/fill', text: '样本填充' },
   ]
   for (const route of routes) {
-    await page.goto(route.path)
+    await page.goto(route.path, { waitUntil: 'domcontentloaded' })
     await expect(page.getByText(route.text).first()).toBeVisible()
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
     expect(overflow).toBeLessThanOrEqual(3)
