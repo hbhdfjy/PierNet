@@ -10,7 +10,7 @@ import type {
   TemplateInfo,
   JobStatus,
 } from '../../lib/types'
-import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText, FolderOpen } from 'lucide-react'
+import { FlaskConical, Settings, Layers, RefreshCw, AlertCircle, Sparkles, FileText } from 'lucide-react'
 import { cn } from '../../lib/utils'
 import ScenarioButton from '../components/generation/ScenarioButton'
 import JobMonitorPanel from '../components/generation/JobMonitorPanel'
@@ -439,30 +439,6 @@ export default function SampleFiller() {
             </div>
           </div>
         )}
-
-        {/* File management lives in /synth/files */}
-        <div className="card workbench-files-card overflow-hidden">
-          <div className="card-header justify-between py-3">
-            <div className="flex items-center gap-2">
-              <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">样本文件</span>
-            </div>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
-              打开文件管理
-            </button>
-          </div>
-          <div className="p-4">
-            <div className="workbench-file-note">
-              <div className="font-semibold text-slate-100">统一文件管理</div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
-                样本删除、清空和合并文件状态已迁移到统一文件管理，避免在生成页面误删正在使用的数据。
-              </p>
-              <button className="btn-ghost mt-3 text-xs text-emerald-300" onClick={() => navigate('/synth/files')}>
-                打开统一文件管理
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )

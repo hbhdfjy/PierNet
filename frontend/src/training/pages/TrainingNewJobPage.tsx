@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
+import { TrainingSectionTitle as SectionTitle, TrainingUsageBar as UsageBar } from '../components/common'
 import { useSeed } from '../../lib/seedContext'
 import type {
   TrainingCreateJobRequest,
@@ -48,30 +49,12 @@ function toNumber(value: string, fallback: number): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function SectionTitle({ title, copy }: { title: string; copy: string }) {
-  return (
-    <div>
-      <div className="training-panel-title">{title}</div>
-      <div className="training-panel-copy">{copy}</div>
-    </div>
-  )
-}
-
 function Field({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
     <div>
       <label className="training-label">{label}</label>
       <div className="mt-1.5">{children}</div>
       {note && <div className="mt-1 training-note">{note}</div>}
-    </div>
-  )
-}
-
-function UsageBar({ value }: { value: number }) {
-  const pct = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
-  return (
-    <div className="training-progress mt-1.5">
-      <div className="training-progress__fill" style={{ width: `${pct}%` }} />
     </div>
   )
 }

@@ -1162,20 +1162,6 @@
     background: hsl(var(--surface) / 0.34);
   }
 
-  .workbench-files-card {
-    width: 100%;
-    max-width: 72rem;
-    flex: 0 0 auto;
-    align-self: center;
-  }
-
-  .workbench-file-note {
-    padding: 0.9rem;
-    border-left: 2px solid hsl(var(--border-hi) / 0.5);
-    border-radius: var(--radius-sm);
-    background: hsl(var(--surface2) / 0.32);
-  }
-
   .data-overview-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 8.75rem), 1fr));
@@ -1355,31 +1341,6 @@
     flex-shrink: 0;
     flex-wrap: wrap;
     gap: 0.5rem;
-  }
-  .training-overview-statusbar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-    margin-top: 0.85rem;
-    padding: 0.55rem;
-    border: 1px solid hsl(var(--border) / 0.54);
-    border-radius: var(--radius-md);
-    background: hsl(var(--surface2) / 0.46);
-  }
-  .training-overview-statusbar__item {
-    display: inline-flex;
-    min-width: 0;
-    align-items: center;
-    gap: 0.38rem;
-    border: 1px solid hsl(var(--border) / 0.48);
-    border-radius: var(--radius-sm);
-    background: hsl(var(--surface) / 0.48);
-    padding: 0.36rem 0.55rem;
-    color: hsl(var(--text-muted));
-    font-size: 0.76rem;
-  }
-  .training-overview-statusbar__item svg {
-    color: hsl(var(--brand-strong));
   }
   .training-overview-hero__kpis {
     margin-top: 0.85rem;

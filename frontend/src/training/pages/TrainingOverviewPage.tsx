@@ -1,7 +1,8 @@
-import { Activity, CheckCircle2, Cpu, Database, Gauge, Layers3, PlayCircle, TimerReset } from 'lucide-react'
+import { Activity, Cpu, Database, Gauge, Layers3, PlayCircle, TimerReset } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
+import { TrainingSectionTitle as SectionTitle, TrainingUsageBar } from '../components/common'
 import type { TrainingOverview } from '../../lib/types'
 import {
   formatBytes,
@@ -43,24 +44,6 @@ function KpiCard({
   )
 }
 
-function SectionTitle({ title, copy }: { title: string; copy: string }) {
-  return (
-    <div className="min-w-0">
-      <div className="training-panel-title">{title}</div>
-      <div className="training-panel-copy">{copy}</div>
-    </div>
-  )
-}
-
-function UsageBar({ value, tone = 'sky' }: { value: number; tone?: KpiTone }) {
-  const pct = Number.isFinite(value) ? Math.max(0, Math.min(100, value)) : 0
-  return (
-    <div className={`training-progress training-progress--${tone} mt-2`}>
-      <div className="training-progress__fill" style={{ width: `${pct}%` }} />
-    </div>
-  )
-}
-
 export default function TrainingOverviewPage() {
   const { data, error, isLoading } = useSWR<TrainingOverview>('training-overview', api.getTrainingOverview, {
     refreshInterval: 5000,
@@ -70,7 +53,6 @@ export default function TrainingOverviewPage() {
   const totalDatasets = data?.datasets.reduce((sum, item) => sum + item.total_count, 0) ?? 0
   const availableGpus = data?.gpus.filter(gpu => gpu.available).length ?? 0
   const busyGpus = (data?.gpus.length ?? 0) - availableGpus
-  const latestJob = data?.jobs[0]
   const totalGpuMemory = data?.gpus.reduce((sum, gpu) => sum + gpu.memory_total_mib, 0) ?? 0
   const usedGpuMemory = data?.gpus.reduce((sum, gpu) => sum + gpu.memory_used_mib, 0) ?? 0
   const memoryRatio = totalGpuMemory > 0 ? (usedGpuMemory / totalGpuMemory) * 100 : 0
@@ -97,25 +79,6 @@ export default function TrainingOverviewPage() {
                   <Layers3 size={15} />
                   任务列表
                 </Link>
-              </div>
-            </div>
-
-            <div className="training-overview-statusbar">
-              <div className="training-overview-statusbar__item">
-                <CheckCircle2 size={13} />
-                <span>{availableGpus > 0 ? `${availableGpus} 张 GPU 可用` : '暂无可用 GPU'}</span>
-              </div>
-              <div className="training-overview-statusbar__item">
-                <Database size={13} />
-                <span>{formatCount(totalDatasets)} 条 Router 样本</span>
-              </div>
-              <div className="training-overview-statusbar__item">
-                <Activity size={13} />
-                <span>
-                  {latestJob
-                    ? `最近任务 ${statusLabel(latestJob.status)} · ${formatDateTime(latestJob.created_at)}`
-                    : '暂无训练任务'}
-                </span>
               </div>
             </div>
 
@@ -180,10 +143,7 @@ export default function TrainingOverviewPage() {
                             <div className="training-dataset-card__meta">
                               {dataset.scenarios.length} 个子场景 · {formatCount(dataset.total_count)} 条
                             </div>
-                          </div>
-                          <Link to="/training/new" className="btn-ghost py-1.5 text-xs">
-                            用于训练
-                          </Link>
+                          </div>{' '}
                         </div>
                         <div className="training-chip-grid training-chip-grid--compact">
                           {dataset.scenarios.map(scenario => (
@@ -223,7 +183,7 @@ export default function TrainingOverviewPage() {
                           {gpuUsageLabel(usedGpuMemory, totalGpuMemory)} · {memoryRatio.toFixed(1)}%
                         </div>
                       </div>
-                      <UsageBar value={memoryRatio} tone="emerald" />
+                      <TrainingUsageBar className="mt-2" value={memoryRatio} tone="emerald" />
                     </div>
                     {data.gpus.map(gpu => {
                       const gpuMemoryRatio =
@@ -251,12 +211,12 @@ export default function TrainingOverviewPage() {
                               <div className="mt-0.5 text-[13px] text-slate-200">
                                 {gpuUsageLabel(gpu.memory_used_mib, gpu.memory_total_mib)}
                               </div>
-                              <UsageBar value={gpuMemoryRatio} tone="emerald" />
+                              <TrainingUsageBar className="mt-2" value={gpuMemoryRatio} tone="emerald" />
                             </div>
                             <div>
                               <div className="training-label">利用率</div>
                               <div className="mt-0.5 text-[13px] text-slate-200">{gpu.utilization_gpu}%</div>
-                              <UsageBar value={gpu.utilization_gpu} tone="sky" />
+                              <TrainingUsageBar className="mt-2" value={gpu.utilization_gpu} tone="sky" />
                             </div>
                           </div>
                         </div>

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { api } from '../../lib/api'
 import type { Hdf5DataFileInfo, Hdf5UploadResponse, Hdf5ValidationResult } from '../../lib/types'
+import { MetaTile } from '../../shared/ui'
 import { cn, formatBytes, getSimulatorBadgeClass, SIMULATOR_LABELS } from '../../lib/utils'
 
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/
@@ -51,10 +52,10 @@ function ValidationPanel({ validation }: { validation: Hdf5ValidationResult }) {
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
-        <Metric label="样本" value={validation.sample_count.toLocaleString()} />
-        <Metric label="输出 shape" value={validation.output_shape ? validation.output_shape.join(' × ') : '—'} />
-        <Metric label="参数 shape" value={validation.params_shape ? validation.params_shape.join(' × ') : '—'} />
-        <Metric label="大小" value={formatBytes(validation.file_size_bytes)} />
+        <MetaTile label="样本" value={validation.sample_count.toLocaleString()} />
+        <MetaTile label="输出 shape" value={validation.output_shape ? validation.output_shape.join(' × ') : '—'} />
+        <MetaTile label="参数 shape" value={validation.params_shape ? validation.params_shape.join(' × ') : '—'} />
+        <MetaTile label="大小" value={formatBytes(validation.file_size_bytes)} />
       </div>
       {validation.param_names_preview.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
@@ -82,17 +83,6 @@ function ValidationPanel({ validation }: { validation: Hdf5ValidationResult }) {
           ))}
         </div>
       )}
-    </div>
-  )
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-700/35 bg-slate-900/30 p-2.5">
-      <div className="label mb-1 text-[11px]">{label}</div>
-      <div className="pretty-tooltip min-w-0" data-tooltip={value}>
-        <div className="truncate font-mono text-[13px] font-semibold text-slate-100">{value}</div>
-      </div>
     </div>
   )
 }
@@ -214,10 +204,10 @@ export function DataUploadContent({ compact = false }: { compact?: boolean }) {
               </p>
             </div>
             <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full max-sm:grid-cols-2">
-              <Metric label="文件" value={summary.total.toLocaleString()} />
-              <Metric label="合规" value={summary.valid.toLocaleString()} />
-              <Metric label="样本" value={summary.samples.toLocaleString()} />
-              <Metric label="容量" value={formatBytes(summary.size)} />
+              <MetaTile label="文件" value={summary.total.toLocaleString()} />
+              <MetaTile label="合规" value={summary.valid.toLocaleString()} />
+              <MetaTile label="样本" value={summary.samples.toLocaleString()} />
+              <MetaTile label="容量" value={formatBytes(summary.size)} />
             </div>
           </div>
         </section>

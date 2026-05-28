@@ -25,7 +25,7 @@ import {
   AlertTriangle,
   ArrowRight,
 } from 'lucide-react'
-import EmptyState from '../components/ui/EmptyState'
+import { EmptyState, PanelTitle } from '../../shared/ui'
 import { cn } from '../../lib/utils'
 import { formatBytes, LANGUAGE_LABELS, STYLE_LABELS, SIMULATOR_LABELS, getSimulatorBadgeClass } from '../../lib/utils'
 
@@ -35,15 +35,6 @@ function formatCompact(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(value >= 10_000_000 ? 0 : 1)}M`
   if (value >= 1_000) return `${(value / 1_000).toFixed(value >= 100_000 ? 0 : 1)}K`
   return value.toString()
-}
-
-function SectionTitle({ title, copy }: { title: string; copy: string }) {
-  return (
-    <div className="section-title">
-      <div className="training-panel-title">{title}</div>
-      <div className="training-panel-copy">{copy}</div>
-    </div>
-  )
 }
 
 function KpiCard({ label, value, note, icon }: { label: string; value: string; note: string; icon: React.ReactNode }) {
@@ -74,7 +65,7 @@ function SectionBlock({
     <section className="dashboard-section">
       <div className="dashboard-section__header">
         <div className="dashboard-section__icon">{icon}</div>
-        <SectionTitle title={title} copy={copy} />
+        <PanelTitle className="section-title" title={title} copy={copy} />
       </div>
       {children}
     </section>
@@ -159,7 +150,7 @@ function PieCard({
     <div className={cn('training-card distribution-card overflow-hidden', className)}>
       <div className="card-header">
         <span className="text-slate-400">{icon}</span>
-        <SectionTitle title={title} copy={`${entries.length} 项`} />
+        <PanelTitle className="section-title" title={title} copy={`${entries.length} 项`} />
       </div>
       <div className="training-card__body distribution-card__body">
         <div className="distribution-card__layout">
@@ -242,7 +233,11 @@ function ScenarioBar({ data, targetHeight }: { data: Record<string, number>; tar
     >
       <div className="card-header">
         <Layers size={16} className="text-slate-400" />
-        <SectionTitle title="按场景分布" copy={`${entries.length} 个场景${useLog ? ' / 对数轴' : ''}`} />
+        <PanelTitle
+          className="section-title"
+          title="按场景分布"
+          copy={`${entries.length} 个场景${useLog ? ' / 对数轴' : ''}`}
+        />
       </div>
       <div className="training-card__body">
         <div className="scenario-bar-list list-scroll-lg">
@@ -283,7 +278,7 @@ function ShapeTable({ shapes }: { shapes: Record<string, [number, number]> }) {
     <div className="training-card overflow-hidden">
       <div className="card-header">
         <TrendingUp size={16} className="text-slate-400" />
-        <SectionTitle title="时序形状" copy="按仿真器聚合" />
+        <PanelTitle className="section-title" title="时序形状" copy="按仿真器聚合" />
       </div>
       <div className="list-table-scroll">
         <table className="w-full text-sm">
@@ -623,7 +618,7 @@ export default function DatasetStats() {
                 <div className="training-card overflow-hidden">
                   <div className="card-header">
                     <Database size={16} className="text-slate-400" />
-                    <SectionTitle title="数据文件" copy={`${datasets.length} 个文件`} />
+                    <PanelTitle className="section-title" title="数据文件" copy={`${datasets.length} 个文件`} />
                   </div>
                   <div className="list-table-scroll">
                     <table className="w-full text-sm">
@@ -704,7 +699,11 @@ export default function DatasetStats() {
             <div className="training-card overflow-hidden">
               <div className="card-header">
                 <GitBranch size={16} className="text-rose-400" />
-                <SectionTitle title="按场景落盘明细" copy={`${routerStatus.scenarios.length} 个场景`} />
+                <PanelTitle
+                  className="section-title"
+                  title="按场景落盘明细"
+                  copy={`${routerStatus.scenarios.length} 个场景`}
+                />
               </div>
               <div className="list-table-scroll-compact">
                 <table className="w-full table-fixed text-sm">

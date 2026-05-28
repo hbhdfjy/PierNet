@@ -5,7 +5,7 @@ import type { RouterStatus, RouterSample, RouterScenarioInfo } from '../../lib/t
 import { GitBranch, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 import { hasUsableRouterData, routerLabelValue, routerScenarioKey } from '../routerData'
-import EmptyState from '../components/ui/EmptyState'
+import { EmptyState } from '../../shared/ui'
 
 const PAGE_SIZE = 10
 

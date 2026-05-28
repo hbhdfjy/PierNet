@@ -3,7 +3,7 @@ import useSWR from 'swr'
 import { api } from '../../lib/api'
 import type { DatasetInfo, SamplesResponse } from '../../lib/types'
 import SampleCard from '../components/sample/SampleCard'
-import EmptyState from '../components/ui/EmptyState'
+import { EmptyState } from '../../shared/ui'
 import { ChevronLeft, ChevronRight, Filter, Database, RefreshCw, FileText } from 'lucide-react'
 import { cn, SIMULATOR_BADGE, SIMULATOR_LABELS } from '../../lib/utils'
 

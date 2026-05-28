@@ -3,6 +3,7 @@ import useSWR from 'swr'
 import { FileSearch, FolderOpen, Lock, RefreshCw, Search, ShieldCheck, Trash2 } from 'lucide-react'
 import { api } from '../lib/api'
 import type { FileAsset, FileCatalogResponse } from '../lib/types'
+import { MetaTile } from '../shared/ui'
 import { cn, formatBytes } from '../lib/utils'
 
 const ALL = 'all'
@@ -164,15 +165,15 @@ function DetailPanel({
 
       <div className="file-manager-detail-body">
         <div className="grid grid-cols-2 gap-2 text-sm">
-          <Metric label="平台" value={platformLabel(asset)} />
-          <Metric label="阶段" value={stageLabel(asset)} />
-          <Metric label="类型" value={kindLabel(asset)} />
-          <Metric label="大小" value={formatBytes(asset.file_size_bytes)} />
-          <Metric
+          <MetaTile label="平台" value={platformLabel(asset)} />
+          <MetaTile label="阶段" value={stageLabel(asset)} />
+          <MetaTile label="类型" value={kindLabel(asset)} />
+          <MetaTile label="大小" value={formatBytes(asset.file_size_bytes)} />
+          <MetaTile
             label="数量"
             value={asset.count != null ? `${asset.count.toLocaleString()} ${asset.count_label ?? ''}` : '-'}
           />
-          <Metric label="修改时间" value={timeText(asset.mtime)} />
+          <MetaTile label="修改时间" value={timeText(asset.mtime)} />
         </div>
 
         {(asset.errors.length > 0 || asset.warnings.length > 0) && (
@@ -223,15 +224,6 @@ function DetailPanel({
           </div>
         )}
       </div>
-    </div>
-  )
-}
-
-function Metric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-lg border border-slate-700/35 bg-slate-900/28 p-2.5">
-      <div className="label mb-1 text-[11px]">{label}</div>
-      <div className="truncate font-mono text-[13px] font-semibold text-slate-100">{value}</div>
     </div>
   )
 }
@@ -393,11 +385,11 @@ export function FileManagerContent({
               <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">{copy}</p>
             </div>
             <div className="grid min-w-[460px] grid-cols-5 gap-2 max-xl:min-w-0 max-xl:w-full max-md:grid-cols-2">
-              <Metric label="文件" value={scopedSummary.total_assets.toLocaleString()} />
-              <Metric label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
-              <Metric label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
-              <Metric label="受保护" value={scopedSummary.protected_count.toLocaleString()} />
-              <Metric label="无效" value={scopedSummary.invalid_count.toLocaleString()} />
+              <MetaTile label="文件" value={scopedSummary.total_assets.toLocaleString()} />
+              <MetaTile label="存储" value={formatBytes(scopedSummary.total_size_bytes)} />
+              <MetaTile label="可删除" value={scopedSummary.deletable_count.toLocaleString()} />
+              <MetaTile label="受保护" value={scopedSummary.protected_count.toLocaleString()} />
+              <MetaTile label="无效" value={scopedSummary.invalid_count.toLocaleString()} />
             </div>
           </div>
         </section>

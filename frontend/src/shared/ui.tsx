@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 export function StatusBadge({ children, className }: { children: ReactNode; className?: string }) {
@@ -33,6 +34,83 @@ export function MetricTile({
       </div>
       <div className="training-kpi__value">{value}</div>
       {note && <div className="training-kpi__note">{note}</div>}
+    </div>
+  )
+}
+
+export function PanelTitle({ title, copy, className }: { title: string; copy: string; className?: string }) {
+  return (
+    <div className={cn('min-w-0', className)}>
+      <div className="training-panel-title">{title}</div>
+      <div className="training-panel-copy">{copy}</div>
+    </div>
+  )
+}
+
+export function MetaTile({
+  label,
+  value,
+  className,
+  valueClassName,
+  tooltip = true,
+}: {
+  label: string
+  value: string
+  className?: string
+  valueClassName?: string
+  tooltip?: boolean
+}) {
+  const valueNode = (
+    <div className={cn('truncate font-mono text-[13px] font-semibold text-slate-100', valueClassName)}>{value}</div>
+  )
+
+  return (
+    <div className={cn('rounded-lg border border-slate-700/35 bg-slate-900/30 p-2.5', className)}>
+      <div className="label mb-1 text-[11px]">{label}</div>
+      {tooltip ? (
+        <div className="pretty-tooltip min-w-0" data-tooltip={value}>
+          {valueNode}
+        </div>
+      ) : (
+        valueNode
+      )}
+    </div>
+  )
+}
+
+type EmptyStateSize = 'sm' | 'md' | 'lg'
+
+export function EmptyState({
+  icon: Icon,
+  title,
+  description,
+  action,
+  className,
+  size = 'md',
+}: {
+  icon: LucideIcon
+  title: string
+  description?: string
+  action?: ReactNode
+  className?: string
+  size?: EmptyStateSize
+}) {
+  const s = {
+    sm: { iconSize: 20, iconBox: 'w-10 h-10 rounded-xl', py: 'py-8', title: 'text-sm' },
+    md: { iconSize: 28, iconBox: 'w-14 h-14 rounded-2xl', py: 'py-14', title: 'text-base' },
+    lg: { iconSize: 36, iconBox: 'w-18 h-18 rounded-2xl', py: 'py-20', title: 'text-lg' },
+  }[size]
+
+  return (
+    <div className={cn(`empty-state ${s.py}`, className)}>
+      <div className={cn('empty-state__icon', s.iconBox)}>
+        <Icon size={s.iconSize} className="text-slate-500" />
+      </div>
+      <div>
+        <p className={cn('empty-state__title font-medium', s.title)}>{title}</p>
+        {description && <p className="empty-state__description mt-1 max-w-xs text-xs leading-relaxed">{description}</p>}
+      </div>
+      {action && <div className="mt-1">{action}</div>}
     </div>
   )
 }

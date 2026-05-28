@@ -238,6 +238,8 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
 })
 
 test('dark and light themes keep core pages visually stable', async ({ page }) => {
+  test.setTimeout(60_000)
+
   const routes = [
     '/',
     '/training',

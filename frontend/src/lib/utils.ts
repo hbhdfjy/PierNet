@@ -5,10 +5,49 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+export function formatCount(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  return new Intl.NumberFormat('zh-CN').format(value)
+}
+
+export function formatBytes(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
+  }
+  return `${size >= 100 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
+}
+
+export function formatDateTime(ts: number | null | undefined): string {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—'
+  const total = Math.floor(seconds)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `${h}小时 ${m}分钟`
+  if (m > 0) return `${m}分钟 ${s}秒`
+  return `${s}秒`
+}
+
+export function formatMetric(value: number | null | undefined, digits = 4): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  return value.toFixed(digits)
 }
 
 export function formatTime(ts: number): string {

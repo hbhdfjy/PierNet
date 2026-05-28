@@ -18,7 +18,6 @@ import {
   AlertCircle,
   Sparkles,
   KeyRound,
-  FolderOpen,
   ChevronRight,
   CheckCircle2,
 } from 'lucide-react'
@@ -568,30 +567,6 @@ export default function TemplateGenerator() {
             </div>
           </div>
         )}
-
-        {/* File management lives in /synth/files */}
-        <div className="card workbench-files-card overflow-hidden">
-          <div className="card-header justify-between py-3">
-            <div className="flex items-center gap-2">
-              <FolderOpen size={13} className="text-slate-400" />
-              <span className="font-medium text-slate-200 text-base">模板文件</span>
-            </div>
-            <button className="btn-ghost py-1.5 text-xs" onClick={() => navigate('/synth/files')}>
-              打开文件管理
-            </button>
-          </div>
-          <div className="p-4">
-            <div className="workbench-file-note">
-              <div className="font-semibold text-slate-100">统一文件管理</div>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
-                模板文件已纳入统一目录，可查看状态并重建索引；阶段 2 模板资产受保护，不提供裁剪、删除或清空。
-              </p>
-              <button className="btn-ghost mt-3 text-xs text-violet-300" onClick={() => navigate('/synth/files')}>
-                打开统一文件管理
-              </button>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
   )
