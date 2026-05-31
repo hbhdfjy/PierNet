@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>世界模型 / VLA / VLM 强化学习调研</title>
+  <link rel="stylesheet" href="research.css" />
+</head>
+<body>
+  <div class="topbar"><nav class="nav"><div class="brand"><span class="mark">1</span><span>World Model · VLA · VLM</span></div><div class="links"><a href="index.html">总览</a><a class="active" href="world-model-vla-vlm.html">世界模型 / VLA / VLM</a><a href="piern-like-architectures.html">类似 PiERN 架构</a></div></nav></div>
+  <main>
+    <section class="header compact">
+      <div>
+        <div class="eyebrow">Part 1 · Framework Survey</div>
+        <h1>世界模型、VLM、VLA 的 RL 方法通常怎么做</h1>
+        <p class="lead">这部分把“强化学习方法”拆成三种训练语境：传统世界模型 RL、视觉语言模型的 RLHF/RLVR、视觉-语言-动作模型的交互式 RL。它们共享“奖励驱动优化”，但模型结构、数据流和工程框架差异很大。</p>
+      </div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>一张框架图</h2>
+      <div class="flow">
+        <div class="node"><b>Observation</b><span class="subtle">图像 / 文本 / 状态 / 动作历史</span></div>
+        <div class="arrow">→</div>
+        <div class="node"><b>Policy Model</b><span class="subtle">World model actor / VLM / VLA</span></div>
+        <div class="arrow">→</div>
+        <div class="node"><b>Reward</b><span class="subtle">环境、偏好、可验证答案、任务成功率</span></div>
+      </div>
+    </section>
+
+    <section class="section grid three">
+      <div class="card"><div class="tag">World Model RL</div><h2>Dreamer 类</h2><p>核心是学习 latent dynamics / world model，再在模型想象出的轨迹里训练 actor-critic。典型实现通常不是 TRL/verl 这类 LLM-RL 框架，而是 JAX/PyTorch 自定义 RL 系统。</p></div>
+      <div class="card"><div class="tag">VLM RL</div><h2>RLHF / RLVR</h2><p>主模型是 LVLM/MLLM，例如 LLaVA、Qwen-VL、InternVL 系列。常见算法从 PPO/RLHF 发展到 GRPO/RLVR，用偏好、奖励模型或可验证任务指标训练。</p></div>
+      <div class="card"><div class="tag">VLA RL</div><h2>机器人交互 RL</h2><p>主模型是 OpenVLA、OpenVLA-OFT、π0/π0.5 这类 VLA。RL 需要仿真器、真实机器人或世界模型，奖励常来自任务成功率、轨迹质量和安全约束。</p></div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>主流框架与模型形态</h2>
+      <div class="table-wrap"><table><thead><tr><th>方向</th><th>常用算法框架</th><th>常用软件框架</th><th>模型框架</th><th>对 PiERN 的启发</th></tr></thead><tbody>
+        <tr><td>世界模型 RL</td><td>Model-based RL；latent imagination；actor-critic</td><td>JAX/Flax 或 PyTorch 自定义实现；DreamerV3 官方链路偏 JAX 生态</td><td>World model / RSSM + reward/value heads + actor/critic</td><td>如果 PiERN 任务有仿真环境，可以把世界模型作为训练环境或 reward estimator。</td></tr>
+        <tr><td>VLM RLHF</td><td>PPO + reward model；偏好比较；KL 约束</td><td>TRL、OpenRLHF、veRL、DeepSpeed、vLLM、HF Transformers</td><td>视觉编码器 + LLM + projector / adapter；reward model 可带事实增强</td><td>适合作为端到端 VLM 对照组：让 VLM 直接回答，而 PiERN 通过专家回答。</td></tr>
+        <tr><td>VLM RLVR/RFT</td><td>GRPO、RLOO、REINFORCE++ 等；规则/可验证 reward</td><td>TRL / OpenRLHF / 自定义 GRPO；LoRA/QLoRA 常见</td><td>LVLM 生成多条 reasoning + answer，用可验证指标打分</td><td>PiERN 可以把“Router 正确 + 专家输出正确 + 调用成本低”组合成可验证 reward。</td></tr>
+        <tr><td>VLA RL</td><td>PPO、GRPO、trajectory-level RL、world-model simulator RL</td><td>RLinf-VLA、ManiSkill、LIBERO、MetaWorld、CALVIN、自定义机器人栈</td><td>VLM backbone + action tokenizer / action head / flow policy</td><td>可借鉴“环境交互 rollout + 成功率奖励”，把 action 改成 expert/skill selection。</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="section grid two">
+      <div class="card"><div class="tag">典型例子 1</div><h2>DreamerV3</h2><p><strong>方法：</strong>世界模型式 model-based RL。它学习一个 latent world model，在想象轨迹里训练 actor-critic。论文强调使用固定超参跨 150+ 多样任务，并在 Minecraft 从零收集钻石。</p><p><strong>模型框架：</strong>world model + actor + critic；适合有环境状态、动作和奖励的任务。</p><p><strong>和 PiERN 的关系：</strong>不是路由专家架构，但可以作为“端到端环境交互 RL”的强基线；也可以给 PiERN 提供模拟器/环境奖励。</p></div>
+      <div class="card"><div class="tag">典型例子 2</div><h2>Visual-RFT / RLinf-VLA</h2><p><strong>Visual-RFT：</strong>让 LVLM 对每个视觉任务生成多条推理和答案，用 IoU、分类准确率等可验证 reward，通过 GRPO 更新模型。</p><p><strong>RLinf-VLA：</strong>面向 VLA+RL 的统一框架，支持 OpenVLA/OpenVLA-OFT、PPO/GRPO、ManiSkill/LIBERO 等仿真任务。</p><p><strong>和 PiERN 的关系：</strong>这条线最接近后续可对比实验：同一个任务可以做端到端 VLM/VLA RL，也可以做 PiERN 的 Router+专家 RL。</p></div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>对后续 PiERN RL 的可迁移设计</h2>
+      <div class="grid three">
+        <div class="card"><h3>奖励设计</h3><p>最终答案准确率、专家输出数值误差、Router 分类正确率、工具调用成本、延迟和失败惩罚可以组合成 reward。</p></div>
+        <div class="card"><h3>训练框架</h3><p>如果输出是文本/动作 token，可参考 TRL/veRL/OpenRLHF；如果输出是专家选择和连续数值，可保留 PPO/GRPO 思路但自定义 rollout 与 reward。</p></div>
+        <div class="card"><h3>对比基线</h3><p>单体 Transformer/VLM 端到端 RL、VLA/世界模型 RL、PiERN Router+专家联合 RL 三类可以在同一任务成功率上对比。</p></div>
+      </div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>来源</h2>
+      <ul class="source-list">
+        <li><a href="https://huggingface.co/papers/2301.04104">DreamerV3 / Mastering Diverse Domains through World Models</a>：世界模型 RL 代表，跨多任务与 Minecraft 结果。</li>
+        <li><a href="https://huggingface.co/papers/2309.14525">LLaVA-RLHF</a>：早期把 RLHF 引入大型多模态模型，用偏好和事实增强 reward 降低幻觉。</li>
+        <li><a href="https://huggingface.co/papers/2503.01785">Visual-RFT</a>：用可验证视觉 reward 和 GRPO 做 LVLM 强化微调。</li>
+        <li><a href="https://huggingface.co/papers/2510.06710">RLinf-VLA</a>：VLA+RL 统一训练框架，支持 OpenVLA/OpenVLA-OFT、PPO/GRPO、LIBERO/ManiSkill。</li>
+        <li><a href="https://github.com/openvla/openvla">OpenVLA GitHub</a>：PyTorch/FSDP/Flash-Attention 训练与 VLA fine-tuning 工程参考。</li>
+        <li><a href="https://huggingface.co/docs/trl/index">Hugging Face TRL</a> 与 <a href="https://openrlhf.readthedocs.io/en/latest/">OpenRLHF</a>：LLM/VLM post-training 常用工程框架。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

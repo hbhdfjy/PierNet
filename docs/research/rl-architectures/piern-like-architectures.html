@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>类似 PiERN 的架构调研</title>
+  <link rel="stylesheet" href="research.css" />
+</head>
+<body>
+  <div class="topbar"><nav class="nav"><div class="brand"><span class="mark">2</span><span>PiERN-like Architectures</span></div><div class="links"><a href="index.html">总览</a><a href="world-model-vla-vlm.html">世界模型 / VLA / VLM</a><a class="active" href="piern-like-architectures.html">类似 PiERN 架构</a></div></nav></div>
+  <main>
+    <section class="header compact">
+      <div>
+        <div class="eyebrow">Part 2 · Router + Expert Survey</div>
+        <h1>有没有类似 PiERN 的架构，以及哪些任务能迁移成 PiERN 形态</h1>
+        <p class="lead">如果把 PiERN 抽象成“主模型理解任务 → Router 判断是否调用专家 → 专家模型/工具执行 → 输出可验证结果”，那么已有研究里有多类相近结构。它们不一定都叫 PiERN，但都在处理“何时调用哪个专门模块”的问题。</p>
+      </div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>PiERN 抽象形态</h2>
+      <div class="flow">
+        <div class="node"><b>Input</b><span class="subtle">文本 / 图像 / 状态 / 数值场</span></div>
+        <div class="arrow">→</div>
+        <div class="node"><b>Router</b><span class="subtle">判别任务类型、置信度、调用策略</span></div>
+        <div class="arrow">→</div>
+        <div class="node"><b>Expert</b><span class="subtle">模型、工具、技能、仿真器</span></div>
+      </div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>相似架构族</h2>
+      <div class="table-wrap"><table><thead><tr><th>架构族</th><th>代表</th><th>像 PiERN 的地方</th><th>关键差异</th><th>适合的 RL 对比任务</th></tr></thead><tbody>
+        <tr><td>MoE 稀疏专家</td><td>Switch Transformer、Mixtral 类</td><td>有 router/gate，把 token 分配给专家参数。</td><td>专家在模型内部，通常是 FFN 参数块；不是外部科学模型或工具。</td><td>Router 负载均衡、专家选择准确率、稀疏计算成本。</td></tr>
+        <tr><td>工具调用 LLM</td><td>Toolformer</td><td>模型学习何时调用 API、传什么参数、如何使用返回结果。</td><td>工具通常是搜索、计算器、QA、日历等 API；训练目标多为语言建模收益。</td><td>数学、检索、代码执行、可验证答案任务。</td></tr>
+        <tr><td>多模型编排</td><td>HuggingGPT</td><td>LLM 做任务规划、模型选择、子任务执行、结果汇总。</td><td>规划/选择主要由 prompt 和描述驱动，不一定端到端训练。</td><td>多模态任务分解、模型选择成功率、端到端任务完成率。</td></tr>
+        <tr><td>模块化视觉推理</td><td>Chameleon、ViperGPT</td><td>LLM 组合视觉模型、Python、搜索、启发式模块完成任务。</td><td>更偏程序合成/工具组合；专家通常不是可训练科学模型。</td><td>图表 QA、视觉计数、OCR、检测/分割、ScienceQA。</td></tr>
+        <tr><td>机器人技能路由</td><td>SayCan</td><td>语言模型给技能有用性，value function 给可执行性，两者组合选择技能。</td><td>专家是机器人技能/策略，奖励来自物理执行。</td><td>语言指令到技能序列、长程任务成功率、技能选择成本。</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="section grid two">
+      <div class="card"><div class="tag">形态相近</div><h2>HuggingGPT / Chameleon / ViperGPT</h2><p>这些系统把 LLM 当作 controller/planner，把不同模型或工具当作可调用专家。PiERN 可以直接借鉴：专家注册表、接口描述、调用协议、执行结果缓存、最终回答融合。</p><p>区别在于 PiERN 的专家可以是科学计算模型，并且 Router/专家都可以被 RL 联合优化，而不是只靠 prompt 规划。</p></div>
+      <div class="card"><div class="tag">适合做 RL 对比的方向</div><h2>SayCan / VLA-RL</h2><p>SayCan 已经把“语义可用性 × 执行可行性”显式拆开；VLA-RL 则给出环境交互和任务成功奖励。PiERN 可以把动作从“机器人技能”换成“专家模型调用”，形成相似的 RL 问题。</p><p>这类任务的 reward 更清晰：成功完成、少调用、低延迟、低误差。</p></div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>哪些通用任务可改造成 PiERN 架构</h2>
+      <div class="grid three">
+        <div class="card"><h3>视觉问答 + 专家工具</h3><p>Router 选择 OCR、检测、分割、图表解析、Python 计算。可和端到端 VLM-RFT 比较。</p></div>
+        <div class="card"><h3>数学/代码/检索工具</h3><p>Router 判断是否调用计算器、Python、搜索、数据库。reward 可用单元测试、准确答案或检索命中。</p></div>
+        <div class="card"><h3>科学仿真路由</h3><p>Router 选择 PDE、MODFLOW、power flow、climate 等专家；专家输出数值场，reward 用真实误差。</p></div>
+        <div class="card"><h3>机器人技能组合</h3><p>Router 输出技能调用序列；专家是低层 policy；reward 是任务成功率和执行安全。</p></div>
+        <div class="card"><h3>多模型数据分析</h3><p>Router 在统计、时序预测、图模型、可视化、异常检测专家之间分配子任务。</p></div>
+        <div class="card"><h3>诊断/审核系统</h3><p>Router 选择规则检查、模型评分、知识库验证、局部检测专家；reward 结合准确率与风险漏检。</p></div>
+      </div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>PiERN 做 RL 对比时的实验结构</h2>
+      <div class="table-wrap"><table><thead><tr><th>对比对象</th><th>训练对象</th><th>奖励</th><th>指标</th></tr></thead><tbody>
+        <tr><td>端到端 Transformer/VLM/VLA</td><td>主模型全部或 LoRA 层</td><td>最终答案/任务成功</td><td>准确率、泛化、推理成本、失败模式。</td></tr>
+        <tr><td>PiERN Router-only</td><td>Router 和调用策略</td><td>路由正确 + 最终输出正确 + 少调用</td><td>路由准确率、专家召回率、调用次数、延迟。</td></tr>
+        <tr><td>PiERN 联合训练</td><td>Router + Text2Comp/专家适配层</td><td>最终任务 reward + 专家误差 reward + 成本惩罚</td><td>整体成功率、专家误差、router confidence calibration、可解释性。</td></tr>
+      </tbody></table></div>
+      <div class="callout warn" style="margin-top:18px"><p><strong>注意：</strong>如果任务本身没有可验证 reward、没有稳定专家接口、也无法把错误归因到路由或专家，就需要先补齐 reward、接口和归因机制，再讨论 PiERN 与端到端 VLM/VLA RL 的对比。</p></div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>来源</h2>
+      <ul class="source-list">
+        <li><a href="https://huggingface.co/papers/2101.03961">Switch Transformer</a>：稀疏 MoE 与简化 router 的代表。</li>
+        <li><a href="https://arxiv.org/abs/2302.04761">Toolformer</a>：语言模型自监督学习何时调用外部 API。</li>
+        <li><a href="https://arxiv.org/abs/2303.17580">HuggingGPT</a>：LLM 规划、选择 Hugging Face 模型、执行子任务、汇总结果。</li>
+        <li><a href="https://proceedings.neurips.cc/paper_files/paper/2023/hash/871ed095b734818cfba48db6aeb25a62-Abstract-Conference.html">Chameleon</a>：LLM planner 组合工具、视觉模型、搜索、Python 与启发式模块。</li>
+        <li><a href="https://arxiv.org/abs/2303.08128">ViperGPT</a>：生成 Python 程序调用视觉语言模块完成视觉推理。</li>
+        <li><a href="https://say-can.github.io/">SayCan</a>：LLM 语义评分与机器人技能 value function 组合选择技能。</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

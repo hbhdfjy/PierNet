@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>PiERN 强化学习调研总览</title>
+  <link rel="stylesheet" href="research.css" />
+</head>
+<body>
+  <div class="topbar"><nav class="nav"><div class="brand"><span class="mark">P</span><span>PiERN RL Research</span></div><div class="links"><a class="active" href="index.html">总览</a><a href="world-model-vla-vlm.html">世界模型 / VLA / VLM</a><a href="piern-like-architectures.html">类似 PiERN 架构</a></div></nav></div>
+  <main>
+    <section class="header">
+      <div>
+        <div class="eyebrow">Research Map · 2026-05-31</div>
+        <h1>围绕 PiERN 可对比强化学习路线的网页化调研</h1>
+        <p class="lead">这组页面把两个问题拆开：第一，世界模型、VLM、VLA 的强化学习通常采用什么训练框架和模型框架；第二，是否存在类似 PiERN 的“路由器 + 专家/工具”架构，以及哪些通用任务适合用 PiERN 形态重做并做 RL 对比。</p>
+        <div class="meta"><span class="pill">目标：为后续实验路线选型</span><span class="pill">范围：世界模型 / VLM / VLA / 工具专家架构</span><span class="pill">输出：总览页 + 2 个子页</span></div>
+      </div>
+      <aside class="panel pad">
+        <h2>核心归纳</h2>
+        <p>从调研样本看，PiERN 更适合放在“任务天然可拆成判别、路由、调用专家、验证结果”的场景里做对比，关注 RL 是否能学出稳定、可解释、低成本的调用策略。</p>
+        <div class="grid two" style="margin-top:16px">
+          <div><div class="metric">3</div><div class="subtle">主流训练范式：世界模型 RL、VLM RLVR/RLHF、VLA 交互式 RL</div></div>
+          <div><div class="metric">4</div><div class="subtle">可类比架构族：MoE、工具调用、模型编排、技能路由</div></div>
+        </div>
+      </aside>
+    </section>
+
+    <section class="section grid two">
+      <a class="card" href="world-model-vla-vlm.html" style="text-decoration:none">
+        <div class="tag">Part 1</div>
+        <h2>世界模型、VLM、VLA 的 RL 方法</h2>
+        <p>梳理 DreamerV3、Visual-RFT、RLinf-VLA/OpenVLA 这几类代表：它们的算法框架、软件框架、模型结构和典型任务分别是什么。</p>
+        <p><span class="badge blue">进入子页</span></p>
+      </a>
+      <a class="card" href="piern-like-architectures.html" style="text-decoration:none">
+        <div class="tag">Part 2</div>
+        <h2>类似 PiERN 的路由-专家架构</h2>
+        <p>比较 Switch Transformer、Toolformer、HuggingGPT、Chameleon、ViperGPT、SayCan 等：哪些和 PiERN 类似，哪些任务可以迁移为 PiERN 式 RL。</p>
+        <p><span class="badge">进入子页</span></p>
+      </a>
+    </section>
+
+    <section class="section panel pad">
+      <h2>总览判断</h2>
+      <div class="table-wrap"><table><thead><tr><th>路线</th><th>典型模型/框架</th><th>强化学习信号</th><th>与 PiERN 的关系</th></tr></thead><tbody>
+        <tr><td>世界模型 RL</td><td>DreamerV3：latent world model + actor + critic</td><td>环境奖励；在想象轨迹中训练策略</td><td>可作为“有可模拟环境”的强基线，不像 PiERN 依赖专家调用，但可提供环境生成/评估模块。</td></tr>
+        <tr><td>VLM RL</td><td>LLaVA-RLHF、Visual-RFT、Qwen/InternVL 类 LVLM</td><td>人类偏好、奖励模型、可验证答案奖励、IoU/准确率等</td><td>适合对比“端到端多模态 Transformer”与“VLM 负责理解 + PiERN 调用专家”的差异。</td></tr>
+        <tr><td>VLA RL</td><td>OpenVLA/OpenVLA-OFT、π0/π0.5、RLinf-VLA</td><td>机器人任务成功率、轨迹奖励、仿真/世界模型奖励</td><td>适合借鉴仿真器、任务成功奖励和 PPO/GRPO 训练组织；PiERN 可替换为技能/专家路由器。</td></tr>
+        <tr><td>路由/专家系统</td><td>MoE、Toolformer、HuggingGPT、Chameleon、SayCan</td><td>路由正确性、工具调用收益、任务完成、成本约束</td><td>这是最像 PiERN 的对比集合，可把“工具/模型/技能”替换成科学计算专家。</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="section panel pad">
+      <h2>后续可实验化的 5 类任务</h2>
+      <div class="grid three">
+        <div class="card"><h3>科学计算路由</h3><p>PDEBench、地下水、潮流、气候数据：文本/观测输入 → Router → 专家模型 → 数值输出。</p></div>
+        <div class="card"><h3>视觉推理工具调用</h3><p>图表、OCR、检测、分割、VQA：VLM 理解问题，PiERN 路由到检测/OCR/代码工具。</p></div>
+        <div class="card"><h3>机器人技能路由</h3><p>语言任务 → 可执行技能库/专家策略；奖励来自任务成功率和执行成本。</p></div>
+        <div class="card"><h3>代码与数学工具调用</h3><p>LLM 生成推理，Router 选择计算器、Python、定理/检索工具，奖励可验证。</p></div>
+        <div class="card"><h3>多模型数据分析</h3><p>表格、时间序列、空间数据路由到统计、预测、仿真、可视化模块。</p></div>
+        <div class="card"><h3>多模态诊断/审核</h3><p>主模型负责解释，专家模块负责局部检测、规则校验或风险评分。</p></div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
