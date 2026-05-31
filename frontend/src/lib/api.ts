@@ -484,4 +484,105 @@ export const api = {
 
   getTrainingLogs: (jobId: string, limit = 300): Promise<TrainingLogResponse> =>
     get(`/training/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
+
+  // ── Assembly 模型拼装 ─────────────────────────────────────────────────────
+  getAssemblyStatus: (): Promise<any> => get('/assembly/status'),
+
+  getAssemblyGPUs: (): Promise<any[]> => get('/assembly/gpus'),
+
+  getAssemblyLLMs: (): Promise<any[]> => get('/assembly/llms'),
+
+  getAssemblyRouters: (): Promise<any[]> => get('/assembly/routers'),
+
+  getAssemblyText2Comps: (): Promise<any[]> => get('/assembly/text2comps'),
+
+  getAssemblyFNOs: (): Promise<any[]> => get('/assembly/fnos'),
+
+  loadAssemblyModels: async (req: {
+    llm_path: string
+    llm_gpu_id?: number
+    router_gpu_id?: number | null
+    force_split?: boolean
+    auto_sync?: boolean
+    experts?: { simulator: string }[]
+  }): Promise<any> => {
+    const res = await apiFetch(`${BASE}/assembly/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '加载模型失败')
+    return res.json()
+  },
+
+  unloadAssemblyModels: async (): Promise<any> => {
+    const res = await apiFetch(`${BASE}/assembly/unload`, { method: 'POST' })
+    await ensureOk(res, '卸载模型失败')
+    return res.json()
+  },
+
+  testAssembly: async (req: { config: any; test_input: string }): Promise<any> => {
+    const res = await apiFetch(`${BASE}/assembly/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '测试失败')
+    return res.json()
+  },
+
+  getPrompt: (): Promise<{ piern_system_prompt: string }> => get('/assembly/prompt'),
+
+  updatePrompt: async (req: { piern_system_prompt: string }): Promise<{ status: string }> => {
+    const res = await apiFetch(`${BASE}/assembly/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '保存Prompt失败')
+    return res.json()
+  },
+
+  getDomains: (): Promise<any[]> => get('/assembly/domains'),
+
+  generatePrompt: async (req: { simulator: string; language?: string }): Promise<{ prompt: string }> => {
+    const res = await apiFetch(`${BASE}/assembly/prompt/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '生成Prompt失败')
+    return res.json()
+  },
+
+  // ── Text2Comp 文生计算训练 ─────────────────────────────────────────────────
+  getText2CompStatus: (): Promise<any> => get('/text2comp/status'),
+
+  getText2CompOverview: (): Promise<any> => get('/text2comp/overview'),
+
+  getText2CompExperts: (): Promise<any[]> => get('/text2comp/experts'),
+
+  getText2CompDatasets: (): Promise<any[]> => get('/text2comp/datasets'),
+
+  getText2CompGPUs: (): Promise<any[]> => get('/text2comp/gpus'),
+
+  getText2CompJobs: (): Promise<any[]> => get('/text2comp/jobs'),
+
+  getText2CompJob: (jobId: string): Promise<any> => get(`/text2comp/jobs/${encodeURIComponent(jobId)}`),
+
+  stopText2CompJob: async (jobId: string): Promise<any> => {
+    const res = await apiFetch(`${BASE}/text2comp/jobs/${encodeURIComponent(jobId)}/stop`, {
+      method: 'POST',
+    })
+    await ensureOk(res, '终止训练失败')
+    return res.json()
+  },
+
+  getText2CompCurves: (jobId: string, maxPoints = 2000): Promise<any> =>
+    get(`/text2comp/jobs/${encodeURIComponent(jobId)}/curves`, { max_points: maxPoints }),
+
+  getText2CompLogs: (jobId: string, limit = 300): Promise<any> =>
+    get(`/text2comp/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
+
+  getTrainedModels: (): Promise<{ models: any[]; total: number }> => get('/text2comp/models'),
 }

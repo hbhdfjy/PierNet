@@ -90,7 +90,7 @@ test('key workbench pages produce non-empty screenshots without overflow', async
   await page.setViewportSize({ width: 1440, height: 900 })
   const routes = [
     { path: '/', text: 'PierNet 控制台' },
-    { path: '/training', text: 'PierNet 训练' },
+    { path: '/training', text: 'PiERN 训练' },
     { path: '/training/jobs', text: '训练任务' },
     { path: '/synth/fill', text: '样本填充' },
   ]

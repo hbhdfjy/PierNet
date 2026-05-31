@@ -206,7 +206,7 @@ test('platform entry and core workbenches render without layout overflow', async
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/training')
-  await expect(page.getByText('PierNet 训练')).toBeVisible()
+  await expect(page.getByText('PiERN 训练')).toBeVisible()
   await expect(page.getByText('训练平台')).toBeVisible()
   await expect(page.getByRole('link', { name: /任务管理/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)

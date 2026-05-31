@@ -3,7 +3,6 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Tooltip, XAxis, YAxis } from 'recharts'
 import type { TrainingCheckpointInfo } from '../../../lib/types'
 import { TruncatedText } from '../../../shared/ui'
-import { TrainingSectionTitle } from '../common'
 import { formatBytes, formatDateTime } from '../../shared'
 import { formatChartTooltipLabel, formatChartTooltipValue, tooltipActualValue } from './chartUtils'
 import type { ChartHoverSnapshot, ChartTooltipEntry } from './chartUtils'
@@ -243,7 +242,14 @@ export function ChartYAxis({
   )
 }
 
-export const SectionTitle = TrainingSectionTitle
+export function SectionTitle({ title, copy }: { title: string; copy: string }) {
+  return (
+    <div>
+      <div className="training-panel-title">{title}</div>
+      <div className="training-panel-copy">{copy}</div>
+    </div>
+  )
+}
 
 export function MetaField({
   label,

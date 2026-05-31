@@ -1,7 +1,5 @@
 import type { TrainingJobStatus, TrainingJobSummary } from '../lib/types'
 
-export { formatBytes, formatCount, formatDateTime, formatDuration, formatMetric } from '../lib/utils'
-
 export type TrainingJobNotice = {
   message: string
   tone: 'amber' | 'rose'
@@ -111,52 +109,66 @@ export function normalizeTrainingTestRatio(value: number, fallback = 0.1): numbe
 const PLATFORM_STOP_PENDING_MESSAGE = 'Platform stop requested; waiting for checkpoint save.'
 const PLATFORM_STOP_PENDING_DISPLAY = '已发送停止请求，正在等待当前 checkpoint 安全保存。'
 
-function summarizeTrainingFailure(message: string | null | undefined): string {
-  const text = (message || '').trim()
-  if (!text || text === PLATFORM_STOP_PENDING_MESSAGE) return '没有记录到最后日志摘要'
-  return text.length > 220 ? `${text.slice(0, 220)}…` : text
-}
-
-function trainingSuggestion(summary: string): string {
-  const lower = summary.toLowerCase()
-  if (lower.includes('cuda') || lower.includes('gpu') || summary.includes('显存') || summary.includes('不可用')) {
-    return '建议动作：检查 GPU 占用、显存和任务参数后重试。'
-  }
-  if (lower.includes('dataset') || summary.includes('数据') || summary.includes('样本')) {
-    return '建议动作：检查训练数据集、Router 数据和场景选择后重试。'
-  }
-  return '建议动作：打开详情查看完整日志，确认资源和参数后重试。'
-}
-
 export function trainingJobNotice(
   job: Pick<TrainingJobSummary, 'error_message' | 'exit_reason' | 'status' | 'stop_requested'>,
 ): TrainingJobNotice | null {
-  const summary = summarizeTrainingFailure(job.error_message)
+  const message = job.error_message
+  if (!message) return null
+
   const platformStop =
     job.exit_reason === 'platform_stop' || job.exit_reason === 'platform_stop_requested' || Boolean(job.stop_requested)
-
-  if (job.status === 'stopping' && platformStop) {
+  if (platformStop && job.status === 'terminated' && message === PLATFORM_STOP_PENDING_MESSAGE) {
+    return null
+  }
+  if (platformStop && job.status === 'stopping' && message === PLATFORM_STOP_PENDING_MESSAGE) {
     return { message: PLATFORM_STOP_PENDING_DISPLAY, tone: 'amber' }
   }
-  if (job.status === 'terminated') {
-    if (platformStop) {
-      return {
-        message: `用户终止：任务已按平台请求停止。最后日志摘要：${summary}。建议动作：确认 checkpoint 后可重新启动。`,
-        tone: 'amber',
-      }
-    }
-    return { message: `任务终止：${summary}。${trainingSuggestion(summary)}`, tone: 'amber' }
+  return { message, tone: job.status === 'stopping' ? 'amber' : 'rose' }
+}
+
+export function formatCount(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  return new Intl.NumberFormat('zh-CN').format(value)
+}
+
+export function formatBytes(value: number | null | undefined): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  const units = ['B', 'KB', 'MB', 'GB', 'TB']
+  let size = value
+  let unit = 0
+  while (size >= 1024 && unit < units.length - 1) {
+    size /= 1024
+    unit += 1
   }
-  if (job.status === 'external_terminated') {
-    return { message: `进程外部退出：${summary}。${trainingSuggestion(summary)}`, tone: 'rose' }
-  }
-  if (job.status === 'error') {
-    return { message: `训练失败：${summary}。${trainingSuggestion(summary)}`, tone: 'rose' }
-  }
-  if (job.error_message) {
-    return { message: summary, tone: job.status === 'stopping' ? 'amber' : 'rose' }
-  }
-  return null
+  return `${size >= 100 || unit === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unit]}`
+}
+
+export function formatDateTime(ts: number | null | undefined): string {
+  if (!ts) return '—'
+  return new Date(ts * 1000).toLocaleString('zh-CN', {
+    hour12: false,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
+}
+
+export function formatDuration(seconds: number | null | undefined): string {
+  if (seconds == null || !Number.isFinite(seconds) || seconds < 0) return '—'
+  const total = Math.floor(seconds)
+  const h = Math.floor(total / 3600)
+  const m = Math.floor((total % 3600) / 60)
+  const s = total % 60
+  if (h > 0) return `${h}小时 ${m}分钟`
+  if (m > 0) return `${m}分钟 ${s}秒`
+  return `${s}秒`
+}
+
+export function formatMetric(value: number | null | undefined, digits = 4): string {
+  if (value == null || Number.isNaN(value)) return '—'
+  return value.toFixed(digits)
 }
 
 export function statusLabel(status: TrainingJobStatus): string {

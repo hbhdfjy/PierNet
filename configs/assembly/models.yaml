@@ -1,0 +1,54 @@
+# PiERN 模型拼装配置文件 - 目录路径版
+# 系统会自动扫描这些目录获取可用模型
+
+# LLM 模型目录（扫描子目录）
+llm_dirs:
+  - path: /root/eb-public/huggingface-models/Qwen
+    pattern: "Qwen3-*"  # 匹配的模型名称模式
+    exclude:
+      - "*Base"          # 排除Base版本
+      - "*VL*"           # 排除VL版本
+      - "*Embedding*"    # 排除Embedding版本
+      - "*Guard*"        # 排除Guard版本
+      - "*Reranker*"     # 排除Reranker版本
+      - "*Omni*"         # 排除Omni版本
+
+# Text2Comp 基础模型（用于训练 backbone）
+text_model_dir: /root/eb-public/huggingface-models/Qwen/Qwen3-0.6B
+
+# Router 模型目录（扫描 .pt 文件）
+router_dir: /root/data/zyx/piern_artifacts/token_router
+
+# Text2Comp 专家模型目录（扫描 .pt 文件）
+text2comp_dirs:
+  - path: /root/data/zyx/xhb/PiERN/text2computation_model
+    pattern: "*_text2computation*.pt"  # 文件名模式
+  - path: /root/data/zyx/piern_artifacts/text2comp_models  # 训练输出目录
+    pattern: "**/final_model.pt"        # 扫描子目录中的final_model.pt
+
+# FNO 专家模型目录（扫描 .pt 文件）
+fno_dirs:
+  - path: /root/data/zyx/xhb/example_piern/Expert_model
+    pattern: "*.pt"  # 文件名模式
+  - path: /root/data/zyx/piern_artifacts/fno_models  # 未来FNO训练输出
+    pattern: "**/final_model.pt"  # 扫描子目录
+
+# 专家模型注册文件（用户动态添加的专家）
+expert_registry: configs/assembly/expert_registry.yaml
+
+# 训练输出目录
+training_output:
+  text2comp: /root/data/zyx/piern_artifacts/text2comp_models
+  fno: /root/data/zyx/piern_artifacts/fno_models
+
+# 训练命名格式（支持变量）
+# 可用变量: {simulator}, {scenario}, {timestamp}, {dataset}
+training_name_format: "{simulator}_{scenario}_{timestamp}"  # 如: diff-sorp_test_20260528_103045
+
+# Router 类别映射
+
+
+# Router类别映射（二分类）
+router_class_map:
+  0: normal
+  1: expert

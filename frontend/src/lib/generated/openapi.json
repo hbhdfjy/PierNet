@@ -1,6 +1,25 @@
 {
   "components": {
     "schemas": {
+      "AssemblyTestRequest": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "title": "Config",
+            "type": "object"
+          },
+          "test_input": {
+            "title": "Test Input",
+            "type": "string"
+          }
+        },
+        "required": [
+          "config",
+          "test_input"
+        ],
+        "title": "AssemblyTestRequest",
+        "type": "object"
+      },
       "BatchSimulateRequest": {
         "properties": {
           "max_workers": {
@@ -207,6 +226,54 @@
         "title": "ExpertInputPlanResponse",
         "type": "object"
       },
+      "ExpertModelSummary": {
+        "properties": {
+          "description": {
+            "default": "",
+            "title": "Description",
+            "type": "string"
+          },
+          "domain": {
+            "title": "Domain",
+            "type": "string"
+          },
+          "expert_output_dim": {
+            "default": 0,
+            "title": "Expert Output Dim",
+            "type": "integer"
+          },
+          "expert_type": {
+            "default": "generic",
+            "title": "Expert Type",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "output_dim": {
+            "title": "Output Dim",
+            "type": "integer"
+          },
+          "spatial_points": {
+            "default": 0,
+            "title": "Spatial Points",
+            "type": "integer"
+          },
+          "time_steps": {
+            "default": 1,
+            "title": "Time Steps",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "domain",
+          "output_dim"
+        ],
+        "title": "ExpertModelSummary",
+        "type": "object"
+      },
       "FillSamplesRequest": {
         "properties": {
           "batch_size": {
@@ -357,6 +424,24 @@
           "available"
         ],
         "title": "GPUInfo",
+        "type": "object"
+      },
+      "GeneratePromptRequest": {
+        "properties": {
+          "language": {
+            "default": "zh",
+            "title": "Language",
+            "type": "string"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator"
+        ],
+        "title": "GeneratePromptRequest",
         "type": "object"
       },
       "GenerateTemplatesRequest": {
@@ -694,6 +779,131 @@
         "title": "LLMConfigRequest",
         "type": "object"
       },
+      "LoadAllRequest": {
+        "description": "模型加载请求\n\n参数说明：\n- llm_path: LLM模型路径\n- llm_gpu_id: LLM加载的GPU（默认0）\n- router_gpu_id: Router加载的GPU（默认与LLM相同）\n- force_split: 是否强制切分LLM到多GPU\n- auto_sync: 是否自动同步设备（如果Router在不同GPU，会自动传输tensor）\n\n注意：single_eval.py中所有模型在同一GPU。\n如果Router在不同GPU，需要在推理时手动传输generated_ids，\n这会增加每个token生成周期的延迟。",
+        "properties": {
+          "auto_sync": {
+            "default": true,
+            "title": "Auto Sync",
+            "type": "boolean"
+          },
+          "force_split": {
+            "default": false,
+            "title": "Force Split",
+            "type": "boolean"
+          },
+          "llm_gpu_id": {
+            "default": 0,
+            "title": "Llm Gpu Id",
+            "type": "integer"
+          },
+          "llm_path": {
+            "title": "Llm Path",
+            "type": "string"
+          },
+          "router_gpu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Gpu Id"
+          }
+        },
+        "required": [
+          "llm_path"
+        ],
+        "title": "LoadAllRequest",
+        "type": "object"
+      },
+      "LoadFNORequest": {
+        "description": "单独加载FNO",
+        "properties": {
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator"
+        ],
+        "title": "LoadFNORequest",
+        "type": "object"
+      },
+      "LoadLLMRequest": {
+        "description": "单独加载LLM",
+        "properties": {
+          "force_split": {
+            "default": false,
+            "title": "Force Split",
+            "type": "boolean"
+          },
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "llm_path": {
+            "title": "Llm Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "llm_path"
+        ],
+        "title": "LoadLLMRequest",
+        "type": "object"
+      },
+      "LoadRouterRequest": {
+        "description": "单独加载Router",
+        "properties": {
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "router_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Path"
+          }
+        },
+        "title": "LoadRouterRequest",
+        "type": "object"
+      },
+      "LoadText2CompRequest": {
+        "description": "单独加载Text2Comp",
+        "properties": {
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator"
+        ],
+        "title": "LoadText2CompRequest",
+        "type": "object"
+      },
       "MetricsSummary": {
         "properties": {
           "generated_at": {
@@ -975,6 +1185,892 @@
           "path"
         ],
         "title": "TemplateFileInfo",
+        "type": "object"
+      },
+      "Text2CompCurvesResponse": {
+        "properties": {
+          "checkpoints": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "eval_points": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Eval Points",
+            "type": "array"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "training_points": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Training Points",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "Text2CompCurvesResponse",
+        "type": "object"
+      },
+      "Text2CompDatasetInfo": {
+        "properties": {
+          "file_size_bytes": {
+            "default": 0,
+            "title": "File Size Bytes",
+            "type": "integer"
+          },
+          "mtime": {
+            "default": 0.0,
+            "title": "Mtime",
+            "type": "number"
+          },
+          "n_samples": {
+            "default": 0,
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "path": {
+            "title": "Path",
+            "type": "string"
+          },
+          "sample_count": {
+            "default": 0,
+            "title": "Sample Count",
+            "type": "integer"
+          },
+          "scenario": {
+            "default": "",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "default": "",
+            "title": "Simulator",
+            "type": "string"
+          },
+          "size_bytes": {
+            "default": 0,
+            "title": "Size Bytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path"
+        ],
+        "title": "Text2CompDatasetInfo",
+        "type": "object"
+      },
+      "Text2CompGPUInfo": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "index": {
+            "title": "Index",
+            "type": "integer"
+          },
+          "locked_by_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked By Job Id"
+          },
+          "memory_total_mib": {
+            "title": "Memory Total Mib",
+            "type": "integer"
+          },
+          "memory_used_mib": {
+            "title": "Memory Used Mib",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "utilization_gpu": {
+            "title": "Utilization Gpu",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "index",
+          "name",
+          "memory_used_mib",
+          "memory_total_mib",
+          "utilization_gpu",
+          "available"
+        ],
+        "title": "Text2CompGPUInfo",
+        "type": "object"
+      },
+      "Text2CompJobCreateRequest": {
+        "properties": {
+          "base_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Model"
+          },
+          "base_model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Model Path"
+          },
+          "batch_size": {
+            "default": 8,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "epochs": {
+            "default": 100,
+            "title": "Epochs",
+            "type": "integer"
+          },
+          "eval_interval": {
+            "default": 10,
+            "title": "Eval Interval",
+            "type": "integer"
+          },
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "learning_rate": {
+            "default": 1e-05,
+            "title": "Learning Rate",
+            "type": "number"
+          },
+          "log_interval": {
+            "default": 5,
+            "title": "Log Interval",
+            "type": "integer"
+          },
+          "loss_fn": {
+            "default": "mse",
+            "title": "Loss Fn",
+            "type": "string"
+          },
+          "max_length": {
+            "default": 2048,
+            "title": "Max Length",
+            "type": "integer"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "output_dim": {
+            "default": 0,
+            "title": "Output Dim",
+            "type": "integer"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "train_data_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Data Path"
+          },
+          "train_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Path"
+          },
+          "weight_decay": {
+            "default": 0.01,
+            "title": "Weight Decay",
+            "type": "number"
+          }
+        },
+        "required": [
+          "simulator"
+        ],
+        "title": "Text2CompJobCreateRequest",
+        "type": "object"
+      },
+      "Text2CompJobDetail": {
+        "properties": {
+          "avg_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss"
+          },
+          "base_model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Model Path"
+          },
+          "checkpoints": {
+            "default": [],
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Checkpoints",
+            "type": "array"
+          },
+          "command": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Command",
+            "type": "array"
+          },
+          "config": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Config",
+            "type": "object"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "global_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Step"
+          },
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "latest_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Epoch"
+          },
+          "latest_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Metrics"
+          },
+          "latest_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Step"
+          },
+          "latest_test_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Test Epoch"
+          },
+          "log_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Log Path"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pid"
+          },
+          "run_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Dir"
+          },
+          "scenario": {
+            "default": "",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "default": "",
+            "title": "Simulator",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_per_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Epoch"
+          },
+          "steps_per_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Sec"
+          },
+          "terminated": {
+            "default": false,
+            "title": "Terminated",
+            "type": "boolean"
+          },
+          "train_data_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Train Data Path"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "Text2CompJobDetail",
+        "type": "object"
+      },
+      "Text2CompJobSummary": {
+        "properties": {
+          "avg_loss": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Avg Loss"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Message"
+          },
+          "eta_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eta Seconds"
+          },
+          "global_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Global Step"
+          },
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "latest_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Epoch"
+          },
+          "latest_metrics": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Metrics"
+          },
+          "latest_step": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Step"
+          },
+          "latest_test_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latest Test Epoch"
+          },
+          "name": {
+            "default": "",
+            "title": "Name",
+            "type": "string"
+          },
+          "scenario": {
+            "default": "",
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "default": "",
+            "title": "Simulator",
+            "type": "string"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "steps_per_epoch": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Epoch"
+          },
+          "steps_per_sec": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Steps Per Sec"
+          }
+        },
+        "required": [
+          "job_id",
+          "status"
+        ],
+        "title": "Text2CompJobSummary",
+        "type": "object"
+      },
+      "Text2CompLogResponse": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          },
+          "lines": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Lines",
+            "type": "array"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "Text2CompLogResponse",
+        "type": "object"
+      },
+      "Text2CompOverviewResponse": {
+        "properties": {
+          "completed_job_count": {
+            "default": 0,
+            "title": "Completed Job Count",
+            "type": "integer"
+          },
+          "datasets": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Text2CompDatasetInfo"
+            },
+            "title": "Datasets",
+            "type": "array"
+          },
+          "expert_models": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ExpertModelSummary"
+            },
+            "title": "Expert Models",
+            "type": "array"
+          },
+          "gpus": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Text2CompGPUInfo"
+            },
+            "title": "Gpus",
+            "type": "array"
+          },
+          "jobs": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/Text2CompJobSummary"
+            },
+            "title": "Jobs",
+            "type": "array"
+          },
+          "running_job_count": {
+            "default": 0,
+            "title": "Running Job Count",
+            "type": "integer"
+          }
+        },
+        "title": "Text2CompOverviewResponse",
+        "type": "object"
+      },
+      "Text2CompTrainRequest": {
+        "properties": {
+          "batch_size": {
+            "default": 8,
+            "title": "Batch Size",
+            "type": "integer"
+          },
+          "epochs": {
+            "default": 100,
+            "title": "Epochs",
+            "type": "integer"
+          },
+          "gpu_id": {
+            "default": 0,
+            "title": "Gpu Id",
+            "type": "integer"
+          },
+          "learning_rate": {
+            "default": 1e-05,
+            "title": "Learning Rate",
+            "type": "number"
+          },
+          "output_dim": {
+            "default": 128,
+            "title": "Output Dim",
+            "type": "integer"
+          },
+          "scenario": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenario"
+          },
+          "simulator": {
+            "title": "Simulator",
+            "type": "string"
+          },
+          "train_path": {
+            "title": "Train Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator",
+          "train_path"
+        ],
+        "title": "Text2CompTrainRequest",
+        "type": "object"
+      },
+      "Text2CompTrainResponse": {
+        "properties": {
+          "config": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Config",
+            "type": "object"
+          },
+          "error": {
+            "default": "",
+            "title": "Error",
+            "type": "string"
+          },
+          "job_id": {
+            "default": "",
+            "title": "Job Id",
+            "type": "string"
+          },
+          "model_path": {
+            "default": "",
+            "title": "Model Path",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "Text2CompTrainResponse",
         "type": "object"
       },
       "TrainingCheckpointInfo": {
@@ -2138,6 +3234,19 @@
         "title": "TrainingTestPoint",
         "type": "object"
       },
+      "UpdatePromptRequest": {
+        "properties": {
+          "piern_system_prompt": {
+            "title": "Piern System Prompt",
+            "type": "string"
+          }
+        },
+        "required": [
+          "piern_system_prompt"
+        ],
+        "title": "UpdatePromptRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -2227,6 +3336,504 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/assembly/domains": {
+      "get": {
+        "description": "从DOMAIN_REGISTRY获取simulator列表",
+        "operationId": "list_domains_api_assembly_domains_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Domains",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/fnos": {
+      "get": {
+        "description": "列出可用的FNO专家模型",
+        "operationId": "list_fnos_api_assembly_fnos_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Fnos",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/fnos/load": {
+      "post": {
+        "description": "单独加载FNO",
+        "operationId": "load_fno_api_assembly_fnos_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadFNORequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Fno",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/gpus": {
+      "get": {
+        "description": "获取GPU列表（实时状态）",
+        "operationId": "list_gpus_api_assembly_gpus_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Gpus",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/llms": {
+      "get": {
+        "description": "列出可用的LLM模型",
+        "operationId": "list_llms_api_assembly_llms_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Llms",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/llms/load": {
+      "post": {
+        "description": "单独加载LLM",
+        "operationId": "load_llm_api_assembly_llms_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadLLMRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Llm",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/load": {
+      "post": {
+        "description": "一键加载所有模型\n\n设计说明：\n- 默认所有模型加载到同一GPU（遵循single_eval.py，性能最优）\n- 如果指定router_gpu_id不同，会自动处理跨设备同步（会增加延迟）\n- force_split用于大LLM切分到多GPU",
+        "operationId": "load_all_models_api_assembly_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadAllRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load All Models",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/prompt": {
+      "get": {
+        "description": "获取当前prompt配置",
+        "operationId": "get_prompt_api_assembly_prompt_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Prompt",
+        "tags": [
+          "assembly"
+        ]
+      },
+      "post": {
+        "description": "保存prompt到配置文件",
+        "operationId": "update_prompt_api_assembly_prompt_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdatePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Prompt",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/prompt/generate": {
+      "post": {
+        "description": "根据DOMAIN_REGISTRY自动生成prompt",
+        "operationId": "generate_prompt_api_assembly_prompt_generate_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GeneratePromptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Prompt",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/routers": {
+      "get": {
+        "description": "列出可用的Router模型",
+        "operationId": "list_routers_api_assembly_routers_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Routers",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/routers/load": {
+      "post": {
+        "description": "单独加载Router",
+        "operationId": "load_router_api_assembly_routers_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadRouterRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Router",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/status": {
+      "get": {
+        "description": "获取完整状态（包含实时GPU信息）",
+        "operationId": "get_status_api_assembly_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Status",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/test": {
+      "post": {
+        "description": "测试PiERN推理",
+        "operationId": "test_assembly_api_assembly_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssemblyTestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Assembly",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/text2comps": {
+      "get": {
+        "description": "列出可用的Text2Comp模型",
+        "operationId": "list_text2comps_api_assembly_text2comps_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Text2Comps",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/text2comps/load": {
+      "post": {
+        "description": "单独加载Text2Comp",
+        "operationId": "load_text2comp_api_assembly_text2comps_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadText2CompRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Text2Comp",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/unload": {
+      "post": {
+        "description": "卸载所有模型",
+        "operationId": "unload_all_api_assembly_unload_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Unload All",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
     "/api/config": {
       "get": {
         "description": "读取 default.yaml 的 generation 节配置。",
@@ -3921,6 +5528,527 @@
           }
         },
         "summary": "Get Templates Status"
+      }
+    },
+    "/api/text2comp/datasets": {
+      "get": {
+        "description": "获取可用的数据集列表",
+        "operationId": "get_text2comp_datasets_api_text2comp_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Text2CompDatasetInfo"
+                  },
+                  "title": "Response Get Text2Comp Datasets Api Text2Comp Datasets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Datasets",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/experts": {
+      "get": {
+        "description": "获取可用的专家模型列表",
+        "operationId": "get_expert_models_api_text2comp_experts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ExpertModelSummary"
+                  },
+                  "title": "Response Get Expert Models Api Text2Comp Experts Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Expert Models",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/gpus": {
+      "get": {
+        "description": "获取GPU资源状态",
+        "operationId": "get_text2comp_gpus_api_text2comp_gpus_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Text2CompGPUInfo"
+                  },
+                  "title": "Response Get Text2Comp Gpus Api Text2Comp Gpus Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Gpus",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs": {
+      "get": {
+        "description": "获取所有训练任务列表",
+        "operationId": "get_text2comp_jobs_api_text2comp_jobs_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Text2CompJobSummary"
+                  },
+                  "title": "Response Get Text2Comp Jobs Api Text2Comp Jobs Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Jobs",
+        "tags": [
+          "text2comp"
+        ]
+      },
+      "post": {
+        "description": "创建新的训练任务",
+        "operationId": "create_text2comp_job_api_text2comp_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Text2CompJobCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompJobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Text2Comp Job",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs/{job_id}": {
+      "delete": {
+        "description": "删除训练任务",
+        "operationId": "delete_text2comp_job_api_text2comp_jobs__job_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Text2Comp Job",
+        "tags": [
+          "text2comp"
+        ]
+      },
+      "get": {
+        "description": "获取单个训练任务详情",
+        "operationId": "get_text2comp_job_api_text2comp_jobs__job_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompJobDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Text2Comp Job",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs/{job_id}/curves": {
+      "get": {
+        "description": "获取训练曲线数据",
+        "operationId": "get_text2comp_curves_api_text2comp_jobs__job_id__curves_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "max_points",
+            "required": false,
+            "schema": {
+              "default": 2000,
+              "maximum": 10000,
+              "minimum": 100,
+              "title": "Max Points",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompCurvesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Text2Comp Curves",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs/{job_id}/logs": {
+      "get": {
+        "description": "获取训练日志",
+        "operationId": "get_text2comp_logs_api_text2comp_jobs__job_id__logs_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 300,
+              "maximum": 2000,
+              "minimum": 20,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompLogResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Text2Comp Logs",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs/{job_id}/stop": {
+      "post": {
+        "description": "停止正在运行的训练任务",
+        "operationId": "stop_text2comp_job_api_text2comp_jobs__job_id__stop_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompJobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Stop Text2Comp Job",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/jobs/{job_id}/validate": {
+      "post": {
+        "description": "验证训练数据是否有效",
+        "operationId": "validate_job_data_api_text2comp_jobs__job_id__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Job Data",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/models": {
+      "get": {
+        "description": "获取已训练的模型文件列表",
+        "operationId": "get_trained_models_api_text2comp_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Trained Models",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/overview": {
+      "get": {
+        "description": "获取文生计算模块训练总览",
+        "operationId": "get_text2comp_overview_api_text2comp_overview_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Overview",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/status": {
+      "get": {
+        "description": "获取文生计算模块训练状态（兼容前端API）",
+        "operationId": "get_text2comp_status_api_text2comp_status_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Text2Comp Status",
+        "tags": [
+          "text2comp"
+        ]
+      }
+    },
+    "/api/text2comp/train": {
+      "post": {
+        "description": "启动Text2Comp训练任务（兼容前端API）",
+        "operationId": "start_text2comp_train_api_text2comp_train_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Text2CompTrainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Text2CompTrainResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Text2Comp Train",
+        "tags": [
+          "text2comp"
+        ]
       }
     },
     "/api/training/datasets": {
