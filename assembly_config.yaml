@@ -52,12 +52,12 @@ llm:
 router:
   # PiERN Router权重
   weights:
-    pde_router: "/root/data/zyx/xhb/PiERN/token_router/0105_pde_router_best_model_3e-4.pt"
-    pde_router_v2: "/root/data/zyx/xhb/PiERN/token_router/0124_pde_router_best_model.pt"
+    pde_router: "/root/data/PierNet/artifacts/token_router/legacy/0105_pde_router_best_model_3e-4.pt"
+    pde_router_v2: "/root/data/PierNet/artifacts/token_router/legacy/0124_pde_router_best_model.pt"
 
   # 示例Router
   examples:
-    diff_sorp_router: "/root/data/zyx/xhb/example_piern/Token_Router/1101_diff-sorp_router_best_model_1e-8.pt"
+    diff_sorp_router: "/root/data/PierNet/artifacts/token_router/legacy/1101_diff-sorp_router_best_model_1e-8.pt"
 
   # PierNet训练的Router
   piernet_artifacts:
@@ -76,9 +76,9 @@ router:
 # ============================================================
 text2comp:
   weights:
-    diff_reaction: "/root/data/zyx/xhb/PiERN/text2computation_model/0105_raw_1d_diff-reaction_text2computation_best_model_5e-6.pt"
-    diff_sorp: "/root/data/zyx/xhb/PiERN/text2computation_model/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt"
-    burgers: "/root/data/zyx/xhb/PiERN/text2computation_model/0103_raw_burgers_text2computation_best_model_5e-6.pt"
+    diff_reaction: "/root/data/PierNet/artifacts/text2comp_models/legacy/0105_raw_1d_diff-reaction_text2computation_best_model_5e-6.pt"
+    diff_sorp: "/root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt"
+    burgers: "/root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_burgers_text2computation_best_model_5e-6.pt"
 
   # 输出维度配置
   output_dims:
@@ -91,8 +91,8 @@ text2comp:
 # ============================================================
 fno:
   weights:
-    diff_sorp: "/root/data/zyx/xhb/example_piern/Expert_model/1D_diff-sorp_NA_NA_FNO_2_1.pt"
-    diff_sorp_alt: "/root/data/zyx/xhb/example_piern/1D_diff-sorp_NA_NA_FNO.pt"
+    diff_sorp: "/root/data/PierNet/artifacts/fno_models/legacy/1D_diff-sorp_NA_NA_FNO_2_1.pt"
+    diff_sorp_alt: "/root/data/PierNet/examples/1D_diff-sorp_NA_NA_FNO.pt"
 
   # FNO配置
   configs:
@@ -108,15 +108,15 @@ fno:
 data:
   # PDEBench数据
   pdebench:
-    diff_sorp: "/root/data/zyx/xhb/example_piern/demo/diff_sorp_data.h5"
+    diff_sorp: "/root/data/PierNet/data/examples/diff_sorp_data.h5"
 
   # PiERN平台数据目录
   piernet_data:
-    transient: "/root/data/zyx/piern-integrated-v2/data/transient"
-    simpeg: "/root/data/zyx/piern-integrated-v2/data/simpeg"
-    modflow: "/root/data/zyx/piern-integrated-v2/data/modflow"
-    power_flow: "/root/data/zyx/piern-integrated-v2/data/power_flow"
-    gcam: "/root/data/zyx/piern-integrated-v2/data/gcam"
+    transient: "/root/data/PierNet/data/transient"
+    simpeg: "/root/data/PierNet/data/simpeg"
+    modflow: "/root/data/PierNet/data/modflow"
+    power_flow: "/root/data/PierNet/data/power_flow"
+    gcam: "/root/data/PierNet/data/gcam"
 
 # ============================================================
 # 网格数据路径 (用于FNO)
@@ -152,16 +152,16 @@ api:
 # ============================================================
 directories:
   # PiERN集成平台
-  piern_integrated: "/root/data/zyx/piern-integrated-v2"
+  piern_integrated: "/root/data/PierNet"
 
   # PierNet原始平台 (不要修改)
   piernet: "/root/data/PierNet"
 
   # xhb的PiERN实现
-  xhb_piern: "/root/data/zyx/xhb"
+  xhb_piern: "/root/data/PierNet/external/xhb"
 
   # 示例代码
-  example_piern: "/root/data/zyx/xhb/example_piern"
+  example_piern: "/root/data/PierNet/examples"
 
   # 公共资源
   eb_public: "/root/eb-public"

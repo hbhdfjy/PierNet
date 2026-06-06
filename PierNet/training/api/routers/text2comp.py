@@ -155,11 +155,8 @@ def validate_job_data(job_id: str):
 @router.get("/models")
 def get_trained_models():
     """获取已训练的模型文件列表"""
-    from pathlib import Path
 
-    models_dir = Path("/mnt/disk3/piern_artifacts/text2comp_models")
-    if not models_dir.exists():
-        models_dir = Path("artifacts/text2comp")
+    models_dir = text2comp_manager.ARTIFACTS_ROOT
 
     models = []
     if models_dir.exists():

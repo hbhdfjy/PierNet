@@ -30,6 +30,17 @@ from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_ARTIFACTS_ROOT = Path(os.getenv("PIERN_ARTIFACTS_ROOT", str(_REPO_ROOT / "artifacts"))).expanduser()
+_TEXT2COMP_MODELS_ROOT = Path(
+    os.getenv("PIERN_TEXT2COMP_MODELS_DIR", str(_ARTIFACTS_ROOT / "text2comp_models"))
+).expanduser()
+_ROUTER_ARTIFACTS_ROOT = Path(
+    os.getenv("PIERN_ROUTER_ARTIFACTS_DIR", str(_ARTIFACTS_ROOT / "token_router"))
+).expanduser()
+_FNO_MODELS_ROOT = Path(os.getenv("PIERN_FNO_MODELS_DIR", str(_ARTIFACTS_ROOT / "fno_models"))).expanduser()
+_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+
 # 导入DOMAIN_REGISTRY用于prompt生成
 from PierNet.synth.text2comp.generator import DOMAIN_REGISTRY
 
@@ -152,7 +163,7 @@ class UpdatePromptRequest(BaseModel):
     piern_system_prompt: str
 
 # Prompt配置文件路径
-PROMPT_CONFIG_PATH = Path(__file__).resolve().parents[3] / 'configs' / 'assembly' / 'prompt.yaml'
+PROMPT_CONFIG_PATH = _REPO_ROOT / "configs" / "assembly" / "prompt.yaml"
 
 
 # ===== 神经网络模块 =====
@@ -331,19 +342,19 @@ ROUTER_CLASS_NAMES = ["normal", "expert"]  # 二分类：是否路由到当前�
 # Router模型路径（从配置文件读取）
 _ROUTER_REGISTRY = [
     {"name": "pde_router",
-     "path": "/root/data/zyx/xhb/PiERN/token_router/0105_pde_router_best_model_3e-4.pt",
+     "path": str(_ROUTER_ARTIFACTS_ROOT / "router.pt"),
      "num_classes": 2, "class_names": ROUTER_CLASS_NAMES},
 ]
 
 # Text2Comp模型路径（从expert_registry.yaml读取）
 _TEXT2COMP_REGISTRY = [
     {"name": "text2comp_diff_sorp", "simulator": "diff_sorp", "output_dim": 128,
-     "path": "/root/data/zyx/xhb/PiERN/text2computation_model/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt"},
+     "path": str(_TEXT2COMP_MODELS_ROOT / "diff_sorp" / "runs" / "default" / "final_model.pt")},
 ]
 
 _FNO_REGISTRY = [
     {"name": "fno_diff_sorp", "simulator": "diff_sorp", "input_dim": 128,
-     "path": "/root/data/zyx/xhb/example_piern/Expert_model/1D_diff-sorp_NA_NA_FNO_2_1.pt",
+     "path": str(_FNO_MODELS_ROOT / "diff_sorp" / "final_model.pt"),
      "modes": 16, "width": 64, "num_channels": 1, "initial_step": 2},
 ]
 
@@ -352,7 +363,7 @@ LLM_SCAN_PATHS = [
     "/root/data/PierNet/models/Qwen",
 ]
 
-TEXT2COMP_BASE_MODEL_PATH = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+TEXT2COMP_BASE_MODEL_PATH = os.getenv("PIERN_TEXT2COMP_BASE_MODEL", _DEFAULT_TEXT2COMP_BASE_MODEL)
 
 
 # ===== 已加载模型状态 =====

@@ -17,20 +17,20 @@ llm_dirs:
 text_model_dir: /root/eb-public/huggingface-models/Qwen/Qwen3-0.6B
 
 # Router 模型目录（扫描 .pt 文件）
-router_dir: /root/data/zyx/piern_artifacts/token_router
+router_dir: /root/data/PierNet/artifacts/token_router
 
 # Text2Comp 专家模型目录（扫描 .pt 文件）
 text2comp_dirs:
-  - path: /root/data/zyx/xhb/PiERN/text2computation_model
+  - path: /root/data/PierNet/artifacts/text2comp_models/legacy
     pattern: "*_text2computation*.pt"  # 文件名模式
-  - path: /root/data/zyx/piern_artifacts/text2comp_models  # 训练输出目录
+  - path: /root/data/PierNet/artifacts/text2comp_models  # 训练输出目录
     pattern: "**/final_model.pt"        # 扫描子目录中的final_model.pt
 
 # FNO 专家模型目录（扫描 .pt 文件）
 fno_dirs:
-  - path: /root/data/zyx/xhb/example_piern/Expert_model
+  - path: /root/data/PierNet/artifacts/fno_models/legacy
     pattern: "*.pt"  # 文件名模式
-  - path: /root/data/zyx/piern_artifacts/fno_models  # 未来FNO训练输出
+  - path: /root/data/PierNet/artifacts/fno_models  # 未来FNO训练输出
     pattern: "**/final_model.pt"  # 扫描子目录
 
 # 专家模型注册文件（用户动态添加的专家）
@@ -38,8 +38,8 @@ expert_registry: configs/assembly/expert_registry.yaml
 
 # 训练输出目录
 training_output:
-  text2comp: /root/data/zyx/piern_artifacts/text2comp_models
-  fno: /root/data/zyx/piern_artifacts/fno_models
+  text2comp: /root/data/PierNet/artifacts/text2comp_models
+  fno: /root/data/PierNet/artifacts/fno_models
 
 # 训练命名格式（支持变量）
 # 可用变量: {simulator}, {scenario}, {timestamp}, {dataset}

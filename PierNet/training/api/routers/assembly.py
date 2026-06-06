@@ -36,7 +36,17 @@ from pydantic import BaseModel
 import yaml as _yaml
 import glob as _glob
 
-_CONFIG_PATH = Path(__file__).resolve().parents[4] / "configs" / "assembly" / "models.yaml"
+_REPO_ROOT = Path(__file__).resolve().parents[4]
+_CONFIG_PATH = _REPO_ROOT / "configs" / "assembly" / "models.yaml"
+_ARTIFACTS_ROOT = Path(os.getenv("PIERN_ARTIFACTS_ROOT", str(_REPO_ROOT / "artifacts"))).expanduser()
+_TEXT2COMP_MODELS_ROOT = Path(
+    os.getenv("PIERN_TEXT2COMP_MODELS_DIR", str(_ARTIFACTS_ROOT / "text2comp_models"))
+).expanduser()
+_ROUTER_ARTIFACTS_ROOT = Path(
+    os.getenv("PIERN_ROUTER_ARTIFACTS_DIR", str(_ARTIFACTS_ROOT / "token_router"))
+).expanduser()
+_FNO_MODELS_ROOT = Path(os.getenv("PIERN_FNO_MODELS_DIR", str(_ARTIFACTS_ROOT / "fno_models"))).expanduser()
+_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
 
 def _load_config():
     if _CONFIG_PATH.exists():
@@ -88,7 +98,7 @@ def _scan_text2comp():
                     "path": f,
                 })
     if not models:
-        art_dir = "/root/data/zyx/piern_artifacts/text2comp_models"
+        art_dir = str(_TEXT2COMP_MODELS_ROOT)
         if os.path.exists(art_dir):
             for f in sorted(_glob.glob(os.path.join(art_dir, "**/final_model.pt"), recursive=True)):
                 sim = _infer_simulator_from_path(f)
@@ -103,7 +113,7 @@ def _scan_text2comp():
 
 def _scan_router():
     config = _load_config()
-    rdir = config.get("router_dir", "/root/data/zyx/piern_artifacts/token_router")
+    rdir = config.get("router_dir") or str(_ROUTER_ARTIFACTS_ROOT)
     models = []
     seen = set()
     if os.path.exists(rdir):
@@ -119,12 +129,9 @@ def _scan_router():
             })
 
     platform_patterns = [
-        "/root/data/zyx/piern-integrated-v2/artifacts/token_router/**/router_final.pt",
-        "/root/data/zyx/piern-integrated-v2/artifacts/token_router/**/router_latest.pt",
-        "/root/data/zyx/piern-integrated-v2/artifacts/token_router/**/router_epoch_*.pt",
-        "/root/data/zyx/piern_artifacts/token_router/**/router_final.pt",
-        "/root/data/zyx/piern_artifacts/token_router/**/router_latest.pt",
-        "/root/data/zyx/piern_artifacts/token_router/**/router_epoch_*.pt",
+        str(_ROUTER_ARTIFACTS_ROOT / "**" / "router_final.pt"),
+        str(_ROUTER_ARTIFACTS_ROOT / "**" / "router_latest.pt"),
+        str(_ROUTER_ARTIFACTS_ROOT / "**" / "router_epoch_*.pt"),
     ]
     for pattern in platform_patterns:
         for f in sorted(_glob.glob(pattern, recursive=True)):
@@ -145,7 +152,7 @@ def _scan_router():
     if not models:
         models.append({
             "name": "default",
-            "path": "/root/data/zyx/piern_artifacts/token_router/router.pt",
+            "path": str(_ROUTER_ARTIFACTS_ROOT / "router.pt"),
             "num_classes": 2,
             "class_names": ["normal", "diff_sorp"],
             "router_type": "lm_classifier",
@@ -287,7 +294,7 @@ class UpdatePromptRequest(BaseModel):
     piern_system_prompt: str
 
 # Prompt配置文件路径
-PROMPT_CONFIG_PATH = Path(__file__).resolve().parents[3] / 'configs' / 'assembly' / 'prompt.yaml'
+PROMPT_CONFIG_PATH = _REPO_ROOT / "configs" / "assembly" / "prompt.yaml"
 
 
 # ===== 神经网络模块 =====
@@ -498,9 +505,8 @@ def _scan_fno():
     config = _load_config()
     dirs = list(config.get("fno_dirs", []))
     dirs.extend([
-        {"path": "/root/data/zyx/xhb/example_piern/Expert_model", "pattern": "*.pt"},
-        {"path": "/root/data/zyx/piern_artifacts/fno_models", "pattern": "*.pt"},
-        {"path": "/root/data/zyx/piern_artifacts/fno_models", "pattern": "**/*.pt"},
+        {"path": str(_FNO_MODELS_ROOT), "pattern": "*.pt"},
+        {"path": str(_FNO_MODELS_ROOT), "pattern": "**/*.pt"},
     ])
     models = []
     seen = set()
@@ -535,7 +541,10 @@ LLM_SCAN_PATHS = [
     "/root/data/PierNet/models/Qwen",
 ]
 
-TEXT2COMP_BASE_MODEL_PATH = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+TEXT2COMP_BASE_MODEL_PATH = os.getenv(
+    "PIERN_TEXT2COMP_BASE_MODEL",
+    str(_load_config().get("text_model_dir") or _DEFAULT_TEXT2COMP_BASE_MODEL),
+)
 
 
 # ===== 已加载模型状态 =====

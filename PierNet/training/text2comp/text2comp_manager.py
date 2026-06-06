@@ -34,8 +34,12 @@ from typing import Any
 # 路径配置 - 使用项目内固定路径，避免数据丢失
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
-# Checkpoint和模型存储在大容量存储（/root/data有1.2TB可用）
-ARTIFACTS_ROOT = Path("/root/data/zyx/piern_artifacts/text2comp_models")
+# Checkpoint和模型默认存储在当前 PierNet 项目的 artifacts 目录，可通过环境变量覆盖。
+ARTIFACTS_ROOT = Path(
+    os.getenv("PIERN_TEXT2COMP_MODELS_DIR")
+    or os.getenv("PIERN_TEXT2COMP_ARTIFACTS_ROOT")
+    or str(PROJECT_ROOT / "artifacts" / "text2comp_models")
+).expanduser()
 RUNLOGS_ROOT = PROJECT_ROOT / ".runlogs" / "text2comp"
 REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 

@@ -3,7 +3,7 @@
 # export CUDA_VISIBLE_DEVICES=0,1,2,3
 # export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 # nohup torchrun --nproc_per_node=4 --master_port=29506 de_token_1d_diff-sorp.py > 0102_raw_de_token_1d_diff-sorp.log 2>&1 &
-# tmux new -d -s 0103train_test3 \; send-keys 'export CUDA_VISIBLE_DEVICES=4,5,6,7 && nohup /root/data/zyx/piern/bin/torchrun --nproc_per_node=4 --master_port=29507 de_token_1d_diff-sorp.py > 0103_raw_de_token_1d_diff-sorp.log 2>&1' C-m
+# tmux new -d -s 0103train_test3 \; send-keys 'export CUDA_VISIBLE_DEVICES=4,5,6,7 && nohup /root/data/PierNet/.conda/env/bin/torchrun --nproc_per_node=4 --master_port=29507 de_token_1d_diff-sorp.py > 0103_raw_de_token_1d_diff-sorp.log 2>&1' C-m
 # tmux kill-session -t 0103train_test3
 
 

@@ -53,7 +53,7 @@ export default function TrainedModelsPage() {
         <div className="rounded-lg bg-slate-800/50 border border-slate-700 p-8 text-center text-slate-400">
           <FolderOpen size={48} className="mx-auto mb-3 opacity-50" />
           <p>暂无已训练的模型文件</p>
-          <p className="text-sm mt-2">完成训练后，模型将保存在 artifacts/text2comp/ 目录</p>
+          <p className="text-sm mt-2">完成训练后，模型将保存在 artifacts/text2comp_models/ 目录</p>
         </div>
       ) : (
         <div className="rounded-lg bg-slate-800/50 border border-slate-700 overflow-hidden">
@@ -102,7 +102,7 @@ export default function TrainedModelsPage() {
           <div className="flex items-center gap-2">
             <span className="text-emerald-400">•</span>
             <span className="text-slate-400">模型存储:</span>
-            <span className="font-mono text-slate-300">/mnt/disk3/piern_artifacts/text2comp_models/</span>
+            <span className="font-mono text-slate-300">artifacts/text2comp_models/</span>
           </div>
           <div className="flex items-center gap-2">
             <span className="text-emerald-400">•</span>

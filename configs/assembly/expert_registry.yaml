@@ -24,9 +24,9 @@ experts:
       initial_step: 2
       modes: 16
       width: 64
-    fno_path: /root/data/zyx/xhb/example_piern/Expert_model/1D_diff-sorp_NA_NA_FNO_2_1.pt
+    fno_path: /root/data/PierNet/artifacts/fno_models/legacy/1D_diff-sorp_NA_NA_FNO_2_1.pt
     grid_points: 32
     output_dim: 128
     registered_at: '2026-05-28T13:18:08.680535'
     simulator: diff-sorp
-    text2comp_path: /root/data/zyx/xhb/PiERN/text2computation_model/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt
+    text2comp_path: /root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt
