@@ -481,7 +481,7 @@ export default function Text2CompPage() {
           <div className="bg-slate-900/50 rounded p-3 border border-slate-600">
             <div className="text-sky-300 font-medium">模型输出</div>
             <div className="text-slate-400 mt-1 font-mono text-xs">
-              artifacts/text2comp/{'{simulator}'}/runs/{'{job_id}'}/
+              artifacts/text2comp_models/{'{simulator}'}/runs/{'{job_id}'}/
             </div>
             <div className="text-xs text-slate-500">包含final_model.pt和checkpoints</div>
           </div>
@@ -493,7 +493,7 @@ export default function Text2CompPage() {
           <div className="bg-slate-900/50 rounded p-3 border border-slate-600">
             <div className="text-violet-300 font-medium">训练配置</div>
             <div className="text-slate-400 mt-1 font-mono text-xs">
-              artifacts/text2comp/{'{simulator}'}/runs/{'{job_id}'}/config.json
+              artifacts/text2comp_models/{'{simulator}'}/runs/{'{job_id}'}/config.json
             </div>
             <div className="text-xs text-slate-500">训练参数配置记录</div>
           </div>

@@ -9,9 +9,9 @@ This file is the implementation playbook for developers and coding agents workin
 PierNet is one repository and one deployable FastAPI + React app with two product surfaces:
 
 - `/synth`: Stage 1-4 data synthesis
-- `/training`: single-GPU Token Router training
+- `/training`: Token Router, Text2Comp, and model assembly workflows
 
-Do not treat the project as an old single Stage 1-4 page, and do not treat the training surface as a general model-training platform.
+Do not treat the project as an old single Stage 1-4 page. The training surface is broader than Token Router now, but it is still not an unrestricted model-training platform.
 
 ## Source Of Truth
 
@@ -56,10 +56,11 @@ PierNet/synth/api/routers/       # synthesis HTTP routers
 PierNet/synth/api/schemas/       # synthesis schemas
 PierNet/synth/services/          # synthesis services
 PierNet/synth/text2comp/         # Stage 2/3 core
-PierNet/training/api/routers/    # training HTTP router
+PierNet/training/api/routers/    # training, Text2Comp, and assembly HTTP routers
 PierNet/training/api/schemas/    # training schemas
-PierNet/training/services/       # training job manager
+PierNet/training/services/       # Token Router job manager
 PierNet/training/router/         # Token Router data/model/train core
+PierNet/training/text2comp/      # Text2Comp data/model/train core
 ```
 
 ## Frontend Layout
@@ -161,7 +162,12 @@ Training:
 ```text
 artifacts/token_router/{simulator}/prepared/{prepared_name}/
 artifacts/token_router/{simulator}/runs/{run_name}/
+artifacts/text2comp_models/{simulator}/runs/{job_id}/
+artifacts/fno_models/
+configs/assembly/models.yaml
+configs/assembly/prompt.yaml
 .runlogs/training_jobs.sqlite
+.runlogs/text2comp/
 .runlogs/
 ```
 
@@ -192,13 +198,20 @@ Important assumptions:
 - `/training/new`: `TrainingNewJobPage.tsx`
 - `/training/jobs`: `TrainingJobsPage.tsx`
 - `/training/jobs/:jobId`: `TrainingJobDetailPage.tsx`
+- `/training/text2comp`: `Text2CompPage.tsx`
+- `/training/assembly`: `AssemblyPage.tsx`
+- `/training/models`: `TrainedModelsPage.tsx`
 - `/training/files`: training-scoped `FileManagerContent`
 
 Training API implementation:
 
 - `PierNet/training/api/routers/training.py`
+- `PierNet/training/api/routers/text2comp.py`
+- `PierNet/training/api/routers/assembly.py`
 - `PierNet/training/api/schemas/training.py`
+- `PierNet/training/api/schemas/text2comp.py`
 - `PierNet/training/services/training_manager.py`
+- `PierNet/training/text2comp/text2comp_manager.py`
 
 Current training statuses:
 
@@ -213,6 +226,8 @@ Current training statuses:
 - `stopping`
 
 GPU availability is conservative: free memory at least 2048 MiB and utilization at most 20%, plus process locking.
+
+Text2Comp training artifacts default to `artifacts/text2comp_models/`. Assembly defaults should stay under `/root/data/PierNet` or be explicit config/env overrides; do not hard-code personal development directories as main defaults.
 
 ## Token Router Core
 

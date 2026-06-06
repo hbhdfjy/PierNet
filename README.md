@@ -3,7 +3,7 @@
 PierNet 是一个面向物理与工程时序数据的双平台系统，当前由同一个 FastAPI + React 应用交付。
 
 - `/synth`：Stage 1-4 数据合成工作台。
-- `/training`：单 GPU Token Router 自动训练工作台。
+- `/training`：Token Router、Text2Comp 和模型拼装训练工作台。
 
 两个平台在代码命名空间和产品职责上分离，但共享启动入口、静态资源托管、主题样式和少量基础设施。
 
@@ -24,7 +24,7 @@ PierNet 是一个面向物理与工程时序数据的双平台系统，当前由
 ```text
 首页       http://localhost:8000/
 数据合成   http://localhost:8000/synth
-自动训练   http://localhost:8000/training
+训练平台   http://localhost:8000/training
 文件管理   http://localhost:8000/synth/files（/files 会重定向）
 API 文档   http://localhost:8000/docs
 Vite 开发  http://localhost:3000/
@@ -133,14 +133,13 @@ npm run dev -- --host 0.0.0.0 --strictPort
 
 ### `/training`
 
-训练平台故意保持窄范围：
+训练平台覆盖三个模块：
 
-- 只训练 Token Router。
-- 只支持单 GPU。
-- 不支持 DDP。
-- 不作为通用模型训练平台。
+- Token Router：消费 Stage 4 Router 数据，训练 `FullSeqDilatedConvRouter`。
+- Text2Comp：消费 Text2Comp JSONL 数据，训练文本到专家输入向量的模型。
+- 模型拼装：加载 LLM、Router、Text2Comp 和 FNO 专家，做端到端推理验证。
 
-平台支持数据集选择、GPU 状态、任务创建、任务列表、日志、曲线、检查点、停止和删除。
+当前训练任务仍以单 GPU 为主，不支持 DDP。平台支持数据集选择、GPU 状态、任务创建、任务列表、日志、曲线、检查点、停止和删除。
 
 ## 支持的 Stage 1 仿真器
 
@@ -214,11 +213,15 @@ data/router/by_scenario/{scenario}.jsonl
 data/router/train.jsonl
 ```
 
-### 训练产物
+### 训练与拼装产物
 
 ```text
 artifacts/token_router/{simulator}/prepared/{prepared_name}/
 artifacts/token_router/{simulator}/runs/{run_name}/
+artifacts/text2comp_models/{simulator}/runs/{job_id}/
+artifacts/fno_models/
+configs/assembly/models.yaml
+configs/assembly/prompt.yaml
 ```
 
 ## 快速命令
@@ -297,6 +300,24 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 - 默认 embedding backbone：优先使用 `PierNet_QWEN_EMBEDDING_MODEL`，否则回退到 `~/Qwen/Qwen2.5-0.5B-Instruct`。
 - 数据切分：只使用 train/test。
 - embedding 在训练时查表，不离线保存。
+
+### Text2Comp 与模型拼装
+
+Text2Comp 通过 `/training/text2comp` 或 `/api/text2comp/*` 创建训练任务，默认产物写入：
+
+```text
+artifacts/text2comp_models/{simulator}/runs/{job_id}/
+.runlogs/text2comp/{job_id}.log
+```
+
+模型拼装通过 `/training/assembly` 或 `/api/assembly/*` 扫描并加载：
+
+- LLM：`configs/assembly/models.yaml` 中的 `llm_dirs`。
+- Router：默认 `artifacts/token_router/`，可通过 `PIERN_ROUTER_ARTIFACTS_DIR` 覆盖。
+- Text2Comp：默认 `artifacts/text2comp_models/`，可通过 `PIERN_TEXT2COMP_MODELS_DIR` 覆盖。
+- FNO：默认 `artifacts/fno_models/`，可通过 `PIERN_FNO_MODELS_DIR` 覆盖。
+
+公共 HuggingFace 模型目录仍可指向 `/root/eb-public/...`；项目产物不要默认依赖个人开发目录。
 
 ## 读取性能层
 

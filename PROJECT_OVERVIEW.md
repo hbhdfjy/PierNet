@@ -6,7 +6,7 @@ This is the maintained high-level overview for PierNet. Read it first when you n
 
 ## One-Sentence Summary
 
-PierNet is one FastAPI + React application with two product surfaces: a Stage 1-4 data synthesis workbench and a single-GPU Token Router training workbench.
+PierNet is one FastAPI + React application with two product surfaces: a Stage 1-4 data synthesis workbench and a training workbench for Token Router, Text2Comp, and model assembly.
 
 ## Product Surfaces
 
@@ -14,7 +14,7 @@ PierNet is one FastAPI + React application with two product surfaces: a Stage 1-
 | --- | --- | --- | --- | --- |
 | Landing | `/` | `frontend/src/platform/` | `PierNet/api/main.py` | entry into synth, training, and files |
 | Synthesis | `/synth/*` | `frontend/src/synth/` | `PierNet/synth/` | Stage 1-4 data pipeline |
-| Training | `/training/*` | `frontend/src/training/` | `PierNet/training/` | Token Router training jobs |
+| Training | `/training/*` | `frontend/src/training/` | `PierNet/training/` | Token Router, Text2Comp, model assembly, and training artifacts |
 | Files | `/synth/files`, `/training/files`; `/files` redirects to `/synth/files` | `frontend/src/files/` | `PierNet/synth/services/file_catalog.py` | unified data/artifact management |
 
 The surfaces are separated at product and namespace level, but still share one repository, one frontend package, one FastAPI app, one static hosting path, and one startup script.
@@ -29,7 +29,7 @@ Runtime entrypoints:
 `PierNet/api/main.py` mounts:
 
 - synthesis routers from `PierNet.synth.api.routers.*`
-- training router from `PierNet.training.api.routers.training`
+- training routers from `PierNet.training.api.routers.training`, `text2comp`, and `assembly`
 - built frontend assets through `PierNet.shared.api.static.SPAStaticFiles`
 
 `PierNet/api/` is app assembly only. Business routers, schemas, services, and models belong under `PierNet/synth/` or `PierNet/training/`.
@@ -142,11 +142,12 @@ Implementation:
 
 ## Training Workflow
 
-Training consumes Stage 4 router data and writes artifacts under `artifacts/token_router/`.
+The training surface now has three runtime modules.
 
-Current assumptions:
+Token Router training consumes Stage 4 router data and writes artifacts under `artifacts/token_router/`.
 
-- model family: Token Router only
+Current Token Router assumptions:
+
 - training device: single GPU only
 - model: `FullSeqDilatedConvRouter`
 - split: train/test only
@@ -155,6 +156,10 @@ Current assumptions:
 - default embedding backbone: `$HOME/Qwen/Qwen2.5-0.5B-Instruct`
 - no offline embedding arrays are written
 
+Text2Comp training consumes JSONL prompt/label data and writes model runs under `artifacts/text2comp_models/{simulator}/runs/{job_id}/`. The UI-selected GPU is exposed to the subprocess through `CUDA_VISIBLE_DEVICES`, so the training process uses `cuda:0` inside that isolated view.
+
+Model assembly scans LLM, Router, Text2Comp, and FNO locations from `configs/assembly/models.yaml`, then exposes loading, prompt management, and smoke-test endpoints under `/api/assembly/*`.
+
 Primary implementation:
 
 - `PierNet/training/services/training_manager.py`
@@ -162,14 +167,21 @@ Primary implementation:
 - `PierNet/training/router/data.py`
 - `PierNet/training/router/model.py`
 - `PierNet/training/router/train.py`
+- `PierNet/training/text2comp/text2comp_manager.py`
+- `PierNet/training/text2comp/train.py`
+- `PierNet/training/api/routers/text2comp.py`
+- `PierNet/training/api/routers/assembly.py`
 - `scripts/router/train_token_router.py`
 
-Training jobs are persisted in:
+Training jobs and artifacts are persisted in:
 
 ```text
 .runlogs/training_jobs.sqlite
-.runlogs/
+.runlogs/training_jobs/
+.runlogs/text2comp/
 artifacts/token_router/{simulator}/runs/{run_name}/
+artifacts/text2comp_models/{simulator}/runs/{job_id}/
+artifacts/fno_models/
 ```
 
 ## Supported Simulators
@@ -215,9 +227,11 @@ Synthesis API prefixes include:
 - `/api/router/*`
 - `/api/interview/*`
 
-Training API prefix:
+Training API prefixes:
 
 - `/api/training/*`
+- `/api/text2comp/*`
+- `/api/assembly/*`
 
 Static frontend serving uses browser-history fallback through `SPAStaticFiles`, while preserving `/api`, `/api/*`, and asset 404 behavior.
 
