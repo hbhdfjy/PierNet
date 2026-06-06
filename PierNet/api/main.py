@@ -24,7 +24,7 @@ from PierNet.synth.api.routers import (
     router_data,
     simulation,
 )
-from PierNet.training.api.routers import training
+from PierNet.training.api.routers import assembly, text2comp, training
 
 
 @asynccontextmanager
@@ -63,6 +63,8 @@ for _router in [
     interview.router,
     simulation.router,
     router_data.router,
+    text2comp.router,
+    assembly.router,
     training.router,
 ]:
     app.include_router(_router, prefix="/api")

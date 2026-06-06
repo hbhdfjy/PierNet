@@ -4,6 +4,335 @@
  */
 
 export interface paths {
+    "/api/assembly/domains": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Domains
+         * @description 从DOMAIN_REGISTRY获取simulator列表
+         */
+        get: operations["list_domains_api_assembly_domains_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/fnos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Fnos
+         * @description 列出可用的FNO专家模型
+         */
+        get: operations["list_fnos_api_assembly_fnos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/fnos/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load Fno
+         * @description 单独加载FNO
+         */
+        post: operations["load_fno_api_assembly_fnos_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/gpus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Gpus
+         * @description 获取GPU列表（实时状态）
+         */
+        get: operations["list_gpus_api_assembly_gpus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/llms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Llms
+         * @description 列出可用的LLM模型
+         */
+        get: operations["list_llms_api_assembly_llms_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/llms/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load Llm
+         * @description 单独加载LLM
+         */
+        post: operations["load_llm_api_assembly_llms_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load All Models
+         * @description 一键加载所有模型
+         *
+         *     设计说明：
+         *     - 默认所有模型加载到同一GPU（遵循single_eval.py，性能最优）
+         *     - 如果指定router_gpu_id不同，会自动处理跨设备同步（会增加延迟）
+         *     - force_split用于大LLM切分到多GPU
+         */
+        post: operations["load_all_models_api_assembly_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/prompt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Prompt
+         * @description 获取当前prompt配置
+         */
+        get: operations["get_prompt_api_assembly_prompt_get"];
+        put?: never;
+        /**
+         * Update Prompt
+         * @description 保存prompt到配置文件
+         */
+        post: operations["update_prompt_api_assembly_prompt_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/prompt/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Prompt
+         * @description 根据DOMAIN_REGISTRY自动生成prompt
+         */
+        post: operations["generate_prompt_api_assembly_prompt_generate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/routers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Routers
+         * @description 列出可用的Router模型
+         */
+        get: operations["list_routers_api_assembly_routers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/routers/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load Router
+         * @description 单独加载Router
+         */
+        post: operations["load_router_api_assembly_routers_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description 获取完整状态（包含实时GPU信息）
+         */
+        get: operations["get_status_api_assembly_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Assembly
+         * @description 测试PiERN推理
+         */
+        post: operations["test_assembly_api_assembly_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/text2comps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Text2Comps
+         * @description 列出可用的Text2Comp模型
+         */
+        get: operations["list_text2comps_api_assembly_text2comps_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/text2comps/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Load Text2Comp
+         * @description 单独加载Text2Comp
+         */
+        post: operations["load_text2comp_api_assembly_text2comps_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/unload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unload All
+         * @description 卸载所有模型
+         */
+        post: operations["unload_all_api_assembly_unload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -852,6 +1181,274 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/text2comp/datasets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Datasets
+         * @description 获取可用的数据集列表
+         */
+        get: operations["get_text2comp_datasets_api_text2comp_datasets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/experts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Expert Models
+         * @description 获取可用的专家模型列表
+         */
+        get: operations["get_expert_models_api_text2comp_experts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/gpus": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Gpus
+         * @description 获取GPU资源状态
+         */
+        get: operations["get_text2comp_gpus_api_text2comp_gpus_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Jobs
+         * @description 获取所有训练任务列表
+         */
+        get: operations["get_text2comp_jobs_api_text2comp_jobs_get"];
+        put?: never;
+        /**
+         * Create Text2Comp Job
+         * @description 创建新的训练任务
+         */
+        post: operations["create_text2comp_job_api_text2comp_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs/{job_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Job
+         * @description 获取单个训练任务详情
+         */
+        get: operations["get_text2comp_job_api_text2comp_jobs__job_id__get"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Text2Comp Job
+         * @description 删除训练任务
+         */
+        delete: operations["delete_text2comp_job_api_text2comp_jobs__job_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs/{job_id}/curves": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Curves
+         * @description 获取训练曲线数据
+         */
+        get: operations["get_text2comp_curves_api_text2comp_jobs__job_id__curves_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs/{job_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Logs
+         * @description 获取训练日志
+         */
+        get: operations["get_text2comp_logs_api_text2comp_jobs__job_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs/{job_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stop Text2Comp Job
+         * @description 停止正在运行的训练任务
+         */
+        post: operations["stop_text2comp_job_api_text2comp_jobs__job_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/jobs/{job_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Validate Job Data
+         * @description 验证训练数据是否有效
+         */
+        post: operations["validate_job_data_api_text2comp_jobs__job_id__validate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Trained Models
+         * @description 获取已训练的模型文件列表
+         */
+        get: operations["get_trained_models_api_text2comp_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Overview
+         * @description 获取文生计算模块训练总览
+         */
+        get: operations["get_text2comp_overview_api_text2comp_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Text2Comp Status
+         * @description 获取文生计算模块训练状态（兼容前端API）
+         */
+        get: operations["get_text2comp_status_api_text2comp_status_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/text2comp/train": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Text2Comp Train
+         * @description 启动Text2Comp训练任务（兼容前端API）
+         */
+        post: operations["start_text2comp_train_api_text2comp_train_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training/datasets": {
         parameters: {
             query?: never;
@@ -994,6 +1591,15 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AssemblyTestRequest */
+        AssemblyTestRequest: {
+            /** Config */
+            config: {
+                [key: string]: unknown;
+            };
+            /** Test Input */
+            test_input: string;
+        };
         /** BatchSimulateRequest */
         BatchSimulateRequest: {
             /**
@@ -1091,6 +1697,20 @@ export interface components {
             /** Warnings */
             warnings?: string[];
         };
+        /**
+         * ExpertModelSummary
+         * @description 专家模型概要
+         */
+        ExpertModelSummary: {
+            /** Description */
+            description?: string | null;
+            /** Domain */
+            domain: string;
+            /** Name */
+            name: string;
+            /** Output Dim */
+            output_dim: number;
+        };
         /** FillSamplesRequest */
         FillSamplesRequest: {
             /**
@@ -1163,6 +1783,16 @@ export interface components {
             reason?: string | null;
             /** Utilization Gpu */
             utilization_gpu: number;
+        };
+        /** GeneratePromptRequest */
+        GeneratePromptRequest: {
+            /**
+             * Language
+             * @default zh
+             */
+            language: string;
+            /** Simulator */
+            simulator: string;
         };
         /** GenerateTemplatesRequest */
         GenerateTemplatesRequest: {
@@ -1315,6 +1945,105 @@ export interface components {
              */
             thinking: string;
         };
+        /**
+         * LoadAllRequest
+         * @description 模型加载请求
+         *
+         *     参数说明：
+         *     - llm_path: LLM模型路径
+         *     - llm_gpu_id: LLM加载的GPU（默认0）
+         *     - router_gpu_id: Router加载的GPU（默认与LLM相同）
+         *     - force_split: 是否强制切分LLM到多GPU
+         *     - auto_sync: 是否自动同步设备（如果Router在不同GPU，会自动传输tensor）
+         *
+         *     注意：single_eval.py中所有模型在同一GPU。
+         *     如果Router在不同GPU，需要在推理时手动传输generated_ids，
+         *     这会增加每个token生成周期的延迟。
+         */
+        LoadAllRequest: {
+            /**
+             * Auto Sync
+             * @default true
+             */
+            auto_sync: boolean;
+            /** Fno Path */
+            fno_path?: string | null;
+            /**
+             * Force Split
+             * @default false
+             */
+            force_split: boolean;
+            /**
+             * Llm Gpu Id
+             * @default 0
+             */
+            llm_gpu_id: number;
+            /** Llm Path */
+            llm_path: string;
+            /** Router Gpu Id */
+            router_gpu_id?: number | null;
+            /** Router Path */
+            router_path?: string | null;
+            /** Text2Comp Path */
+            text2comp_path?: string | null;
+        };
+        /**
+         * LoadFNORequest
+         * @description 单独加载FNO
+         */
+        LoadFNORequest: {
+            /**
+             * Gpu Id
+             * @default 0
+             */
+            gpu_id: number;
+            /** Simulator */
+            simulator: string;
+        };
+        /**
+         * LoadLLMRequest
+         * @description 单独加载LLM
+         */
+        LoadLLMRequest: {
+            /**
+             * Force Split
+             * @default false
+             */
+            force_split: boolean;
+            /**
+             * Gpu Id
+             * @default 0
+             */
+            gpu_id: number;
+            /** Llm Path */
+            llm_path: string;
+        };
+        /**
+         * LoadRouterRequest
+         * @description 单独加载Router
+         */
+        LoadRouterRequest: {
+            /**
+             * Gpu Id
+             * @default 0
+             */
+            gpu_id: number;
+            /** Router Path */
+            router_path?: string | null;
+        };
+        /**
+         * LoadText2CompRequest
+         * @description 单独加载Text2Comp
+         */
+        LoadText2CompRequest: {
+            /**
+             * Gpu Id
+             * @default 0
+             */
+            gpu_id: number;
+            /** Simulator */
+            simulator: string;
+        };
         /** MetricsSummary */
         MetricsSummary: {
             /** Generated At */
@@ -1438,6 +2167,505 @@ export interface components {
             simulator?: string | null;
             /** Template Count */
             template_count: number;
+        };
+        /**
+         * Text2CompCheckpointInfo
+         * @description 检查点信息
+         */
+        Text2CompCheckpointInfo: {
+            /** Epoch */
+            epoch?: number | null;
+            /**
+             * Is Best
+             * @default false
+             */
+            is_best: boolean;
+            /** Mtime */
+            mtime: number;
+            /** Name */
+            name: string;
+            /** Path */
+            path: string;
+            /** Size Bytes */
+            size_bytes: number;
+        };
+        /**
+         * Text2CompCurvesResponse
+         * @description 训练曲线响应
+         */
+        Text2CompCurvesResponse: {
+            /** Checkpoints */
+            checkpoints: components["schemas"]["Text2CompCheckpointInfo"][];
+            /** Job Id */
+            job_id: string;
+            /** Test Points */
+            test_points: components["schemas"]["Text2CompTestPoint"][];
+            /** Training Epoch Points */
+            training_epoch_points: components["schemas"]["Text2CompTrainingPoint"][];
+            /** Training Points */
+            training_points: components["schemas"]["Text2CompTrainingPoint"][];
+        };
+        /**
+         * Text2CompDatasetInfo
+         * @description 数据集信息
+         */
+        Text2CompDatasetInfo: {
+            /** File Size Bytes */
+            file_size_bytes?: number | null;
+            /** Mtime */
+            mtime?: number | null;
+            /** N Samples */
+            n_samples?: number | null;
+            /** Path */
+            path: string;
+            /** Scenario */
+            scenario: string;
+            /** Simulator */
+            simulator: string;
+        };
+        /**
+         * Text2CompGPUInfo
+         * @description GPU信息
+         */
+        Text2CompGPUInfo: {
+            /** Available */
+            available: boolean;
+            /** Index */
+            index: number;
+            /** Locked By Job Id */
+            locked_by_job_id?: string | null;
+            /** Memory Total Mib */
+            memory_total_mib: number;
+            /** Memory Used Mib */
+            memory_used_mib: number;
+            /** Name */
+            name: string;
+            /** Reason */
+            reason?: string | null;
+            /** Utilization Gpu */
+            utilization_gpu: number;
+        };
+        /**
+         * Text2CompJobConfig
+         * @description 训练配置
+         */
+        Text2CompJobConfig: {
+            /**
+             * Batch Size
+             * @default 32
+             */
+            batch_size: number;
+            /**
+             * Epochs
+             * @default 50
+             */
+            epochs: number;
+            /**
+             * Eval Interval
+             * @default 5
+             */
+            eval_interval: number;
+            /** Expert Model */
+            expert_model: string;
+            /**
+             * Learning Rate
+             * @default 0.00001
+             */
+            learning_rate: number;
+            /**
+             * Max Length
+             * @default 2048
+             */
+            max_length: number;
+            /**
+             * Num Workers
+             * @default 4
+             */
+            num_workers: number;
+            /**
+             * Output Dim
+             * @default 128
+             */
+            output_dim: number;
+            /**
+             * Precision
+             * @default 4
+             */
+            precision: number;
+            /** Resume From */
+            resume_from?: string | null;
+            /**
+             * Test Batch Size
+             * @default 32
+             */
+            test_batch_size: number;
+            /**
+             * Test Ratio
+             * @default 0.1
+             */
+            test_ratio: number;
+            /**
+             * Weight Decay
+             * @default 0.01
+             */
+            weight_decay: number;
+        };
+        /**
+         * Text2CompJobCreateRequest
+         * @description 创建训练任务请求
+         */
+        Text2CompJobCreateRequest: {
+            /**
+             * Batch Size
+             * @default 32
+             */
+            batch_size: number;
+            /** Dataset Path */
+            dataset_path?: string | null;
+            /**
+             * Epochs
+             * @default 50
+             */
+            epochs: number;
+            /**
+             * Eval Interval
+             * @default 5
+             */
+            eval_interval: number;
+            /** Expert Model */
+            expert_model: string;
+            /** Gpu Id */
+            gpu_id: number;
+            /**
+             * Learning Rate
+             * @default 0.00001
+             */
+            learning_rate: number;
+            /**
+             * Max Length
+             * @default 2048
+             */
+            max_length: number;
+            /** Name */
+            name?: string | null;
+            /**
+             * Num Workers
+             * @default 4
+             */
+            num_workers: number;
+            /**
+             * Precision
+             * @default 4
+             */
+            precision: number;
+            /** Resume From */
+            resume_from?: string | null;
+            /**
+             * Test Batch Size
+             * @default 32
+             */
+            test_batch_size: number;
+            /**
+             * Test Ratio
+             * @default 0.1
+             */
+            test_ratio: number;
+            /**
+             * Weight Decay
+             * @default 0.01
+             */
+            weight_decay: number;
+        };
+        /**
+         * Text2CompJobDetail
+         * @description 训练任务详情
+         */
+        Text2CompJobDetail: {
+            /**
+             * Artifact Root
+             * @default
+             */
+            artifact_root: string;
+            /** Avg Loss */
+            avg_loss?: number | null;
+            /** Checkpoints */
+            checkpoints?: components["schemas"]["Text2CompCheckpointInfo"][];
+            /** Command */
+            command: string[];
+            /** Config */
+            config?: components["schemas"]["Text2CompJobConfig"] | {
+                [key: string]: unknown;
+            };
+            /** Created At */
+            created_at: number;
+            /** Dataset Path */
+            dataset_path?: string | null;
+            /** Ended At */
+            ended_at?: number | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Eta Seconds */
+            eta_seconds?: number | null;
+            /** Expert Model */
+            expert_model?: string | null;
+            /** Global Step */
+            global_step?: number | null;
+            /** Gpu Id */
+            gpu_id: number;
+            /** Job Id */
+            job_id: string;
+            /** Latest Epoch */
+            latest_epoch?: number | null;
+            latest_metrics?: components["schemas"]["Text2CompMetricsSummary"] | null;
+            /** Latest Step */
+            latest_step?: number | null;
+            /** Latest Test Epoch */
+            latest_test_epoch?: number | null;
+            /**
+             * Log Path
+             * @default
+             */
+            log_path: string;
+            /** Name */
+            name: string;
+            /** Pid */
+            pid?: number | null;
+            /**
+             * Run Dir
+             * @default
+             */
+            run_dir: string;
+            /**
+             * Scenario
+             * @default
+             */
+            scenario: string;
+            /** Simulator */
+            simulator: string;
+            /** Started At */
+            started_at?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "starting" | "running" | "evaluating" | "done" | "error" | "terminated";
+            /** Steps Per Epoch */
+            steps_per_epoch?: number | null;
+            /** Steps Per Sec */
+            steps_per_sec?: number | null;
+        };
+        /**
+         * Text2CompJobSummary
+         * @description 训练任务概要
+         */
+        Text2CompJobSummary: {
+            /**
+             * Artifact Root
+             * @default
+             */
+            artifact_root: string;
+            /** Avg Loss */
+            avg_loss?: number | null;
+            /** Config */
+            config?: components["schemas"]["Text2CompJobConfig"] | {
+                [key: string]: unknown;
+            };
+            /** Created At */
+            created_at: number;
+            /** Dataset Path */
+            dataset_path?: string | null;
+            /** Ended At */
+            ended_at?: number | null;
+            /** Error Message */
+            error_message?: string | null;
+            /** Eta Seconds */
+            eta_seconds?: number | null;
+            /** Expert Model */
+            expert_model?: string | null;
+            /** Global Step */
+            global_step?: number | null;
+            /** Gpu Id */
+            gpu_id: number;
+            /** Job Id */
+            job_id: string;
+            /** Latest Epoch */
+            latest_epoch?: number | null;
+            latest_metrics?: components["schemas"]["Text2CompMetricsSummary"] | null;
+            /** Latest Step */
+            latest_step?: number | null;
+            /** Latest Test Epoch */
+            latest_test_epoch?: number | null;
+            /**
+             * Log Path
+             * @default
+             */
+            log_path: string;
+            /** Name */
+            name: string;
+            /** Pid */
+            pid?: number | null;
+            /**
+             * Run Dir
+             * @default
+             */
+            run_dir: string;
+            /**
+             * Scenario
+             * @default
+             */
+            scenario: string;
+            /** Simulator */
+            simulator: string;
+            /** Started At */
+            started_at?: number | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "queued" | "starting" | "running" | "evaluating" | "done" | "error" | "terminated";
+            /** Steps Per Epoch */
+            steps_per_epoch?: number | null;
+            /** Steps Per Sec */
+            steps_per_sec?: number | null;
+        };
+        /**
+         * Text2CompLogResponse
+         * @description 日志响应
+         */
+        Text2CompLogResponse: {
+            /** Job Id */
+            job_id: string;
+            /** Lines */
+            lines: string[];
+        };
+        /**
+         * Text2CompMetricsSummary
+         * @description 评估指标
+         */
+        Text2CompMetricsSummary: {
+            /** Mae */
+            mae?: number | null;
+            /** Mse */
+            mse?: number | null;
+            /** Rmse */
+            rmse?: number | null;
+        };
+        /**
+         * Text2CompOverviewResponse
+         * @description 总览响应
+         */
+        Text2CompOverviewResponse: {
+            /** Completed Job Count */
+            completed_job_count: number;
+            /** Datasets */
+            datasets: components["schemas"]["Text2CompDatasetInfo"][];
+            /** Expert Models */
+            expert_models: components["schemas"]["ExpertModelSummary"][];
+            /** Gpus */
+            gpus: components["schemas"]["Text2CompGPUInfo"][];
+            /** Jobs */
+            jobs: components["schemas"]["Text2CompJobSummary"][];
+            /** Running Job Count */
+            running_job_count: number;
+        };
+        /**
+         * Text2CompTestPoint
+         * @description 测试评估点
+         */
+        Text2CompTestPoint: {
+            /** Epoch */
+            epoch: number;
+            /** Mae */
+            mae: number;
+            /** Mse */
+            mse: number;
+            /** Rmse */
+            rmse: number;
+        };
+        /**
+         * Text2CompTrainRequest
+         * @description 启动Text2Comp训练请求（前端兼容）
+         */
+        Text2CompTrainRequest: {
+            /** Base Model */
+            base_model?: string | null;
+            /**
+             * Batch Size
+             * @default 8
+             */
+            batch_size: number;
+            /**
+             * Epochs
+             * @default 100
+             */
+            epochs: number;
+            /** Gpu Id */
+            gpu_id: number;
+            /**
+             * Learning Rate
+             * @default 0.00001
+             */
+            learning_rate: number;
+            /** Name */
+            name?: string | null;
+            /**
+             * Output Dim
+             * @default 128
+             */
+            output_dim: number;
+            /** Scenario */
+            scenario: string;
+            /** Simulator */
+            simulator: string;
+            /** Train Path */
+            train_path: string;
+            /**
+             * Weight Decay
+             * @default 0.01
+             */
+            weight_decay: number;
+        };
+        /**
+         * Text2CompTrainResponse
+         * @description 启动Text2Comp训练响应
+         */
+        Text2CompTrainResponse: {
+            /** Config */
+            config?: {
+                [key: string]: unknown;
+            };
+            /** Error */
+            error?: string | null;
+            /**
+             * Job Id
+             * @default
+             */
+            job_id: string;
+            /**
+             * Model Path
+             * @default
+             */
+            model_path: string;
+            /** Ok */
+            ok: boolean;
+        };
+        /**
+         * Text2CompTrainingPoint
+         * @description 训练曲线点
+         */
+        Text2CompTrainingPoint: {
+            /** Avg Loss */
+            avg_loss: number;
+            /** Epoch */
+            epoch: number;
+            /** Eta Seconds */
+            eta_seconds: number;
+            /** Global Step */
+            global_step: number;
+            /** Step */
+            step: number;
+            /** Steps Per Sec */
+            steps_per_sec: number;
         };
         /** TrainingCheckpointInfo */
         TrainingCheckpointInfo: {
@@ -1841,6 +3069,11 @@ export interface components {
             /** Recall */
             recall: number;
         };
+        /** UpdatePromptRequest */
+        UpdatePromptRequest: {
+            /** Piern System Prompt */
+            piern_system_prompt: string;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1880,6 +3113,450 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    list_domains_api_assembly_domains_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_fnos_api_assembly_fnos_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    load_fno_api_assembly_fnos_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadFNORequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_gpus_api_assembly_gpus_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_llms_api_assembly_llms_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    load_llm_api_assembly_llms_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadLLMRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    load_all_models_api_assembly_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadAllRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_prompt_api_assembly_prompt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    update_prompt_api_assembly_prompt_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePromptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_prompt_api_assembly_prompt_generate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GeneratePromptRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_routers_api_assembly_routers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    load_router_api_assembly_routers_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadRouterRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_status_api_assembly_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    test_assembly_api_assembly_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssemblyTestRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_text2comps_api_assembly_text2comps_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    load_text2comp_api_assembly_text2comps_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadText2CompRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    unload_all_api_assembly_unload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
     get_config_api_config_get: {
         parameters: {
             query?: never;
@@ -3149,6 +4826,400 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TemplateFileInfo"][];
+                };
+            };
+        };
+    };
+    get_text2comp_datasets_api_text2comp_datasets_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompDatasetInfo"][];
+                };
+            };
+        };
+    };
+    get_expert_models_api_text2comp_experts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpertModelSummary"][];
+                };
+            };
+        };
+    };
+    get_text2comp_gpus_api_text2comp_gpus_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompGPUInfo"][];
+                };
+            };
+        };
+    };
+    get_text2comp_jobs_api_text2comp_jobs_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompJobSummary"][];
+                };
+            };
+        };
+    };
+    create_text2comp_job_api_text2comp_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Text2CompJobCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompJobSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_text2comp_job_api_text2comp_jobs__job_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompJobDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_text2comp_job_api_text2comp_jobs__job_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_text2comp_curves_api_text2comp_jobs__job_id__curves_get: {
+        parameters: {
+            query?: {
+                max_points?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompCurvesResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_text2comp_logs_api_text2comp_jobs__job_id__logs_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    stop_text2comp_job_api_text2comp_jobs__job_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompJobSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_job_data_api_text2comp_jobs__job_id__validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_trained_models_api_text2comp_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    get_text2comp_overview_api_text2comp_overview_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompOverviewResponse"];
+                };
+            };
+        };
+    };
+    get_text2comp_status_api_text2comp_status_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompOverviewResponse"];
+                };
+            };
+        };
+    };
+    start_text2comp_train_api_text2comp_train_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["Text2CompTrainRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Text2CompTrainResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
