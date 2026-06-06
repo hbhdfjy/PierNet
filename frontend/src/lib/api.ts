@@ -484,4 +484,167 @@ export const api = {
 
   getTrainingLogs: (jobId: string, limit = 300): Promise<TrainingLogResponse> =>
     get(`/training/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
+
+  // ── Assembly ────────────────────────────────────────────────────
+  getAssemblyStatus: (): Promise<{
+    llms: { name: string; path: string; size: string; downloaded: boolean }[]
+    routers: {
+      name: string
+      path: string
+      num_classes: number
+      class_names: string[]
+      description: string
+      trained: boolean
+      gpu_id?: number
+      router_type?: string
+    }[]
+    text2comps: {
+      name: string
+      simulator: string
+      output_dim: number
+      path: string
+      domain?: string
+      description?: string
+      trained: boolean
+      gpu_id?: number
+    }[]
+    fno_experts: {
+      name: string
+      simulator: string
+      input_dim: number
+      output_shape: number[]
+      path: string
+      description?: string
+      trained: boolean
+      gpu_id?: number
+    }[]
+    gpus: {
+      index: number
+      name: string
+      memory_used_mb: number
+      memory_free_mb: number
+      memory_total_mb: number
+      available: boolean
+    }[]
+    loaded_models: {
+      llm: { loaded: boolean; gpu_id?: number; path?: string | null }
+      router: {
+        loaded: boolean
+        gpu_id?: number
+        path?: string | null
+        router_type?: string | null
+        router_meta?: Record<string, unknown>
+      }
+      text2comp: { loaded: boolean; gpu_id?: number; paths?: string[] }
+      fno: { loaded: boolean; gpu_id?: number; paths?: string[] }
+    }
+    gpu_available: boolean
+    architecture_note?: string
+  }> => get('/assembly/status'),
+
+  getAssemblyGPUs: (): Promise<
+    {
+      index: number
+      name: string
+      memory_used_mb: number
+      memory_free_mb: number
+      memory_total_mb: number
+      available: boolean
+    }[]
+  > => get('/assembly/gpus'),
+
+  loadAssemblyModels: async (req: {
+    llm_path: string
+    llm_gpu_id?: number
+    router_gpu_id?: number
+    router_path?: string
+    text2comp_path?: string
+    fno_path?: string
+    force_split?: boolean
+    auto_sync?: boolean
+  }): Promise<{
+    status: string
+    llm: string
+    llm_gpu_id: number
+    router_gpu_id: number
+    message: string
+    architecture: string
+    gpu_status: { index: number; memory_used_mb: number }[]
+  }> => {
+    const res = await apiFetch(`${BASE}/assembly/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        llm_path: req.llm_path,
+        llm_gpu_id: req.llm_gpu_id ?? 0,
+        router_gpu_id: req.router_gpu_id ?? null,
+        router_path: req.router_path ?? null,
+        text2comp_path: req.text2comp_path ?? null,
+        fno_path: req.fno_path ?? null,
+        force_split: req.force_split ?? false,
+        auto_sync: req.auto_sync ?? true,
+      }),
+    })
+    await ensureOk(res, '加载模型失败')
+    return res.json()
+  },
+
+  unloadAssemblyModels: async (): Promise<{ status: string; message: string }> => {
+    const res = await apiFetch(`${BASE}/assembly/unload`, { method: 'POST' })
+    await ensureOk(res, '卸载模型失败')
+    return res.json()
+  },
+
+  testAssembly: async (req: {
+    config: Record<string, unknown>
+    test_input: string
+  }): Promise<{
+    router_prediction: string
+    router_class_name?: string
+    first_cot_result: string
+    final_answer?: string
+    llm_response?: string
+    expert_used?: string
+    expert_output?: string
+    latency_ms: number
+  }> => {
+    const res = await apiFetch(`${BASE}/assembly/test`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '测试失败')
+    return res.json()
+  },
+
+  getPrompt: (): Promise<{ piern_system_prompt: string }> => get('/assembly/prompt'),
+
+  updatePrompt: async (req: { piern_system_prompt: string }): Promise<{ status: string }> => {
+    const res = await apiFetch(`${BASE}/assembly/prompt`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '保存 Prompt 失败')
+    return res.json()
+  },
+
+  getDomains: (): Promise<
+    {
+      simulator: string
+      domain_context: string
+      scenarios: Record<string, string>
+      output_description: string
+    }[]
+  > => get('/assembly/domains'),
+
+  generatePrompt: async (req: { simulator: string; language: string }): Promise<{ prompt: string }> => {
+    const res = await apiFetch(`${BASE}/assembly/prompt/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '生成 Prompt 失败')
+    return res.json()
+  },
 }

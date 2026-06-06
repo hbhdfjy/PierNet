@@ -1,0 +1,32 @@
+experts:
+  prompt_expert_v1:
+    description: ''
+    fno_config:
+      channels: 1
+      grid_points: 64
+      initial_step: 2
+      modes: 16
+      width: 64
+    fno_path: null
+    grid_points: 64
+    output_dim: 128
+    prompt_config:
+      input_format: "\u8FD9\u662Fdiff-sorp\u4EFB\u52A1"
+      system_prompt: "\u4F60\u662F\u81EA\u5B9A\u4E49diff-sorp\u6C42\u89E3\u52A9\u624B"
+    registered_at: '2026-05-28T14:59:13.888961'
+    simulator: diff_sorp
+    text2comp_path: null
+  test_diff_sorp_full:
+    description: Full diff-sorp expert
+    fno_available: true
+    fno_config:
+      channels: 1
+      initial_step: 2
+      modes: 16
+      width: 64
+    fno_path: /root/data/PierNet/artifacts/fno_models/legacy/1D_diff-sorp_NA_NA_FNO_2_1.pt
+    grid_points: 32
+    output_dim: 128
+    registered_at: '2026-05-28T13:18:08.680535'
+    simulator: diff-sorp
+    text2comp_path: /root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt

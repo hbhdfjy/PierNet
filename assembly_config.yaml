@@ -1,0 +1,167 @@
+# PiERN Assembly API Configuration
+# 管理所有新增功能涉及的路径
+
+# ============================================================
+# LLM 模型路径 (语言大模型)
+# ============================================================
+llm:
+  # 主LLM仓库 (最多模型)
+  main_repository: "/root/eb-public/huggingface-models"
+
+  # 模型系列路径
+  families:
+    qwen: "/root/eb-public/huggingface-models/Qwen"
+    deepseek: "/root/eb-public/huggingface-models/deepseek-ai"
+    llama: "/root/eb-public/huggingface-models/meta-llama"
+    moonshot: "/root/eb-public/huggingface-models/moonshotai"
+    openai: "/root/eb-public/huggingface-models/openai"
+    stability: "/root/eb-public/huggingface-models/stabilityai"
+    diffusers: "/root/eb-public/huggingface-models/diffusers"
+
+  # PierNet专用模型
+  piernet_models: "/root/data/PierNet/models/Qwen"
+
+  # 扫描路径列表 (用于API自动发现)
+  scan_paths:
+    - "/root/eb-public/huggingface-models/Qwen"
+    - "/root/data/PierNet/models/Qwen"
+
+  # 推荐LLM (与Router vocab兼容 - Qwen3系列 vocab_size=151669)
+  recommended_for_router:
+    - "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+    - "/root/eb-public/huggingface-models/Qwen/Qwen3-4B-Instruct-2507"
+    - "/root/eb-public/huggingface-models/Qwen/Qwen3-30B-A3B-Instruct-2507"
+
+  # 其他LLM (vocab可能不兼容)
+  other_llms:
+    - "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct"  # vocab_size=151665 (不兼容Router)
+
+  # Router vocab信息
+  router_vocab:
+    vocab_size: 151669  # Qwen3 tokenizer
+    embed_dim: 1536
+    compatible_models: ["Qwen3-*"]
+
+  # Text2Comp基础模型 (小模型用于编码)
+  text2comp_base: "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct"
+  text2comp_base_alt: "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+
+# ============================================================
+# Router 模型路径 (任务分类器)
+# ============================================================
+router:
+  # PiERN Router权重
+  weights:
+    pde_router: "/root/data/PierNet/artifacts/token_router/legacy/0105_pde_router_best_model_3e-4.pt"
+    pde_router_v2: "/root/data/PierNet/artifacts/token_router/legacy/0124_pde_router_best_model.pt"
+
+  # 示例Router
+  examples:
+    diff_sorp_router: "/root/data/PierNet/artifacts/token_router/legacy/1101_diff-sorp_router_best_model_1e-8.pt"
+
+  # PierNet训练的Router
+  piernet_artifacts:
+    transient: "/root/data/PierNet/artifacts/token_router/transient/runs"
+    simpeg: "/root/data/PierNet/artifacts/token_router/simpeg/runs"
+
+  # Router类别映射
+  class_names:
+    0: "normal"        # 普通对话
+    1: "diff_reaction" # diff-reaction PDE
+    2: "diff_sorp"     # diff-sorp PDE
+    3: "burgers"       # burgers PDE
+
+# ============================================================
+# Text2Comp 模型路径 (文本→数值编码)
+# ============================================================
+text2comp:
+  weights:
+    diff_reaction: "/root/data/PierNet/artifacts/text2comp_models/legacy/0105_raw_1d_diff-reaction_text2computation_best_model_5e-6.pt"
+    diff_sorp: "/root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt"
+    burgers: "/root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_burgers_text2computation_best_model_5e-6.pt"
+
+  # 输出维度配置
+  output_dims:
+    diff_reaction: 32   # LMRegression32D
+    diff_sorp: 128      # LMRegression128D
+    burgers: 32         # LMRegression32D
+
+# ============================================================
+# FNO 专家模型路径 (Fourier Neural Operator)
+# ============================================================
+fno:
+  weights:
+    diff_sorp: "/root/data/PierNet/artifacts/fno_models/legacy/1D_diff-sorp_NA_NA_FNO_2_1.pt"
+    diff_sorp_alt: "/root/data/PierNet/examples/1D_diff-sorp_NA_NA_FNO.pt"
+
+  # FNO配置
+  configs:
+    diff_sorp:
+      modes: 16
+      width: 64
+      num_channels: 1
+      initial_step: 2
+
+# ============================================================
+# HDF5 数据文件路径 (PDEBench等)
+# ============================================================
+data:
+  # PDEBench数据
+  pdebench:
+    diff_sorp: "/root/data/PierNet/data/examples/diff_sorp_data.h5"
+
+  # PiERN平台数据目录
+  piernet_data:
+    transient: "/root/data/PierNet/data/transient"
+    simpeg: "/root/data/PierNet/data/simpeg"
+    modflow: "/root/data/PierNet/data/modflow"
+    power_flow: "/root/data/PierNet/data/power_flow"
+    gcam: "/root/data/PierNet/data/gcam"
+
+# ============================================================
+# 网格数据路径 (用于FNO)
+# ============================================================
+grid:
+  # 需要从HDF5文件中读取
+  # diff_sorp: 1024点下采样到64点
+  # diff_reaction/burgers: 32点
+
+# ============================================================
+# API 配置
+# ============================================================
+api:
+  # 端口范围 (3050-3850)
+  port_range:
+    min: 3050
+    max: 3850
+
+  # 当前使用的端口
+  ports:
+    piern_api: 8000
+    piernet_backend: 8000
+
+  # GPU配置
+  gpu:
+    # 师兄使用的GPU (避免冲突)
+    reserved: []
+    # 可用GPU
+    available: [0, 1, 2, 3, 4, 5, 6, 7]
+
+# ============================================================
+# 目录结构
+# ============================================================
+directories:
+  # PiERN集成平台
+  piern_integrated: "/root/data/PierNet"
+
+  # PierNet原始平台 (不要修改)
+  piernet: "/root/data/PierNet"
+
+  # xhb的PiERN实现
+  xhb_piern: "/root/data/PierNet/external/xhb"
+
+  # 示例代码
+  example_piern: "/root/data/PierNet/examples"
+
+  # 公共资源
+  eb_public: "/root/eb-public"
