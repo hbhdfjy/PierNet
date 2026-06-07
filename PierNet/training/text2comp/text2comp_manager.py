@@ -517,6 +517,44 @@ def list_datasets() -> list[dict[str, Any]]:
     return sorted(datasets, key=lambda item: item["simulator"])
 
 
+def _select_default_training_data(simulator: str, scenario: str | None = None) -> str | None:
+    """按专家模型和场景自动选择训练数据。"""
+    simulator = str(simulator).strip()
+    scenario_name = str(scenario).strip() if scenario else ""
+    if not simulator:
+        return None
+
+    datasets = [item for item in list_datasets() if item.get("simulator") == simulator]
+    if not datasets:
+        return None
+
+    if scenario_name:
+        scenario_candidates = {
+            scenario_name,
+            f"{simulator}_{scenario_name}",
+        }
+        for item in datasets:
+            if item.get("scenario") in scenario_candidates or item.get("name") in scenario_candidates:
+                return str(item["path"])
+
+    preferred_names = {
+        simulator,
+        f"{simulator}_train",
+    }
+    for item in datasets:
+        if item.get("name") in preferred_names:
+            return str(item["path"])
+
+    return str(datasets[0]["path"])
+
+
+def _coerce_path_value(value: Any) -> str | None:
+    if value is None:
+        return None
+    path = str(value).strip()
+    return path or None
+
+
 def get_overview() -> dict[str, Any]:
     """获取训练概览"""
     jobs = list_jobs(refresh=True)
@@ -578,12 +616,17 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     - 自定义：提供output_dim参数或先通过register_custom_expert注册
 
     支持多种字段名（兼容前端和后端）：
-    - train_path / train_data_path
+    - train_path / train_data_path / dataset_path
     - simulator / expert_model
     """
     # 字段名兼容处理
     simulator = payload.get("simulator") or payload.get("expert_model", "unknown")
-    train_data_path = payload.get("train_path") or payload.get("train_data_path")
+    scenario = payload.get("scenario")
+    train_data_path = (
+        _coerce_path_value(payload.get("train_path"))
+        or _coerce_path_value(payload.get("train_data_path"))
+        or _coerce_path_value(payload.get("dataset_path"))
+    )
     gpu_id = int(payload.get("gpu_id", 0))
 
     # 验证GPU
@@ -631,13 +674,20 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             )
 
     # 验证训练数据
-    if train_data_path:
-        validation = validate_training_data(train_data_path, expert_info["output_dim"])
-        if not validation["is_valid"]:
-            raise ValueError(f"Invalid training data: {validation}")
+    if not train_data_path:
+        train_data_path = _select_default_training_data(simulator, scenario)
+    if not train_data_path:
+        raise ValueError(
+            f"No training data found for simulator={simulator!r}. "
+            "Provide dataset_path, train_data_path, or train_path."
+        )
+
+    validation = validate_training_data(train_data_path, expert_info["output_dim"])
+    if not validation["is_valid"]:
+        raise ValueError(f"Invalid training data: {validation}")
 
     # 构建任务 - 使用simulator+scenario作为任务名称基础
-    scenario = payload.get("scenario") or simulator
+    scenario = scenario or Path(train_data_path).stem or simulator
     name_base = f"{simulator}_{scenario}"
     job_id = _make_job_id(name_base)
     job_name = _normalize_job_name(payload.get("name"), fallback=job_id)
@@ -706,6 +756,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             log_path,
             f"[launch] job_id={job_id} name={job_name} created_at={launch_started_at:.3f}",
             f"[launch] status=starting simulator={simulator} gpu={gpu_id}",
+            f"[launch] train_data_path={train_data_path}",
             f"[launch] run_dir={run_dir}",
             f"[launch] log_path={log_path}",
             "[launch] spawning training subprocess...",
@@ -737,13 +788,14 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         log_handle.close()
 
         # 保存任务记录
-        scenario = payload.get("scenario") or simulator
         entry = {
             "job_id": job_id,
             "name": job_name,
             "status": "starting",
             "simulator": simulator,
             "scenario": scenario,
+            "expert_model": simulator,
+            "dataset_path": str(train_data_path),
             "gpu_id": gpu_id,
             "created_at": time.time(),
             "started_at": time.time(),
