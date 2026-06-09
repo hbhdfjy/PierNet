@@ -72,7 +72,7 @@
           "input_dim": {
             "anyOf": [
               {
-                "maximum": 32.0,
+                "maximum": 4096.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -156,7 +156,7 @@
           "input_dim": {
             "anyOf": [
               {
-                "maximum": 32.0,
+                "maximum": 4096.0,
                 "minimum": 1.0,
                 "type": "integer"
               },
@@ -259,6 +259,87 @@
           "output_dim"
         ],
         "title": "ExpertModelSummary",
+        "type": "object"
+      },
+      "ExpertModelUpdateRequest": {
+        "properties": {
+          "assembly_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assembly Enabled"
+          },
+          "data_generation_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data Generation Enabled"
+          },
+          "domain": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Domain"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "simulator": {
+            "anyOf": [
+              {
+                "maxLength": 160,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simulator"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "enum": [
+                  "active",
+                  "disabled",
+                  "invalid"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "title": "ExpertModelUpdateRequest",
         "type": "object"
       },
       "FillSamplesRequest": {
@@ -774,6 +855,11 @@
             "title": "Auto Sync",
             "type": "boolean"
           },
+          "expert_executor": {
+            "default": "fno",
+            "title": "Expert Executor",
+            "type": "string"
+          },
           "fno_path": {
             "anyOf": [
               {
@@ -831,6 +917,17 @@
               }
             ],
             "title": "Text2Comp Path"
+          },
+          "uploaded_expert_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Id"
           }
         },
         "required": [
@@ -922,6 +1019,30 @@
           "simulator"
         ],
         "title": "LoadText2CompRequest",
+        "type": "object"
+      },
+      "LoadUploadedExpertRequest": {
+        "properties": {
+          "expected_input_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expected Input Dim"
+          },
+          "model_id": {
+            "title": "Model Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_id"
+        ],
+        "title": "LoadUploadedExpertRequest",
         "type": "object"
       },
       "MetricsSummary": {
@@ -4159,6 +4280,65 @@
         ]
       }
     },
+    "/api/assembly/uploaded-experts": {
+      "get": {
+        "description": "列出可用于 Assembly 的 Uploaded Expert。",
+        "operationId": "list_uploaded_experts_api_assembly_uploaded_experts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Uploaded Experts",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/uploaded-experts/load": {
+      "post": {
+        "operationId": "load_uploaded_expert_api_assembly_uploaded_experts_load_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoadUploadedExpertRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Load Uploaded Expert",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
     "/api/config": {
       "get": {
         "description": "读取 default.yaml 的 generation 节配置。",
@@ -4225,6 +4405,248 @@
           }
         },
         "summary": "Get Datasets"
+      }
+    },
+    "/api/expert-models": {
+      "get": {
+        "operationId": "list_expert_models_api_expert_models_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response List Expert Models Api Expert Models Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Expert Models",
+        "tags": [
+          "expert-models"
+        ]
+      }
+    },
+    "/api/expert-models/upload": {
+      "post": {
+        "operationId": "upload_expert_model_api_expert_models_upload_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 180,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Upload Expert Model Api Expert Models Upload Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Expert Model",
+        "tags": [
+          "expert-models"
+        ]
+      }
+    },
+    "/api/expert-models/{model_id}": {
+      "delete": {
+        "operationId": "delete_expert_model_api_expert_models__model_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Expert Model",
+        "tags": [
+          "expert-models"
+        ]
+      },
+      "get": {
+        "operationId": "get_expert_model_api_expert_models__model_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Get Expert Model Api Expert Models  Model Id  Get",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Expert Model",
+        "tags": [
+          "expert-models"
+        ]
+      },
+      "patch": {
+        "operationId": "update_expert_model_api_expert_models__model_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpertModelUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Update Expert Model Api Expert Models  Model Id  Patch",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Expert Model",
+        "tags": [
+          "expert-models"
+        ]
+      }
+    },
+    "/api/expert-models/{model_id}/validate": {
+      "post": {
+        "operationId": "validate_expert_model_api_expert_models__model_id__validate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "model_id",
+            "required": true,
+            "schema": {
+              "title": "Model Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Validate Expert Model Api Expert Models  Model Id  Validate Post",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Validate Expert Model",
+        "tags": [
+          "expert-models"
+        ]
       }
     },
     "/api/files/catalog": {

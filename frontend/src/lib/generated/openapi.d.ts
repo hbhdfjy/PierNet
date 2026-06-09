@@ -333,6 +333,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assembly/uploaded-experts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Uploaded Experts
+         * @description 列出可用于 Assembly 的 Uploaded Expert。
+         */
+        get: operations["list_uploaded_experts_api_assembly_uploaded_experts_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/assembly/uploaded-experts/load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Load Uploaded Expert */
+        post: operations["load_uploaded_expert_api_assembly_uploaded_experts_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/config": {
         parameters: {
             query?: never;
@@ -408,6 +445,76 @@ export interface paths {
         get: operations["get_datasets_api_datasets_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expert-models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Expert Models */
+        get: operations["list_expert_models_api_expert_models_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expert-models/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload Expert Model */
+        post: operations["upload_expert_model_api_expert_models_upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/expert-models/{model_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Expert Model */
+        get: operations["get_expert_model_api_expert_models__model_id__get"];
+        put?: never;
+        post?: never;
+        /** Delete Expert Model */
+        delete: operations["delete_expert_model_api_expert_models__model_id__delete"];
+        options?: never;
+        head?: never;
+        /** Update Expert Model */
+        patch: operations["update_expert_model_api_expert_models__model_id__patch"];
+        trace?: never;
+    };
+    "/api/expert-models/{model_id}/validate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate Expert Model */
+        post: operations["validate_expert_model_api_expert_models__model_id__validate_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1711,6 +1818,21 @@ export interface components {
             /** Output Dim */
             output_dim: number;
         };
+        /** ExpertModelUpdateRequest */
+        ExpertModelUpdateRequest: {
+            /** Assembly Enabled */
+            assembly_enabled?: boolean | null;
+            /** Data Generation Enabled */
+            data_generation_enabled?: boolean | null;
+            /** Domain */
+            domain?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Simulator */
+            simulator?: string | null;
+            /** Status */
+            status?: ("active" | "disabled" | "invalid") | null;
+        };
         /** FillSamplesRequest */
         FillSamplesRequest: {
             /**
@@ -1966,6 +2088,11 @@ export interface components {
              * @default true
              */
             auto_sync: boolean;
+            /**
+             * Expert Executor
+             * @default fno
+             */
+            expert_executor: string;
             /** Fno Path */
             fno_path?: string | null;
             /**
@@ -1986,6 +2113,8 @@ export interface components {
             router_path?: string | null;
             /** Text2Comp Path */
             text2comp_path?: string | null;
+            /** Uploaded Expert Id */
+            uploaded_expert_id?: string | null;
         };
         /**
          * LoadFNORequest
@@ -2043,6 +2172,13 @@ export interface components {
             gpu_id: number;
             /** Simulator */
             simulator: string;
+        };
+        /** LoadUploadedExpertRequest */
+        LoadUploadedExpertRequest: {
+            /** Expected Input Dim */
+            expected_input_dim?: number | null;
+            /** Model Id */
+            model_id: string;
         };
         /** MetricsSummary */
         MetricsSummary: {
@@ -3557,6 +3693,59 @@ export interface operations {
             };
         };
     };
+    list_uploaded_experts_api_assembly_uploaded_experts_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+        };
+    };
+    load_uploaded_expert_api_assembly_uploaded_experts_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoadUploadedExpertRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     get_config_api_config_get: {
         parameters: {
             query?: never;
@@ -3633,6 +3822,193 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+        };
+    };
+    list_expert_models_api_expert_models_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+        };
+    };
+    upload_expert_model_api_expert_models_upload_post: {
+        parameters: {
+            query: {
+                name: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_expert_model_api_expert_models__model_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_expert_model_api_expert_models__model_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_expert_model_api_expert_models__model_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpertModelUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    validate_expert_model_api_expert_models__model_id__validate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                model_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

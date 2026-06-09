@@ -105,7 +105,7 @@ class JobStartResponse(BaseModel):
 
 class ExpertInputPlanRequest(BaseModel):
     prompt: str = Field(..., min_length=1, max_length=20_000)
-    input_dim: Optional[int] = Field(None, ge=1, le=32)
+    input_dim: Optional[int] = Field(None, ge=1, le=expert_models.MAX_INPUT_DIM)
 
 
 class ExpertInputPlanResponse(BaseModel):

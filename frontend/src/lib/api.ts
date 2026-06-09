@@ -20,7 +20,9 @@ import type {
   BatchSimulateRequest,
   Hdf5DataFileInfo,
   Hdf5UploadResponse,
+  ExpertModelInfo,
   ExpertModelListResponse,
+  ExpertModelMutationResponse,
   ExpertModelUploadResponse,
   ExpertInputPlanResponse,
   ExpertGenerateResponse,
@@ -337,10 +339,12 @@ export const api = {
     return res.json()
   },
 
-  listExpertModels: (): Promise<ExpertModelListResponse> => get('/simulation/expert-models'),
+  listExpertModels: (): Promise<ExpertModelListResponse> => get('/expert-models'),
+
+  getExpertModel: (modelId: string): Promise<ExpertModelInfo> => get(`/expert-models/${encodeURIComponent(modelId)}`),
 
   uploadExpertModel: async (args: { name: string; file: File }): Promise<ExpertModelUploadResponse> => {
-    const url = new URL(`${BASE}/simulation/expert-models/upload`, window.location.origin)
+    const url = new URL(`${BASE}/expert-models/upload`, window.location.origin)
     url.searchParams.set('name', args.name)
     const res = await apiFetch(url.toString(), {
       method: 'POST',
@@ -349,6 +353,32 @@ export const api = {
     })
     await ensureOk(res, '上传专家模型失败')
     return res.json()
+  },
+
+  updateExpertModel: async (
+    modelId: string,
+    body: Partial<
+      Pick<ExpertModelInfo, 'name' | 'status' | 'domain' | 'simulator' | 'assembly_enabled' | 'data_generation_enabled'>
+    >,
+  ): Promise<ExpertModelMutationResponse> => {
+    const res = await apiFetch(`${BASE}/expert-models/${encodeURIComponent(modelId)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    await ensureOk(res, '更新专家模型失败')
+    return res.json()
+  },
+
+  validateExpertModel: async (modelId: string): Promise<ExpertModelMutationResponse> => {
+    const res = await apiFetch(`${BASE}/expert-models/${encodeURIComponent(modelId)}/validate`, { method: 'POST' })
+    await ensureOk(res, '重新校验专家模型失败')
+    return res.json()
+  },
+
+  deleteExpertModel: async (modelId: string): Promise<void> => {
+    const res = await apiFetch(`${BASE}/expert-models/${encodeURIComponent(modelId)}`, { method: 'DELETE' })
+    await ensureOk(res, '删除专家模型失败')
   },
 
   planExpertInputs: async (args: {
@@ -537,7 +567,9 @@ export const api = {
       }
       text2comp: { loaded: boolean; gpu_id?: number; paths?: string[] }
       fno: { loaded: boolean; gpu_id?: number; paths?: string[] }
+      uploaded_expert?: { loaded: boolean; model_id?: string | null; path?: string | null; executor?: string | null }
     }
+    custom_experts: ExpertModelInfo[]
     gpu_available: boolean
     architecture_note?: string
   }> => get('/assembly/status'),
@@ -560,6 +592,8 @@ export const api = {
     router_path?: string
     text2comp_path?: string
     fno_path?: string
+    expert_executor?: 'fno' | 'uploaded'
+    uploaded_expert_id?: string
     force_split?: boolean
     auto_sync?: boolean
   }): Promise<{
@@ -581,6 +615,8 @@ export const api = {
         router_path: req.router_path ?? null,
         text2comp_path: req.text2comp_path ?? null,
         fno_path: req.fno_path ?? null,
+        expert_executor: req.expert_executor ?? 'fno',
+        uploaded_expert_id: req.uploaded_expert_id ?? null,
         force_split: req.force_split ?? false,
         auto_sync: req.auto_sync ?? true,
       }),
@@ -595,6 +631,24 @@ export const api = {
     return res.json()
   },
 
+  listAssemblyUploadedExperts: (): Promise<ExpertModelInfo[]> => get('/assembly/uploaded-experts'),
+
+  loadAssemblyUploadedExpert: async (req: {
+    model_id: string
+    expected_input_dim?: number | null
+  }): Promise<{ status: string; expert: ExpertModelInfo }> => {
+    const res = await apiFetch(`${BASE}/assembly/uploaded-experts/load`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model_id: req.model_id,
+        expected_input_dim: req.expected_input_dim ?? null,
+      }),
+    })
+    await ensureOk(res, '加载 Uploaded Expert 失败')
+    return res.json()
+  },
+
   testAssembly: async (req: {
     config: Record<string, unknown>
     test_input: string
@@ -604,7 +658,7 @@ export const api = {
     first_cot_result: string
     final_answer?: string
     llm_response?: string
-    expert_used?: string
+    expert_used?: boolean
     expert_output?: string
     latency_ms: number
   }> => {

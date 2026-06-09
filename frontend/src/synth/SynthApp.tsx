@@ -9,6 +9,7 @@ import {
   Database,
   FileText,
   FlaskConical,
+  Bot,
   FolderOpen,
   GitBranch,
   KeyRound,
@@ -31,6 +32,7 @@ const SimulationRunner = lazy(() => import('./pages/SimulationRunner'))
 const TemplateGenerator = lazy(() => import('./pages/TemplateGenerator'))
 const TemplateViewer = lazy(() => import('./pages/TemplateViewer'))
 const DataUploadPage = lazy(() => import('./pages/DataUploadPage'))
+const ExpertModelManager = lazy(() => import('./pages/ExpertModelManager'))
 const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
@@ -75,6 +77,7 @@ const navGroups: ShellNavGroup[] = [
     label: '系统设置',
     items: [
       { to: '/synth/registry', icon: FileText, label: '注册信息' },
+      { to: '/synth/expert-models', icon: Bot, label: '专家模型', tone: 'violet' },
       { to: '/synth/llm-config', icon: KeyRound, label: 'LLM 配置', tone: 'amber' },
     ],
   },
@@ -105,6 +108,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
         <Route path="files" element={<FileManagerContent />} />
         <Route path="stats" element={<Navigate to="/synth" replace />} />
         <Route path="registry" element={<RegistryPage />} />
+        <Route path="expert-models" element={<ExpertModelManager />} />
         <Route path="llm-config" element={<LLMConfigPage />} />
         <Route path="*" element={<Navigate to="/synth/simulate" replace />} />
       </Routes>

@@ -31,6 +31,8 @@ from typing import Optional, Any
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from PierNet.synth.services import expert_models as uploaded_expert_models
+
 
 # ===== 配置文件动态扫描 =====
 import yaml as _yaml
@@ -216,6 +218,29 @@ class FNOExpertInfo(BaseModel):
     trained: bool
     gpu_id: Optional[int] = None
 
+
+class UploadedExpertInfo(BaseModel):
+    model_id: str
+    name: str
+    simulator: str
+    domain: str
+    input_dim: int
+    output_dim: int
+    runtime: str
+    status: str
+    path: str
+    trained: bool
+    assembly_enabled: bool
+    data_generation_enabled: bool
+    validated_at: Optional[float] = None
+    last_error: Optional[str] = None
+
+
+class LoadUploadedExpertRequest(BaseModel):
+    model_id: str
+    expected_input_dim: Optional[int] = None
+
+
 class AssemblyTestRequest(BaseModel):
     config: dict
     test_input: str
@@ -226,6 +251,7 @@ class AssemblyTestResponse(BaseModel):
     final_answer: Optional[str] = None
     llm_response: Optional[str] = None
     expert_output: Optional[str] = None
+    expert_used: bool = False
     latency_ms: float
     debug_info: Optional[dict[str, Any]] = None
 
@@ -250,6 +276,8 @@ class LoadAllRequest(BaseModel):
     router_path: Optional[str] = None
     text2comp_path: Optional[str] = None
     fno_path: Optional[str] = None
+    expert_executor: str = "fno"
+    uploaded_expert_id: Optional[str] = None
     force_split: bool = False
     auto_sync: bool = True  # 自动处理跨设备同步
 
@@ -567,6 +595,11 @@ _LOADED_MODELS = {
     "router_meta": {},
     "text2comp_paths": [],
     "fno_paths": [],
+    "expert_executor": "fno",
+    "uploaded_expert_model": None,
+    "uploaded_expert_predict": None,
+    "uploaded_expert_id": None,
+    "uploaded_expert_path": None,
 }
 
 
@@ -809,35 +842,57 @@ def map_router_prediction_for_assembly(raw_pred: int) -> tuple[int, str]:
     return 1, ASSEMBLY_EXPERT_SIMULATOR
 
 
+def _select_text2comp_for_simulator(simulator: str):
+    text2comps = _LOADED_MODELS["text2comp"]
+    if simulator in text2comps:
+        return simulator, text2comps[simulator]
+    if text2comps:
+        selected_simulator = next(iter(text2comps))
+        return selected_simulator, text2comps[selected_simulator]
+    return simulator, None
+
+
 def expert_generate_response(simulator, input_ids, attention_mask):
     """专家模型生成数值预测"""
-    if simulator not in _LOADED_MODELS["text2comp"] or simulator not in _LOADED_MODELS["fno"]:
-        return np.zeros(64 if simulator == "diff_sorp" else 32)
-
     text2comp_device = _LOADED_MODELS["text2comp_device"]
     llm_device = _LOADED_MODELS["llm_device"]
 
     with torch.no_grad():
-        # 如果设备不同，传输tensor
         if text2comp_device != llm_device and text2comp_device is not None:
             input_ids = input_ids.to(text2comp_device)
             attention_mask = attention_mask.to(text2comp_device)
 
-        # Text2Comp编码
-        text2comp = _LOADED_MODELS["text2comp"][simulator]
+        selected_simulator, text2comp = _select_text2comp_for_simulator(simulator)
+        if text2comp is None:
+            return np.zeros(64 if simulator == "diff_sorp" else 32)
         encoding = text2comp(input_ids, attention_mask)
 
-        # Reshape for FNO
-        if simulator == "diff_sorp":
+        if _LOADED_MODELS.get("expert_executor") == "uploaded":
+            model = _LOADED_MODELS.get("uploaded_expert_model")
+            predict = _LOADED_MODELS.get("uploaded_expert_predict")
+            if not model or not callable(predict):
+                raise uploaded_expert_models.ExpertModelError("Uploaded Expert 尚未加载")
+            expert_input = encoding.detach().float().reshape(-1).cpu().numpy().astype(float).tolist()
+            expected_dim = int(model.get("input_dim") or 0)
+            if expected_dim and len(expert_input) != expected_dim:
+                raise uploaded_expert_models.ExpertModelError(
+                    f"Text2Comp 输出维度与 Uploaded Expert 输入维度不匹配: {len(expert_input)} != {expected_dim}"
+                )
+            values = uploaded_expert_models.normalise_output(predict(expert_input))
+            return np.asarray(values, dtype=np.float32)
+
+        if selected_simulator not in _LOADED_MODELS["fno"]:
+            return np.zeros(64 if simulator == "diff_sorp" else 32)
+
+        if selected_simulator == "diff_sorp":
             x_input = encoding.view(1, 64, 2)
         else:
             x_input = encoding.view(1, 32, 1)
 
-        # FNO预测
-        fno = _LOADED_MODELS["fno"][simulator]
-        grid = _LOADED_MODELS["grid"].get(simulator)
+        fno = _LOADED_MODELS["fno"][selected_simulator]
+        grid = _LOADED_MODELS["grid"].get(selected_simulator)
         if grid is None:
-            grid = read_grid_from_h5(None, simulator)
+            grid = read_grid_from_h5(None, selected_simulator)
         y_pred = fno(x_input, grid).squeeze().cpu().numpy()
 
     return y_pred
@@ -1006,6 +1061,8 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
         "raw_router_hits": raw_router_hits,
         "eos_reached": eos_reached,
         "expert_appended_tokens": expert_token_count,
+        "expert_executor": _LOADED_MODELS.get("expert_executor"),
+        "uploaded_expert_id": _LOADED_MODELS.get("uploaded_expert_id"),
         "timings_ms": {
             "encode": encode_ms,
             "llm_forward": llm_forward_ms,
@@ -1067,6 +1124,62 @@ async def list_text2comps():
     ) for t in _TEXT2COMP_REGISTRY]
 
 
+def _uploaded_expert_info(model: dict[str, Any]) -> UploadedExpertInfo:
+    return UploadedExpertInfo(
+        model_id=str(model.get("model_id") or ""),
+        name=str(model.get("name") or model.get("model_id") or ""),
+        simulator=str(model.get("simulator") or "expert_model"),
+        domain=str(model.get("domain") or "custom"),
+        input_dim=int(model.get("input_dim") or 0),
+        output_dim=int(model.get("output_dim") or 0),
+        runtime=str(model.get("runtime") or "python"),
+        status=str(model.get("status") or "invalid"),
+        path=str(model.get("path") or ""),
+        trained=bool(model.get("exists")),
+        assembly_enabled=bool(model.get("assembly_enabled")),
+        data_generation_enabled=bool(model.get("data_generation_enabled")),
+        validated_at=model.get("validated_at"),
+        last_error=model.get("last_error"),
+    )
+
+
+@router.get("/uploaded-experts")
+async def list_uploaded_experts():
+    """列出可用于 Assembly 的 Uploaded Expert。"""
+    return [_uploaded_expert_info(model) for model in uploaded_expert_models.list_assembly_models()]
+
+
+def _load_uploaded_expert(model_id: str, expected_input_dim: int | None = None) -> UploadedExpertInfo:
+    try:
+        model = uploaded_expert_models.get_model(model_id)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Uploaded Expert not found: {model_id}") from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if model.get("status") != "active":
+        raise HTTPException(status_code=400, detail=f"Uploaded Expert 未启用: {model_id}")
+    if not model.get("assembly_enabled"):
+        raise HTTPException(status_code=400, detail=f"Uploaded Expert 未开放 Assembly 使用: {model_id}")
+    input_dim = int(model.get("input_dim") or 0)
+    if expected_input_dim is not None and input_dim != int(expected_input_dim):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text2Comp 输出维度与 Uploaded Expert 输入维度不匹配: {expected_input_dim} != {input_dim}",
+        )
+    _LOADED_MODELS["uploaded_expert_model"] = model
+    _LOADED_MODELS["uploaded_expert_predict"] = uploaded_expert_models.load_predict(model)
+    _LOADED_MODELS["uploaded_expert_id"] = model_id
+    _LOADED_MODELS["uploaded_expert_path"] = model.get("path")
+    _LOADED_MODELS["expert_executor"] = "uploaded"
+    return _uploaded_expert_info(model)
+
+
+@router.post("/uploaded-experts/load")
+async def load_uploaded_expert(req: LoadUploadedExpertRequest):
+    expert = _load_uploaded_expert(req.model_id, req.expected_input_dim)
+    return {"status": "loaded", "expert": expert}
+
+
 @router.get("/fnos")
 async def list_fnos():
     """列出可用的FNO专家模型"""
@@ -1091,6 +1204,12 @@ async def get_status():
         },
         "text2comp": {"loaded": len(_LOADED_MODELS["text2comp"]) > 0, "paths": _LOADED_MODELS.get("text2comp_paths", [])},
         "fno": {"loaded": len(_LOADED_MODELS["fno"]) > 0, "paths": _LOADED_MODELS.get("fno_paths", [])},
+        "uploaded_expert": {
+            "loaded": _LOADED_MODELS.get("uploaded_expert_model") is not None,
+            "model_id": _LOADED_MODELS.get("uploaded_expert_id"),
+            "path": _LOADED_MODELS.get("uploaded_expert_path"),
+            "executor": _LOADED_MODELS.get("expert_executor"),
+        },
     }
 
     # 添加GPU ID信息
@@ -1112,7 +1231,7 @@ async def get_status():
         "loaded_models": loaded_models,
         "gpu_available": torch.cuda.is_available(),
         "disk_space_gb": 100,
-        "custom_experts": [],
+        "custom_experts": await list_uploaded_experts(),
         # 添加架构说明
         "architecture_note": "single_eval.py设计：LLM和Router在同一GPU最优，支持跨GPU但会增加延迟"
     }
@@ -1198,32 +1317,49 @@ async def load_all_models(req: LoadAllRequest):
             _LOADED_MODELS["text2comp"][t["simulator"]] = model
             _LOADED_MODELS["text2comp_paths"].append(t["path"])
 
-    # 4. 加载FNO
+    expert_executor = str(req.expert_executor or "fno").strip().lower()
+    if expert_executor not in {"fno", "uploaded"}:
+        raise HTTPException(status_code=400, detail="expert_executor must be fno or uploaded")
+    _LOADED_MODELS["expert_executor"] = expert_executor
+    _LOADED_MODELS["uploaded_expert_model"] = None
+    _LOADED_MODELS["uploaded_expert_predict"] = None
+    _LOADED_MODELS["uploaded_expert_id"] = None
+    _LOADED_MODELS["uploaded_expert_path"] = None
+
+    # 4. 加载专家执行器
     _LOADED_MODELS["fno"] = {}
     _LOADED_MODELS["grid"] = {}
     _LOADED_MODELS["fno_paths"] = []
-    selected_fnos = (
-        [f for f in _FNO_REGISTRY if f["path"] == req.fno_path]
-        if req.fno_path
-        else _FNO_REGISTRY
-    )
-    if req.fno_path and not selected_fnos:
-        raise HTTPException(status_code=404, detail=f"FNO not found: {req.fno_path}")
+    selected_fnos = []
+    if expert_executor == "uploaded":
+        if not req.uploaded_expert_id:
+            raise HTTPException(status_code=400, detail="选择 Uploaded Expert 时必须提供 uploaded_expert_id")
+        if not selected_text2comps:
+            raise HTTPException(status_code=400, detail="选择 Uploaded Expert 时必须选择 Text2Comp")
+        _load_uploaded_expert(req.uploaded_expert_id, int(selected_text2comps[0]["output_dim"]))
+    else:
+        selected_fnos = (
+            [f for f in _FNO_REGISTRY if f["path"] == req.fno_path]
+            if req.fno_path
+            else _FNO_REGISTRY
+        )
+        if req.fno_path and not selected_fnos:
+            raise HTTPException(status_code=404, detail=f"FNO not found: {req.fno_path}")
 
-    for f in selected_fnos:
-        if os.path.exists(f["path"]):
-            fno = FNO1d(
-                modes=f["modes"], width=f["width"],
-                num_channels=f["num_channels"], initial_step=f["initial_step"]
-            ).to(fno_device)
-            state = torch.load(f["path"], map_location=fno_device)
-            if "model_state_dict" in state:
-                state = state["model_state_dict"]
-            fno.load_state_dict(state)
-            fno.eval()
-            _LOADED_MODELS["fno"][f["simulator"]] = fno
-            _LOADED_MODELS["fno_paths"].append(f["path"])
-            _LOADED_MODELS["grid"][f["simulator"]] = read_grid_from_h5(None, f["simulator"])
+        for f in selected_fnos:
+            if os.path.exists(f["path"]):
+                fno = FNO1d(
+                    modes=f["modes"], width=f["width"],
+                    num_channels=f["num_channels"], initial_step=f["initial_step"]
+                ).to(fno_device)
+                state = torch.load(f["path"], map_location=fno_device)
+                if "model_state_dict" in state:
+                    state = state["model_state_dict"]
+                fno.load_state_dict(state)
+                fno.eval()
+                _LOADED_MODELS["fno"][f["simulator"]] = fno
+                _LOADED_MODELS["fno_paths"].append(f["path"])
+                _LOADED_MODELS["grid"][f["simulator"]] = read_grid_from_h5(None, f["simulator"])
 
     # 5. Text2Comp有而FNO未覆盖的simulator，也准备Grid
     for t in selected_text2comps:
@@ -1241,6 +1377,8 @@ async def load_all_models(req: LoadAllRequest):
         "router_meta": router_meta,
         "text2comp": [t["path"] for t in selected_text2comps],
         "fno": [f["path"] for f in selected_fnos],
+        "expert_executor": expert_executor,
+        "uploaded_expert_id": _LOADED_MODELS.get("uploaded_expert_id"),
         "llm_gpu_id": req.llm_gpu_id,
         "router_gpu_id": req.router_gpu_id or req.llm_gpu_id,
         "force_split": req.force_split,
@@ -1400,6 +1538,11 @@ async def unload_all():
     _LOADED_MODELS["router_meta"] = {}
     _LOADED_MODELS["text2comp_paths"] = []
     _LOADED_MODELS["fno_paths"] = []
+    _LOADED_MODELS["expert_executor"] = "fno"
+    _LOADED_MODELS["uploaded_expert_model"] = None
+    _LOADED_MODELS["uploaded_expert_predict"] = None
+    _LOADED_MODELS["uploaded_expert_id"] = None
+    _LOADED_MODELS["uploaded_expert_path"] = None
 
     torch.cuda.empty_cache()
     return {"status": "unloaded", "message": "所有模型已卸载", "gpu_status": get_gpu_info()}
@@ -1421,7 +1564,10 @@ async def test_assembly(req: AssemblyTestRequest):
             await load_all_models(LoadAllRequest(llm_path=llm_path, llm_gpu_id=gpu_id))
 
     start_time = time.time()
-    response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(req.test_input)
+    try:
+        response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(req.test_input)
+    except uploaded_expert_models.ExpertModelError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     latency = (time.time() - start_time) * 1000
 
     return AssemblyTestResponse(
@@ -1430,6 +1576,7 @@ async def test_assembly(req: AssemblyTestRequest):
         final_answer=final_answer or _strip_thinking_content(response),
         llm_response=response,
         expert_output=expert_output or None,
+        expert_used=bool(expert_output),
         latency_ms=latency,
         debug_info=debug_info
     )

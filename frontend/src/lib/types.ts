@@ -432,9 +432,12 @@ export interface Hdf5UploadResponse {
 export interface ExpertModelInfo {
   model_id: string
   name: string
+  status?: 'active' | 'disabled' | 'invalid'
+  runtime?: string
   file_name: string
   path: string
   created_at: number
+  validated_at?: number | null
   file_size_bytes: number
   package_type?: string
   archive_path?: string
@@ -443,6 +446,14 @@ export interface ExpertModelInfo {
   asset_count?: number
   asset_size_bytes?: number
   manifest?: Record<string, unknown>
+  checksum?: string
+  domain?: string
+  simulator?: string
+  input_dim?: number | null
+  output_dim?: number | null
+  assembly_enabled?: boolean
+  data_generation_enabled?: boolean
+  last_error?: string | null
   interface: string
   interface_version: number
   constraints_version?: number
@@ -450,6 +461,12 @@ export interface ExpertModelInfo {
   example_input_dim?: number
   smoke_output_dim?: number
   exists?: boolean
+}
+
+export interface ExpertModelMutationResponse {
+  ok: boolean
+  model: ExpertModelInfo
+  error?: string | null
 }
 
 export interface ExpertModelContract {

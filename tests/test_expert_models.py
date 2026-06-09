@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import io
 import json
 import zipfile
@@ -182,3 +183,131 @@ def test_upload_and_generate_expert_dataset_uses_stage1_hdf5_contract(monkeypatc
         assert int(hf.attrs["n_channels"]) == 2
         assert int(hf.attrs["n_timesteps"]) == 1
         assert int(hf.attrs["n_params"]) == 1
+
+
+
+def test_upload_model_registers_system_metadata(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    model_source = """EXAMPLE_INPUT = [1.0, 2.0]
+
+def predict(inputs):
+    return [float(inputs[0]) + float(inputs[1]), float(inputs[0]) * 2.0]
+"""
+
+    model = expert_models.upload_model("registered.py", model_source.encode("utf-8"))
+
+    assert model["status"] == "active"
+    assert model["runtime"] == "python"
+    assert model["input_dim"] == 2
+    assert model["output_dim"] == 2
+    assert model["assembly_enabled"] is True
+    assert model["data_generation_enabled"] is True
+    assert len(model["checksum"]) == 64
+    listed = expert_models.list_models()
+    assert listed[0]["model_id"] == model["model_id"]
+    assert listed[0]["exists"] is True
+    assert expert_models.predict_model(model["model_id"], [1.0, 3.0]) == [4.0, 2.0]
+
+
+def test_update_revalidate_and_delete_model(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    model = expert_models.upload_model(
+        "managed.py",
+        b"EXAMPLE_INPUT = [0.0]\n\ndef predict(inputs):\n    return float(inputs[0])\n",
+    )
+
+    updated = expert_models.update_model(
+        model["model_id"],
+        {"status": "disabled", "assembly_enabled": False, "data_generation_enabled": False},
+    )
+    assert updated["status"] == "disabled"
+    assert updated["assembly_enabled"] is False
+    assert updated["data_generation_enabled"] is False
+    with pytest.raises(expert_models.ExpertModelError, match="未启用"):
+        expert_models.generate_dataset(model_id=model["model_id"], scenario="disabled", prompt="有1个点")
+
+    Path(updated["path"]).write_text("def broken(inputs):\n    return 1.0\n", encoding="utf-8")
+    invalid = expert_models.revalidate_model(model["model_id"])
+    assert invalid["status"] == "invalid"
+    assert "predict" in str(invalid["last_error"])
+
+    deleted = expert_models.delete_model(model["model_id"])
+    assert deleted["model_id"] == model["model_id"]
+    assert expert_models.list_models() == []
+
+
+def test_upload_bundle_manifest_optional_metadata_and_dim_inference(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    manifest = {
+        "schema_version": 1,
+        "runtime": "python",
+        "entrypoint": "adapter.py",
+        "callable": "predict",
+        "example_input": [1.0, 2.0, 3.0],
+        "name": "bundle_declared",
+        "domain": "custom_domain",
+        "assembly_enabled": True,
+        "data_generation_enabled": False,
+    }
+    content = _zip_bundle(
+        {
+            expert_models.MANIFEST_NAME: json.dumps(manifest),
+            "adapter.py": "def predict(inputs):\n    return [float(sum(inputs)), float(len(inputs))]\n",
+        }
+    )
+
+    model = expert_models.upload_model("bundle.zip", content)
+
+    assert model["name"] == "bundle_declared"
+    assert model["domain"] == "custom_domain"
+    assert model["simulator"] == "custom_domain"
+    assert model["input_dim"] == 3
+    assert model["output_dim"] == 2
+    assert model["data_generation_enabled"] is False
+
+
+def test_upload_bundle_rejects_missing_manifest(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    content = _zip_bundle({"adapter.py": "def predict(inputs): return 1.0"})
+
+    with pytest.raises(expert_models.ExpertModelError, match=expert_models.MANIFEST_NAME):
+        expert_models.upload_model("missing_manifest.zip", content)
+
+
+def test_upload_rejects_missing_predict(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+
+    with pytest.raises(expert_models.ExpertModelError, match="predict"):
+        expert_models.upload_model("missing_predict.py", b"def not_predict(inputs):\n    return 1.0\n")
+
+
+def test_upload_rejects_invalid_output(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+
+    with pytest.raises(expert_models.ExpertModelError, match="float"):
+        expert_models.upload_model("bad_output.py", b"def predict(inputs):\n    return {'x': 1.0}\n")
+
+
+def test_assembly_uploaded_experts_list_and_dimension_guard(monkeypatch, tmp_path: Path) -> None:
+    _patch_expert_roots(monkeypatch, tmp_path)
+    from fastapi import HTTPException
+    from PierNet.training.api.routers import assembly
+
+    model = expert_models.upload_model(
+        "assembly.py",
+        b"EXAMPLE_INPUT = [0.0, 0.0]\n\ndef predict(inputs):\n    return [float(inputs[0]) + float(inputs[1])]\n",
+    )
+
+    experts = asyncio.run(assembly.list_uploaded_experts())
+    assert [item.model_id for item in experts] == [model["model_id"]]
+    assert experts[0].input_dim == 2
+
+    with pytest.raises(HTTPException) as exc:
+        assembly._load_uploaded_expert(model["model_id"], expected_input_dim=3)
+    assert exc.value.status_code == 400
+    assert "维度不匹配" in str(exc.value.detail)
+
+    loaded = assembly._load_uploaded_expert(model["model_id"], expected_input_dim=2)
+    assert loaded.model_id == model["model_id"]
+    assert assembly._LOADED_MODELS["expert_executor"] == "uploaded"
+    assert assembly._LOADED_MODELS["uploaded_expert_id"] == model["model_id"]

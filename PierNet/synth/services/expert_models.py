@@ -39,7 +39,7 @@ EXPERT_CONFIG_ROOT = PROJECT_ROOT / "configs" / EXPERT_SIMULATOR / "variants"
 MANIFEST_NAME = "piernet_expert_model.json"
 MAX_MODEL_BYTES = 1 * 1024 * 1024 * 1024
 MAX_MODEL_BYTES_LABEL = "1 GB"
-MAX_INPUT_DIM = 32
+MAX_INPUT_DIM = 4096
 MAX_INPUT_POINTS = 1_000_000
 MAX_BUNDLE_FILES = 512
 DEFAULT_EXAMPLE_INPUT = [0.0]
@@ -183,30 +183,199 @@ def _write_models(models: list[dict[str, Any]]) -> None:
     tmp.replace(EXPERT_METADATA_PATH)
 
 
+def _coerce_bool(value: Any, default: bool) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        lowered = value.strip().lower()
+        if lowered in {"1", "true", "yes", "on", "enabled"}:
+            return True
+        if lowered in {"0", "false", "no", "off", "disabled"}:
+            return False
+    raise ExpertModelError("布尔字段必须是 true/false")
+
+
+def _optional_text(value: Any, *, default: str = "", max_len: int = 160) -> str:
+    text = str(value or default).strip()
+    return text[:max_len]
+
+
+def _coerce_positive_int(
+    value: Any,
+    label: str,
+    *,
+    optional: bool = False,
+    max_value: int | None = None,
+) -> int | None:
+    if value is None or value == "":
+        if optional:
+            return None
+        raise ExpertModelError(f"{label} 必须是正整数")
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as exc:
+        raise ExpertModelError(f"{label} 必须是正整数") from exc
+    if number < 1:
+        raise ExpertModelError(f"{label} 必须是正整数")
+    if max_value is not None and number > max_value:
+        raise ExpertModelError(f"{label} 不能超过 {max_value}")
+    return number
+
+
+def _normalise_model_metadata(item: dict[str, Any]) -> dict[str, Any]:
+    model = dict(item)
+    manifest = model.get("manifest") if isinstance(model.get("manifest"), dict) else {}
+    path = Path(str(model.get("path") or ""))
+    exists = path.exists()
+    example_input = model.get("example_input") or manifest.get("example_input") or DEFAULT_EXAMPLE_INPUT
+    try:
+        input_dim = _coerce_positive_int(
+            model.get("input_dim") or model.get("example_input_dim") or len(example_input),
+            "input_dim",
+            max_value=MAX_INPUT_DIM,
+        )
+    except Exception:
+        input_dim = None
+    try:
+        output_dim = _coerce_positive_int(
+            model.get("output_dim") or model.get("smoke_output_dim") or 1,
+            "output_dim",
+        )
+    except Exception:
+        output_dim = None
+    status = str(model.get("status") or "active").strip().lower()
+    if status not in {"active", "disabled", "invalid"}:
+        status = "invalid"
+    model.update(
+        {
+            "runtime": str(model.get("runtime") or manifest.get("runtime") or "python").lower(),
+            "status": status,
+            "input_dim": input_dim,
+            "output_dim": output_dim,
+            "domain": _optional_text(model.get("domain") or manifest.get("domain") or manifest.get("simulator"), default="custom"),
+            "simulator": _optional_text(
+                model.get("simulator") or manifest.get("simulator") or manifest.get("domain"),
+                default=EXPERT_SIMULATOR,
+            ),
+            "assembly_enabled": _coerce_bool(model.get("assembly_enabled"), True),
+            "data_generation_enabled": _coerce_bool(model.get("data_generation_enabled"), True),
+            "checksum": str(model.get("checksum") or ""),
+            "last_error": model.get("last_error"),
+            "validated_at": model.get("validated_at"),
+            "exists": exists,
+        }
+    )
+    if path.exists():
+        if path.is_file():
+            model["file_size_bytes"] = path.stat().st_size
+        elif path.is_dir():
+            model["file_size_bytes"] = int(model.get("file_size_bytes") or _directory_size(path))
+    return model
+
+
 def list_models() -> list[dict[str, Any]]:
-    models = []
-    for item in _read_models():
-        path = Path(str(item.get("path") or ""))
-        copy = dict(item)
-        copy["exists"] = bool(path.exists())
-        if path.exists():
-            if path.is_file():
-                copy["file_size_bytes"] = path.stat().st_size
-            elif path.is_dir():
-                copy["file_size_bytes"] = int(copy.get("file_size_bytes") or _directory_size(path))
-        models.append(copy)
+    models = [_normalise_model_metadata(item) for item in _read_models()]
     return sorted(models, key=lambda item: float(item.get("created_at") or 0), reverse=True)
 
 
-def get_model(model_id: str) -> dict[str, Any]:
+def _find_model_index(models: list[dict[str, Any]], model_id: str) -> int:
     model_id = validate_name("model_id", model_id)
-    for item in _read_models():
+    for idx, item in enumerate(models):
         if item.get("model_id") == model_id:
-            path = Path(str(item.get("path") or ""))
-            if not path.exists():
-                raise FileNotFoundError(f"专家模型文件不存在: {model_id}")
-            return item
+            return idx
     raise KeyError(model_id)
+
+
+def get_model(model_id: str) -> dict[str, Any]:
+    models = _read_models()
+    item = models[_find_model_index(models, model_id)]
+    model = _normalise_model_metadata(item)
+    path = Path(str(model.get("path") or ""))
+    if not path.exists():
+        raise FileNotFoundError(f"专家模型文件不存在: {model_id}")
+    return model
+
+
+def list_assembly_models() -> list[dict[str, Any]]:
+    return [
+        model
+        for model in list_models()
+        if model.get("status") == "active" and model.get("assembly_enabled") and model.get("exists")
+    ]
+
+
+def update_model(model_id: str, updates: dict[str, Any]) -> dict[str, Any]:
+    models = _read_models()
+    idx = _find_model_index(models, model_id)
+    model = _normalise_model_metadata(models[idx])
+    allowed = {
+        "name",
+        "status",
+        "domain",
+        "simulator",
+        "assembly_enabled",
+        "data_generation_enabled",
+    }
+    unknown = set(updates) - allowed
+    if unknown:
+        raise ExpertModelError(f"不支持更新字段: {', '.join(sorted(unknown))}")
+    if "name" in updates:
+        name = _optional_text(updates.get("name"), default=model.get("name") or "expert_model")
+        if not name:
+            raise ExpertModelError("name 不能为空")
+        model["name"] = name
+    if "status" in updates:
+        status = str(updates.get("status") or "").strip().lower()
+        if status not in {"active", "disabled", "invalid"}:
+            raise ExpertModelError("status 必须是 active、disabled 或 invalid")
+        model["status"] = status
+    if "domain" in updates:
+        model["domain"] = _optional_text(updates.get("domain"), default="custom")
+    if "simulator" in updates:
+        model["simulator"] = _optional_text(updates.get("simulator"), default=EXPERT_SIMULATOR)
+    if "assembly_enabled" in updates:
+        model["assembly_enabled"] = _coerce_bool(updates.get("assembly_enabled"), True)
+    if "data_generation_enabled" in updates:
+        model["data_generation_enabled"] = _coerce_bool(updates.get("data_generation_enabled"), True)
+    models[idx] = model
+    _write_models(models)
+    return model
+
+
+def revalidate_model(model_id: str) -> dict[str, Any]:
+    models = _read_models()
+    idx = _find_model_index(models, model_id)
+    model = _normalise_model_metadata(models[idx])
+    previous_status = str(model.get("status") or "active")
+    try:
+        model.update(validate_model_contract(model))
+        model["status"] = "disabled" if previous_status == "disabled" else "active"
+        model["last_error"] = None
+    except Exception as exc:
+        model["status"] = "invalid"
+        model["last_error"] = str(exc)
+        model["validated_at"] = _now()
+    models[idx] = model
+    _write_models(models)
+    return model
+
+
+def delete_model(model_id: str, *, remove_files: bool = True) -> dict[str, Any]:
+    models = _read_models()
+    idx = _find_model_index(models, model_id)
+    model = _normalise_model_metadata(models[idx])
+    del models[idx]
+    _write_models(models)
+    if remove_files:
+        model_dir = EXPERT_MODEL_FILES / str(model.get("model_id"))
+        with contextlib.suppress(Exception):
+            if model_dir.exists():
+                shutil.rmtree(model_dir)
+    return model
 
 
 def _directory_size(path: Path) -> int:
@@ -333,12 +502,21 @@ def _load_bundle_manifest(root: Path) -> dict[str, Any]:
         raise ExpertModelError(f"entrypoint 文件不存在: {entrypoint}")
     if entrypoint_path.suffix.lower() != ".py":
         raise ExpertModelError("entrypoint 必须是 Python .py 文件")
+    input_dim = _coerce_positive_int(manifest.get("input_dim"), "input_dim", optional=True, max_value=MAX_INPUT_DIM)
+    output_dim = _coerce_positive_int(manifest.get("output_dim"), "output_dim", optional=True)
     return {
         "schema_version": int(manifest.get("schema_version") or 1),
         "runtime": "python",
         "entrypoint": str(entrypoint.as_posix()),
         "callable": callable_name,
         "example_input": example_input,
+        "name": _optional_text(manifest.get("name")),
+        "domain": _optional_text(manifest.get("domain"), default="custom"),
+        "simulator": _optional_text(manifest.get("simulator") or manifest.get("domain"), default=EXPERT_SIMULATOR),
+        "input_dim": input_dim,
+        "output_dim": output_dim,
+        "assembly_enabled": _coerce_bool(manifest.get("assembly_enabled"), True),
+        "data_generation_enabled": _coerce_bool(manifest.get("data_generation_enabled"), True),
     }
 
 
@@ -474,15 +652,31 @@ def validate_model_contract(model: dict[str, Any]) -> dict[str, Any]:
     if not callable(predict):
         raise ExpertModelError(f"专家模型必须实现可调用入口: {callable_name}(inputs)")
     example_input = _finite_vector(model.get("example_input", getattr(module, "EXAMPLE_INPUT", DEFAULT_EXAMPLE_INPUT)), "EXAMPLE_INPUT")
+    declared_input_dim = _coerce_positive_int(
+        model.get("input_dim"),
+        "input_dim",
+        optional=True,
+        max_value=MAX_INPUT_DIM,
+    )
+    if declared_input_dim is not None and declared_input_dim != len(example_input):
+        raise ExpertModelError(f"input_dim 与 example_input 长度不一致: {declared_input_dim} != {len(example_input)}")
     try:
         with _module_context(root, entrypoint):
             smoke_output = _normalise_output(predict(list(example_input)))
     except Exception as exc:
         raise ExpertModelError(f"专家模型上传校验失败：{callable_name}(EXAMPLE_INPUT) 无法返回合法 float 输出（{exc}）") from exc
+    declared_output_dim = _coerce_positive_int(model.get("output_dim"), "output_dim", optional=True)
+    if declared_output_dim is not None and declared_output_dim != len(smoke_output):
+        raise ExpertModelError(f"output_dim 与 smoke output 长度不一致: {declared_output_dim} != {len(smoke_output)}")
     return {
+        "runtime": "python",
         "example_input": example_input,
         "example_input_dim": len(example_input),
         "smoke_output_dim": len(smoke_output),
+        "input_dim": len(example_input),
+        "output_dim": len(smoke_output),
+        "validated_at": _now(),
+        "last_error": None,
     }
 
 
@@ -495,25 +689,39 @@ def upload_model(name: str, content: bytes) -> dict[str, Any]:
     kind = _upload_kind(name)
     stem = _safe_stem(name)
     digest = hashlib.sha256(content + str(time.time_ns()).encode("ascii")).hexdigest()[:12]
+    checksum = hashlib.sha256(content).hexdigest()
     model_id = validate_name("model_id", f"{stem}-{digest}")
     model_dir = EXPERT_MODEL_FILES / model_id
 
     try:
         if kind == "python_file":
             prepared = _prepare_python_file(model_id, name, content)
+            manifest = {}
         else:
             prepared = _prepare_bundle(model_id, name, content, kind)
+            manifest = dict(prepared.get("manifest") or {})
+        model_name = _safe_stem(manifest.get("name") or name)
         model = {
             "model_id": model_id,
-            "name": stem,
+            "name": model_name,
+            "status": "active",
+            "runtime": "python",
             "created_at": _now(),
             "file_size_bytes": len(content),
+            "checksum": checksum,
+            "domain": _optional_text(manifest.get("domain"), default="custom"),
+            "simulator": _optional_text(manifest.get("simulator") or manifest.get("domain"), default=EXPERT_SIMULATOR),
+            "assembly_enabled": _coerce_bool(manifest.get("assembly_enabled"), True),
+            "data_generation_enabled": _coerce_bool(manifest.get("data_generation_enabled"), True),
+            "input_dim": manifest.get("input_dim"),
+            "output_dim": manifest.get("output_dim"),
             "interface": EXPERT_INTERFACE,
             "interface_version": EXPERT_INTERFACE_VERSION,
             "constraints_version": EXPERT_INTERFACE_VERSION,
             **prepared,
         }
         model.update(validate_model_contract(model))
+        model = _normalise_model_metadata(model)
     except Exception:
         shutil.rmtree(model_dir, ignore_errors=True)
         raise
@@ -687,6 +895,26 @@ def _normalise_output(value: Any) -> list[float]:
     return output
 
 
+def normalise_output(value: Any) -> list[float]:
+    return _normalise_output(value)
+
+
+def load_predict(model: dict[str, Any]) -> Callable[[list[float]], Any]:
+    return _load_predict(model)
+
+
+def predict_model(model_id: str, inputs: list[float]) -> list[float]:
+    model = get_model(model_id)
+    if model.get("status") != "active":
+        raise ExpertModelError(f"专家模型未启用: {model_id}")
+    predict = _load_predict(model)
+    vector = _finite_vector(inputs, "inputs")
+    expected = int(model.get("input_dim") or len(vector))
+    if len(vector) != expected:
+        raise ExpertModelError(f"专家模型输入维度不匹配: 期望 {expected}，实际 {len(vector)}")
+    return _normalise_output(predict(vector))
+
+
 def _write_expert_config(model: dict[str, Any], scenario: str, output_file: str, plan: dict[str, Any], prompt: str) -> None:
     EXPERT_CONFIG_ROOT.mkdir(parents=True, exist_ok=True)
     cfg = {
@@ -717,9 +945,16 @@ def generate_dataset(
 ) -> dict[str, Any]:
     scenario = validate_name("scenario", scenario)
     model = get_model(model_id)
-    plan_result = build_input_plan(prompt, input_dim=input_dim)
+    if model.get("status") != "active":
+        raise ExpertModelError(f"专家模型未启用: {model_id}")
+    if not model.get("data_generation_enabled"):
+        raise ExpertModelError(f"专家模型未开放数据生成功能: {model_id}")
+    expected_input_dim = int(model.get("input_dim") or input_dim or 1)
+    plan_result = build_input_plan(prompt, input_dim=input_dim or expected_input_dim)
     plan = plan_result["plan"]
     params = plan_result["matrix"].astype(np.float32)
+    if int(params.shape[1]) != expected_input_dim:
+        raise ExpertModelError(f"专家模型输入维度不匹配: 期望 {expected_input_dim}，实际 {int(params.shape[1])}")
 
     output_path = DATA_ROOT / EXPERT_SIMULATOR / f"{EXPERT_SIMULATOR}_{scenario}.h5"
     if output_path.exists() and not overwrite:
@@ -731,8 +966,11 @@ def generate_dataset(
     for row_idx, row in enumerate(params):
         result = predict([float(value) for value in row.tolist()])
         values = _normalise_output(result)
+        registered_output_dim = int(model.get("output_dim") or 0)
         if output_dim is None:
             output_dim = len(values)
+            if registered_output_dim and output_dim != registered_output_dim:
+                raise ExpertModelError(f"专家模型输出维度不匹配: 期望 {registered_output_dim}，实际 {output_dim}")
         elif len(values) != output_dim:
             raise ExpertModelError(f"专家模型第 {row_idx} 个输出维度变化：期望 {output_dim}，实际 {len(values)}")
         outputs.append(values)

@@ -20,7 +20,6 @@ import {
   ChevronUp,
   Sparkles,
   Save,
-  Upload,
   Info,
   Eye,
   EyeOff,
@@ -76,11 +75,28 @@ interface FNOExpert {
   gpu_id?: number
 }
 
+interface UploadedExpert {
+  model_id: string
+  name: string
+  simulator?: string
+  domain?: string
+  input_dim?: number | null
+  output_dim?: number | null
+  runtime?: string
+  status?: string
+  path: string
+  trained?: boolean
+  assembly_enabled?: boolean
+  data_generation_enabled?: boolean
+  last_error?: string | null
+}
+
 interface LoadedModels {
   llm: { loaded: boolean; gpu_id?: number; path?: string | null }
   router: { loaded: boolean; gpu_id?: number; path?: string | null }
   text2comp: { loaded: boolean; gpu_id?: number; paths?: string[] }
   fno: { loaded: boolean; gpu_id?: number; paths?: string[] }
+  uploaded_expert?: { loaded: boolean; model_id?: string | null; path?: string | null; executor?: string | null }
 }
 
 interface AssemblyStatus {
@@ -88,6 +104,7 @@ interface AssemblyStatus {
   routers: RouterModel[]
   text2comps: Text2CompModel[]
   fno_experts: FNOExpert[]
+  custom_experts: UploadedExpert[]
   gpus: GPUInfo[]
   loaded_models: LoadedModels
   gpu_available: boolean
@@ -99,7 +116,7 @@ interface TestResult {
   router_class_name: string
   final_answer: string
   full_response: string
-  expert_used?: string
+  expert_used?: boolean
   expert_output?: string
   latency_ms: number
 }
@@ -353,104 +370,6 @@ function ModelSelector({
   )
 }
 
-// ===== 专家模型路径上传组件 =====
-
-function ExpertUploadSection({
-  onUpload,
-  uploading,
-}: {
-  onUpload: (path: string, type: 'fno' | 'fno', simulator: string, outputDim?: number) => void
-  uploading: boolean
-}) {
-  const [showUpload, setShowUpload] = useState(false)
-  const [uploadType, setUploadType] = useState<'fno'>('fno')
-  const [modelPath, setModelPath] = useState('')
-  const [simulator, setSimulator] = useState('')
-  const [outputDim, setOutputDim] = useState(32)
-
-  const handleUploadClick = () => {
-    if (modelPath && simulator) {
-      onUpload(modelPath, uploadType, simulator, outputDim)
-      setShowUpload(false)
-      setModelPath('')
-      setSimulator('')
-    }
-  }
-
-  return (
-    <div className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <Upload size={18} className="text-violet-400" />
-          <span className="font-semibold text-slate-100">自定义专家模型</span>
-        </div>
-        <button onClick={() => setShowUpload(!showUpload)} className="text-xs text-slate-400 hover:text-slate-300">
-          {showUpload ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-        </button>
-      </div>
-
-      {showUpload && (
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">模型类型</label>
-              <select
-                value={uploadType}
-                onChange={e => setUploadType(e.target.value as 'fno' | 'fno')}
-                className="select w-full"
-              >
-                <option value="fno">FNO Expert</option>
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">Simulator名称</label>
-              <input
-                type="text"
-                value={simulator}
-                onChange={e => setSimulator(e.target.value)}
-                placeholder="如: diff-sorp"
-                className="input w-full"
-              />
-            </div>
-          </div>
-
-          <div>
-            <label className="text-xs text-slate-400 mb-1 block">模型路径 (.pt文件)</label>
-            <input
-              type="text"
-              value={modelPath}
-              onChange={e => setModelPath(e.target.value)}
-              placeholder="/path/to/model.pt"
-              className="input w-full"
-            />
-          </div>
-
-          {uploadType === 'fno' && (
-            <div>
-              <label className="text-xs text-slate-400 mb-1 block">输出维度 (output_dim)</label>
-              <input
-                type="number"
-                value={outputDim}
-                onChange={e => setOutputDim(Number(e.target.value))}
-                className="input w-full"
-              />
-            </div>
-          )}
-
-          <button
-            onClick={handleUploadClick}
-            disabled={!modelPath || !simulator || uploading}
-            className="btn-primary w-full"
-          >
-            {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-            {uploading ? '上传中...' : '添加模型'}
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function AssemblyPage() {
   const navigate = useNavigate()
   const [status, setStatus] = useState<AssemblyStatus | null>(null)
@@ -459,13 +378,14 @@ export default function AssemblyPage() {
   const [selectedRouter, setSelectedRouter] = useState<string | null>(null)
   const [selectedText2Comp, setSelectedText2Comp] = useState<string | null>(null)
   const [selectedFNO, setSelectedFNO] = useState<string | null>(null)
+  const [expertExecutor, setExpertExecutor] = useState<'fno' | 'uploaded'>('fno')
+  const [selectedUploadedExpert, setSelectedUploadedExpert] = useState<string | null>(null)
   const [selectedGPU, setSelectedGPU] = useState<number>(0)
   const [testInput, setTestInput] = useState('')
   const [testResult, setTestResult] = useState<TestResult | null>(null)
   const [testing, setTesting] = useState(false)
   const [loadingModels, setLoadingModels] = useState(false)
   const [showFullResponse, setShowFullResponse] = useState(false)
-  const [uploadingModel, setUploadingModel] = useState(false)
 
   // Prompt管理状态
   const [showPromptPanel, setShowPromptPanel] = useState(false)
@@ -509,6 +429,10 @@ export default function AssemblyPage() {
         : null
       const loadedFNOPath = data.loaded_models?.fno?.paths?.[0]
       const loadedFNO = loadedFNOPath ? data.fno_experts?.find((f: FNOExpert) => f.path === loadedFNOPath) : null
+      const loadedUploadedId = data.loaded_models?.uploaded_expert?.model_id
+      const loadedUploadedExpert = loadedUploadedId
+        ? data.custom_experts?.find((expert: UploadedExpert) => expert.model_id === loadedUploadedId)
+        : null
 
       if (loadedLLM) {
         setSelectedLLM(loadedLLM.name)
@@ -544,6 +468,12 @@ export default function AssemblyPage() {
         const trained = data.fno_experts.find((f: FNOExpert) => f.trained)
         if (trained) setSelectedFNO(trained.name)
       }
+      if (data.loaded_models?.uploaded_expert?.executor === 'uploaded') setExpertExecutor('uploaded')
+      if (loadedUploadedExpert) {
+        setSelectedUploadedExpert(loadedUploadedExpert.name)
+      } else if (data.custom_experts?.length > 0 && !selectedUploadedExpert) {
+        setSelectedUploadedExpert(data.custom_experts[0].name)
+      }
     } catch (e) {
       console.error('Failed to fetch assembly status:', e)
     } finally {
@@ -567,6 +497,11 @@ export default function AssemblyPage() {
     const routerInfo = status.routers.find(r => r.name === selectedRouter)
     const text2CompInfo = status.text2comps.find(t => t.name === selectedText2Comp)
     const fnoInfo = status.fno_experts.find(f => f.name === selectedFNO)
+    const uploadedInfo = status.custom_experts?.find(expert => expert.name === selectedUploadedExpert)
+    if (expertExecutor === 'uploaded' && !uploadedInfo) {
+      alert('请选择 Uploaded Expert')
+      return
+    }
 
     setLoadingModels(true)
     try {
@@ -576,7 +511,9 @@ export default function AssemblyPage() {
         router_gpu_id: undefined,
         router_path: routerInfo?.path,
         text2comp_path: text2CompInfo?.path,
-        fno_path: fnoInfo?.path,
+        fno_path: expertExecutor === 'fno' ? fnoInfo?.path : undefined,
+        expert_executor: expertExecutor,
+        uploaded_expert_id: expertExecutor === 'uploaded' ? uploadedInfo?.model_id : undefined,
         force_split: false,
         auto_sync: true,
       })
@@ -599,26 +536,12 @@ export default function AssemblyPage() {
       setSelectedRouter(null)
       setSelectedText2Comp(null)
       setSelectedFNO(null)
+      setExpertExecutor('fno')
       await fetchStatus()
     } catch (e) {
       console.error('Unload failed:', e)
     } finally {
       setLoadingModels(false)
-    }
-  }
-
-  const handleUploadExpert = async (path: string, type: 'fno' | 'fno', simulator: string, outputDim?: number) => {
-    setUploadingModel(true)
-    try {
-      // 这里需要后端API支持，暂时用console.log
-      console.log('Upload expert:', { path, type, simulator, outputDim })
-      alert('模型路径已记录，需要后端API支持注册新模型')
-      await fetchStatus()
-    } catch (e) {
-      console.error('Upload failed:', e)
-      alert(`上传失败: ${e}`)
-    } finally {
-      setUploadingModel(false)
     }
   }
 
@@ -680,6 +603,13 @@ export default function AssemblyPage() {
   const isLoaded = status?.loaded_models?.llm?.loaded || false
   const canTest = isLoaded && testInput.trim()
   const currentRouter = status?.routers?.find(r => r.name === selectedRouter)
+  const selectedText2CompInfo = status?.text2comps?.find(t => t.name === selectedText2Comp)
+  const selectedUploadedExpertInfo = status?.custom_experts?.find(expert => expert.name === selectedUploadedExpert)
+  const dimMismatch =
+    expertExecutor === 'uploaded' &&
+    selectedText2CompInfo &&
+    selectedUploadedExpertInfo &&
+    selectedText2CompInfo.output_dim !== selectedUploadedExpertInfo.input_dim
 
   if (loading) {
     return (
@@ -706,7 +636,7 @@ export default function AssemblyPage() {
                 <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">
                   PiERN Pipeline Builder
                 </h1>
-                <p className="mt-2 text-slate-400 text-sm">Router → Text2Comp → FNO Expert 多模型组合拼装界面</p>
+                <p className="mt-2 text-slate-400 text-sm">Router → Text2Comp → Expert 多模型组合拼装界面</p>
                 {status?.architecture_note && <p className="mt-1 text-xs text-slate-500">{status.architecture_note}</p>}
               </div>
               <button className="btn-secondary" onClick={() => navigate('/training')}>
@@ -748,26 +678,28 @@ export default function AssemblyPage() {
           {/* Architecture Diagram */}
           <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
             <div className="flex items-center justify-center gap-3 py-3 overflow-x-auto">
-              {['LLM', 'Router', 'Text2Comp', 'FNO', 'Output'].map((name, idx) => {
-                const icons = [Box, Box, Layers, Activity, Zap]
-                const Icon = icons[idx]
-                const loadedKeys = ['llm', 'router', 'text2comp', 'fno'] as const
-                const isLd =
-                  idx === 4 ? true : status?.loaded_models?.[loadedKeys[idx] as (typeof loadedKeys)[number]]?.loaded
-                const colors = ['amber', 'amber', 'sky', 'emerald', 'violet']
-                const color = colors[idx]
-                return (
-                  <div key={name} className="flex flex-col items-center gap-1 min-w-[60px]">
-                    <div
-                      className={`rounded-xl border p-2 ${isLd ? `border-emerald-500/40 bg-emerald-500/15` : `border-${color}-500/40 bg-${color}-500/15`}`}
-                    >
-                      <Icon size={20} className={isLd ? 'text-emerald-400' : `text-${color}-400`} />
+              {['LLM', 'Router', 'Text2Comp', expertExecutor === 'uploaded' ? 'Uploaded Expert' : 'FNO', 'Output'].map(
+                (name, idx) => {
+                  const icons = [Box, Box, Layers, Activity, Zap]
+                  const Icon = icons[idx]
+                  const loadedKeys = ['llm', 'router', 'text2comp', 'fno'] as const
+                  const isLd =
+                    idx === 4 ? true : status?.loaded_models?.[loadedKeys[idx] as (typeof loadedKeys)[number]]?.loaded
+                  const colors = ['amber', 'amber', 'sky', 'emerald', 'violet']
+                  const color = colors[idx]
+                  return (
+                    <div key={name} className="flex flex-col items-center gap-1 min-w-[60px]">
+                      <div
+                        className={`rounded-xl border p-2 ${isLd ? `border-emerald-500/40 bg-emerald-500/15` : `border-${color}-500/40 bg-${color}-500/15`}`}
+                      >
+                        <Icon size={20} className={isLd ? 'text-emerald-400' : `text-${color}-400`} />
+                      </div>
+                      <span className="text-xs text-slate-300">{name}</span>
+                      {idx < 4 && <ArrowRight size={16} className="text-slate-500" />}
                     </div>
-                    <span className="text-xs text-slate-300">{name}</span>
-                    {idx < 4 && <ArrowRight size={16} className="text-slate-500" />}
-                  </div>
-                )
-              })}
+                  )
+                },
+              )}
             </div>
           </section>
 
@@ -794,7 +726,11 @@ export default function AssemblyPage() {
               </div>
               <div className="flex items-center gap-3">
                 {!isLoaded ? (
-                  <button className="btn-primary" onClick={handleLoadAll} disabled={loadingModels || !selectedLLM}>
+                  <button
+                    className="btn-primary"
+                    onClick={handleLoadAll}
+                    disabled={loadingModels || !selectedLLM || Boolean(dimMismatch)}
+                  >
                     {loadingModels ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
                     {loadingModels ? '加载中...' : '一键加载所有模型'}
                   </button>
@@ -812,8 +748,39 @@ export default function AssemblyPage() {
             </div>
             <div className="mt-3 text-xs text-slate-400">
               LLM: {selectedLLM || '未选择'} | Text2Comp: {selectedText2Comp || '未选择'} | FNO:{' '}
-              {selectedFNO || '未选择'} → GPU {selectedGPU}
+              {expertExecutor === 'uploaded' ? selectedUploadedExpert || '未选择' : selectedFNO || '未选择'} → GPU{' '}
+              {selectedGPU}
             </div>
+          </section>
+
+          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <Activity size={18} className="text-emerald-400" />
+                <span className="font-semibold text-slate-100">专家执行器</span>
+              </div>
+              <div className="flex rounded-xl border border-slate-700/45 bg-slate-950/45 p-1">
+                {(['fno', 'uploaded'] as const).map(mode => (
+                  <button
+                    key={mode}
+                    className={`rounded-lg px-3 py-1.5 text-xs transition-all ${
+                      expertExecutor === mode
+                        ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/35'
+                        : 'text-slate-500 hover:text-slate-300'
+                    }`}
+                    onClick={() => setExpertExecutor(mode)}
+                  >
+                    {mode === 'fno' ? 'FNO Expert' : 'Uploaded Expert'}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {expertExecutor === 'uploaded' && dimMismatch && (
+              <div className="mt-3 rounded-lg border border-rose-500/20 bg-rose-500/8 px-3 py-2 text-xs text-rose-300">
+                Text2Comp 输出维度 {selectedText2CompInfo?.output_dim} 与 Uploaded Expert 输入维度{' '}
+                {selectedUploadedExpertInfo?.input_dim} 不匹配。
+              </div>
+            )}
           </section>
 
           {/* Model Selection - 多选下拉框 */}
@@ -848,20 +815,42 @@ export default function AssemblyPage() {
               placeholder="选择文生计算模型"
               loadedInfo={status?.loaded_models?.text2comp}
             />
-            <ModelSelector
-              title="FNO Expert"
-              icon={Activity}
-              models={status?.fno_experts?.map(f => ({ ...f, description: `in:${f.input_dim}` })) || []}
-              selected={selectedFNO}
-              onSelect={name => setSelectedFNO(name as string)}
-              color="emerald"
-              placeholder="选择FNO专家"
-              loadedInfo={status?.loaded_models?.fno}
-            />
+            {expertExecutor === 'fno' ? (
+              <ModelSelector
+                title="FNO Expert"
+                icon={Activity}
+                models={status?.fno_experts?.map(f => ({ ...f, description: `in:${f.input_dim}` })) || []}
+                selected={selectedFNO}
+                onSelect={name => setSelectedFNO(name as string)}
+                color="emerald"
+                placeholder="选择FNO专家"
+                loadedInfo={status?.loaded_models?.fno}
+              />
+            ) : (
+              <ModelSelector
+                title="Uploaded Expert"
+                icon={Activity}
+                models={
+                  status?.custom_experts?.map(expert => ({
+                    name: expert.name,
+                    description: `in:${expert.input_dim ?? '--'} out:${expert.output_dim ?? '--'}`,
+                    trained:
+                      expert.status === 'active' && expert.assembly_enabled !== false && expert.trained !== false,
+                    output_dim: expert.input_dim ?? undefined,
+                    simulator: expert.simulator,
+                  })) || []
+                }
+                selected={selectedUploadedExpert}
+                onSelect={name => setSelectedUploadedExpert(name as string)}
+                color="emerald"
+                placeholder="选择上传专家"
+                loadedInfo={{
+                  loaded: Boolean(status?.loaded_models?.uploaded_expert?.loaded),
+                  gpu_id: status?.loaded_models?.text2comp?.gpu_id,
+                }}
+              />
+            )}
           </section>
-
-          {/* 自定义专家模型上传 */}
-          <ExpertUploadSection onUpload={handleUploadExpert} uploading={uploadingModel} />
 
           {/* Prompt 管理 */}
           <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
@@ -1008,7 +997,11 @@ export default function AssemblyPage() {
                 {testResult.expert_used && (
                   <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3">
                     <div className="text-xs text-sky-400 mb-1">使用专家</div>
-                    <div className="text-lg font-semibold text-slate-100">{testResult.expert_used}</div>
+                    <div className="text-lg font-semibold text-slate-100">
+                      {expertExecutor === 'uploaded'
+                        ? selectedUploadedExpert || 'Uploaded Expert'
+                        : selectedFNO || 'FNO Expert'}
+                    </div>
                   </div>
                 )}
                 <div className="rounded-xl border border-violet-500/20 bg-violet-500/8 p-3">
@@ -1062,8 +1055,10 @@ export default function AssemblyPage() {
                 <div className="text-slate-200 mt-1 truncate">{selectedText2Comp || '未选择'}</div>
               </div>
               <div>
-                <div className="text-xs text-slate-400">FNO</div>
-                <div className="text-slate-200 mt-1 truncate">{selectedFNO || '未选择'}</div>
+                <div className="text-xs text-slate-400">Expert</div>
+                <div className="text-slate-200 mt-1 truncate">
+                  {expertExecutor === 'uploaded' ? selectedUploadedExpert || '未选择' : selectedFNO || '未选择'}
+                </div>
               </div>
             </div>
           </section>
