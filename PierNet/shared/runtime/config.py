@@ -42,6 +42,17 @@ def _env_float(name: str, default: float) -> float:
         return default
 
 
+def _env_bool(name: str, default: bool) -> bool:
+    raw = _env(name).lower()
+    if not raw:
+        return default
+    if raw in {"1", "true", "yes", "y", "on"}:
+        return True
+    if raw in {"0", "false", "no", "n", "off"}:
+        return False
+    return default
+
+
 def _env_path(name: str, default: Path) -> Path:
     raw = _env(name)
     value = Path(os.path.expandvars(raw)).expanduser() if raw else default
@@ -103,6 +114,12 @@ class RuntimeConfig:
     default_prepare_workers: int
     gpu_free_memory_threshold_mib: int
     gpu_available_util_threshold: float
+    cache_cleanup_enabled: bool
+    cache_cleanup_dry_run: bool
+    cache_cleanup_interval_hours: float
+    router_jsonl_cache_ttl_days: float
+    training_prepared_cache_ttl_days: float
+    cache_cleanup_max_delete_gb: float
     log_level: str
 
     def safe_summary(self) -> Dict[str, Any]:
@@ -136,6 +153,12 @@ class RuntimeConfig:
             "default_prepare_workers": self.default_prepare_workers,
             "gpu_free_memory_threshold_mib": self.gpu_free_memory_threshold_mib,
             "gpu_available_util_threshold": self.gpu_available_util_threshold,
+            "cache_cleanup_enabled": self.cache_cleanup_enabled,
+            "cache_cleanup_dry_run": self.cache_cleanup_dry_run,
+            "cache_cleanup_interval_hours": self.cache_cleanup_interval_hours,
+            "router_jsonl_cache_ttl_days": self.router_jsonl_cache_ttl_days,
+            "training_prepared_cache_ttl_days": self.training_prepared_cache_ttl_days,
+            "cache_cleanup_max_delete_gb": self.cache_cleanup_max_delete_gb,
             "log_level": self.log_level,
         }
 
@@ -213,6 +236,12 @@ def load_runtime_config() -> RuntimeConfig:
         default_prepare_workers=_env_int("PierNet_DEFAULT_PREPARE_WORKERS", 8),
         gpu_free_memory_threshold_mib=_env_int("PierNet_GPU_FREE_MEMORY_THRESHOLD_MIB", 2048),
         gpu_available_util_threshold=_env_float("PierNet_GPU_AVAILABLE_UTIL_THRESHOLD", 20.0),
+        cache_cleanup_enabled=_env_bool("PierNet_CACHE_CLEANUP_ENABLED", False),
+        cache_cleanup_dry_run=_env_bool("PierNet_CACHE_CLEANUP_DRY_RUN", False),
+        cache_cleanup_interval_hours=_env_float("PierNet_CACHE_CLEANUP_INTERVAL_HOURS", 24.0),
+        router_jsonl_cache_ttl_days=_env_float("PierNet_ROUTER_JSONL_CACHE_TTL_DAYS", 7.0),
+        training_prepared_cache_ttl_days=_env_float("PierNet_TRAINING_PREPARED_CACHE_TTL_DAYS", 7.0),
+        cache_cleanup_max_delete_gb=_env_float("PierNet_CACHE_CLEANUP_MAX_DELETE_GB", 1024.0),
         log_level=_env("PierNet_LOG_LEVEL", "INFO") or "INFO",
     )
 

@@ -43,6 +43,21 @@ def test_runtime_config_reports_missing_data_root(monkeypatch, tmp_path):
     assert any("PierNet_DATA_ROOT" in item for item in validation.errors)
 
 
+def test_runtime_config_exposes_cache_cleanup_defaults(monkeypatch, tmp_path):
+    _set_minimal_env(monkeypatch, tmp_path)
+
+    config = load_runtime_config()
+    summary = config.safe_summary()
+
+    assert config.cache_cleanup_enabled is False
+    assert config.cache_cleanup_dry_run is False
+    assert config.cache_cleanup_interval_hours == 24.0
+    assert config.router_jsonl_cache_ttl_days == 7.0
+    assert config.training_prepared_cache_ttl_days == 7.0
+    assert config.cache_cleanup_max_delete_gb == 1024.0
+    assert summary["training_prepared_cache_ttl_days"] == 7.0
+
+
 def test_runtime_config_prefers_repo_local_python_and_node_defaults(monkeypatch, tmp_path):
     repo_python = tmp_path / ".conda" / "env" / "bin" / "python"
     repo_node = tmp_path / ".node" / "current" / "bin" / "node"

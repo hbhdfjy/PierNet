@@ -16,6 +16,10 @@ import torch
 from torch.utils.data import Dataset, Sampler
 
 from PierNet.shared.storage import portable
+from PierNet.training.services.cache_cleanup import (
+    touch_prepared_cache_meta,
+    touch_router_jsonl_cache_meta,
+)
 from .pretrained_embeddings import (
     EmbeddingBackboneSpec,
     PretrainedEmbeddingEncoder,
@@ -200,19 +204,25 @@ def _materialize_parquet_router_files(
         if not valid_cache:
             _log_prepare(f"materializing router Parquet partition scenario={part.scenario} -> {out_path}")
             count = portable.export_records_to_jsonl("router", out_path, simulator=simulator, scenario=part.scenario)
-            meta_path.write_text(
-                json.dumps(
-                    {
-                        "source_path": str(part.path),
-                        "source_mtime": part.mtime,
-                        "row_count": count,
-                        "simulator": simulator,
-                        "scenario": part.scenario,
-                    },
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
+            touch_router_jsonl_cache_meta(
+                out_path,
+                meta_path=meta_path,
+                source_path=str(part.path),
+                source_mtime=part.mtime,
+                row_count=count,
+                simulator=simulator,
+                scenario=part.scenario,
+                built=True,
+            )
+        else:
+            touch_router_jsonl_cache_meta(
+                out_path,
+                meta_path=meta_path,
+                source_path=str(part.path),
+                source_mtime=part.mtime,
+                row_count=int(part.row_count),
+                simulator=simulator,
+                scenario=part.scenario,
             )
         files.append(out_path)
     return files
@@ -1150,6 +1160,11 @@ def prepare_router_dataset(
             metadata=metadata,
             source_fingerprint=source_fingerprint,
         ):
+            touch_prepared_cache_meta(
+                output_dir,
+                simulator=simulator,
+                prepared_name=output_dir.name,
+            )
             _log_prepare(
                 "reusing cached prepared dataset "
                 f"train_samples={cached.train_samples} test_samples={cached.test_samples} "
@@ -1183,6 +1198,12 @@ def prepare_router_dataset(
     summary.source_fingerprint = source_fingerprint
 
     summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    touch_prepared_cache_meta(
+        output_dir,
+        simulator=simulator,
+        prepared_name=output_dir.name,
+        built=True,
+    )
     _log_prepare(
         "prepared dataset ready "
         f"train_samples={summary.train_samples} test_samples={summary.test_samples} "

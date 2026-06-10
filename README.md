@@ -301,6 +301,20 @@ CUDA_VISIBLE_DEVICES=0 python scripts/router/train_token_router.py \
 - 数据切分：只使用 train/test。
 - embedding 在训练时查表，不离线保存。
 
+Token Router 会产生两类可再生缓存：
+
+- `data/router/.parquet_jsonl_cache/`：Router Parquet 训练前的 JSONL 物化缓存。
+- `artifacts/token_router/{simulator}/prepared/{prepared_name}/`：训练前处理好的 token cache。
+
+这两类缓存都会写入显式 `last_used_at` / `last_built_at`。只有训练数据准备链路实际复用缓存时才刷新 `last_used_at`；普通文件系统扫描不会刷新。过期清理可用：
+
+```bash
+python scripts/cache/cleanup_training_cache.py --execute
+python scripts/cache/cleanup_training_cache.py --dry-run --json
+```
+
+默认 TTL 均为 7 天，可用 `PierNet_ROUTER_JSONL_CACHE_TTL_DAYS` 和 `PierNet_TRAINING_PREPARED_CACHE_TTL_DAYS` 调整。worker 自动清理默认关闭；设置 `PierNet_CACHE_CLEANUP_ENABLED=1` 后按 `PierNet_CACHE_CLEANUP_INTERVAL_HOURS` 运行，默认真实删除，受 `PierNet_CACHE_CLEANUP_MAX_DELETE_GB` 单次上限保护。处于 `queued` / `starting` / `running` / `evaluating` / `stopping` 的训练任务引用的 prepared cache 不会被删除。
+
 ### Text2Comp 与模型拼装
 
 Text2Comp 通过 `/training/text2comp` 或 `/api/text2comp/*` 创建训练任务，默认产物写入：

@@ -248,6 +248,7 @@ Current assumptions:
 - input representation: `embedding` / `pretrained_embeddings`
 - prepared data stores source file ids, byte offsets, lengths, labels, scenario ids, and metadata
 - training prepares token caches from router Parquet partitions; legacy JSONL and materialized Parquet-to-JSONL caches are compatibility paths
+- Router JSONL materialization caches and Token Router prepared caches are reusable caches with explicit `last_used_at` / `last_built_at`; training reuse refreshes `last_used_at`, filesystem scans do not
 - model is `FullSeqDilatedConvRouter`, not a Transformer
 - split is stable by `build_group_key(context, scenario)`
 - only train/test splits exist
@@ -349,3 +350,90 @@ python scripts/ci/check_consistency.py
 4. Keep Token Router assumptions explicit: Qwen chat format, dynamic tokenization, frozen embedding table, single GPU.
 5. Keep manifests, indexes, and Parquet partition manifests in sync with any Stage 2-4 file lifecycle change.
 6. Update docs in the same change when user workflows, platform boundaries, or training assumptions change.
+
+## Development Standards
+
+These standards capture the working rules that should stay stable across future PierNet changes. They are more operational than the architecture notes above.
+
+### Authoritative Workspace
+
+- On the shared server, `/root/data/PierNet` is the authoritative working tree for this project. Do not make project changes in `/root/data/zyx` or in a local shadow copy unless the user explicitly asks for a separate experiment.
+- Before editing, check `git status --short` and the current branch. Work with existing user changes; do not reset or revert unrelated changes.
+- Keep temporary research pages, screenshots, scratch scripts, and one-off reports outside the repository unless the user explicitly asks to commit them.
+
+### Runtime And Ports
+
+- Keep the standard development ports stable: backend `8000`, frontend Vite `3000`.
+- Prefer `scripts/services/start.sh`, `scripts/services/status.sh`, `scripts/services/restart.sh`, and `scripts/services/stop.sh` for persistent server work. These scripts preserve processes after SSH exits and write logs/PIDs under `.runlogs/services/`.
+- After service changes, verify at least:
+  - backend live/ready health under `http://127.0.0.1:8000/api/health/*`
+  - frontend dev or static frontend availability
+  - worker state when worker-backed tasks are involved
+- If external PierNet web entrypoints are part of the user request, verify them with HTTP status checks after local service health passes.
+
+### API And Contract Changes
+
+- Backend routers stay under their product namespace (`PierNet/synth/...` or `PierNet/training/...`). `PierNet/api/main.py` only assembles the app.
+- Frontend API calls go through `frontend/src/lib/api.ts`; shared frontend mirrors live in `frontend/src/lib/types.ts`.
+- When backend schemas or routes change, update/export OpenAPI and keep `frontend/src/lib/generated/openapi.json` and `frontend/src/lib/generated/openapi.d.ts` consistent.
+- Run the OpenAPI contract check before pushing API changes:
+
+```bash
+python scripts/ci/export_openapi.py /tmp/PierNet-openapi-local.json
+npm --prefix frontend run openapi:check
+```
+
+### Data And Artifact Contracts
+
+- Preserve the Stage 1 HDF5, Stage 2 template, Stage 3 sample, Stage 4 router, and training artifact contracts unless the full producer/consumer chain is updated together.
+- Stage 3 sample filling is local deterministic filling and must not call an LLM.
+- Any change that creates, deletes, trims, migrates, or renames Stage 2-4 data must consider manifests, sparse indexes, Parquet partition manifests, and the file catalog together.
+- Runtime smoke tests that upload or generate temporary expert models, HDF5 files, configs, or registry entries must clean them up and leave `git status --short` clean.
+- Automatic cache cleanup is limited to `data/router/.parquet_jsonl_cache/` and `artifacts/token_router/*/prepared/*`. It must never target core Parquet/HDF5 data, training runs/checkpoints, models, `.conda`, or `.git`.
+- Before deleting a Token Router prepared cache, check active training statuses (`queued`, `starting`, `running`, `evaluating`, `stopping`) and protect any matching simulator/prepared-name reference; legacy active jobs without `prepared_name` protect all prepared caches for that simulator.
+
+### Training And Assembly
+
+- Treat Token Router, Text2Comp, Assembly, and Uploaded Expert as separate training/product areas even though they share `/training`.
+- Keep current Token Router assumptions explicit: Qwen chat format, dynamic tokenization, frozen pretrained embedding table, and single-GPU training.
+- Assembly must keep the module chain explicit: LLM, Router, Text2Comp, and an expert executor. Uploaded Expert should remain an independent executor type, not hidden inside FNO.
+- Any Assembly or expert-model change must validate dimension compatibility at load or execution time and return clear errors rather than silently falling back to incomplete outputs.
+- User-visible placeholder controls should be removed or wired to real backend behavior; do not keep fake upload/configuration UI.
+
+### Frontend And UX
+
+- Build the actual tool surface first. Avoid marketing-style landing pages for internal tools unless explicitly requested.
+- Keep the PiERN console-style dark UI consistent, but avoid visually redundant panels, repeated controls, and card nesting.
+- Layout or scroll changes must consider `frontend/src/lib/scrollAssist.ts`, `frontend/src/index.css`, `.page-content`, `.workbench-main-scroll`, `.training-page__body`, and `.training-scroll`.
+- For visual or workflow questions, test the real UI path with the browser or Playwright instead of relying only on source inspection.
+- For pages with scrolling content, inspect enough viewport positions to catch clipped text, hidden controls, and overflow.
+
+### Verification And CI
+
+- Use the local CI wrapper as the default pre-push gate:
+
+```bash
+scripts/ci/run_local_ci.sh
+```
+
+- For scoped work, use the narrower gates intentionally:
+
+```bash
+scripts/ci/run_local_ci.sh --backend
+scripts/ci/run_local_ci.sh --frontend --no-e2e
+```
+
+- Backend gate includes Ruff, consistency, repository hygiene, migration readiness, OpenAPI export/check, and pytest.
+- Frontend gate includes typecheck, lint, format check, tests, build, and optionally Playwright smoke/visual checks.
+- After pushing to `main` or updating a PR branch, inspect GitHub Actions and fix failures before declaring the work complete.
+
+### GitHub And Review Flow
+
+- Prefer fixing the active PR branch before merging when a PR has actionable issues.
+- Merge only after the branch is reviewed against current `main`, local checks pass, and CI is green.
+- When pushing from the shared server, remember that `gh` uses the authenticated account configured on that server.
+
+### Documentation
+
+- Update docs in the same change when ports, commands, public routes, API contracts, data contracts, or training assumptions change.
+- `README.md` is for user-facing setup and operations, `PROJECT_OVERVIEW.md` is for system boundaries, and `CLAUDE.md` is for implementation standards and sharp edges.
