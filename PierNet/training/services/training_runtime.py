@@ -43,6 +43,15 @@ def normalize_training_config(config: dict[str, Any]) -> dict[str, Any]:
     normalized["seed"] = max(0, seed if seed is not None else 42)
     if normalized.get("input_representation") != PRETRAINED_EMBEDDINGS:
         normalized["input_representation"] = PRETRAINED_EMBEDDINGS
+    auto_metric = str(normalized.get("auto_stop_metric") or "f1").strip().lower()
+    if auto_metric not in {"accuracy", "precision", "recall", "f1", "pr_auc"}:
+        auto_metric = "f1"
+    threshold = coerce_float(normalized.get("auto_stop_threshold"), 0.98)
+    min_epochs = coerce_int(normalized.get("auto_stop_min_epochs"), 1)
+    normalized["auto_stop_enabled"] = bool(normalized.get("auto_stop_enabled", False))
+    normalized["auto_stop_metric"] = auto_metric
+    normalized["auto_stop_threshold"] = min(max(threshold if threshold is not None else 0.98, 0.0), 1.0)
+    normalized["auto_stop_min_epochs"] = max(1, min_epochs if min_epochs is not None else 1)
     return normalized
 
 

@@ -43,6 +43,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-test-samples", type=int)
     parser.add_argument("--input-representation", choices=("embedding",), default="embedding")
     parser.add_argument("--stop-file")
+    parser.add_argument("--auto-stop", action="store_true")
+    parser.add_argument("--auto-stop-metric", choices=("accuracy", "precision", "recall", "f1", "pr_auc"), default="f1")
+    parser.add_argument("--auto-stop-threshold", type=float, default=0.98)
+    parser.add_argument("--auto-stop-min-epochs", type=int, default=1)
     return parser
 
 
@@ -78,6 +82,10 @@ def main() -> None:
         max_test_samples=args.max_test_samples,
         input_representation=args.input_representation,
         stop_file=args.stop_file,
+        auto_stop_enabled=args.auto_stop,
+        auto_stop_metric=args.auto_stop_metric,
+        auto_stop_threshold=args.auto_stop_threshold,
+        auto_stop_min_epochs=args.auto_stop_min_epochs,
     )
     run_dir = run_training(config)
     print(f"[done] run_dir={Path(run_dir).resolve()}")

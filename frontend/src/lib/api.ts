@@ -35,6 +35,7 @@ import type {
   TrainingGPUInfo,
   TrainingJobSummary,
   TrainingCreateJobRequest,
+  TrainingQuickJobCreateRequest,
   TrainingJobDetail,
   TrainingCurvesResponse,
   TrainingLogResponse,
@@ -489,6 +490,16 @@ export const api = {
       body: JSON.stringify(req),
     })
     await ensureOk(res, '启动训练失败')
+    return res.json()
+  },
+
+  createQuickTrainingJob: async (req: TrainingQuickJobCreateRequest): Promise<TrainingJobSummary> => {
+    const res = await apiFetch(`${BASE}/training/quick-jobs`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '启动一键训练失败')
     return res.json()
   },
 

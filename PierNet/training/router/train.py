@@ -59,6 +59,10 @@ class RouterTrainingConfig:
     max_test_samples: int | None = None
     input_representation: str = "embedding"
     stop_file: str | None = None
+    auto_stop_enabled: bool = False
+    auto_stop_metric: str = "f1"
+    auto_stop_threshold: float = 0.98
+    auto_stop_min_epochs: int = 1
 
     def __post_init__(self) -> None:
         if self.artifact_root is None:
@@ -254,6 +258,28 @@ def _prune_epoch_checkpoints(run_dir: Path, keep_last_epochs: int) -> None:
             print(f"[checkpoint] pruned_epoch_checkpoint={path}")
         except OSError as exc:
             print(f"[checkpoint] prune_failed path={path} error={exc}")
+
+
+def _auto_stop_reached(
+    config: RouterTrainingConfig,
+    metrics: dict[str, object],
+    *,
+    completed_epochs: int,
+) -> tuple[bool, float | None]:
+    if not config.auto_stop_enabled:
+        return False, None
+    if completed_epochs < max(1, int(config.auto_stop_min_epochs)):
+        return False, None
+    overall = metrics.get("overall")
+    if not isinstance(overall, dict):
+        return False, None
+    metric = str(config.auto_stop_metric or "f1").strip().lower()
+    value = overall.get(metric)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return False, None
+    return parsed >= float(config.auto_stop_threshold), parsed
 
 
 def _run_test(
@@ -548,6 +574,11 @@ def run_training(config: RouterTrainingConfig) -> Path:
             f"[train] resume_from={config.resume_from} start_epoch={start_epoch} "
             f"eval_interval={config.eval_interval}"
         )
+    if config.auto_stop_enabled:
+        print(
+            f"[auto-stop] enabled metric={config.auto_stop_metric} "
+            f"threshold={config.auto_stop_threshold:.4f} min_epochs={config.auto_stop_min_epochs}"
+        )
 
     epochs_to_run = config.epochs
     keep_last_epochs = max(0, int(config.keep_last_epochs))
@@ -674,7 +705,7 @@ def run_training(config: RouterTrainingConfig) -> Path:
             should_eval = current_epoch % max(config.eval_interval, 1) == 0
             is_last_finite_epoch = epochs_to_run > 0 and (current_epoch - start_epoch) >= epochs_to_run
             if should_eval or is_last_finite_epoch:
-                _run_test(
+                metrics = _run_test(
                     model=model,
                     test_loader=test_loader,
                     summary=summary,
@@ -685,6 +716,25 @@ def run_training(config: RouterTrainingConfig) -> Path:
                     device=device,
                     amp_dtype=amp_dtype,
                 )
+                reached, metric_value = _auto_stop_reached(
+                    config,
+                    metrics,
+                    completed_epochs=current_epoch - start_epoch,
+                )
+                if reached:
+                    print(
+                        f"[auto-stop] target reached epoch={current_epoch} "
+                        f"metric={config.auto_stop_metric} value={metric_value:.4f} "
+                        f"threshold={config.auto_stop_threshold:.4f}"
+                    )
+                    _write_stop_state(
+                        run_dir,
+                        reason="auto_stop_target_reached",
+                        epoch=current_epoch,
+                        step=total_steps,
+                        global_step=global_step,
+                    )
+                    break
             if stop_controller.requested():
                 print(f"[stop] platform stop accepted after epoch={current_epoch}; saving checkpoint")
                 _save_checkpoint(

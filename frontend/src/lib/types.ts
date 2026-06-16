@@ -599,10 +599,25 @@ export type TrainingOverview = components['schemas']['TrainingOverviewResponse']
 
 export type TrainingCreateJobRequest = Omit<
   components['schemas']['TrainingJobCreateRequest'],
-  'input_representation' | 'scenarios'
+  | 'input_representation'
+  | 'scenarios'
+  | 'auto_stop_enabled'
+  | 'auto_stop_metric'
+  | 'auto_stop_threshold'
+  | 'auto_stop_min_epochs'
 > & {
   scenarios: string[]
   input_representation?: 'embedding'
+  auto_stop_enabled?: boolean
+  auto_stop_metric?: 'accuracy' | 'precision' | 'recall' | 'f1' | 'pr_auc'
+  auto_stop_threshold?: number
+  auto_stop_min_epochs?: number
+}
+
+export interface TrainingQuickJobCreateRequest {
+  name?: string | null
+  simulator: string
+  scenarios: string[]
 }
 
 export type TrainingPoint = components['schemas']['TrainingPoint']

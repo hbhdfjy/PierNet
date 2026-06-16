@@ -18,6 +18,7 @@ TrainingJobStatus = Literal[
 ]
 TrainingJobInputRepresentation = Literal["pretrained_embeddings"]
 TrainingJobRequestedInputRepresentation = Literal["embedding"]
+TrainingAutoStopMetric = Literal["accuracy", "precision", "recall", "f1", "pr_auc"]
 
 
 class TrainingDatasetScenario(BaseModel):
@@ -64,6 +65,10 @@ class TrainingJobConfig(BaseModel):
     input_representation: TrainingJobInputRepresentation = "pretrained_embeddings"
     embedding_model: str = ""
     embedding_tokenizer: str = ""
+    auto_stop_enabled: bool = False
+    auto_stop_metric: TrainingAutoStopMetric = "f1"
+    auto_stop_threshold: float = 0.98
+    auto_stop_min_epochs: int = 1
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -86,6 +91,16 @@ class TrainingJobCreateRequest(BaseModel):
     max_test_samples: int | None = Field(default=None, ge=1, le=100_000_000)
     resume_from: str | None = None
     input_representation: TrainingJobRequestedInputRepresentation = "embedding"
+    auto_stop_enabled: bool = False
+    auto_stop_metric: TrainingAutoStopMetric = "f1"
+    auto_stop_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
+    auto_stop_min_epochs: int = Field(default=1, ge=1, le=100000)
+
+
+class TrainingQuickJobCreateRequest(BaseModel):
+    name: str | None = None
+    simulator: str = "modflow"
+    scenarios: list[str] = Field(default_factory=list)
 
 
 class TrainingMetricsSummary(BaseModel):

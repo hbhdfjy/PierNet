@@ -1,4 +1,4 @@
-import { Activity, Cpu, Database, Gauge, Layers3, PlayCircle, TimerReset } from 'lucide-react'
+import { Activity, Cpu, Database, Gauge, Layers3, MousePointerClick, PlayCircle, TimerReset } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useSWR from 'swr'
 import { api } from '../../lib/api'
@@ -71,7 +71,11 @@ export default function TrainingOverviewPage() {
                 </p>
               </div>
               <div className="training-overview-hero__actions">
-                <Link to="/training/new" className="btn-primary">
+                <Link to="/training/simple" className="btn-primary">
+                  <MousePointerClick size={15} />
+                  一键训练
+                </Link>
+                <Link to="/training/new" className="btn-ghost">
                   <PlayCircle size={15} />
                   新建训练
                 </Link>

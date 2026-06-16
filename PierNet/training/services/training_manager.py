@@ -59,6 +59,44 @@ GPU_AVAILABLE_UTIL_THRESHOLD = 20
 GPU_LOCK_TTL_SECONDS = float(os.getenv("PierNet_GPU_LOCK_TTL_SECONDS", str(7 * 24 * 3600)))
 TRAINING_QUEUE_DEFAULT_PRIORITY = int(os.getenv("PierNet_TRAINING_QUEUE_DEFAULT_PRIORITY", "100"))
 TRAINING_STOP_GRACE_SECONDS = 45.0
+AUTO_STOP_METRICS = {"accuracy", "precision", "recall", "f1", "pr_auc"}
+
+
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+def _env_float(name: str, default: float) -> float:
+    try:
+        return float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        return default
+
+
+QUICK_TRAINING_DEFAULTS = {
+    "epochs": _env_int("PierNet_QUICK_TRAINING_EPOCHS", 0),
+    "eval_interval": _env_int("PierNet_QUICK_TRAINING_EVAL_INTERVAL", 1),
+    "keep_last_epochs": _env_int("PierNet_QUICK_TRAINING_KEEP_LAST_EPOCHS", 5),
+    "seed": _env_int("PierNet_QUICK_TRAINING_SEED", 42),
+    "batch_size": _env_int("PierNet_QUICK_TRAINING_BATCH_SIZE", 256),
+    "test_batch_size": _env_int("PierNet_QUICK_TRAINING_TEST_BATCH_SIZE", 256),
+    "learning_rate": _env_float("PierNet_QUICK_TRAINING_LEARNING_RATE", 2e-4),
+    "weight_decay": _env_float("PierNet_QUICK_TRAINING_WEIGHT_DECAY", 1e-2),
+    "num_workers": _env_int("PierNet_QUICK_TRAINING_NUM_WORKERS", 8),
+    "prepare_workers": None,
+    "test_ratio": _env_float("PierNet_QUICK_TRAINING_TEST_RATIO", 0.10),
+    "max_train_samples": None,
+    "max_test_samples": None,
+    "resume_from": None,
+    "input_representation": "embedding",
+    "auto_stop_enabled": True,
+    "auto_stop_metric": os.getenv("PierNet_QUICK_TRAINING_AUTO_STOP_METRIC", "f1"),
+    "auto_stop_threshold": _env_float("PierNet_QUICK_TRAINING_AUTO_STOP_THRESHOLD", 0.98),
+    "auto_stop_min_epochs": _env_int("PierNet_QUICK_TRAINING_AUTO_STOP_MIN_EPOCHS", 1),
+}
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
 PLATFORM_STOP_TERMINAL_MESSAGES = {
@@ -209,6 +247,26 @@ def _normalize_job_name(value: Any, *, fallback: str) -> str:
         return fallback
     name = str(value).strip()
     return name[:80] if name else fallback
+
+
+def _normalize_auto_stop_options(payload: dict[str, Any]) -> dict[str, Any]:
+    metric = str(payload.get("auto_stop_metric") or "f1").strip().lower()
+    if metric not in AUTO_STOP_METRICS:
+        metric = "f1"
+    try:
+        threshold = float(payload.get("auto_stop_threshold", 0.98))
+    except (TypeError, ValueError):
+        threshold = 0.98
+    try:
+        min_epochs = int(payload.get("auto_stop_min_epochs", 1))
+    except (TypeError, ValueError):
+        min_epochs = 1
+    return {
+        "auto_stop_enabled": bool(payload.get("auto_stop_enabled", False)),
+        "auto_stop_metric": metric,
+        "auto_stop_threshold": min(max(threshold, 0.0), 1.0),
+        "auto_stop_min_epochs": max(1, min_epochs),
+    }
 
 
 def _hash_prepared_name(
@@ -415,6 +473,19 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
     )
 
 
+def _auto_select_gpu_id() -> int:
+    inventory = get_gpu_inventory()
+    if not inventory:
+        raise ValueError("No GPU found")
+
+    def rank(gpu: dict[str, Any]) -> tuple[int, int, int, int]:
+        free_memory = int(gpu.get("memory_total_mib") or 0) - int(gpu.get("memory_used_mib") or 0)
+        utilization = int(gpu.get("utilization_gpu") or 0)
+        return (0 if gpu.get("available") else 1, -free_memory, utilization, int(gpu.get("index") or 0))
+
+    return int(sorted(inventory, key=rank)[0]["index"])
+
+
 def get_overview() -> dict[str, Any]:
     jobs = list_jobs(refresh=True)
     running_job_count = sum(1 for job in jobs if job["status"] in TRAINING_ACTIVE_STATUSES)
@@ -479,6 +550,7 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
     max_test_samples = payload.get("max_test_samples")
     max_train_samples = int(max_train_samples) if max_train_samples is not None else None
     max_test_samples = int(max_test_samples) if max_test_samples is not None else None
+    auto_stop_options = _normalize_auto_stop_options(payload)
     resume_from = payload.get("resume_from") or None
     if resume_from:
         _validate_resume_checkpoint(
@@ -531,6 +603,7 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
             "input_representation": resolved_input_representation,
             "embedding_model": embedding_metadata.embedding_model,
             "embedding_tokenizer": embedding_metadata.tokenizer_name,
+            **auto_stop_options,
         },
         "command": [],
         "prepared_name": prepared_name,
@@ -576,6 +649,27 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     if _training_queue_enabled():
         return queue_job(payload)
     return _launch_job(payload)
+
+
+def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
+    simulator = str(payload.get("simulator") or "modflow").strip() or "modflow"
+    requested_scenarios = [str(item).strip() for item in list(payload.get("scenarios") or []) if str(item).strip()]
+    if not requested_scenarios:
+        raise ValueError("Please select at least one training scenario")
+    scenarios = _validate_scenarios(simulator, requested_scenarios)
+    quick_payload = dict(QUICK_TRAINING_DEFAULTS)
+    quick_payload.update(
+        {
+            "name": _normalize_job_name(
+                payload.get("name"),
+                fallback=f"一键训练-{simulator}-{time.strftime('%m%d-%H%M')}",
+            ),
+            "simulator": simulator,
+            "scenarios": scenarios,
+            "gpu_id": _auto_select_gpu_id(),
+        }
+    )
+    return create_job(quick_payload)
 
 
 def _payload_from_queued_entry(entry: dict[str, Any]) -> dict[str, Any]:
@@ -647,6 +741,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
     max_test_samples = payload.get("max_test_samples")
     max_train_samples = int(max_train_samples) if max_train_samples is not None else None
     max_test_samples = int(max_test_samples) if max_test_samples is not None else None
+    auto_stop_options = _normalize_auto_stop_options(payload)
     prepared_name = _hash_prepared_name(
         simulator,
         scenarios,
@@ -719,6 +814,18 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         command.extend(["--max-train-samples", str(max_train_samples)])
     if max_test_samples is not None:
         command.extend(["--max-test-samples", str(max_test_samples)])
+    if auto_stop_options["auto_stop_enabled"]:
+        command.extend(
+            [
+                "--auto-stop",
+                "--auto-stop-metric",
+                auto_stop_options["auto_stop_metric"],
+                "--auto-stop-threshold",
+                str(auto_stop_options["auto_stop_threshold"]),
+                "--auto-stop-min-epochs",
+                str(auto_stop_options["auto_stop_min_epochs"]),
+            ]
+        )
 
     with _REGISTRY_LOCK:
         entries = _load_registry()
@@ -827,6 +934,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                     "input_representation": resolved_input_representation,
                     "embedding_model": embedding_metadata.embedding_model,
                     "embedding_tokenizer": embedding_metadata.tokenizer_name,
+                    **auto_stop_options,
                 },
                 "command": command,
                 "prepared_name": prepared_name,

@@ -1,4 +1,6 @@
 from contextlib import contextmanager
+
+import pytest
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -300,3 +302,33 @@ def test_launch_job_does_not_start_cancelled_queued_entry(monkeypatch, tmp_path)
     stored = training_manager.get_job(entry["job_id"], refresh=False)
     assert stored["status"] == "terminated"
     assert stored["pid"] is None
+
+
+def test_quick_training_requires_selected_scenarios(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+
+    with pytest.raises(ValueError, match="select at least one training scenario"):
+        training_manager.create_quick_job({"simulator": "modflow", "scenarios": []})
+
+
+def test_quick_training_job_queues_with_platform_defaults(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+
+    entry = training_manager.create_quick_job(
+        {"name": "quick-train", "simulator": "modflow", "scenarios": ["coastal_seawater"]}
+    )
+
+    assert entry["status"] == "queued"
+    assert entry["name"] == "quick-train"
+    assert entry["gpu_id"] == 0
+    assert entry["scenarios"] == ["coastal_seawater"]
+    assert entry["config"]["input_representation"] == "pretrained_embeddings"
+    assert entry["config"]["auto_stop_enabled"] is True
+    assert entry["config"]["auto_stop_metric"] == "f1"
+    assert entry["config"]["auto_stop_threshold"] == 0.98
+    assert entry["config"]["auto_stop_min_epochs"] == 1
+    assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")

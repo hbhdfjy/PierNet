@@ -2669,6 +2669,33 @@
       },
       "TrainingJobConfig": {
         "properties": {
+          "auto_stop_enabled": {
+            "default": false,
+            "title": "Auto Stop Enabled",
+            "type": "boolean"
+          },
+          "auto_stop_metric": {
+            "default": "f1",
+            "enum": [
+              "accuracy",
+              "precision",
+              "recall",
+              "f1",
+              "pr_auc"
+            ],
+            "title": "Auto Stop Metric",
+            "type": "string"
+          },
+          "auto_stop_min_epochs": {
+            "default": 1,
+            "title": "Auto Stop Min Epochs",
+            "type": "integer"
+          },
+          "auto_stop_threshold": {
+            "default": 0.98,
+            "title": "Auto Stop Threshold",
+            "type": "number"
+          },
           "batch_size": {
             "default": 256,
             "title": "Batch Size",
@@ -2785,6 +2812,37 @@
       },
       "TrainingJobCreateRequest": {
         "properties": {
+          "auto_stop_enabled": {
+            "default": false,
+            "title": "Auto Stop Enabled",
+            "type": "boolean"
+          },
+          "auto_stop_metric": {
+            "default": "f1",
+            "enum": [
+              "accuracy",
+              "precision",
+              "recall",
+              "f1",
+              "pr_auc"
+            ],
+            "title": "Auto Stop Metric",
+            "type": "string"
+          },
+          "auto_stop_min_epochs": {
+            "default": 1,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Auto Stop Min Epochs",
+            "type": "integer"
+          },
+          "auto_stop_threshold": {
+            "default": 0.98,
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Auto Stop Threshold",
+            "type": "number"
+          },
           "batch_size": {
             "default": 256,
             "maximum": 8192.0,
@@ -3622,6 +3680,35 @@
           "eta_seconds"
         ],
         "title": "TrainingPoint",
+        "type": "object"
+      },
+      "TrainingQuickJobCreateRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "scenarios": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenarios",
+            "type": "array"
+          },
+          "simulator": {
+            "default": "modflow",
+            "title": "Simulator",
+            "type": "string"
+          }
+        },
+        "title": "TrainingQuickJobCreateRequest",
         "type": "object"
       },
       "TrainingTestPoint": {
@@ -7153,6 +7240,47 @@
           }
         },
         "summary": "Get Training Overview",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/quick-jobs": {
+      "post": {
+        "operationId": "create_quick_training_job_api_training_quick_jobs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TrainingQuickJobCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrainingJobSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Quick Training Job",
         "tags": [
           "training"
         ]

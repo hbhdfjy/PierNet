@@ -1694,6 +1694,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/training/quick-jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Quick Training Job */
+        post: operations["create_quick_training_job_api_training_quick_jobs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2856,6 +2873,27 @@ export interface components {
         /** TrainingJobConfig */
         TrainingJobConfig: {
             /**
+             * Auto Stop Enabled
+             * @default false
+             */
+            auto_stop_enabled: boolean;
+            /**
+             * Auto Stop Metric
+             * @default f1
+             * @enum {string}
+             */
+            auto_stop_metric: "accuracy" | "precision" | "recall" | "f1" | "pr_auc";
+            /**
+             * Auto Stop Min Epochs
+             * @default 1
+             */
+            auto_stop_min_epochs: number;
+            /**
+             * Auto Stop Threshold
+             * @default 0.98
+             */
+            auto_stop_threshold: number;
+            /**
              * Batch Size
              * @default 256
              */
@@ -2932,6 +2970,27 @@ export interface components {
         };
         /** TrainingJobCreateRequest */
         TrainingJobCreateRequest: {
+            /**
+             * Auto Stop Enabled
+             * @default false
+             */
+            auto_stop_enabled: boolean;
+            /**
+             * Auto Stop Metric
+             * @default f1
+             * @enum {string}
+             */
+            auto_stop_metric: "accuracy" | "precision" | "recall" | "f1" | "pr_auc";
+            /**
+             * Auto Stop Min Epochs
+             * @default 1
+             */
+            auto_stop_min_epochs: number;
+            /**
+             * Auto Stop Threshold
+             * @default 0.98
+             */
+            auto_stop_threshold: number;
             /**
              * Batch Size
              * @default 256
@@ -3183,6 +3242,18 @@ export interface components {
             step: number;
             /** Steps Per Sec */
             steps_per_sec: number;
+        };
+        /** TrainingQuickJobCreateRequest */
+        TrainingQuickJobCreateRequest: {
+            /** Name */
+            name?: string | null;
+            /** Scenarios */
+            scenarios?: string[];
+            /**
+             * Simulator
+             * @default modflow
+             */
+            simulator: string;
         };
         /** TrainingTestPoint */
         TrainingTestPoint: {
@@ -5866,6 +5937,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrainingOverviewResponse"];
+                };
+            };
+        };
+    };
+    create_quick_training_job_api_training_quick_jobs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TrainingQuickJobCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainingJobSummary"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

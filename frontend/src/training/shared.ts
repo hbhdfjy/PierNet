@@ -35,6 +35,10 @@ export function trainingJobDetailPath(jobId: string): string {
   return `/training/jobs/${encodeURIComponent(jobId)}`
 }
 
+export function trainingSimpleJobProgressPath(jobId: string): string {
+  return `/training/simple/jobs/${encodeURIComponent(jobId)}`
+}
+
 export const TRAINING_FINITE_EPOCHS_MIN = 1
 export const TRAINING_EPOCHS_MAX = 100000
 export const TRAINING_EVAL_INTERVAL_MIN = 1

@@ -90,3 +90,5 @@ migration_exports/
 # Router training artifacts
 artifacts/
 models/
+# Uploaded expert model runtime assets
+data/expert_models/
