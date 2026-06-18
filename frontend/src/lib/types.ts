@@ -630,3 +630,15 @@ export type TrainingTestPoint = components['schemas']['TrainingTestPoint']
 export type TrainingCurvesResponse = components['schemas']['TrainingCurvesResponse']
 
 export type TrainingLogResponse = components['schemas']['TrainingLogResponse']
+
+export type Text2CompOverview = components['schemas']['Text2CompOverviewResponse']
+
+export type Text2CompDatasetInfo = components['schemas']['Text2CompDatasetInfo']
+
+export type Text2CompGPUInfo = components['schemas']['Text2CompGPUInfo']
+
+export type Text2CompJobSummary = components['schemas']['Text2CompJobSummary']
+
+export type Text2CompTrainRequest = components['schemas']['Text2CompTrainRequest']
+
+export type Text2CompTrainResponse = components['schemas']['Text2CompTrainResponse']

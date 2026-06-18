@@ -122,8 +122,8 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               <div className="training-eyebrow">统一工作台</div>
               <h1>面向工程仿真数据生产与路由模型训练的一体化控制台</h1>
               <p>
-                数据合成负责原始物理数据、语言模板、样本填充和 Router
-                数据构建；简洁训练负责低配置启动、进度和结果闭环；复杂训练保留完整配置、曲线、日志、权重和文件管理。
+                数据合成负责原始物理数据、语言模板、样本填充和 Router 数据构建；简洁训练负责
+                Router、文生计算和模型拼装的粗粒度闭环；复杂训练保留完整配置、曲线、日志、权重和文件管理。
               </p>
               <div className="platform-command-panel__actions">
                 <Link to="/synth" className="btn-primary">
@@ -188,12 +188,12 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               icon={<MousePointerClick size={22} />}
               title="简洁训练平台"
               route="/training/simple"
-              copy="选择大场景、子场景、训练资源和历史结果，直接启动 Router 训练并查看进度与结果。"
+              copy="覆盖 Router 训练、文生计算训练和模型拼装，只暴露场景、资源、执行器等粗粒度决策。"
               metrics={[
                 { label: '配置', value: '粗粒度' },
-                { label: '对象', value: '训练启动' },
+                { label: '对象', value: 'PierNet 链路' },
               ]}
-              bullets={['场景选择、资源选择、继续训练', '进度、终止、删除、结果闭环', '默认训练策略由平台统一接管']}
+              bullets={['Router、Text2Comp、Assembly 入口', '进度、终止、删除、结果闭环', '默认训练策略由平台统一接管']}
             />
             <ModuleCard
               to="/training"

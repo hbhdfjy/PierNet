@@ -39,6 +39,12 @@ import type {
   TrainingJobDetail,
   TrainingCurvesResponse,
   TrainingLogResponse,
+  Text2CompOverview,
+  Text2CompDatasetInfo,
+  Text2CompGPUInfo,
+  Text2CompJobSummary,
+  Text2CompTrainRequest,
+  Text2CompTrainResponse,
 } from './types'
 
 const BASE = '/api'
@@ -525,6 +531,36 @@ export const api = {
 
   getTrainingLogs: (jobId: string, limit = 300): Promise<TrainingLogResponse> =>
     get(`/training/jobs/${encodeURIComponent(jobId)}/logs`, { limit }),
+
+  // ── 文生计算训练 ─────────────────────────────────────────────────
+  getText2CompOverview: (): Promise<Text2CompOverview> => get('/text2comp/overview'),
+
+  getText2CompDatasets: (): Promise<Text2CompDatasetInfo[]> => get('/text2comp/datasets'),
+
+  getText2CompGPUs: (): Promise<Text2CompGPUInfo[]> => get('/text2comp/gpus'),
+
+  getText2CompJobs: (): Promise<Text2CompJobSummary[]> => get('/text2comp/jobs'),
+
+  startText2CompTrain: async (req: Text2CompTrainRequest): Promise<Text2CompTrainResponse> => {
+    const res = await apiFetch(`${BASE}/text2comp/train`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    })
+    await ensureOk(res, '启动文生计算训练失败')
+    return res.json()
+  },
+
+  stopText2CompJob: async (jobId: string): Promise<Text2CompJobSummary> => {
+    const res = await apiFetch(`${BASE}/text2comp/jobs/${encodeURIComponent(jobId)}/stop`, { method: 'POST' })
+    await ensureOk(res, '停止文生计算训练失败')
+    return res.json()
+  },
+
+  deleteText2CompJob: async (jobId: string): Promise<void> => {
+    const res = await apiFetch(`${BASE}/text2comp/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE' })
+    await ensureOk(res, '删除文生计算训练失败')
+  },
 
   // ── Assembly ────────────────────────────────────────────────────
   getAssemblyStatus: (): Promise<{

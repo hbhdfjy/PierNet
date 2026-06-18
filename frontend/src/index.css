@@ -358,10 +358,10 @@
 
   .platform-switcher {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.3rem;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.4rem;
     margin: 0.75rem 0.65rem 0;
-    padding: 0.25rem;
+    padding: 0.35rem;
     border: 1px solid var(--line);
     border-radius: var(--radius-md);
     background: hsl(var(--surface2) / 0.64);
@@ -371,19 +371,20 @@
     display: inline-flex;
     min-width: 0;
     align-items: center;
-    justify-content: center;
-    gap: 0.35rem;
-    min-height: 2rem;
-    padding: 0.35rem 0.5rem;
+    justify-content: flex-start;
+    gap: 0.5rem;
+    min-height: 2.35rem;
+    padding: 0.48rem 0.6rem;
     border: 1px solid transparent;
     border-radius: var(--radius-sm);
     color: hsl(var(--text-faint));
-    font-size: 0.76rem;
-    font-weight: 600;
+    font-size: 0.78rem;
+    font-weight: 680;
     transition: all 0.15s ease;
   }
 
   .platform-switcher__item span {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1461,6 +1462,267 @@
 
   .training-simple-page {
     background: radial-gradient(circle at 24% 0%, hsl(var(--success) / 0.05), transparent 30rem);
+  }
+
+  .training-simple-workbench-hero {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(22rem, 0.55fr);
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .training-simple-workbench-hero__status {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .training-simple-workbench-hero__status > div {
+    min-width: 0;
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.44);
+    padding: 0.72rem;
+  }
+  .training-simple-workbench-hero__status span,
+  .training-simple-health-card span {
+    display: block;
+    color: hsl(var(--text-faint));
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+  .training-simple-workbench-hero__status strong,
+  .training-simple-health-card strong {
+    display: block;
+    margin-top: 0.22rem;
+    overflow: hidden;
+    color: hsl(var(--text));
+    font-size: 0.92rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .training-simple-module-grid {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .training-simple-module-card {
+    display: grid;
+    min-height: 21rem;
+    gap: 1rem;
+    border: 1px solid hsl(var(--border) / 0.62);
+    border-radius: var(--radius-md);
+    background: linear-gradient(180deg, hsl(var(--surface2) / 0.72), hsl(var(--surface) / 0.64));
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+    transition:
+      border-color 160ms ease,
+      transform 160ms ease,
+      background 160ms ease;
+  }
+  .training-simple-module-card:hover {
+    transform: translateY(-2px);
+    background: linear-gradient(180deg, hsl(var(--surface2) / 0.9), hsl(var(--surface) / 0.72));
+  }
+  .training-simple-module-card--emerald:hover,
+  .training-simple-module-card--emerald {
+    border-color: hsl(var(--success) / 0.26);
+  }
+  .training-simple-module-card--sky:hover,
+  .training-simple-module-card--sky {
+    border-color: hsl(var(--brand) / 0.28);
+  }
+  .training-simple-module-card--violet:hover,
+  .training-simple-module-card--violet {
+    border-color: hsl(262 85% 68% / 0.28);
+  }
+  .training-simple-module-card__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+  }
+  .training-simple-module-card__icon {
+    display: flex;
+    width: 2.55rem;
+    height: 2.55rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: var(--radius-md);
+    background: hsl(var(--surface3) / 0.58);
+  }
+  .training-simple-module-card--emerald .training-simple-module-card__icon {
+    color: hsl(var(--success));
+    background: hsl(var(--success) / 0.1);
+  }
+  .training-simple-module-card--sky .training-simple-module-card__icon {
+    color: hsl(var(--brand-strong));
+    background: hsl(var(--brand) / 0.11);
+  }
+  .training-simple-module-card--violet .training-simple-module-card__icon {
+    color: hsl(262 85% 70%);
+    background: hsl(262 85% 68% / 0.11);
+  }
+  .training-simple-module-card__action {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: hsl(var(--text-faint));
+    font-size: 0.78rem;
+    font-weight: 700;
+  }
+  .training-simple-module-card h2 {
+    margin: 0;
+    color: hsl(var(--text));
+    font-size: 1.18rem;
+    font-weight: 780;
+    letter-spacing: 0;
+  }
+  .training-simple-module-card p {
+    margin: 0.42rem 0 0;
+    color: hsl(var(--text-muted));
+    font-size: 0.88rem;
+    line-height: 1.65;
+  }
+  .training-simple-module-card__metrics {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.55rem;
+  }
+  .training-simple-module-card__metrics > div {
+    min-width: 0;
+    border: 1px solid hsl(var(--border) / 0.45);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.42);
+    padding: 0.65rem;
+  }
+  .training-simple-module-card__metrics span {
+    display: block;
+    color: hsl(var(--text-faint));
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+  .training-simple-module-card__metrics strong {
+    display: block;
+    margin-top: 0.2rem;
+    overflow: hidden;
+    color: hsl(var(--text));
+    font-size: 0.9rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .training-simple-module-card__bullets {
+    display: grid;
+    gap: 0.45rem;
+    align-self: end;
+  }
+  .training-simple-module-card__bullets span {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.45rem;
+    color: hsl(var(--text-muted));
+    font-size: 0.78rem;
+  }
+  .training-simple-module-card__bullets svg {
+    flex: 0 0 auto;
+    color: hsl(var(--success));
+  }
+  .training-simple-workflow-strip {
+    display: flex;
+    min-width: 0;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.58rem;
+    border: 1px solid hsl(var(--border) / 0.55);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.42);
+    padding: 0.82rem 0.9rem;
+    color: hsl(var(--text-muted));
+    font-size: 0.82rem;
+  }
+  .training-simple-workflow-strip > div {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: hsl(var(--brand-strong));
+    font-weight: 800;
+  }
+  .training-simple-workflow-strip strong {
+    color: hsl(var(--text));
+    font-weight: 750;
+  }
+  .training-simple-workflow-strip__tail {
+    color: hsl(var(--text-faint));
+  }
+  .training-simple-health-grid {
+    display: grid;
+    gap: 0.75rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .training-simple-health-card {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.65rem;
+    border: 1px solid hsl(var(--border) / 0.5);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.38);
+    padding: 0.75rem;
+  }
+  .training-simple-health-card svg {
+    flex: 0 0 auto;
+    color: hsl(var(--brand-strong));
+  }
+  .training-simple-assembly-grid {
+    display: grid;
+    gap: 0.65rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .training-simple-assembly-card {
+    min-width: 0;
+    border: 1px solid hsl(var(--border) / 0.52);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface2) / 0.38);
+    padding: 0.75rem;
+  }
+  .training-simple-assembly-card__head {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.45rem;
+    color: hsl(var(--text));
+    font-size: 0.82rem;
+    font-weight: 760;
+  }
+  .training-simple-assembly-card__head span {
+    display: flex;
+    width: 1.6rem;
+    height: 1.6rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 0.45rem;
+    background: hsl(var(--surface3) / 0.62);
+  }
+  .training-simple-assembly-card__head svg:last-child {
+    margin-left: auto;
+    color: hsl(var(--success));
+  }
+  .training-simple-assembly-card__name {
+    margin-top: 0.55rem;
+    overflow: hidden;
+    color: hsl(var(--text));
+    font-size: 0.9rem;
+    font-weight: 740;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .training-simple-assembly-card__note,
+  .training-simple-assembly-card__status {
+    margin-top: 0.2rem;
+    overflow: hidden;
+    color: hsl(var(--text-faint));
+    font-size: 0.74rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
   .training-simple-hero {
     display: flex;
@@ -3520,7 +3782,13 @@
       padding: 0.65rem 0.75rem;
     }
     .platform-switcher {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-top: 0.55rem;
+    }
+    .platform-switcher__item {
+      justify-content: center;
+      min-height: 2rem;
+      padding: 0.35rem 0.45rem;
     }
     .app-nav {
       flex-direction: row;
@@ -3581,11 +3849,16 @@
     .training-simple-footer .btn-primary {
       width: 100%;
     }
+    .training-simple-workbench-hero,
+    .training-simple-module-grid,
     .training-simple-grid,
     .training-simple-bottom-grid,
-    .training-simple-option-grid {
+    .training-simple-option-grid,
+    .training-simple-health-grid,
+    .training-simple-assembly-grid {
       grid-template-columns: 1fr;
     }
+    .training-simple-workbench-hero__status,
     .training-simple-summary,
     .training-simple-result-grid {
       grid-template-columns: 1fr;

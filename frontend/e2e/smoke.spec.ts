@@ -50,6 +50,79 @@ const text2CompScenarios = {
   ],
 }
 
+const text2CompOverview = {
+  expert_models: [{ name: 'MODFLOW', domain: 'groundwater', output_dim: 128, description: 'MODFLOW Text2Comp' }],
+  datasets: [
+    {
+      path: 'data/text2comp/modflow/coastal_seawater.jsonl',
+      simulator: 'MODFLOW',
+      scenario: 'coastal_seawater',
+      n_samples: 1000,
+      file_size_bytes: 128_000,
+      mtime: now,
+    },
+  ],
+  gpus: trainingGpus,
+  jobs: [],
+  running_job_count: 0,
+  completed_job_count: 0,
+}
+
+const assemblyStatus = {
+  llms: [{ name: 'Qwen2.5-0.5B-Instruct', path: '/models/qwen', size: '0.5B', downloaded: true }],
+  routers: [
+    {
+      name: 'router-final',
+      path: '/models/router_final.pt',
+      num_classes: 3,
+      class_names: ['normal', 'modflow', 'gcam'],
+      description: 'CI Router',
+      trained: true,
+    },
+  ],
+  text2comps: [
+    {
+      name: 'text2comp-final',
+      simulator: 'MODFLOW',
+      output_dim: 128,
+      path: '/models/text2comp/final_model.pt',
+      trained: true,
+      description: 'CI Text2Comp',
+    },
+  ],
+  fno_experts: [
+    {
+      name: 'fno-modflow',
+      simulator: 'MODFLOW',
+      input_dim: 128,
+      output_shape: [5, 16],
+      path: '/models/fno/modflow.pt',
+      trained: true,
+      description: 'CI FNO',
+    },
+  ],
+  gpus: [
+    {
+      index: 0,
+      name: 'CI GPU Stub',
+      memory_used_mb: 128,
+      memory_free_mb: 24_448,
+      memory_total_mb: 24_576,
+      available: true,
+    },
+  ],
+  loaded_models: {
+    llm: { loaded: false, path: null },
+    router: { loaded: false, path: null },
+    text2comp: { loaded: false, paths: [] },
+    fno: { loaded: false, paths: [] },
+    uploaded_expert: { loaded: false, model_id: null, path: null, executor: null },
+  },
+  custom_experts: [],
+  gpu_available: true,
+  architecture_note: 'CI assembly stub',
+}
+
 const templates = [
   {
     scenario: 'coastal_seawater',
@@ -139,6 +212,12 @@ function apiPayloadFor(pathname: string): unknown {
   if (pathname === '/api/training/datasets') return trainingDatasets
   if (pathname === '/api/training/gpus') return trainingGpus
   if (pathname === '/api/training/jobs') return []
+  if (pathname === '/api/text2comp/overview' || pathname === '/api/text2comp/status') return text2CompOverview
+  if (pathname === '/api/text2comp/datasets') return text2CompOverview.datasets
+  if (pathname === '/api/text2comp/gpus') return text2CompOverview.gpus
+  if (pathname === '/api/text2comp/jobs') return []
+  if (pathname === '/api/assembly/status') return assemblyStatus
+  if (pathname === '/api/assembly/gpus') return assemblyStatus.gpus
   if (pathname === '/api/config/text2comp-scenarios') return text2CompScenarios
   if (pathname === '/api/config') {
     return {
@@ -245,6 +324,9 @@ test('dark and light themes keep core pages visually stable', async ({ page }) =
     '/',
     '/training',
     '/training/simple',
+    '/training/simple/router',
+    '/training/simple/text2comp',
+    '/training/simple/assembly',
     '/training/new',
     '/training/jobs',
     '/training/files',
@@ -277,6 +359,9 @@ test('mobile training and synthesis shells avoid horizontal overflow', async ({ 
   for (const route of [
     '/training',
     '/training/simple',
+    '/training/simple/router',
+    '/training/simple/text2comp',
+    '/training/simple/assembly',
     '/training/new',
     '/training/files',
     '/synth/fill',
