@@ -332,3 +332,33 @@ def test_quick_training_job_queues_with_platform_defaults(monkeypatch, tmp_path)
     assert entry["config"]["auto_stop_threshold"] == 0.98
     assert entry["config"]["auto_stop_min_epochs"] == 1
     assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
+
+
+def test_quick_training_job_preserves_coarse_options(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+    validated_resume = {}
+
+    def fake_validate_resume_checkpoint(**kwargs):
+        validated_resume.update(kwargs)
+
+    monkeypatch.setattr(training_manager, "_validate_resume_checkpoint", fake_validate_resume_checkpoint)
+
+    entry = training_manager.create_quick_job(
+        {
+            "name": "quick-options",
+            "simulator": "modflow",
+            "scenarios": ["coastal_seawater"],
+            "gpu_id": 0,
+            "resume_from": "/tmp/router_latest.pt",
+            "seed": 123,
+        }
+    )
+
+    assert entry["status"] == "queued"
+    assert entry["gpu_id"] == 0
+    assert entry["config"]["seed"] == 123
+    assert entry["config"]["resume_from"] == "/tmp/router_latest.pt"
+    assert validated_resume["resume_from"] == "/tmp/router_latest.pt"
+    assert validated_resume["scenarios"] == ["coastal_seawater"]

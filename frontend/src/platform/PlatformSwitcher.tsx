@@ -1,11 +1,13 @@
-import { Database, Workflow } from 'lucide-react'
-import { NavLink } from 'react-router-dom'
+import { Database, MousePointerClick, Workflow, type LucideIcon } from 'lucide-react'
+import { NavLink, useLocation } from 'react-router-dom'
+
+type PlatformId = 'synth' | 'simple-training' | 'training'
 
 type PlatformSwitcherProps = {
-  active: 'synth' | 'training'
+  active: PlatformId
 }
 
-const PLATFORMS = [
+const PLATFORMS: Array<{ id: PlatformId; to: string; label: string; icon: LucideIcon }> = [
   {
     id: 'synth',
     to: '/synth',
@@ -13,26 +15,39 @@ const PLATFORMS = [
     icon: Database,
   },
   {
+    id: 'simple-training',
+    to: '/training/simple',
+    label: '简洁训练',
+    icon: MousePointerClick,
+  },
+  {
     id: 'training',
     to: '/training',
-    label: '自动训练',
+    label: '复杂训练',
     icon: Workflow,
   },
-] as const
+]
+
+function platformRouteActive(id: PlatformId, pathname: string): boolean {
+  if (id === 'synth') return pathname === '/synth' || pathname.startsWith('/synth/')
+  if (id === 'simple-training') return pathname === '/training/simple' || pathname.startsWith('/training/simple/')
+  const isSimpleTrainingRoute = pathname === '/training/simple' || pathname.startsWith('/training/simple/')
+  return pathname === '/training' || (pathname.startsWith('/training/') && !isSimpleTrainingRoute)
+}
 
 export function PlatformSwitcher({ active }: PlatformSwitcherProps) {
+  const location = useLocation()
+
   return (
     <div className="platform-switcher" aria-label="平台切换">
       {PLATFORMS.map(platform => {
         const Icon = platform.icon
-        const isActive = active === platform.id
+        const isActive = active === platform.id || platformRouteActive(platform.id, location.pathname)
         return (
           <NavLink
             key={platform.id}
             to={platform.to}
-            className={({ isActive: routeActive }) =>
-              `platform-switcher__item ${isActive || routeActive ? 'platform-switcher__item--active' : ''}`
-            }
+            className={() => `platform-switcher__item ${isActive ? 'platform-switcher__item--active' : ''}`}
           >
             <Icon size={14} />
             <span>{platform.label}</span>

@@ -657,16 +657,21 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
     if not requested_scenarios:
         raise ValueError("Please select at least one training scenario")
     scenarios = _validate_scenarios(simulator, requested_scenarios)
+    requested_gpu_id = payload.get("gpu_id")
+    gpu_id = _auto_select_gpu_id() if requested_gpu_id is None else int(requested_gpu_id)
+    requested_seed = payload.get("seed")
     quick_payload = dict(QUICK_TRAINING_DEFAULTS)
     quick_payload.update(
         {
             "name": _normalize_job_name(
                 payload.get("name"),
-                fallback=f"一键训练-{simulator}-{time.strftime('%m%d-%H%M')}",
+                fallback=f"简洁训练-{simulator}-{time.strftime('%m%d-%H%M')}",
             ),
             "simulator": simulator,
             "scenarios": scenarios,
-            "gpu_id": _auto_select_gpu_id(),
+            "gpu_id": gpu_id,
+            "resume_from": payload.get("resume_from") or None,
+            "seed": requested_seed if requested_seed is not None else QUICK_TRAINING_DEFAULTS["seed"],
         }
     )
     return create_job(quick_payload)

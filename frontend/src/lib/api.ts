@@ -499,7 +499,7 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req),
     })
-    await ensureOk(res, '启动一键训练失败')
+    await ensureOk(res, '启动简洁训练失败')
     return res.json()
   },
 

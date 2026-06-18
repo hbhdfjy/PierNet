@@ -3245,10 +3245,16 @@ export interface components {
         };
         /** TrainingQuickJobCreateRequest */
         TrainingQuickJobCreateRequest: {
+            /** Gpu Id */
+            gpu_id?: number | null;
             /** Name */
             name?: string | null;
+            /** Resume From */
+            resume_from?: string | null;
             /** Scenarios */
             scenarios?: string[];
+            /** Seed */
+            seed?: number | null;
             /**
              * Simulator
              * @default modflow

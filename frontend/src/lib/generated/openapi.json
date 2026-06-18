@@ -3684,6 +3684,18 @@
       },
       "TrainingQuickJobCreateRequest": {
         "properties": {
+          "gpu_id": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Id"
+          },
           "name": {
             "anyOf": [
               {
@@ -3695,12 +3707,36 @@
             ],
             "title": "Name"
           },
+          "resume_from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resume From"
+          },
           "scenarios": {
             "items": {
               "type": "string"
             },
             "title": "Scenarios",
             "type": "array"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "maximum": 2147483647.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seed"
           },
           "simulator": {
             "default": "modflow",

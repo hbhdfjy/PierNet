@@ -1,22 +1,10 @@
 import { lazy } from 'react'
-import {
-  BarChart3,
-  Brain,
-  Cpu,
-  FolderOpen,
-  HardDrive,
-  Layers,
-  MousePointerClick,
-  PlayCircle,
-  Workflow,
-} from 'lucide-react'
+import { BarChart3, Brain, Cpu, FolderOpen, HardDrive, Layers, PlayCircle, Workflow } from 'lucide-react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 import { AppShell, type ShellNavGroup } from '../platform/AppShell'
 
 const TrainingOverviewPage = lazy(() => import('./pages/TrainingOverviewPage'))
-const TrainingSimpleJobPage = lazy(() => import('./pages/TrainingSimpleJobPage'))
-const TrainingSimpleProgressPage = lazy(() => import('./pages/TrainingSimpleProgressPage'))
 const TrainingNewJobPage = lazy(() => import('./pages/TrainingNewJobPage'))
 const TrainingJobsPage = lazy(() => import('./pages/TrainingJobsPage'))
 const TrainingJobDetailPage = lazy(() => import('./pages/TrainingJobDetailPage'))
@@ -32,7 +20,6 @@ const navGroups: ShellNavGroup[] = [
     label: '训练平台',
     items: [
       { to: '/training', end: true, icon: BarChart3, label: '总览', tone: 'sky' },
-      { to: '/training/simple', icon: MousePointerClick, label: '一键训练', tone: 'emerald' },
       { to: '/training/new', icon: PlayCircle, label: '新建训练', tone: 'emerald' },
       { to: '/training/jobs', icon: Workflow, label: '任务管理', tone: 'violet' },
       { to: '/training/text2comp', icon: Brain, label: '文生计算', tone: 'emerald' },
@@ -65,8 +52,6 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
     >
       <Routes>
         <Route index element={<TrainingOverviewPage />} />
-        <Route path="simple" element={<TrainingSimpleJobPage />} />
-        <Route path="simple/jobs/:jobId" element={<TrainingSimpleProgressPage />} />
         <Route path="new" element={<TrainingNewJobPage />} />
         <Route path="jobs" element={<TrainingJobsPage />} />
         <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />

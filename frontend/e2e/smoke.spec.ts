@@ -202,7 +202,8 @@ test('platform entry and core workbenches render without layout overflow', async
 
   await gotoApp(page, '/')
   await expect(page.getByText('PierNet 控制台')).toBeVisible()
-  await expect(page.getByRole('link', { name: /打开训练平台/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /打开简洁训练/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /打开复杂训练/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/training')
@@ -233,7 +234,7 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
 
   await gotoApp(page, '/')
   await expect(page.getByText('PierNet 控制台')).toBeVisible()
-  await expect(page.getByRole('link', { name: /打开数据平台/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /打开数据合成/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
 
@@ -243,6 +244,7 @@ test('dark and light themes keep core pages visually stable', async ({ page }) =
   const routes = [
     '/',
     '/training',
+    '/training/simple',
     '/training/new',
     '/training/jobs',
     '/training/files',
@@ -274,6 +276,7 @@ test('mobile training and synthesis shells avoid horizontal overflow', async ({ 
 
   for (const route of [
     '/training',
+    '/training/simple',
     '/training/new',
     '/training/files',
     '/synth/fill',

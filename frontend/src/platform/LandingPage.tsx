@@ -7,6 +7,7 @@ import {
   Database,
   GitBranch,
   Moon,
+  MousePointerClick,
   Network,
   Server,
   Sun,
@@ -15,7 +16,7 @@ import {
 import { Link } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 
-type ModuleTone = 'synth' | 'training'
+type ModuleTone = 'synth' | 'simple' | 'training'
 
 type ModuleCardProps = {
   to: string
@@ -102,8 +103,11 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
             <Link to="/synth" className="btn-ghost">
               数据合成
             </Link>
-            <Link to="/training" className="btn-primary">
-              自动训练
+            <Link to="/training/simple" className="btn-primary">
+              简洁训练
+            </Link>
+            <Link to="/training" className="btn-ghost">
+              复杂训练
             </Link>
             <button type="button" onClick={toggleTheme} className="theme-toggle platform-theme-toggle">
               {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
@@ -118,17 +122,21 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               <div className="training-eyebrow">统一工作台</div>
               <h1>面向工程仿真数据生产与路由模型训练的一体化控制台</h1>
               <p>
-                数据合成平台负责原始物理数据、语言模板、样本填充和 Router 数据构建；自动训练平台负责 GPU
-                分配、任务监控、曲线分析、日志与权重管理。两个平台共享主题、入口和数据契约，但运行边界清晰。
+                数据合成负责原始物理数据、语言模板、样本填充和 Router
+                数据构建；简洁训练负责低配置启动、进度和结果闭环；复杂训练保留完整配置、曲线、日志、权重和文件管理。
               </p>
               <div className="platform-command-panel__actions">
                 <Link to="/synth" className="btn-primary">
                   <Database size={15} />
-                  打开数据平台
+                  打开数据合成
+                </Link>
+                <Link to="/training/simple" className="btn-ghost">
+                  <MousePointerClick size={15} />
+                  打开简洁训练
                 </Link>
                 <Link to="/training" className="btn-ghost">
                   <GitBranch size={15} />
-                  打开训练平台
+                  打开复杂训练
                 </Link>
               </div>
             </div>
@@ -148,14 +156,14 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
                   <strong>4</strong>
                 </div>
                 <div>
-                  <span>训练模式</span>
-                  <strong>1 GPU</strong>
+                  <span>训练入口</span>
+                  <strong>2</strong>
                 </div>
               </div>
               <div className="platform-pipeline">
                 <PipelineStep index="01" title="物理与语言数据" copy="仿真产物、语言模板、填充样本" />
                 <PipelineStep index="02" title="Router 数据" copy="阶段 4 构建训练输入与场景索引" />
-                <PipelineStep index="03" title="训练闭环" copy="任务、曲线、日志、权重与文件管理" />
+                <PipelineStep index="03" title="训练闭环" copy="简洁训练与复杂训练共享同一任务系统" />
               </div>
             </div>
           </section>
@@ -175,15 +183,28 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
               bullets={['HDF5 / JSONL / Parquet 产物管理', '模板、样本、路由数据可视化', '注册信息与 LLM 配置集中维护']}
             />
             <ModuleCard
+              to="/training/simple"
+              tone="simple"
+              icon={<MousePointerClick size={22} />}
+              title="简洁训练平台"
+              route="/training/simple"
+              copy="选择大场景、子场景、训练资源和历史结果，直接启动 Router 训练并查看进度与结果。"
+              metrics={[
+                { label: '配置', value: '粗粒度' },
+                { label: '对象', value: '训练启动' },
+              ]}
+              bullets={['场景选择、资源选择、继续训练', '进度、终止、删除、结果闭环', '默认训练策略由平台统一接管']}
+            />
+            <ModuleCard
               to="/training"
               tone="training"
               icon={<GitBranch size={22} />}
-              title="自动训练平台"
+              title="复杂训练平台"
               route="/training"
-              copy="选择 Router 数据和可用 GPU，启动训练任务，持续查看指标、日志、权重和历史产物。"
+              copy="面向调试和管理场景，提供完整训练配置、任务列表、曲线、日志、权重和训练文件管理。"
               metrics={[
                 { label: '模型', value: 'Token Router' },
-                { label: '对象', value: '训练闭环' },
+                { label: '对象', value: '深度管理' },
               ]}
               bullets={[
                 'GPU 状态、任务状态与指标同步',
@@ -198,11 +219,11 @@ export default function LandingPage({ theme, toggleTheme }: { theme: Theme; togg
             <InfoPill label="数据读取" value="清单、索引和分区产物用于迁移与快速浏览" icon={<BarChart3 size={16} />} />
             <InfoPill
               label="代码边界"
-              value="synth / training 独立命名空间，shared 只放基础设施"
+              value="synth / simple-training / training 独立入口，shared 只放基础设施"
               icon={<Boxes size={16} />}
             />
             <InfoPill label="训练核心" value="Qwen embedding + full-sequence conv router" icon={<Cpu size={16} />} />
-            <InfoPill label="平台联通" value="通过阶段 4 Router 数据契约衔接两个平台" icon={<Network size={16} />} />
+            <InfoPill label="平台联通" value="通过阶段 4 Router 数据契约衔接数据与训练" icon={<Network size={16} />} />
             <InfoPill
               label="运行约束"
               value="当前是单机单卡训练控制台，不是通用集群平台"

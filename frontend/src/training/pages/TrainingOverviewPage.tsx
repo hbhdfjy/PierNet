@@ -73,7 +73,7 @@ export default function TrainingOverviewPage() {
               <div className="training-overview-hero__actions">
                 <Link to="/training/simple" className="btn-primary">
                   <MousePointerClick size={15} />
-                  一键训练
+                  简洁训练
                 </Link>
                 <Link to="/training/new" className="btn-ghost">
                   <PlayCircle size={15} />

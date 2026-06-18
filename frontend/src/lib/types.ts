@@ -618,6 +618,9 @@ export interface TrainingQuickJobCreateRequest {
   name?: string | null
   simulator: string
   scenarios: string[]
+  gpu_id?: number | null
+  resume_from?: string | null
+  seed?: number | null
 }
 
 export type TrainingPoint = components['schemas']['TrainingPoint']

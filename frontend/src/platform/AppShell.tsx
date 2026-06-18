@@ -20,7 +20,7 @@ import { PlatformSwitcher } from './PlatformSwitcher'
 import { api } from '../lib/api'
 import type { JobStatusSnapshot, TrainingJobSummary } from '../lib/types'
 
-type ShellPlatform = 'synth' | 'training'
+type ShellPlatform = 'synth' | 'simple-training' | 'training'
 type NavTone = 'amber' | 'sky' | 'violet' | 'emerald' | 'rose' | 'neutral'
 
 export type ShellNavItem = {

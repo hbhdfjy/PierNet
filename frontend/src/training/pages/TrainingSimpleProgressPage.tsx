@@ -1,10 +1,18 @@
-import { AlertTriangle, CheckCircle2, Clock3, Loader2, PlayCircle, RefreshCw } from 'lucide-react'
-import { Link, useParams } from 'react-router-dom'
-import useSWR from 'swr'
+import { AlertTriangle, CheckCircle2, Clock3, Loader2, PauseCircle, PlayCircle, RefreshCw, Trash2 } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import useSWR, { useSWRConfig } from 'swr'
+import { useState } from 'react'
 import { api } from '../../lib/api'
 import type { TrainingJobDetail, TrainingJobStatus, TrainingLogResponse } from '../../lib/types'
+import { ConfirmDialog } from '../../shared/ui'
 import { TrainingUsageBar, type TrainingProgressTone } from '../components/common'
-import { statusLabel, trainingJobDetailPath, trainingJobRefreshInterval } from '../shared'
+import {
+  formatMetric,
+  isTrainingJobDeletable,
+  isTrainingJobStoppable,
+  statusLabel,
+  trainingJobRefreshInterval,
+} from '../shared'
 
 type SimpleStage = {
   label: string
@@ -55,7 +63,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Simp
   if (job.status === 'done') {
     return {
       label: 'Router 训练完成',
-      copy: '模型权重和训练结果已经保存。',
+      copy: '训练结果已经保存。',
       percent: 100,
       tone: 'emerald',
       active: false,
@@ -99,7 +107,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Simp
   if (job.status === 'stopping') {
     return {
       label: '正在安全停止',
-      copy: '正在保存当前 checkpoint。',
+      copy: '正在保存当前进度。',
       percent: 92,
       tone: 'amber',
       active: true,
@@ -110,7 +118,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Simp
   if (job.status === 'evaluating') {
     return {
       label: '正在评估 Router',
-      copy: '正在根据测试集计算当前训练效果。',
+      copy: '正在计算当前训练效果。',
       percent: 88,
       tone: 'violet',
       active: true,
@@ -126,7 +134,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Simp
     ) {
       return {
         label: '正在准备 Router 训练',
-        copy: '正在加载嵌入模型并初始化训练环境。',
+        copy: '正在初始化训练环境。',
         percent: 42,
         tone: 'sky',
         active: true,
@@ -174,8 +182,18 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Simp
   }
 }
 
+function actionErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message
+  return String(error || '未知错误')
+}
+
 export default function TrainingSimpleProgressPage() {
   const { jobId = '' } = useParams()
+  const navigate = useNavigate()
+  const { mutate } = useSWRConfig()
+  const [busy, setBusy] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [actionError, setActionError] = useState<string | null>(null)
   const { data: job, error: jobError } = useSWR<TrainingJobDetail>(
     jobId ? `training-job-${jobId}` : null,
     () => api.getTrainingJob(jobId),
@@ -195,6 +213,40 @@ export default function TrainingSimpleProgressPage() {
   )
 
   const stage = stageFromJob(job, logs?.lines ?? [])
+  const canStop = job ? isTrainingJobStoppable(job.status) : false
+  const canDelete = job ? isTrainingJobDeletable(job.status) : false
+
+  const refreshAll = async () => {
+    await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
+  }
+
+  const stopJob = async () => {
+    if (!job) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await api.stopTrainingJob(job.job_id)
+      await refreshAll()
+    } catch (error) {
+      setActionError(`终止失败：${actionErrorMessage(error)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const deleteJob = async () => {
+    if (!job) return
+    setBusy(true)
+    setActionError(null)
+    try {
+      await api.deleteTrainingJob(job.job_id)
+      await refreshAll()
+      navigate('/training/simple')
+    } catch (error) {
+      setActionError(`删除失败：${actionErrorMessage(error)}`)
+      setBusy(false)
+    }
+  }
 
   return (
     <div className="training-page">
@@ -204,14 +256,30 @@ export default function TrainingSimpleProgressPage() {
             <div className={`training-simple-progress__icon training-simple-progress__icon--${stage.tone}`}>
               {stageIcon(stage)}
             </div>
-            <div className="training-eyebrow">一键训练进度</div>
+            <div className="training-eyebrow">简洁训练进度</div>
             <h1 className="training-simple-progress__title">{stage.label}</h1>
             <p className="training-simple-progress__copy">{stage.copy}</p>
             <div className="training-simple-progress__bar">
               <TrainingUsageBar value={stage.percent} tone={stage.tone} className="" />
               <div className="training-simple-progress__percent">{Math.round(stage.percent)}%</div>
             </div>
-            {jobError && <div className="training-simple-progress__error">加载训练进度失败：{jobError.message}</div>}
+            {(job?.latest_metrics || job?.avg_loss != null) && (
+              <div className="training-simple-result-grid">
+                <div>
+                  <span>最近 F1</span>
+                  <strong>{formatMetric(job.latest_metrics?.f1, 4)}</strong>
+                </div>
+                <div>
+                  <span>训练损失</span>
+                  <strong>{formatMetric(job.avg_loss, 6)}</strong>
+                </div>
+              </div>
+            )}
+            {(jobError || actionError) && (
+              <div className="training-simple-progress__error">
+                {actionError ?? `加载训练进度失败：${jobError?.message}`}
+              </div>
+            )}
             <div className="training-simple-progress__meta">
               <span>{job?.name ?? jobId}</span>
               <span>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '读取中'}</span>
@@ -219,18 +287,44 @@ export default function TrainingSimpleProgressPage() {
             <div className="training-simple-progress__actions">
               <Link to="/training/simple" className="btn-ghost">
                 <RefreshCw size={14} />
-                返回一键训练
+                返回简洁训练
               </Link>
-              {job && !stage.active && (
-                <Link to={trainingJobDetailPath(job.job_id)} className="btn-primary">
-                  <PlayCircle size={14} />
-                  查看结果详情
-                </Link>
+              {canStop && (
+                <button
+                  type="button"
+                  className="btn-danger"
+                  onClick={stopJob}
+                  disabled={busy || job?.status === 'stopping'}
+                >
+                  <PauseCircle size={14} />
+                  {busy ? '处理中...' : job?.status === 'queued' ? '取消排队' : '终止'}
+                </button>
+              )}
+              {canDelete && (
+                <button type="button" className="btn-ghost" onClick={() => setDeleteOpen(true)} disabled={busy}>
+                  <Trash2 size={14} />
+                  删除任务
+                </button>
               )}
             </div>
           </section>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={deleteOpen}
+        title="删除训练任务"
+        description={
+          <>
+            将删除 <span className="font-semibold text-slate-100">{job?.name}</span> 的任务记录和训练产物。
+          </>
+        }
+        confirmLabel="删除"
+        danger
+        busy={busy}
+        onCancel={() => setDeleteOpen(false)}
+        onConfirm={deleteJob}
+      />
     </div>
   )
 }

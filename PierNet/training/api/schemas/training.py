@@ -101,6 +101,9 @@ class TrainingQuickJobCreateRequest(BaseModel):
     name: str | None = None
     simulator: str = "modflow"
     scenarios: list[str] = Field(default_factory=list)
+    gpu_id: int | None = Field(default=None, ge=0)
+    resume_from: str | None = None
+    seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
 
 
 class TrainingMetricsSummary(BaseModel):
