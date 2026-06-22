@@ -65,12 +65,17 @@ start_detached() {
   local __pid_var=$1
   local log_file=$2
   shift 2
-  if command -v setsid >/dev/null 2>&1; then
-    nohup setsid "$@" > "$log_file" 2>&1 < /dev/null &
-  else
-    nohup "$@" > "$log_file" 2>&1 < /dev/null &
-  fi
-  printf -v "$__pid_var" '%s' "$!"
+  (
+    # When start.sh is called by the watchdog, fd 9 holds watchdog.lock.
+    # Detached services must not inherit it, otherwise the watchdog exits while
+    # backend/frontend/worker keep the lock forever and future watchdog starts fail.
+    exec 9>&- 2>/dev/null || true
+    if command -v setsid >/dev/null 2>&1; then
+      exec nohup setsid "$@"
+    fi
+    exec nohup "$@"
+  ) > "$log_file" 2>&1 < /dev/null &
+  printf -v "$__pid_var" "%s" "$!"
 }
 
 first_matching_pid() {
