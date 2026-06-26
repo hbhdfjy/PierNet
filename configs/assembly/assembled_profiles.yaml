@@ -1,0 +1,12 @@
+profiles:
+  - model_id: modflow_verl_demo
+    name: PierNet MODFLOW 对话拼装模型
+    description: 基于 019ece38-4df9-7bd2-8ae3-47a902f20d4c 会话产物注册的完整 MODFLOW 拼装模型，链路为 Qwen embedding、Router、Text2Comp 和 DNN Expert。
+    executor: modflow_profile
+    simulator: modflow
+    root: /root/data1/verl-piernet/recipe/piernet_modflow_rl
+    manifest: artifacts/manifest.json
+    chat_llm_path: /root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct
+    chat_enabled: true
+    source: verl_piernet_recipe
+    source_thread_id: 019ece38-4df9-7bd2-8ae3-47a902f20d4c

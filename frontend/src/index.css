@@ -2057,6 +2057,11 @@
     min-width: 0;
     overflow-wrap: anywhere;
   }
+  .training-simple-job__notice--rose {
+    border-color: hsl(var(--danger) / 0.24);
+    background: hsl(var(--danger) / 0.08);
+    color: hsl(var(--danger));
+  }
   .training-simple-job__actions {
     display: flex;
     flex-wrap: wrap;
@@ -2161,6 +2166,72 @@
     color: hsl(var(--text-faint));
     font-family: var(--font-mono);
     font-size: 0.82rem;
+  }
+  .training-simple-stage-detail {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.65rem;
+    margin-top: 1rem;
+    text-align: left;
+  }
+  .training-simple-stage-detail > div {
+    min-width: 0;
+    border: 1px solid hsl(var(--border) / 0.48);
+    border-radius: var(--radius-sm);
+    background: hsl(var(--surface3) / 0.34);
+    padding: 0.72rem 0.78rem;
+  }
+  .training-simple-stage-detail span {
+    display: block;
+    color: hsl(var(--text-faint));
+    font-size: 0.74rem;
+    font-weight: 720;
+  }
+  .training-simple-stage-detail strong {
+    display: block;
+    min-width: 0;
+    margin-top: 0.28rem;
+    overflow: hidden;
+    color: hsl(var(--text));
+    font-size: 0.9rem;
+    font-weight: 760;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .training-simple-stage-list-wrap {
+    margin-top: 1rem;
+  }
+  .training-simple-stage-list__label {
+    color: hsl(var(--text-faint));
+    font-size: 0.74rem;
+    font-weight: 760;
+    text-align: center;
+  }
+  .training-simple-stage-list {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.42rem;
+    margin-top: 0.45rem;
+  }
+  .training-simple-stage-list span {
+    border: 1px solid hsl(var(--border) / 0.42);
+    border-radius: 999px;
+    background: hsl(var(--surface2) / 0.5);
+    padding: 0.28rem 0.52rem;
+    color: hsl(var(--text-faint));
+    font-size: 0.74rem;
+    font-weight: 720;
+  }
+  .training-simple-stage-list__done {
+    border-color: hsl(var(--success) / 0.25) !important;
+    background: hsl(var(--success) / 0.1) !important;
+    color: hsl(var(--success)) !important;
+  }
+  .training-simple-stage-list__active {
+    border-color: hsl(var(--brand) / 0.34) !important;
+    background: hsl(var(--brand) / 0.14) !important;
+    color: hsl(var(--brand-strong)) !important;
   }
   .training-simple-progress__error {
     margin-top: 1rem;
@@ -3860,7 +3931,8 @@
     }
     .training-simple-workbench-hero__status,
     .training-simple-summary,
-    .training-simple-result-grid {
+    .training-simple-result-grid,
+    .training-simple-stage-detail {
       grid-template-columns: 1fr;
     }
     .training-simple-gpu {

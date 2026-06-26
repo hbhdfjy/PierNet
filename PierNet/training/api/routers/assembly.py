@@ -19,6 +19,7 @@ from __future__ import annotations
 import os
 import re
 import time
+import json
 import yaml
 import torch
 import torch.nn as nn
@@ -32,6 +33,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from PierNet.synth.services import expert_models as uploaded_expert_models
+from PierNet.training.api.modflow_assembly import ModflowAssemblyProfilePipeline
 
 
 # ===== 配置文件动态扫描 =====
@@ -40,6 +42,7 @@ import glob as _glob
 
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _CONFIG_PATH = _REPO_ROOT / "configs" / "assembly" / "models.yaml"
+_ASSEMBLED_PROFILES_DEFAULT_CONFIG = _REPO_ROOT / "configs" / "assembly" / "assembled_profiles.yaml"
 _ARTIFACTS_ROOT = Path(os.getenv("PIERN_ARTIFACTS_ROOT", str(_REPO_ROOT / "artifacts"))).expanduser()
 _TEXT2COMP_MODELS_ROOT = Path(
     os.getenv("PIERN_TEXT2COMP_MODELS_DIR", str(_ARTIFACTS_ROOT / "text2comp_models"))
@@ -55,6 +58,96 @@ def _load_config():
         with open(_CONFIG_PATH, encoding="utf-8") as f:
             return _yaml.safe_load(f) or {}
     return {}
+
+
+def _resolve_repo_path(value: str | Path) -> Path:
+    path = Path(str(value)).expanduser()
+    if not path.is_absolute():
+        path = _REPO_ROOT / path
+    return path
+
+
+def _assembly_profiles_config_path() -> Path:
+    config = _load_config()
+    raw = config.get("assembled_profiles") or config.get("assembly_profiles") or str(_ASSEMBLED_PROFILES_DEFAULT_CONFIG)
+    return _resolve_repo_path(raw)
+
+
+def _profile_artifact_path(root: Path, manifest: dict[str, Any], key: str, default_name: str) -> str:
+    rel = (manifest.get("artifacts") or {}).get(key) or f"artifacts/{default_name}"
+    path = Path(str(rel)).expanduser()
+    if not path.is_absolute():
+        path = root / path
+    return str(path)
+
+
+def _scan_assembly_profiles() -> list[dict[str, Any]]:
+    config_path = _assembly_profiles_config_path()
+    if not config_path.exists():
+        return []
+    data = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
+    items = data.get("profiles", data if isinstance(data, list) else [])
+    profiles: list[dict[str, Any]] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        root_value = item.get("root") or item.get("path")
+        if not root_value:
+            continue
+        root = _resolve_repo_path(str(root_value))
+        manifest_rel = item.get("manifest", "artifacts/manifest.json")
+        manifest_path = Path(str(manifest_rel)).expanduser()
+        if not manifest_path.is_absolute():
+            manifest_path = root / manifest_path
+        manifest: dict[str, Any] = {}
+        if manifest_path.exists():
+            try:
+                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            except Exception:
+                manifest = {}
+        llm_path = str(item.get("llm_path") or manifest.get("llm_path") or "")
+        chat_llm_path = str(item.get("chat_llm_path") or "")
+        router_path = _profile_artifact_path(root, manifest, "router", "router_modflow.pt")
+        text2comp_path = _profile_artifact_path(root, manifest, "text2comp", "text2comp_modflow.pt")
+        expert_path = _profile_artifact_path(root, manifest, "expert", "expert_modflow_dnn.pt")
+        required_paths = [str(root), str(manifest_path), llm_path, router_path, text2comp_path, expert_path]
+        if chat_llm_path:
+            required_paths.append(chat_llm_path)
+        trained = all(bool(p) and os.path.exists(p) for p in required_paths)
+        model_id = str(item.get("model_id") or item.get("id") or root.name)
+        target_shape = manifest.get("target_shape") or []
+        profiles.append({
+            "model_id": model_id,
+            "name": str(item.get("name") or manifest.get("name") or model_id),
+            "description": str(item.get("description") or manifest.get("description") or "PierNet assembled model"),
+            "executor": str(item.get("executor") or "modflow_profile"),
+            "simulator": str(item.get("simulator") or "modflow"),
+            "root": str(root),
+            "manifest_path": str(manifest_path),
+            "llm_path": llm_path,
+            "chat_llm_path": chat_llm_path or None,
+            "router_path": router_path,
+            "text2comp_path": text2comp_path,
+            "expert_path": expert_path,
+            "feature_dim": int(manifest.get("feature_dim") or 0),
+            "param_count": len(manifest.get("param_names") or []),
+            "output_shape": target_shape,
+            "sample_count": int(manifest.get("sample_count") or 0),
+            "metrics": manifest.get("metrics") or {},
+            "trained": trained,
+            "chat_enabled": bool(item.get("chat_enabled", True)) and trained,
+            "source_thread_id": item.get("source_thread_id"),
+            "source": item.get("source") or "registered_profile",
+            "missing_paths": [p for p in required_paths if not p or not os.path.exists(p)],
+        })
+    return profiles
+
+
+def _get_assembly_profile(model_id: str) -> dict[str, Any]:
+    for profile in _scan_assembly_profiles():
+        if profile["model_id"] == model_id:
+            return profile
+    raise HTTPException(status_code=404, detail=f"Assembly profile not found: {model_id}")
 
 def _infer_simulator_from_path(path: str) -> str:
     lowered = path.lower()
@@ -270,7 +363,7 @@ class LoadAllRequest(BaseModel):
     如果Router在不同GPU，需要在推理时手动传输generated_ids，
     这会增加每个token生成周期的延迟。
     """
-    llm_path: str
+    llm_path: Optional[str] = None
     llm_gpu_id: int = 0
     router_gpu_id: Optional[int] = None  # None表示与llm_gpu_id相同
     router_path: Optional[str] = None
@@ -278,6 +371,7 @@ class LoadAllRequest(BaseModel):
     fno_path: Optional[str] = None
     expert_executor: str = "fno"
     uploaded_expert_id: Optional[str] = None
+    assembly_profile_id: Optional[str] = None
     force_split: bool = False
     auto_sync: bool = True  # 自动处理跨设备同步
 
@@ -600,6 +694,8 @@ _LOADED_MODELS = {
     "uploaded_expert_predict": None,
     "uploaded_expert_id": None,
     "uploaded_expert_path": None,
+    "assembly_profile": None,
+    "assembly_profile_info": None,
 }
 
 
@@ -1076,6 +1172,12 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
 
 # ===== API端点 =====
 
+@router.get("/profiles")
+async def list_assembly_profiles():
+    """列出已注册的完整拼装模型。"""
+    return _scan_assembly_profiles()
+
+
 @router.get("/gpus")
 async def list_gpus():
     """获取GPU列表（实时状态）"""
@@ -1194,8 +1296,17 @@ async def list_fnos():
 @router.get("/status")
 async def get_status():
     """获取完整状态（包含实时GPU信息）"""
+    profile_loaded = _LOADED_MODELS.get("assembly_profile") is not None
+    profile_info = _LOADED_MODELS.get("assembly_profile_info") or {}
     loaded_models = {
-        "llm": {"loaded": _LOADED_MODELS["llm"] is not None, "path": _LOADED_MODELS.get("llm_path")},
+        "assembly_profile": {
+            "loaded": profile_loaded,
+            "model_id": profile_info.get("model_id"),
+            "name": profile_info.get("name"),
+            "path": profile_info.get("root"),
+            "executor": profile_info.get("executor"),
+        },
+        "llm": {"loaded": _LOADED_MODELS["llm"] is not None or profile_loaded, "path": _LOADED_MODELS.get("llm_path")},
         "router": {
             "loaded": _LOADED_MODELS["router"] is not None,
             "path": _LOADED_MODELS.get("router_path"),
@@ -1224,6 +1335,7 @@ async def get_status():
 
     return {
         "llms": await list_llms(),
+        "assembly_profiles": await list_assembly_profiles(),
         "routers": await list_routers(),
         "text2comps": await list_text2comps(),
         "fno_experts": await list_fnos(),
@@ -1237,6 +1349,107 @@ async def get_status():
     }
 
 
+
+
+def _clear_profile_state() -> None:
+    _LOADED_MODELS["assembly_profile"] = None
+    _LOADED_MODELS["assembly_profile_info"] = None
+
+
+def _clear_standard_model_state() -> None:
+    _LOADED_MODELS["llm"] = None
+    _LOADED_MODELS["tokenizer"] = None
+    _LOADED_MODELS["router"] = None
+    _LOADED_MODELS["text2comp_base"] = None
+    _LOADED_MODELS["text2comp"] = {}
+    _LOADED_MODELS["fno"] = {}
+    _LOADED_MODELS["grid"] = {}
+    _LOADED_MODELS["router_type"] = None
+    _LOADED_MODELS["router_meta"] = {}
+    _LOADED_MODELS["text2comp_paths"] = []
+    _LOADED_MODELS["fno_paths"] = []
+    _LOADED_MODELS["uploaded_expert_model"] = None
+    _LOADED_MODELS["uploaded_expert_predict"] = None
+    _LOADED_MODELS["uploaded_expert_id"] = None
+    _LOADED_MODELS["uploaded_expert_path"] = None
+
+
+def _load_assembly_profile_models(req: LoadAllRequest):
+    profile = _get_assembly_profile(str(req.assembly_profile_id or ""))
+    if profile.get("executor") != "modflow_profile":
+        raise HTTPException(status_code=400, detail=f"Unsupported assembly profile executor: {profile.get('executor')}")
+    if not profile.get("trained"):
+        missing = profile.get("missing_paths") or []
+        raise HTTPException(status_code=400, detail=f"Assembly profile is incomplete: {missing}")
+    if torch.cuda.is_available():
+        device = torch.device(f"cuda:{req.llm_gpu_id}")
+    else:
+        device = torch.device("cpu")
+    _clear_standard_model_state()
+    torch.cuda.empty_cache()
+    pipeline = ModflowAssemblyProfilePipeline(
+        profile["root"],
+        device=device,
+        llm_path=profile.get("llm_path"),
+        chat_llm_path=profile.get("chat_llm_path"),
+    )
+    _LOADED_MODELS["assembly_profile"] = pipeline
+    _LOADED_MODELS["assembly_profile_info"] = profile
+    _LOADED_MODELS["llm_device"] = device
+    _LOADED_MODELS["router_device"] = device
+    _LOADED_MODELS["text2comp_device"] = device
+    _LOADED_MODELS["fno_device"] = device
+    _LOADED_MODELS["llm_path"] = profile.get("llm_path")
+    _LOADED_MODELS["router_path"] = profile.get("router_path")
+    _LOADED_MODELS["text2comp_paths"] = [profile.get("text2comp_path")]
+    _LOADED_MODELS["fno_paths"] = [profile.get("expert_path")]
+    _LOADED_MODELS["expert_executor"] = "assembly_profile"
+    return {
+        "status": "loaded",
+        "profile": profile,
+        "llm": profile.get("llm_path"),
+        "router": profile.get("router_path"),
+        "text2comp": [profile.get("text2comp_path")],
+        "fno": [],
+        "expert_executor": "assembly_profile",
+        "llm_gpu_id": req.llm_gpu_id,
+        "router_gpu_id": req.router_gpu_id or req.llm_gpu_id,
+        "force_split": False,
+        "message": f"拼装模型 {profile.get('name')} 已加载完成",
+        "architecture": "registered MODFLOW profile: LLM embedding + Router + Text2Comp + DNN Expert",
+        "gpu_status": get_gpu_info(),
+    }
+
+
+def _test_assembly_profile(req: AssemblyTestRequest) -> AssemblyTestResponse:
+    pipeline = _LOADED_MODELS.get("assembly_profile")
+    profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    if pipeline is None:
+        raise HTTPException(status_code=400, detail="Assembly profile 尚未加载")
+    start_time = time.time()
+    result = pipeline.chat(req.test_input)
+    latency = (time.time() - start_time) * 1000
+    debug_info = {
+        key: value
+        for key, value in result.items()
+        if key not in {"answer", "expert_output", "llm_context"}
+    }
+    debug_info["assembly_profile"] = profile
+    expert_output = result.get("expert_output_serialized")
+    if expert_output is None and result.get("expert_output") is not None:
+        expert_output = json.dumps(result.get("expert_output"), ensure_ascii=False)
+    return AssemblyTestResponse(
+        router_prediction=str(result.get("router_prediction") or "normal"),
+        first_cot_result=str(result.get("llm_context") or ""),
+        final_answer=str(result.get("answer") or ""),
+        llm_response=str(result.get("answer") or ""),
+        expert_output=expert_output,
+        expert_used=bool(result.get("expert_used")),
+        latency_ms=latency,
+        debug_info=debug_info,
+    )
+
+
 @router.post("/load")
 async def load_all_models(req: LoadAllRequest):
     """
@@ -1247,6 +1460,12 @@ async def load_all_models(req: LoadAllRequest):
     - 如果指定router_gpu_id不同，会自动处理跨设备同步（会增加延迟）
     - force_split用于大LLM切分到多GPU
     """
+    if req.assembly_profile_id:
+        return _load_assembly_profile_models(req)
+    if not req.llm_path:
+        raise HTTPException(status_code=400, detail="llm_path is required unless assembly_profile_id is provided")
+    _clear_profile_state()
+
     from transformers import AutoTokenizer, AutoModelForCausalLM
 
     # 确定设备
@@ -1543,6 +1762,7 @@ async def unload_all():
     _LOADED_MODELS["uploaded_expert_predict"] = None
     _LOADED_MODELS["uploaded_expert_id"] = None
     _LOADED_MODELS["uploaded_expert_path"] = None
+    _clear_profile_state()
 
     torch.cuda.empty_cache()
     return {"status": "unloaded", "message": "所有模型已卸载", "gpu_status": get_gpu_info()}
@@ -1551,6 +1771,17 @@ async def unload_all():
 @router.post("/test")
 async def test_assembly(req: AssemblyTestRequest):
     """测试PiERN推理"""
+    profile_id = str(req.config.get("assembly_profile_id") or "").strip()
+    if _LOADED_MODELS.get("assembly_profile") is None and profile_id:
+        gpu_id = req.config.get("gpu_config", {}).get("llm_gpu_ids", [0])[0]
+        await load_all_models(LoadAllRequest(
+            llm_path=req.config.get("main_llm_path"),
+            llm_gpu_id=gpu_id,
+            assembly_profile_id=profile_id,
+        ))
+    if _LOADED_MODELS.get("assembly_profile") is not None:
+        return _test_assembly_profile(req)
+
     # 如果模型未加载，先加载
     if _LOADED_MODELS["llm"] is None:
         llm_path = req.config.get("main_llm_path")

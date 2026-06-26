@@ -7,21 +7,25 @@ import type { TrainingJobDetail, TrainingJobStatus, TrainingLogResponse } from '
 import { ConfirmDialog } from '../../shared/ui'
 import { TrainingUsageBar, type TrainingProgressTone } from '../components/common'
 import {
-  formatMetric,
+  formatDuration,
   isTrainingJobDeletable,
   isTrainingJobStoppable,
   statusLabel,
   trainingJobRefreshInterval,
 } from '../shared'
 
-type SimpleStage = {
+type ProgressStage = {
   label: string
-  copy: string
+  step: string
+  detail: string
   percent: number
   tone: TrainingProgressTone
   active: boolean
   icon: 'waiting' | 'running' | 'done' | 'warning'
+  stageIndex: number
 }
+
+const STAGE_LABELS = ['提交任务', '分配资源', '准备数据', '构建输入', '初始化模型', '训练迭代', '评估保存', '完成']
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value))
@@ -38,147 +42,210 @@ function finiteTrainingPercent(job: TrainingJobDetail): number | null {
   const currentStep = Number(job.latest_step || 0)
   const stepsPerEpoch = Number(job.steps_per_epoch || 0)
   const epochProgress = stepsPerEpoch > 0 ? currentStep / stepsPerEpoch : 0
-  return clampPercent(52 + ((currentEpoch + epochProgress) / epochs) * 36)
+  return clampPercent(56 + ((currentEpoch + epochProgress) / epochs) * 32)
 }
 
-function stageIcon(stage: SimpleStage) {
+function estimateEta(job: TrainingJobDetail | undefined, stage: ProgressStage): string {
+  if (!job) return '正在读取任务'
+  if (job.eta_seconds != null) return formatDuration(job.eta_seconds)
+  if (!stage.active) return '—'
+  if (job.status === 'queued') return '等待资源'
+  const epochs = Number(job.config.epochs || 0)
+  const stepsPerEpoch = Number(job.steps_per_epoch || 0)
+  const stepsPerSec = Number(job.steps_per_sec || 0)
+  if (epochs > 0 && stepsPerEpoch > 0 && stepsPerSec > 0) {
+    const done = Number(job.latest_epoch || 0) * stepsPerEpoch + Number(job.latest_step || 0)
+    const total = epochs * stepsPerEpoch
+    return formatDuration(Math.max(0, total - done) / stepsPerSec)
+  }
+  return '估算中'
+}
+
+function stageIcon(stage: ProgressStage) {
   if (stage.icon === 'done') return <CheckCircle2 size={22} />
   if (stage.icon === 'warning') return <AlertTriangle size={22} />
   if (stage.icon === 'waiting') return <Clock3 size={22} />
   return stage.active ? <Loader2 size={22} className="training-simple-progress__spin" /> : <PlayCircle size={22} />
 }
 
-function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): SimpleStage {
+function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): ProgressStage {
   if (!job) {
     return {
       label: '正在读取训练任务',
-      copy: '正在获取任务状态。',
+      step: '读取任务记录',
+      detail: '正在获取任务状态、训练配置和最近日志。',
       percent: 4,
       tone: 'sky',
       active: true,
       icon: 'waiting',
+      stageIndex: 0,
     }
   }
 
   if (job.status === 'done') {
     return {
-      label: 'Router 训练完成',
-      copy: '训练结果已经保存。',
+      label: '模型训练完成',
+      step: '保存最终结果',
+      detail: '训练结果、指标和 checkpoint 已经写入任务目录。',
       percent: 100,
       tone: 'emerald',
       active: false,
       icon: 'done',
+      stageIndex: 7,
     }
   }
 
   if (job.status === 'error' || job.status === 'external_terminated') {
     return {
       label: '训练失败',
-      copy: job.error_message || '训练过程没有正常完成。',
+      step: '等待处理异常',
+      detail: job.error_message || '训练过程没有正常完成，请在复杂训练任务中查看完整日志。',
       percent: 100,
       tone: 'amber',
       active: false,
       icon: 'warning',
+      stageIndex: 7,
     }
   }
 
   if (job.status === 'terminated') {
     return {
       label: '训练已停止',
-      copy: '任务已经停止。',
+      step: '停止训练进程',
+      detail: '任务已经停止，已保留可用的任务记录和中间产物。',
       percent: 100,
       tone: 'amber',
       active: false,
       icon: 'warning',
+      stageIndex: 7,
     }
   }
 
   if (job.status === 'queued') {
     return {
       label: '等待训练开始',
-      copy: '任务已经提交，正在等待训练资源。',
-      percent: 8,
+      step: '分配 worker 和 GPU',
+      detail: '任务已提交，正在等待可用训练资源。',
+      percent: 10,
       tone: 'sky',
       active: true,
       icon: 'waiting',
+      stageIndex: 1,
     }
   }
 
   if (job.status === 'stopping') {
     return {
       label: '正在安全停止',
-      copy: '正在保存当前进度。',
-      percent: 92,
+      step: '保存当前进度',
+      detail: '已发送停止请求，正在等待 checkpoint 或任务状态安全落盘。',
+      percent: 96,
       tone: 'amber',
       active: true,
       icon: 'running',
+      stageIndex: 6,
     }
   }
 
   if (job.status === 'evaluating') {
     return {
-      label: '正在评估 Router',
-      copy: '正在计算当前训练效果。',
-      percent: 88,
+      label: '正在评估并保存',
+      step: '计算验证指标',
+      detail: '正在评估训练结果，更新指标并保存最新权重。',
+      percent: 92,
       tone: 'violet',
       active: true,
       icon: 'running',
+      stageIndex: 6,
     }
   }
 
   if (job.status === 'starting') {
-    if (
-      logsContain(lines, 'phase=encoder') ||
-      logsContain(lines, 'phase=dataloader') ||
-      logsContain(lines, 'phase=model')
-    ) {
-      return {
-        label: '正在准备 Router 训练',
-        copy: '正在初始化训练环境。',
-        percent: 42,
-        tone: 'sky',
-        active: true,
-        icon: 'running',
-      }
-    }
     if (logsContain(lines, 'phase=prepare')) {
       return {
-        label: '正在处理 Router 训练数据',
-        copy: '正在整理场景数据和训练样本。',
-        percent: 26,
+        label: '正在准备训练数据',
+        step: '读取场景并生成训练缓存',
+        detail: '正在按所选场景整理 Router 数据、过滤样本并写入 prepared cache。',
+        percent: 24,
         tone: 'sky',
         active: true,
         icon: 'running',
+        stageIndex: 2,
+      }
+    }
+    if (logsContain(lines, 'phase=dataloader')) {
+      return {
+        label: '正在构建训练输入',
+        step: '创建 dataloader',
+        detail: '正在组织 batch、切分训练/验证集，并准备数据加载器。',
+        percent: 38,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 3,
+      }
+    }
+    if (logsContain(lines, 'phase=encoder')) {
+      return {
+        label: '正在构建训练输入',
+        step: '生成文本向量表示',
+        detail: '正在调用嵌入模型处理上下文，将文本样本转换为训练特征。',
+        percent: 46,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 3,
+      }
+    }
+    if (logsContain(lines, 'phase=model')) {
+      return {
+        label: '正在初始化模型',
+        step: '装载训练头和优化器',
+        detail: '正在创建模型参数、优化器和训练状态，马上进入迭代训练。',
+        percent: 54,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 4,
       }
     }
     return {
-      label: '正在启动 Router 训练',
-      copy: '训练任务正在初始化。',
-      percent: 18,
+      label: '正在启动训练',
+      step: '检查任务配置',
+      detail: '正在写入任务目录、确认场景范围并启动训练进程。',
+      percent: 16,
       tone: 'sky',
       active: true,
       icon: 'running',
+      stageIndex: 0,
     }
   }
 
   if (job.status === 'running') {
+    const epoch = Number(job.latest_epoch ?? 0)
+    const step = Number(job.latest_step ?? 0)
+    const totalEpochs = Number(job.config.epochs || 0)
     return {
-      label: '正在训练 Router',
-      copy: '训练正在进行中。',
+      label: '正在训练模型',
+      step: totalEpochs > 0 ? `第 ${epoch + 1}/${totalEpochs} 轮 · step ${step}` : `训练 step ${step}`,
+      detail: '正在基于所选场景更新模型参数，并持续记录损失、指标和剩余时间。',
       percent: finiteTrainingPercent(job) ?? 72,
       tone: 'emerald',
       active: true,
       icon: 'running',
+      stageIndex: 5,
     }
   }
 
   return {
     label: statusLabel(job.status as TrainingJobStatus),
-    copy: '训练任务正在更新状态。',
+    step: '同步任务状态',
+    detail: '训练任务正在更新状态。',
     percent: 50,
     tone: 'sky',
     active: true,
     icon: 'running',
+    stageIndex: 0,
   }
 }
 
@@ -213,6 +280,7 @@ export default function TrainingSimpleProgressPage() {
   )
 
   const stage = stageFromJob(job, logs?.lines ?? [])
+  const eta = estimateEta(job, stage)
   const canStop = job ? isTrainingJobStoppable(job.status) : false
   const canDelete = job ? isTrainingJobDeletable(job.status) : false
 
@@ -241,7 +309,7 @@ export default function TrainingSimpleProgressPage() {
     try {
       await api.deleteTrainingJob(job.job_id)
       await refreshAll()
-      navigate('/training/simple')
+      navigate('/training/simple/tasks')
     } catch (error) {
       setActionError(`删除失败：${actionErrorMessage(error)}`)
       setBusy(false)
@@ -256,25 +324,50 @@ export default function TrainingSimpleProgressPage() {
             <div className={`training-simple-progress__icon training-simple-progress__icon--${stage.tone}`}>
               {stageIcon(stage)}
             </div>
-            <div className="training-eyebrow">简洁训练进度</div>
+            <div className="training-eyebrow">训练详情</div>
             <h1 className="training-simple-progress__title">{stage.label}</h1>
-            <p className="training-simple-progress__copy">{stage.copy}</p>
-            <div className="training-simple-progress__bar">
+            <p className="training-simple-progress__copy">{stage.detail}</p>
+
+            <div className="training-simple-progress__bar" aria-label="模型训练进度">
               <TrainingUsageBar value={stage.percent} tone={stage.tone} className="" />
               <div className="training-simple-progress__percent">{Math.round(stage.percent)}%</div>
             </div>
-            {(job?.latest_metrics || job?.avg_loss != null) && (
-              <div className="training-simple-result-grid">
-                <div>
-                  <span>最近 F1</span>
-                  <strong>{formatMetric(job.latest_metrics?.f1, 4)}</strong>
-                </div>
-                <div>
-                  <span>训练损失</span>
-                  <strong>{formatMetric(job.avg_loss, 6)}</strong>
-                </div>
+
+            <div className="training-simple-stage-detail">
+              <div>
+                <span>当前阶段 / 细分步骤</span>
+                <strong>{stage.step}</strong>
               </div>
-            )}
+              <div>
+                <span>预计剩余时间</span>
+                <strong>{eta}</strong>
+              </div>
+              <div>
+                <span>训练范围</span>
+                <strong>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '读取中'}</strong>
+              </div>
+            </div>
+
+            <div className="training-simple-stage-list-wrap">
+              <div className="training-simple-stage-list__label">阶段拆分</div>
+              <div className="training-simple-stage-list" aria-label="阶段拆分">
+                {STAGE_LABELS.map((label, index) => (
+                  <span
+                    key={label}
+                    className={
+                      index < stage.stageIndex
+                        ? 'training-simple-stage-list__done'
+                        : index === stage.stageIndex
+                          ? 'training-simple-stage-list__active'
+                          : ''
+                    }
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             {(jobError || actionError) && (
               <div className="training-simple-progress__error">
                 {actionError ?? `加载训练进度失败：${jobError?.message}`}
@@ -282,12 +375,12 @@ export default function TrainingSimpleProgressPage() {
             )}
             <div className="training-simple-progress__meta">
               <span>{job?.name ?? jobId}</span>
-              <span>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '读取中'}</span>
+              <span>{job ? statusLabel(job.status) : '读取中'}</span>
             </div>
             <div className="training-simple-progress__actions">
-              <Link to="/training/simple" className="btn-ghost">
+              <Link to="/training/simple/tasks" className="btn-ghost">
                 <RefreshCw size={14} />
-                返回简洁训练
+                返回任务
               </Link>
               {canStop && (
                 <button

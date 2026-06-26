@@ -107,6 +107,11 @@ def test_catalog_lists_router_jsonl_cache(monkeypatch, tmp_path: Path) -> None:
     )
 
     monkeypatch.setenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(cache_root))
+    monkeypatch.setattr(
+        file_catalog,
+        "_count_jsonl",
+        lambda path: (_ for _ in ()).throw(AssertionError("router cache count must use metadata")),
+    )
 
     assets = file_catalog._router_cache_assets()
 
@@ -117,6 +122,22 @@ def test_catalog_lists_router_jsonl_cache(monkeypatch, tmp_path: Path) -> None:
     assert asset["title"] == "modflow/case_a"
     assert asset["count"] == 1
     assert asset["details"]["row_count"] == 1
+
+
+def test_router_cache_count_skips_large_file_without_metadata(monkeypatch, tmp_path: Path) -> None:
+    cache_path = tmp_path / "large.jsonl"
+    cache_path.write_text('{"label":1}\n', encoding="utf-8")
+
+    monkeypatch.setattr(file_catalog, "_safe_stat", lambda path: (65 * 1024 * 1024, 0.0))
+    monkeypatch.setattr(
+        file_catalog,
+        "_count_jsonl",
+        lambda path: (_ for _ in ()).throw(AssertionError("large router cache must not be line-counted")),
+    )
+
+    details: dict[str, object] = {}
+    assert file_catalog._router_cache_count(cache_path, details) is None
+    assert details["count_source"] == "skipped_large_file"
 
 
 def test_delete_router_parquet_asset_removes_materialized_cache(monkeypatch, tmp_path: Path) -> None:

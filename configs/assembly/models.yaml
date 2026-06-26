@@ -36,6 +36,9 @@ fno_dirs:
 # 专家模型注册文件（用户动态添加的专家）
 expert_registry: configs/assembly/expert_registry.yaml
 
+# 完整拼装模型注册文件
+assembled_profiles: configs/assembly/assembled_profiles.yaml
+
 # 训练输出目录
 training_output:
   text2comp: /root/data/PierNet/artifacts/text2comp_models

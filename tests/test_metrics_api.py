@@ -47,3 +47,34 @@ def test_metrics_summary_reports_queues_workers_and_resources(monkeypatch, tmp_p
     assert payload["workers"]["busy"] == 1
     assert payload["resources"]["disk"]["free_bytes"] >= 0
     assert payload["resources"]["gpus"][0]["index"] == 0
+
+
+def test_metrics_summary_stale_worker_history_does_not_degrade_service(monkeypatch, tmp_path):
+    _use_tmp_store(monkeypatch, tmp_path)
+    monkeypatch.setattr(metrics.training_manager, "list_jobs", lambda refresh=True: [])
+    monkeypatch.setattr(metrics.training_manager, "get_gpu_inventory", lambda: [])
+    monkeypatch.setattr(
+        metrics,
+        "_disk_metrics",
+        lambda: {"path": str(tmp_path), "total_bytes": 100, "used_bytes": 40, "free_bytes": 60, "free_ratio": 0.6},
+    )
+    monkeypatch.setattr(
+        metrics.workers,
+        "list_workers",
+        lambda: [
+            {"worker_id": "current", "status": "running", "current_job_id": None},
+            {"worker_id": "old", "status": "stale", "current_job_id": "fill-old"},
+        ],
+    )
+
+    app = FastAPI()
+    app.include_router(metrics.router, prefix="/api")
+    client = TestClient(app)
+
+    payload = client.get("/api/metrics/summary").json()
+
+    assert payload["status"] == "ok"
+    assert payload["workers"]["running"] == 1
+    assert payload["workers"]["stale"] == 1
+    assert payload["workers"]["busy"] == 0
+    assert payload["warnings"] == ["1 worker(s) are stale"]

@@ -149,6 +149,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/assembly/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Assembly Profiles
+         * @description 列出已注册的完整拼装模型。
+         */
+        get: operations["list_assembly_profiles_api_assembly_profiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/assembly/prompt": {
         parameters: {
             query?: never;
@@ -2100,6 +2120,8 @@ export interface components {
          *     这会增加每个token生成周期的延迟。
          */
         LoadAllRequest: {
+            /** Assembly Profile Id */
+            assembly_profile_id?: string | null;
             /**
              * Auto Sync
              * @default true
@@ -2123,7 +2145,7 @@ export interface components {
              */
             llm_gpu_id: number;
             /** Llm Path */
-            llm_path: string;
+            llm_path?: string | null;
             /** Router Gpu Id */
             router_gpu_id?: number | null;
             /** Router Path */
@@ -3501,6 +3523,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_assembly_profiles_api_assembly_profiles_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
         };

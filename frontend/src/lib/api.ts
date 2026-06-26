@@ -565,6 +565,29 @@ export const api = {
   // ── Assembly ────────────────────────────────────────────────────
   getAssemblyStatus: (): Promise<{
     llms: { name: string; path: string; size: string; downloaded: boolean }[]
+    assembly_profiles?: {
+      model_id: string
+      name: string
+      description?: string
+      executor?: string
+      simulator?: string
+      root: string
+      manifest_path?: string
+      llm_path?: string
+      router_path: string
+      text2comp_path: string
+      expert_path: string
+      feature_dim?: number
+      param_count?: number
+      output_shape?: number[]
+      sample_count?: number
+      metrics?: Record<string, number>
+      trained: boolean
+      chat_enabled: boolean
+      source_thread_id?: string | null
+      source?: string
+      missing_paths?: string[]
+    }[]
     routers: {
       name: string
       path: string
@@ -615,6 +638,13 @@ export const api = {
       text2comp: { loaded: boolean; gpu_id?: number; paths?: string[] }
       fno: { loaded: boolean; gpu_id?: number; paths?: string[] }
       uploaded_expert?: { loaded: boolean; model_id?: string | null; path?: string | null; executor?: string | null }
+      assembly_profile?: {
+        loaded: boolean
+        model_id?: string | null
+        name?: string | null
+        path?: string | null
+        executor?: string | null
+      }
     }
     custom_experts: ExpertModelInfo[]
     gpu_available: boolean
@@ -633,7 +663,7 @@ export const api = {
   > => get('/assembly/gpus'),
 
   loadAssemblyModels: async (req: {
-    llm_path: string
+    llm_path?: string
     llm_gpu_id?: number
     router_gpu_id?: number
     router_path?: string
@@ -641,6 +671,7 @@ export const api = {
     fno_path?: string
     expert_executor?: 'fno' | 'uploaded'
     uploaded_expert_id?: string
+    assembly_profile_id?: string
     force_split?: boolean
     auto_sync?: boolean
   }): Promise<{
@@ -664,6 +695,7 @@ export const api = {
         fno_path: req.fno_path ?? null,
         expert_executor: req.expert_executor ?? 'fno',
         uploaded_expert_id: req.uploaded_expert_id ?? null,
+        assembly_profile_id: req.assembly_profile_id ?? null,
         force_split: req.force_split ?? false,
         auto_sync: req.auto_sync ?? true,
       }),

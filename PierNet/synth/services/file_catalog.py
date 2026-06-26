@@ -206,6 +206,24 @@ def _router_jsonl_cache_root() -> Path:
     return Path(os.getenv("PierNet_ROUTER_JSONL_CACHE_DIR", str(ROUTER_DIR / ".parquet_jsonl_cache")))
 
 
+def _router_cache_count(path: Path, details: dict[str, Any]) -> int | None:
+    for key in ("row_count", "count"):
+        value = details.get(key)
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed >= 0:
+            return parsed
+
+    size, _ = _safe_stat(path)
+    if size > 64 * 1024 * 1024:
+        details["count_source"] = "skipped_large_file"
+        return None
+    details["count_source"] = "line_scan"
+    return _count_jsonl(path)
+
+
 def _delete_router_jsonl_cache(simulator: str | None = None, scenario: str | None = None) -> int:
     root = _router_jsonl_cache_root()
     if not root.exists():
@@ -666,7 +684,7 @@ def _router_cache_assets() -> list[dict[str, Any]]:
                 scenario=scenario,
                 path=path,
                 id_parts=("router_cache", simulator, scenario),
-                count=_count_jsonl(path),
+                count=_router_cache_count(path, details),
                 count_label="缓存行",
                 valid=True,
                 details=details,

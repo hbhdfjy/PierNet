@@ -850,6 +850,17 @@
       "LoadAllRequest": {
         "description": "模型加载请求\n\n参数说明：\n- llm_path: LLM模型路径\n- llm_gpu_id: LLM加载的GPU（默认0）\n- router_gpu_id: Router加载的GPU（默认与LLM相同）\n- force_split: 是否强制切分LLM到多GPU\n- auto_sync: 是否自动同步设备（如果Router在不同GPU，会自动传输tensor）\n\n注意：single_eval.py中所有模型在同一GPU。\n如果Router在不同GPU，需要在推理时手动传输generated_ids，\n这会增加每个token生成周期的延迟。",
         "properties": {
+          "assembly_profile_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assembly Profile Id"
+          },
           "auto_sync": {
             "default": true,
             "title": "Auto Sync",
@@ -882,8 +893,15 @@
             "type": "integer"
           },
           "llm_path": {
-            "title": "Llm Path",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Llm Path"
           },
           "router_gpu_id": {
             "anyOf": [
@@ -930,9 +948,6 @@
             "title": "Uploaded Expert Id"
           }
         },
-        "required": [
-          "llm_path"
-        ],
         "title": "LoadAllRequest",
         "type": "object"
       },
@@ -4100,6 +4115,26 @@
           }
         },
         "summary": "Load All Models",
+        "tags": [
+          "assembly"
+        ]
+      }
+    },
+    "/api/assembly/profiles": {
+      "get": {
+        "description": "列出已注册的完整拼装模型。",
+        "operationId": "list_assembly_profiles_api_assembly_profiles_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Assembly Profiles",
         "tags": [
           "assembly"
         ]

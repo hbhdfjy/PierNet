@@ -114,16 +114,23 @@ def build_metrics_summary() -> MetricsSummary:
     queued_total = sum(item.queued for item in queue_summaries.values())
     running_workers = worker_counts.get("running", 0)
     warnings: list[str] = []
+    degrading_warnings: list[str] = []
     if worker_counts.get("stale", 0):
         warnings.append(f"{worker_counts['stale']} worker(s) are stale")
     if queued_total and running_workers == 0:
-        warnings.append("queued jobs exist but no running worker is reporting heartbeat")
+        warning = "queued jobs exist but no running worker is reporting heartbeat"
+        warnings.append(warning)
+        degrading_warnings.append(warning)
     if disk.get("free_ratio", 1.0) < 0.1:
-        warnings.append("disk free ratio is below 10%")
+        warning = "disk free ratio is below 10%"
+        warnings.append(warning)
+        degrading_warnings.append(warning)
     if gpu_error:
-        warnings.append(f"gpu inventory unavailable: {gpu_error}")
+        warning = f"gpu inventory unavailable: {gpu_error}"
+        warnings.append(warning)
+        degrading_warnings.append(warning)
 
-    status = "degraded" if warnings else "ok"
+    status = "degraded" if degrading_warnings else "ok"
     return MetricsSummary(
         status=status,
         generated_at=now,
@@ -137,7 +144,7 @@ def build_metrics_summary() -> MetricsSummary:
             running=worker_counts.get("running", 0),
             stale=worker_counts.get("stale", 0),
             stopped=worker_counts.get("stopped", 0),
-            busy=sum(1 for item in worker_items if item.get("current_job_id")),
+            busy=sum(1 for item in worker_items if item.get("status") == "running" and item.get("current_job_id")),
             items=worker_items,
         ),
         resources=ResourceMetrics(disk=disk, gpus=gpus),
