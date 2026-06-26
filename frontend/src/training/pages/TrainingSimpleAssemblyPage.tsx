@@ -26,7 +26,6 @@ type AssemblyMode = 'profile' | 'training_job'
 
 type AssemblyProfile = NonNullable<AssemblyStatus['assembly_profiles']>[number]
 
-
 const TRAINING_BUNDLES = [
   {
     id: 'diff-sorp-20260103-0124',
@@ -52,20 +51,22 @@ const TRAINING_BUNDLES = [
 
 const QUICK_TEST_INPUTS = [
   {
-    label: "\u666e\u901a\u95ee\u5019",
-    value: "\u4f60\u597d",
+    label: '\u666e\u901a\u95ee\u5019',
+    value: '\u4f60\u597d',
   },
   {
-    label: "Diff-Sorption \u6807\u51c6\u6837\u4f8b",
-    value: "\u8bf7\u901a\u8fc7\u5206\u6790\u4e24\u5e27\u5f52\u4e00\u5316\u8f93\u5165\u6570\u636e\uff0c\u57fa\u4e8e\u4f20\u8d28\u52a8\u529b\u5b66\u7684\u7406\u8bba\u6846\u67b6\uff0c\u9884\u6d4b\u5438\u9644\u7cfb\u7edf\u5728\u4e0b\u4e00\u65f6\u95f4\u6b65\u7684\u72b6\u6001\u6f14\u53d8\u3002 [0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]",
+    label: 'Diff-Sorption \u6807\u51c6\u6837\u4f8b',
+    value:
+      '\u8bf7\u901a\u8fc7\u5206\u6790\u4e24\u5e27\u5f52\u4e00\u5316\u8f93\u5165\u6570\u636e\uff0c\u57fa\u4e8e\u4f20\u8d28\u52a8\u529b\u5b66\u7684\u7406\u8bba\u6846\u67b6\uff0c\u9884\u6d4b\u5438\u9644\u7cfb\u7edf\u5728\u4e0b\u4e00\u65f6\u95f4\u6b65\u7684\u72b6\u6001\u6f14\u53d8\u3002 [0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]',
   },
   {
-    label: "Diff-Sorption \u77ed\u6837\u4f8b",
-    value: "\u8fd9\u662fdiff-sorption\u4efb\u52a1\uff0c\u8bf7\u9884\u6d4b\u4e0b\u4e00\u65f6\u523b\u7684\u6d53\u5ea6\u5206\u5e03\u3002\u6570\u636e\u5982\u4e0b\uff1a [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]",
+    label: 'Diff-Sorption \u77ed\u6837\u4f8b',
+    value:
+      '\u8fd9\u662fdiff-sorption\u4efb\u52a1\uff0c\u8bf7\u9884\u6d4b\u4e0b\u4e00\u65f6\u523b\u7684\u6d53\u5ea6\u5206\u5e03\u3002\u6570\u636e\u5982\u4e0b\uff1a [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]',
   },
   {
-    label: "\u666e\u901a\u79d1\u5b66\u95ee\u7b54",
-    value: "\u8bf7\u7b80\u8981\u89e3\u91ca\u4ec0\u4e48\u662f\u4f20\u8d28\u52a8\u529b\u5b66\u3002",
+    label: '\u666e\u901a\u79d1\u5b66\u95ee\u7b54',
+    value: '\u8bf7\u7b80\u8981\u89e3\u91ca\u4ec0\u4e48\u662f\u4f20\u8d28\u52a8\u529b\u5b66\u3002',
   },
 ] as const
 
@@ -141,10 +142,12 @@ function pickGpu(status: AssemblyStatus | undefined) {
   })[0]
 }
 
-
 function findModelByName<T extends SelectableModel>(items: T[] | undefined, name: string): T | null {
   const expected = name.toLowerCase()
-  return (items ?? []).find(item => item.name.toLowerCase() === expected || item.name.toLowerCase().includes(expected)) ?? null
+  return (
+    (items ?? []).find(item => item.name.toLowerCase() === expected || item.name.toLowerCase().includes(expected)) ??
+    null
+  )
 }
 
 function presetMissingLabels(models: Record<string, SelectableModel | null>, gpuReady: boolean): string[] {
@@ -430,14 +433,15 @@ export default function TrainingSimpleAssemblyPage() {
     }
   }
 
-
   const loadSelectedBundle = async () => {
     if (!selectedTrainingBundle) {
       setActionError('\u6ca1\u6709\u53ef\u7528\u7684\u8bad\u7ec3\u7ed3\u679c\u3002')
       return
     }
     if (!canLoadSelectedBundle || !selectedGpu) {
-      setActionError(`\u8be5\u8bad\u7ec3\u7ed3\u679c\u7f3a\u5c11\uff1a${selectedBundleMissing.join('\u3001') || '\u672a\u77e5\u6a21\u578b'}`)
+      setActionError(
+        `\u8be5\u8bad\u7ec3\u7ed3\u679c\u7f3a\u5c11\uff1a${selectedBundleMissing.join('\u3001') || '\u672a\u77e5\u6a21\u578b'}`,
+      )
       return
     }
     const bundleLLM = selectedBundleModels.LLM
@@ -445,7 +449,9 @@ export default function TrainingSimpleAssemblyPage() {
     const bundleText2Comp = selectedBundleModels.Text2Comp
     const bundleExpert = selectedBundleModels.Expert
     if (!bundleLLM?.path || !bundleExpert?.path) {
-      setActionError('\u8be5\u8bad\u7ec3\u7ed3\u679c\u7684\u6a21\u578b\u8def\u5f84\u4e0d\u5b8c\u6574\uff0c\u65e0\u6cd5\u52a0\u8f7d\u3002')
+      setActionError(
+        '\u8be5\u8bad\u7ec3\u7ed3\u679c\u7684\u6a21\u578b\u8def\u5f84\u4e0d\u5b8c\u6574\uff0c\u65e0\u6cd5\u52a0\u8f7d\u3002',
+      )
       return
     }
     setExecutorMode('fno')
@@ -596,8 +602,18 @@ export default function TrainingSimpleAssemblyPage() {
           <section className="training-card training-card--compact training-simple-panel">
             <div className="card-header">
               <Layers3 size={16} className="text-violet-300" />
-              <SectionTitle title={'\u5386\u53f2\u8bad\u7ec3\u7ed3\u679c'} copy={'\u6309\u4efb\u52a1\u7c7b\u578b\u548c\u65f6\u95f4\u9009\u62e9\u53ef\u52a0\u8f7d\u7684\u6a21\u578b\u7ec4\u5408'} />
-              <button type="button" className="btn-primary ml-auto" onClick={loadSelectedBundle} disabled={!canLoadSelectedBundle || busy}>
+              <SectionTitle
+                title={'\u5386\u53f2\u8bad\u7ec3\u7ed3\u679c'}
+                copy={
+                  '\u6309\u4efb\u52a1\u7c7b\u578b\u548c\u65f6\u95f4\u9009\u62e9\u53ef\u52a0\u8f7d\u7684\u6a21\u578b\u7ec4\u5408'
+                }
+              />
+              <button
+                type="button"
+                className="btn-primary ml-auto"
+                onClick={loadSelectedBundle}
+                disabled={!canLoadSelectedBundle || busy}
+              >
                 {busy ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
                 {'\u52a0\u8f7d\u8bad\u7ec3\u7ec4\u5408'}
               </button>
@@ -616,7 +632,9 @@ export default function TrainingSimpleAssemblyPage() {
                       <Layers3 size={16} />
                       <span>
                         <strong>{bundle.label}</strong>
-                        <small>{bundle.createdAt} - {bundle.task}</small>
+                        <small>
+                          {bundle.createdAt} - {bundle.task}
+                        </small>
                       </span>
                     </button>
                   )
@@ -626,19 +644,30 @@ export default function TrainingSimpleAssemblyPage() {
                 {Object.entries(selectedBundleModels).map(([label, model]) => (
                   <div key={label} className="training-simple-assembly-card training-simple-assembly-card--violet">
                     <div className="training-simple-assembly-card__head">
-                      <span><CheckCircle2 size={16} /></span>
+                      <span>
+                        <CheckCircle2 size={16} />
+                      </span>
                       <strong>{label}</strong>
                       {model && <CheckCircle2 size={15} />}
                     </div>
-                    <div className="training-simple-assembly-card__name">{model?.name ?? '\u672a\u627e\u5230\u6a21\u578b'}</div>
-                    <div className="training-simple-assembly-card__note">{model ? modelNote(model) : '\u8bf7\u786e\u8ba4\u6a21\u578b\u76ee\u5f55\u5df2\u626b\u63cf\u5230\u8be5\u6a21\u578b'}</div>
+                    <div className="training-simple-assembly-card__name">
+                      {model?.name ?? '\u672a\u627e\u5230\u6a21\u578b'}
+                    </div>
+                    <div className="training-simple-assembly-card__note">
+                      {model
+                        ? modelNote(model)
+                        : '\u8bf7\u786e\u8ba4\u6a21\u578b\u76ee\u5f55\u5df2\u626b\u63cf\u5230\u8be5\u6a21\u578b'}
+                    </div>
                   </div>
                 ))}
               </div>
               {!canLoadSelectedBundle && (
                 <div className="training-simple-job__notice">
                   <AlertTriangle size={14} />
-                  <span>{'\u8be5\u8bad\u7ec3\u7ed3\u679c\u6682\u4e0d\u53ef\u52a0\u8f7d\uff0c\u7f3a\u5c11\uff1a'}{selectedBundleMissing.join('\u3001')}</span>
+                  <span>
+                    {'\u8be5\u8bad\u7ec3\u7ed3\u679c\u6682\u4e0d\u53ef\u52a0\u8f7d\uff0c\u7f3a\u5c11\uff1a'}
+                    {selectedBundleMissing.join('\u3001')}
+                  </span>
                 </div>
               )}
             </div>
