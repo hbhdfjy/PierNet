@@ -42,11 +42,7 @@ function pickFirst<T extends SelectableModel>(items: T[] | undefined, predicate?
 }
 
 function isUsableTrainingJob(job: TrainingJobSummary): boolean {
-  return (
-    Boolean(job.run_dir) &&
-    (job.status === 'done' || job.status === 'terminated' || job.status === 'external_terminated') &&
-    (job.latest_epoch ?? 0) > 0
-  )
+  return Boolean(job.run_dir && job.status === 'done' && job.text2comp_model_path)
 }
 
 function routerPathFromTrainingJob(job: TrainingJobSummary): string {
@@ -62,6 +58,18 @@ function routerModelFromTrainingJob(job: TrainingJobSummary | null): SelectableM
     path: routerPathFromTrainingJob(job),
     trained: true,
     description: `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景${metric}`,
+  }
+}
+
+function text2compModelFromTrainingJob(job: TrainingJobSummary | null): SelectableModel | null {
+  if (!job?.text2comp_model_path) return null
+  const expert = job.uploaded_expert_name ? ` · Uploaded Expert ${job.uploaded_expert_name}` : ''
+  return {
+    name: `${job.name || job.job_id} Text2Comp`,
+    path: job.text2comp_model_path,
+    trained: true,
+    output_dim: job.uploaded_expert_input_dim,
+    description: `输出维度 ${job.uploaded_expert_input_dim ?? '--'}${expert}`,
   }
 }
 
@@ -177,7 +185,7 @@ export default function TrainingSimpleAssemblyPage() {
     refreshInterval: 5000,
     revalidateOnFocus: false,
   })
-  const [executorMode, setExecutorMode] = useState<ExecutorMode>('fno')
+  const [executorMode, setExecutorMode] = useState<ExecutorMode>('uploaded')
   const [resourceMode, setResourceMode] = useState<ResourceMode>('auto')
   const [assemblyMode, setAssemblyMode] = useState<AssemblyMode>('profile')
   const [profileId, setProfileId] = useState('')
@@ -215,9 +223,11 @@ export default function TrainingSimpleAssemblyPage() {
   )
   const llm = useMemo(() => pickLLM(status), [status])
   const trainingJobRouter = useMemo(() => routerModelFromTrainingJob(selectedTrainingJob), [selectedTrainingJob])
+  const trainingJobText2Comp = useMemo(() => text2compModelFromTrainingJob(selectedTrainingJob), [selectedTrainingJob])
   const registryRouter = useMemo(() => pickFirst(status?.routers, item => item.trained), [status?.routers])
   const router = assemblyMode === 'training_job' ? trainingJobRouter : registryRouter
-  const text2comp = useMemo(() => pickFirst(status?.text2comps, item => item.trained), [status?.text2comps])
+  const registryText2Comp = useMemo(() => pickFirst(status?.text2comps, item => item.trained), [status?.text2comps])
+  const text2comp = assemblyMode === 'training_job' ? trainingJobText2Comp : registryText2Comp
   const fnoModels = useMemo(() => (status?.fno_experts ?? []).filter(item => item.trained), [status?.fno_experts])
   const fno = useMemo(() => fnoModels.find(item => item.path === fnoPath) ?? fnoModels[0] ?? null, [fnoModels, fnoPath])
   const uploadedExperts = useMemo(() => compatibleUploadedExperts(status, text2comp), [status, text2comp])
@@ -301,7 +311,7 @@ export default function TrainingSimpleAssemblyPage() {
       }
       selectedRouter = trainingJobRouter
       if (!llm || !text2comp) {
-        setActionError('缺少 LLM 或 Text2Comp，无法把训练任务拼装为完整链路。')
+        setActionError('缺少 LLM 或本次训练产出的 Text2Comp，无法把训练任务拼装为完整链路。')
         return
       }
       if (executorMode === 'fno' && !fno) {
@@ -546,8 +556,8 @@ export default function TrainingSimpleAssemblyPage() {
                     </select>
                     <div className="rounded-lg border border-sky-500/25 bg-sky-500/8 p-3 text-xs leading-5 text-slate-300">
                       {selectedTrainingJob
-                        ? `使用 ${pathName(routerPathFromTrainingJob(selectedTrainingJob))} 作为 Router；LLM 和 Text2Comp 由平台自动补齐，Expert 可在下方切换。`
-                        : '完成一次简洁训练后，这里会显示可用于拼装的 Router 任务。'}
+                        ? `使用 ${pathName(routerPathFromTrainingJob(selectedTrainingJob))} 作为 Router，使用 ${pathName(selectedTrainingJob.text2comp_model_path)} 作为 Text2Comp，Expert 默认使用 Uploaded Expert。`
+                        : '完成一次分阶段简洁训练后，这里会显示可用于拼装的完整训练任务。'}
                     </div>
                   </div>
                 )}

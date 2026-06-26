@@ -1665,6 +1665,11 @@
             "title": "Expert Model",
             "type": "string"
           },
+          "freeze_base": {
+            "default": false,
+            "title": "Freeze Base",
+            "type": "boolean"
+          },
           "gpu_id": {
             "title": "Gpu Id",
             "type": "integer"
@@ -1693,6 +1698,13 @@
           "num_workers": {
             "default": 4,
             "title": "Num Workers",
+            "type": "integer"
+          },
+          "output_dim": {
+            "default": 0,
+            "maximum": 1000000.0,
+            "minimum": 0.0,
+            "title": "Output Dim",
             "type": "integer"
           },
           "precision": {
@@ -2806,6 +2818,33 @@
             "title": "Seed",
             "type": "integer"
           },
+          "simple_pipeline_enabled": {
+            "default": false,
+            "title": "Simple Pipeline Enabled",
+            "type": "boolean"
+          },
+          "simple_text2comp_epochs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Epochs"
+          },
+          "simple_text2comp_max_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Max Samples"
+          },
           "test_batch_size": {
             "default": 256,
             "title": "Test Batch Size",
@@ -3182,6 +3221,17 @@
             ],
             "title": "Pid"
           },
+          "pipeline_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Stage"
+          },
           "prepared_name": {
             "anyOf": [
               {
@@ -3192,6 +3242,17 @@
               }
             ],
             "title": "Prepared Name"
+          },
+          "router_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Status"
           },
           "run_dir": {
             "title": "Run Dir",
@@ -3271,6 +3332,105 @@
               }
             ],
             "title": "Stop Requested At"
+          },
+          "text2comp_dataset_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Dataset Path"
+          },
+          "text2comp_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Error Message"
+          },
+          "text2comp_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Job Id"
+          },
+          "text2comp_model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Model Path"
+          },
+          "text2comp_run_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Run Dir"
+          },
+          "text2comp_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Status"
+          },
+          "uploaded_expert_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Id"
+          },
+          "uploaded_expert_input_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Input Dim"
+          },
+          "uploaded_expert_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Name"
           }
         },
         "required": [
@@ -3439,6 +3599,28 @@
             ],
             "title": "Pid"
           },
+          "pipeline_stage": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pipeline Stage"
+          },
+          "router_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Status"
+          },
           "run_dir": {
             "title": "Run Dir",
             "type": "string"
@@ -3517,6 +3699,105 @@
               }
             ],
             "title": "Stop Requested At"
+          },
+          "text2comp_dataset_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Dataset Path"
+          },
+          "text2comp_error_message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Error Message"
+          },
+          "text2comp_job_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Job Id"
+          },
+          "text2comp_model_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Model Path"
+          },
+          "text2comp_run_dir": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Run Dir"
+          },
+          "text2comp_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Status"
+          },
+          "uploaded_expert_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Id"
+          },
+          "uploaded_expert_input_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Input Dim"
+          },
+          "uploaded_expert_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Name"
           }
         },
         "required": [
@@ -3757,6 +4038,17 @@
             "default": "modflow",
             "title": "Simulator",
             "type": "string"
+          },
+          "uploaded_expert_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Id"
           }
         },
         "title": "TrainingQuickJobCreateRequest",

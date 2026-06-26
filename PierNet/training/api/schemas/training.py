@@ -69,6 +69,9 @@ class TrainingJobConfig(BaseModel):
     auto_stop_metric: TrainingAutoStopMetric = "f1"
     auto_stop_threshold: float = 0.98
     auto_stop_min_epochs: int = 1
+    simple_pipeline_enabled: bool = False
+    simple_text2comp_epochs: int | None = None
+    simple_text2comp_max_samples: int | None = None
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -104,6 +107,7 @@ class TrainingQuickJobCreateRequest(BaseModel):
     gpu_id: int | None = Field(default=None, ge=0)
     resume_from: str | None = None
     seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
+    uploaded_expert_id: str | None = None
 
 
 class TrainingMetricsSummary(BaseModel):
@@ -142,6 +146,17 @@ class TrainingJobSummary(BaseModel):
     stop_requested: bool = False
     stop_requested_at: float | None = None
     exit_reason: str | None = None
+    pipeline_stage: str | None = None
+    router_status: str | None = None
+    text2comp_job_id: str | None = None
+    text2comp_status: str | None = None
+    text2comp_run_dir: str | None = None
+    text2comp_model_path: str | None = None
+    text2comp_dataset_path: str | None = None
+    text2comp_error_message: str | None = None
+    uploaded_expert_id: str | None = None
+    uploaded_expert_name: str | None = None
+    uploaded_expert_input_dim: int | None = None
 
 
 class TrainingCheckpointInfo(BaseModel):

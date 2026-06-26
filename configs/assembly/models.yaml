@@ -14,7 +14,7 @@ llm_dirs:
       - "*Omni*"         # 排除Omni版本
 
 # Text2Comp 基础模型（用于训练 backbone）
-text_model_dir: /root/eb-public/huggingface-models/Qwen/Qwen3-0.6B
+text_model_dir: /root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct
 
 # Router 模型目录（扫描 .pt 文件）
 router_dir: /root/data/PierNet/artifacts/token_router

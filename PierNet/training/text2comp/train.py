@@ -22,7 +22,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, random_split
 from transformers import AutoTokenizer
 
-from .config import Text2CompTrainingConfig, get_expert_info
+from .config import Text2CompTrainingConfig, create_custom_expert_info, get_expert_info
 from .data import PromptNumbersDataset, generate_text2comp_data
 from .model import Text2CompModel, create_text2comp_model
 
@@ -313,9 +313,10 @@ def run_training(config: Text2CompTrainingConfig) -> Path:
     }, final_path)
     logger.info(f"Training complete, final model: {final_path}")
 
-    # 更新最佳模型路径
+    # 如果没有评估产出的最佳模型，则让 best_model.pt 指向最终模型。
     best_path = run_dir / "best_model.pt"
-    best_path.symlink_to(final_path.name) if best_path.exists() else None
+    if not best_path.exists():
+        best_path.symlink_to(final_path.name)
 
     return run_dir
 
@@ -361,7 +362,19 @@ def main():
     args = parser.parse_args()
 
     # 构建配置
-    expert_info = get_expert_info(args.simulator) if args.simulator else None
+    expert_info = None
+    if args.simulator:
+        try:
+            expert_info = get_expert_info(args.simulator)
+        except ValueError:
+            if args.output_dim <= 0:
+                raise
+            expert_info = create_custom_expert_info(
+                name=args.simulator,
+                expert_input_dim=args.output_dim,
+                domain=f"Uploaded Expert adapter for {args.simulator}",
+                expert_type="UploadedExpert",
+            )
     if args.h5_path:
         expert_info.data_path = args.h5_path
 

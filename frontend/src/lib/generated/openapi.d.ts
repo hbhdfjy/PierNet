@@ -2509,6 +2509,11 @@ export interface components {
             eval_interval: number;
             /** Expert Model */
             expert_model: string;
+            /**
+             * Freeze Base
+             * @default false
+             */
+            freeze_base: boolean;
             /** Gpu Id */
             gpu_id: number;
             /**
@@ -2528,6 +2533,11 @@ export interface components {
              * @default 4
              */
             num_workers: number;
+            /**
+             * Output Dim
+             * @default 0
+             */
+            output_dim: number;
             /**
              * Precision
              * @default 4
@@ -2975,6 +2985,15 @@ export interface components {
              */
             seed: number;
             /**
+             * Simple Pipeline Enabled
+             * @default false
+             */
+            simple_pipeline_enabled: boolean;
+            /** Simple Text2Comp Epochs */
+            simple_text2comp_epochs?: number | null;
+            /** Simple Text2Comp Max Samples */
+            simple_text2comp_max_samples?: number | null;
+            /**
              * Test Batch Size
              * @default 256
              */
@@ -3129,8 +3148,12 @@ export interface components {
             name: string;
             /** Pid */
             pid?: number | null;
+            /** Pipeline Stage */
+            pipeline_stage?: string | null;
             /** Prepared Name */
             prepared_name?: string | null;
+            /** Router Status */
+            router_status?: string | null;
             /** Run Dir */
             run_dir: string;
             /** Scenarios */
@@ -3155,6 +3178,24 @@ export interface components {
             stop_requested: boolean;
             /** Stop Requested At */
             stop_requested_at?: number | null;
+            /** Text2Comp Dataset Path */
+            text2comp_dataset_path?: string | null;
+            /** Text2Comp Error Message */
+            text2comp_error_message?: string | null;
+            /** Text2Comp Job Id */
+            text2comp_job_id?: string | null;
+            /** Text2Comp Model Path */
+            text2comp_model_path?: string | null;
+            /** Text2Comp Run Dir */
+            text2comp_run_dir?: string | null;
+            /** Text2Comp Status */
+            text2comp_status?: string | null;
+            /** Uploaded Expert Id */
+            uploaded_expert_id?: string | null;
+            /** Uploaded Expert Input Dim */
+            uploaded_expert_input_dim?: number | null;
+            /** Uploaded Expert Name */
+            uploaded_expert_name?: string | null;
         };
         /** TrainingJobSummary */
         TrainingJobSummary: {
@@ -3192,6 +3233,10 @@ export interface components {
             name: string;
             /** Pid */
             pid?: number | null;
+            /** Pipeline Stage */
+            pipeline_stage?: string | null;
+            /** Router Status */
+            router_status?: string | null;
             /** Run Dir */
             run_dir: string;
             /** Scenarios */
@@ -3216,6 +3261,24 @@ export interface components {
             stop_requested: boolean;
             /** Stop Requested At */
             stop_requested_at?: number | null;
+            /** Text2Comp Dataset Path */
+            text2comp_dataset_path?: string | null;
+            /** Text2Comp Error Message */
+            text2comp_error_message?: string | null;
+            /** Text2Comp Job Id */
+            text2comp_job_id?: string | null;
+            /** Text2Comp Model Path */
+            text2comp_model_path?: string | null;
+            /** Text2Comp Run Dir */
+            text2comp_run_dir?: string | null;
+            /** Text2Comp Status */
+            text2comp_status?: string | null;
+            /** Uploaded Expert Id */
+            uploaded_expert_id?: string | null;
+            /** Uploaded Expert Input Dim */
+            uploaded_expert_input_dim?: number | null;
+            /** Uploaded Expert Name */
+            uploaded_expert_name?: string | null;
         };
         /** TrainingLogResponse */
         TrainingLogResponse: {
@@ -3282,6 +3345,8 @@ export interface components {
              * @default modflow
              */
             simulator: string;
+            /** Uploaded Expert Id */
+            uploaded_expert_id?: string | null;
         };
         /** TrainingTestPoint */
         TrainingTestPoint: {

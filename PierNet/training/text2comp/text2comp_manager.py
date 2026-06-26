@@ -46,6 +46,10 @@ REGISTRY_PATH = ARTIFACTS_ROOT / "training_jobs.json"
 # 数据路径 - 统一使用项目内data/text2comp目录
 TEXT2COMP_DATA_DIR = PROJECT_ROOT / "data" / "text2comp"
 BASE_MODEL_DIR = Path("/root/eb-public/huggingface-models")
+DEFAULT_TEXT2COMP_BASE_MODEL = os.getenv(
+    "PIERN_TEXT2COMP_BASE_MODEL",
+    "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct",
+)
 
 # GPU配置
 GPU_FREE_MEMORY_THRESHOLD_MIB = 8192  # Text2Comp需要更多显存
@@ -234,9 +238,14 @@ def _pid_alive(pid: int | None) -> bool:
         return False
     try:
         os.kill(pid, 0)
-        return True
     except OSError:
         return False
+    stat_path = Path("/proc") / str(pid) / "stat"
+    try:
+        fields = stat_path.read_text(encoding="utf-8", errors="replace").split()
+    except OSError:
+        return True
+    return len(fields) < 3 or fields[2] != "Z"
 
 
 def _tail_lines(path: Path, limit: int = 200) -> list[str]:
@@ -584,12 +593,14 @@ def validate_training_data(data_path: str, expected_dim: int) -> dict[str, Any]:
     label_dims = set()
 
     try:
-        import jsonlines
-        with jsonlines.open(path, "r") as reader:
-            for idx, item in enumerate(reader):
+        with path.open("r", encoding="utf-8") as handle:
+            for idx, line in enumerate(handle):
                 if idx >= 100:  # 只检查前100条
                     break
-                label = item.get("label", [])
+                if not line.strip():
+                    continue
+                item = json.loads(line)
+                label = item.get("label", []) if isinstance(item, dict) else []
                 if isinstance(label, list) and len(label) == expected_dim:
                     valid_count += 1
                     label_dims.add(len(label))
@@ -709,7 +720,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     # 使用模块方式运行
     train_script = "-m"
     train_module = "PierNet.training.text2comp.train"
-    base_model_path = payload.get("base_model") or payload.get("base_model_path") or "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+    base_model_path = payload.get("base_model") or payload.get("base_model_path") or DEFAULT_TEXT2COMP_BASE_MODEL
 
     # 使用当前Python解释器路径（解决conda环境问题）
     python_executable = sys.executable

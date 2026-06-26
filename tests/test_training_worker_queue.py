@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 import pytest
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -52,6 +53,20 @@ def _mock_training_prereqs(monkeypatch):
             "pretrained_embeddings",
             SimpleNamespace(embedding_model="/models/qwen", tokenizer_name="/models/qwen"),
         ),
+    )
+    monkeypatch.setattr(
+        training_manager.uploaded_expert_models,
+        "list_assembly_models",
+        lambda: [
+            {
+                "model_id": "uploaded-identity",
+                "name": "uploaded_identity",
+                "status": "active",
+                "assembly_enabled": True,
+                "input_dim": 4,
+                "output_dim": 4,
+            }
+        ],
     )
 
 
@@ -280,6 +295,31 @@ def test_training_launch_passes_runtime_router_dir(monkeypatch, tmp_path):
     assert entry["command"] == command
 
 
+def test_refresh_entry_tolerates_gpu_lock_release_failure(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    entry = training_manager._queued_training_entry(_payload())
+    entry["status"] = "starting"
+    entry["pid"] = 99999999
+    entry["started_at"] = 2.0
+    run_dir = Path(entry["run_dir"])
+    run_dir.mkdir(parents=True)
+    (run_dir / "router_final.pt").write_bytes(b"ok")
+    Path(entry["log_path"]).parent.mkdir(parents=True)
+    Path(entry["log_path"]).write_text("[done]\n", encoding="utf-8")
+    training_manager._save_registry([entry])
+
+    def fail_release(*_args, **_kwargs):
+        raise sqlite3.OperationalError("database is locked")
+
+    monkeypatch.setattr(training_manager.task_locks, "release_lock", fail_release)
+
+    refreshed = training_manager.get_job(entry["job_id"], refresh=True)
+
+    assert refreshed["status"] == "done"
+    assert refreshed["exit_reason"] == "completed"
+
+
 def test_launch_job_does_not_start_cancelled_queued_entry(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
@@ -331,6 +371,9 @@ def test_quick_training_job_queues_with_platform_defaults(monkeypatch, tmp_path)
     assert entry["config"]["auto_stop_metric"] == "f1"
     assert entry["config"]["auto_stop_threshold"] == 0.98
     assert entry["config"]["auto_stop_min_epochs"] == 1
+    assert entry["config"]["simple_pipeline_enabled"] is True
+    assert entry["config"]["simple_text2comp_epochs"] == training_manager.QUICK_TEXT2COMP_DEFAULTS["epochs"]
+    assert entry["simple_pipeline"]["stage"] == "router"
     assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
 
 
@@ -360,5 +403,27 @@ def test_quick_training_job_preserves_coarse_options(monkeypatch, tmp_path):
     assert entry["gpu_id"] == 0
     assert entry["config"]["seed"] == 123
     assert entry["config"]["resume_from"] == "/tmp/router_latest.pt"
+    assert entry["config"]["simple_pipeline_enabled"] is True
+    assert entry["simple_pipeline"]["uploaded_expert_id"] is None
     assert validated_resume["resume_from"] == "/tmp/router_latest.pt"
     assert validated_resume["scenarios"] == ["coastal_seawater"]
+
+
+def test_quick_training_job_accepts_uploaded_expert_selection(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+
+    entry = training_manager.create_quick_job(
+        {
+            "name": "quick-uploaded",
+            "simulator": "modflow",
+            "scenarios": ["coastal_seawater"],
+            "uploaded_expert_id": "uploaded-identity",
+        }
+    )
+    payload = training_manager._payload_from_queued_entry(entry)
+
+    assert entry["simple_pipeline"]["uploaded_expert_id"] == "uploaded-identity"
+    assert payload["uploaded_expert_id"] == "uploaded-identity"
+    assert payload["simple_pipeline_enabled"] is True

@@ -51,7 +51,7 @@ _ROUTER_ARTIFACTS_ROOT = Path(
     os.getenv("PIERN_ROUTER_ARTIFACTS_DIR", str(_ARTIFACTS_ROOT / "token_router"))
 ).expanduser()
 _FNO_MODELS_ROOT = Path(os.getenv("PIERN_FNO_MODELS_DIR", str(_ARTIFACTS_ROOT / "fno_models"))).expanduser()
-_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct"
 
 def _load_config():
     if _CONFIG_PATH.exists():
@@ -172,6 +172,23 @@ def _text2comp_model_name(path: str) -> str:
     return stem
 
 
+def _text2comp_metadata(path: str) -> tuple[str, int, str]:
+    model_path = Path(path)
+    config_path = model_path.parent / "config.json"
+    if config_path.exists():
+        try:
+            config = json.loads(config_path.read_text(encoding="utf-8"))
+        except Exception:
+            config = {}
+        if isinstance(config, dict):
+            simulator = str(config.get("simulator") or _infer_simulator_from_path(path))
+            output_dim = int(config.get("output_dim") or (128 if simulator == "diff_sorp" else 32))
+            name = str(config.get("task_name") or _text2comp_model_name(path))
+            return simulator, output_dim, name
+    simulator = _infer_simulator_from_path(path)
+    return simulator, 128 if simulator == "diff_sorp" else 32, _text2comp_model_name(path)
+
+
 def _scan_text2comp():
     config = _load_config()
     models = []
@@ -184,10 +201,9 @@ def _scan_text2comp():
                 if f in seen:
                     continue
                 seen.add(f)
-                sim = _infer_simulator_from_path(f)
-                od = 128 if sim == "diff_sorp" else 32
+                sim, od, name = _text2comp_metadata(f)
                 models.append({
-                    "name": _text2comp_model_name(f),
+                    "name": name,
                     "simulator": sim,
                     "output_dim": od,
                     "path": f,
@@ -196,10 +212,12 @@ def _scan_text2comp():
         art_dir = str(_TEXT2COMP_MODELS_ROOT)
         if os.path.exists(art_dir):
             for f in sorted(_glob.glob(os.path.join(art_dir, "**/final_model.pt"), recursive=True)):
-                sim = _infer_simulator_from_path(f)
-                od = 128 if sim == "diff_sorp" else 32
+                if f in seen:
+                    continue
+                seen.add(f)
+                sim, od, name = _text2comp_metadata(f)
                 models.append({
-                    "name": _text2comp_model_name(f),
+                    "name": name,
                     "simulator": sim,
                     "output_dim": od,
                     "path": f,
@@ -1223,7 +1241,7 @@ async def list_text2comps():
         path=t["path"], domain="PDE", description=f"Text2Comp for {t['simulator']}",
         trained=os.path.exists(t["path"]),
         gpu_id=_LOADED_MODELS["text2comp_device"].index if _LOADED_MODELS["text2comp_device"] else None
-    ) for t in _TEXT2COMP_REGISTRY]
+    ) for t in _scan_text2comp()]
 
 
 def _uploaded_expert_info(model: dict[str, Any]) -> UploadedExpertInfo:
@@ -1515,10 +1533,11 @@ async def load_all_models(req: LoadAllRequest):
 
     _LOADED_MODELS["text2comp"] = {}
     _LOADED_MODELS["text2comp_paths"] = []
+    text2comp_registry = _scan_text2comp()
     selected_text2comps = (
-        [t for t in _TEXT2COMP_REGISTRY if t["path"] == req.text2comp_path]
+        [t for t in text2comp_registry if t["path"] == req.text2comp_path]
         if req.text2comp_path
-        else _TEXT2COMP_REGISTRY
+        else text2comp_registry
     )
     if req.text2comp_path and not selected_text2comps:
         raise HTTPException(status_code=404, detail=f"Text2Comp not found: {req.text2comp_path}")
@@ -1682,7 +1701,7 @@ async def load_text2comp(req: LoadText2CompRequest):
         text_base = _LOADED_MODELS["text2comp_base"]
 
     # 加载对应simulator的Text2Comp
-    t_info = next((t for t in _TEXT2COMP_REGISTRY if t["simulator"] == req.simulator), None)
+    t_info = next((t for t in _scan_text2comp() if t["simulator"] == req.simulator), None)
     if t_info and os.path.exists(t_info["path"]):
         if t_info["output_dim"] == 32:
             model = LMRegression32D(text_base).to(device)

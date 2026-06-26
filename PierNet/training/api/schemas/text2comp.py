@@ -65,6 +65,7 @@ class Text2CompJobCreateRequest(BaseModel):
     expert_model: str  # diff-sorp, diff-reaction, burgers, modflow, etc.
     dataset_path: str | None = None  # 如果为None，自动查找
     gpu_id: int
+    output_dim: int = Field(default=0, ge=0, le=1_000_000)
     epochs: int = 50
     eval_interval: int = 5
     batch_size: int = 32
@@ -76,6 +77,7 @@ class Text2CompJobCreateRequest(BaseModel):
     max_length: int = 2048
     precision: int = 4
     resume_from: str | None = None
+    freeze_base: bool = False
 
 
 class Text2CompMetricsSummary(BaseModel):

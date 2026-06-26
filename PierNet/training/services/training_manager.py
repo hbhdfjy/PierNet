@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import signal
 import subprocess
 import sys
@@ -13,10 +14,12 @@ from pathlib import Path
 from threading import RLock, Thread
 from typing import Any
 
+from PierNet.synth.services import expert_models as uploaded_expert_models
 from PierNet.training.router.data import inspect_router_input_representation
 from PierNet.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from PierNet.shared.tasks import locks as task_locks
 from PierNet.training.services import job_store as training_job_store
+from PierNet.training.text2comp import text2comp_manager
 from PierNet.training.services.checkpoint_store import (
     checkpoint_entries as _checkpoint_entries,
     clear_checkpoint_metadata_cache as _clear_checkpoint_metadata_cache,
@@ -96,6 +99,19 @@ QUICK_TRAINING_DEFAULTS = {
     "auto_stop_metric": os.getenv("PierNet_QUICK_TRAINING_AUTO_STOP_METRIC", "f1"),
     "auto_stop_threshold": _env_float("PierNet_QUICK_TRAINING_AUTO_STOP_THRESHOLD", 0.98),
     "auto_stop_min_epochs": _env_int("PierNet_QUICK_TRAINING_AUTO_STOP_MIN_EPOCHS", 1),
+}
+QUICK_TEXT2COMP_DEFAULTS = {
+    "epochs": _env_int("PierNet_QUICK_TEXT2COMP_EPOCHS", 1),
+    "batch_size": _env_int("PierNet_QUICK_TEXT2COMP_BATCH_SIZE", 8),
+    "test_batch_size": _env_int("PierNet_QUICK_TEXT2COMP_TEST_BATCH_SIZE", 8),
+    "learning_rate": _env_float("PierNet_QUICK_TEXT2COMP_LEARNING_RATE", 1e-5),
+    "weight_decay": _env_float("PierNet_QUICK_TEXT2COMP_WEIGHT_DECAY", 1e-2),
+    "num_workers": _env_int("PierNet_QUICK_TEXT2COMP_NUM_WORKERS", 2),
+    "test_ratio": _env_float("PierNet_QUICK_TEXT2COMP_TEST_RATIO", 0.1),
+    "max_length": _env_int("PierNet_QUICK_TEXT2COMP_MAX_LENGTH", 512),
+    "eval_interval": _env_int("PierNet_QUICK_TEXT2COMP_EVAL_INTERVAL", 1),
+    "freeze_base": True,
+    "max_samples": _env_int("PierNet_QUICK_TEXT2COMP_MAX_SAMPLES", 1024),
 }
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
@@ -177,8 +193,21 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
             "config": config,
             "command": normalized.get("command") if isinstance(normalized.get("command"), list) else [],
             "checkpoints": normalized.get("checkpoints") if isinstance(normalized.get("checkpoints"), list) else [],
+            "simple_pipeline": normalized.get("simple_pipeline") if isinstance(normalized.get("simple_pipeline"), dict) else {},
         }
     )
+    pipeline = normalized.get("simple_pipeline") if isinstance(normalized.get("simple_pipeline"), dict) else {}
+    normalized["pipeline_stage"] = pipeline.get("stage")
+    normalized["router_status"] = normalized.get("router_status")
+    normalized["text2comp_job_id"] = pipeline.get("text2comp_job_id")
+    normalized["text2comp_status"] = pipeline.get("text2comp_status")
+    normalized["text2comp_run_dir"] = pipeline.get("text2comp_run_dir")
+    normalized["text2comp_model_path"] = pipeline.get("text2comp_model_path")
+    normalized["text2comp_dataset_path"] = pipeline.get("text2comp_dataset_path")
+    normalized["text2comp_error_message"] = pipeline.get("text2comp_error_message")
+    normalized["uploaded_expert_id"] = pipeline.get("uploaded_expert_id")
+    normalized["uploaded_expert_name"] = pipeline.get("uploaded_expert_name")
+    normalized["uploaded_expert_input_dim"] = pipeline.get("uploaded_expert_input_dim")
     return normalized
 
 
@@ -210,6 +239,19 @@ def _save_registry(entries: list[dict[str, Any]]) -> None:
     except Exception:
         LOGGER.exception("Failed to save training jobs to SQLite")
         raise
+
+
+def _release_gpu_lock(entry: dict[str, Any], owner: str | None = None) -> None:
+    gpu_id = entry.get("gpu_id")
+    if gpu_id is None:
+        return
+    lock_owner = owner or str(entry.get("job_id") or "")
+    if not lock_owner:
+        return
+    try:
+        task_locks.release_lock(f"gpu:{gpu_id}", lock_owner)
+    except Exception:
+        LOGGER.warning("Failed to release GPU lock gpu=%s owner=%s", gpu_id, lock_owner, exc_info=True)
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -267,6 +309,280 @@ def _normalize_auto_stop_options(payload: dict[str, Any]) -> dict[str, Any]:
         "auto_stop_threshold": min(max(threshold, 0.0), 1.0),
         "auto_stop_min_epochs": max(1, min_epochs),
     }
+
+
+def _safe_text2comp_name(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or "text2comp")).strip("_-")
+    if not cleaned:
+        cleaned = "text2comp"
+    if not cleaned[0].isalnum():
+        cleaned = f"model_{cleaned}"
+    return cleaned[:80]
+
+
+def _active_uploaded_experts() -> list[dict[str, Any]]:
+    return [
+        model
+        for model in uploaded_expert_models.list_assembly_models()
+        if model.get("status") == "active" and model.get("assembly_enabled") and int(model.get("input_dim") or 0) > 0
+    ]
+
+
+def _select_uploaded_expert(model_id: str | None = None) -> dict[str, Any]:
+    models = _active_uploaded_experts()
+    if model_id:
+        for model in models:
+            if str(model.get("model_id")) == str(model_id):
+                return model
+        raise ValueError(f"Uploaded Expert not available for simple training: {model_id}")
+    if not models:
+        raise ValueError("No active Uploaded Expert is available for simple training")
+    return models[0]
+
+
+def _scenario_h5_path(simulator: str, scenario: str) -> Path:
+    return DATA_ROOT / simulator / f"{simulator}_{scenario}.h5"
+
+
+def _label_from_h5_row(handle: Any, row_index: int, input_dim: int) -> list[float] | None:
+    try:
+        import numpy as np
+    except Exception as exc:  # pragma: no cover - numpy is part of the runtime
+        raise RuntimeError("numpy is required to prepare Text2Comp data") from exc
+
+    source = None
+    if "params" in handle:
+        source = np.asarray(handle["params"][row_index], dtype=np.float32).reshape(-1)
+    elif "timeseries" in handle:
+        source = np.asarray(handle["timeseries"][row_index], dtype=np.float32).reshape(-1)
+    if source is None or source.size == 0 or not np.isfinite(source).all():
+        return None
+    if source.size < input_dim:
+        source = np.pad(source, (0, input_dim - source.size), mode="constant")
+    return [float(x) for x in source[:input_dim]]
+
+
+def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, Any]) -> dict[str, Any]:
+    try:
+        import h5py
+    except Exception as exc:  # pragma: no cover - h5py is part of the runtime
+        raise RuntimeError("h5py is required to prepare Text2Comp data") from exc
+
+    simulator = str(entry.get("simulator") or "")
+    scenarios = [str(item) for item in entry.get("scenarios") or []]
+    input_dim = int(expert.get("input_dim") or 0)
+    if input_dim <= 0:
+        raise ValueError("Uploaded Expert input_dim must be positive")
+
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    max_samples = max(1, int(config.get("simple_text2comp_max_samples") or QUICK_TEXT2COMP_DEFAULTS["max_samples"]))
+    output_path = DATA_ROOT / "text2comp" / f"{simulator}_{entry['job_id']}.jsonl"
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    generated = 0
+    skipped = 0
+    used_sources: list[str] = []
+    with output_path.open("w", encoding="utf-8") as handle_out:
+        for scenario in scenarios:
+            h5_path = _scenario_h5_path(simulator, scenario)
+            if not h5_path.exists():
+                skipped += 1
+                continue
+            used_sources.append(str(h5_path))
+            with h5py.File(h5_path, "r") as h5:
+                if "params" in h5:
+                    n_rows = int(h5["params"].shape[0])
+                elif "timeseries" in h5:
+                    n_rows = int(h5["timeseries"].shape[0])
+                else:
+                    skipped += 1
+                    continue
+                for row_index in range(n_rows):
+                    if generated >= max_samples:
+                        break
+                    label = _label_from_h5_row(h5, row_index, input_dim)
+                    if label is None:
+                        skipped += 1
+                        continue
+                    prompt = (
+                        f"请为 {simulator.upper()} / {scenario} 场景生成 Uploaded Expert "
+                        f"{expert.get('name') or expert.get('model_id')} 的 {input_dim} 维输入参数。"
+                        f"样本编号：{row_index}。"
+                    )
+                    handle_out.write(json.dumps({"prompt": prompt, "label": label}, ensure_ascii=False) + "\n")
+                    generated += 1
+                if generated >= max_samples:
+                    break
+
+    if generated == 0:
+        try:
+            output_path.unlink()
+        except OSError:
+            pass
+        raise ValueError(f"No Text2Comp samples could be prepared for simulator={simulator} scenarios={scenarios}")
+
+    return {
+        "path": str(output_path),
+        "generated": generated,
+        "skipped": skipped,
+        "input_dim": input_dim,
+        "sources": used_sources,
+    }
+
+
+def _simple_text2comp_model_path(job: dict[str, Any] | None) -> str | None:
+    if not job:
+        return None
+    run_dir = Path(str(job.get("run_dir") or ""))
+    for name in ("final_model.pt", "best_model.pt"):
+        path = run_dir / name
+        if path.exists():
+            return str(path)
+    return None
+
+
+def _simple_pipeline_fields(entry: dict[str, Any]) -> dict[str, Any]:
+    return entry.setdefault("simple_pipeline", {})
+
+
+def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
+    pipeline = _simple_pipeline_fields(entry)
+    if pipeline.get("text2comp_job_id"):
+        return
+    expert = _select_uploaded_expert(pipeline.get("uploaded_expert_id"))
+    pipeline.update(
+        {
+            "uploaded_expert_id": expert.get("model_id"),
+            "uploaded_expert_name": expert.get("name") or expert.get("model_id"),
+            "uploaded_expert_input_dim": int(expert.get("input_dim") or 0),
+        }
+    )
+    dataset = _prepare_simple_text2comp_dataset(entry, expert)
+    pipeline["text2comp_dataset_path"] = dataset["path"]
+    pipeline["text2comp_dataset_samples"] = dataset["generated"]
+    _append_launch_log(
+        Path(entry["log_path"]),
+        (
+            "[pipeline] stage=text2comp_prepare "
+            f"dataset={dataset['path']} samples={dataset['generated']} "
+            f"uploaded_expert={pipeline['uploaded_expert_id']}"
+        ),
+    )
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    text2comp_payload = {
+        "name": f"{entry['name']}-Text2Comp",
+        "expert_model": "expert_model",
+        "dataset_path": dataset["path"],
+        "gpu_id": int(entry.get("gpu_id") or 0),
+        "output_dim": int(expert.get("input_dim") or 0),
+        "epochs": int(config.get("simple_text2comp_epochs") or QUICK_TEXT2COMP_DEFAULTS["epochs"]),
+        "eval_interval": int(config.get("simple_text2comp_eval_interval") or QUICK_TEXT2COMP_DEFAULTS["eval_interval"]),
+        "batch_size": int(config.get("simple_text2comp_batch_size") or QUICK_TEXT2COMP_DEFAULTS["batch_size"]),
+        "test_batch_size": int(
+            config.get("simple_text2comp_test_batch_size") or QUICK_TEXT2COMP_DEFAULTS["test_batch_size"]
+        ),
+        "learning_rate": float(
+            config.get("simple_text2comp_learning_rate") or QUICK_TEXT2COMP_DEFAULTS["learning_rate"]
+        ),
+        "weight_decay": float(config.get("simple_text2comp_weight_decay") or QUICK_TEXT2COMP_DEFAULTS["weight_decay"]),
+        "num_workers": int(config.get("simple_text2comp_num_workers") or QUICK_TEXT2COMP_DEFAULTS["num_workers"]),
+        "test_ratio": float(config.get("simple_text2comp_test_ratio") or QUICK_TEXT2COMP_DEFAULTS["test_ratio"]),
+        "max_length": int(config.get("simple_text2comp_max_length") or QUICK_TEXT2COMP_DEFAULTS["max_length"]),
+        "freeze_base": bool(config.get("simple_text2comp_freeze_base", QUICK_TEXT2COMP_DEFAULTS["freeze_base"])),
+    }
+    child = text2comp_manager.create_job(text2comp_payload)
+    pipeline.update(
+        {
+            "stage": "text2comp",
+            "text2comp_job_id": child.get("job_id"),
+            "text2comp_status": child.get("status"),
+            "text2comp_run_dir": child.get("run_dir"),
+            "text2comp_model_path": _simple_text2comp_model_path(child),
+            "text2comp_error_message": child.get("error_message"),
+        }
+    )
+    _append_launch_log(Path(entry["log_path"]), f"[pipeline] stage=text2comp_launch job_id={child.get('job_id')}")
+
+
+def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    if not config.get("simple_pipeline_enabled"):
+        return entry
+    pipeline = _simple_pipeline_fields(entry)
+    pipeline.setdefault("stage", "router")
+    entry["pipeline_stage"] = pipeline.get("stage")
+    entry["router_status"] = entry.get("status")
+    if entry.get("status") not in TRAINING_TERMINAL_STATUSES:
+        pipeline["stage"] = "router"
+        entry["pipeline_stage"] = "router"
+        return entry
+    if entry.get("status") != "done":
+        pipeline["stage"] = "error" if entry.get("status") == "error" else "router"
+        entry["pipeline_stage"] = pipeline["stage"]
+        return entry
+
+    try:
+        _start_simple_text2comp_stage(entry)
+    except Exception as exc:
+        pipeline["stage"] = "error"
+        pipeline["text2comp_status"] = "error"
+        pipeline["text2comp_error_message"] = str(exc)
+        entry["status"] = "error"
+        entry["error_message"] = f"Text2Comp 阶段启动失败：{exc}"
+        entry["pipeline_stage"] = "error"
+        _append_launch_log(Path(entry["log_path"]), f"[pipeline] stage=text2comp_error error={exc}")
+        return entry
+
+    child_id = pipeline.get("text2comp_job_id")
+    if child_id:
+        try:
+            child = text2comp_manager.get_job(str(child_id), refresh=True)
+        except KeyError:
+            child = None
+        if child:
+            child_status = str(child.get("status") or "starting")
+            for key in (
+                "latest_epoch",
+                "latest_step",
+                "steps_per_epoch",
+                "global_step",
+                "avg_loss",
+                "steps_per_sec",
+                "eta_seconds",
+                "latest_test_epoch",
+                "latest_metrics",
+            ):
+                if child.get(key) is not None:
+                    entry[key] = child.get(key)
+            pipeline.update(
+                {
+                    "stage": "text2comp" if child_status not in {"done", "error", "terminated"} else child_status,
+                    "text2comp_status": child_status,
+                    "text2comp_run_dir": child.get("run_dir"),
+                    "text2comp_model_path": _simple_text2comp_model_path(child),
+                    "text2comp_error_message": child.get("error_message"),
+                }
+            )
+            entry["pipeline_stage"] = pipeline["stage"]
+            if child_status in {"starting", "running", "evaluating", "queued"}:
+                entry["status"] = child_status if child_status != "queued" else "starting"
+                entry["eta_seconds"] = child.get("eta_seconds")
+                return entry
+            if child_status == "done":
+                entry["status"] = "done"
+                entry["ended_at"] = child.get("ended_at") or entry.get("ended_at")
+                entry["exit_reason"] = "completed"
+                entry["error_message"] = None
+                entry["pipeline_stage"] = "done"
+                pipeline["stage"] = "done"
+                return entry
+            if child_status in {"error", "terminated"}:
+                entry["status"] = "error" if child_status == "error" else "terminated"
+                entry["ended_at"] = child.get("ended_at") or time.time()
+                entry["error_message"] = child.get("error_message") or f"Text2Comp stage {child_status}"
+                entry["pipeline_stage"] = pipeline["stage"]
+                return entry
+    return entry
 
 
 def _hash_prepared_name(
@@ -406,7 +722,10 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             entry["ended_at"] = entry.get("ended_at") or time.time()
 
     if entry.get("status") in TRAINING_TERMINAL_STATUSES:
-        task_locks.release_lock(f"gpu:{entry.get('gpu_id')}", str(entry.get("job_id")))
+        _release_gpu_lock(entry)
+    entry = _sync_simple_pipeline(entry)
+    if entry.get("status") in TRAINING_TERMINAL_STATUSES:
+        _release_gpu_lock(entry)
     _sync_platform_stop_message(entry, alive=alive)
     entry["checkpoints"] = _checkpoint_entries(run_dir)
     return entry
@@ -440,6 +759,16 @@ def delete_job(job_id: str) -> dict[str, Any]:
     if entry.get("status") in TRAINING_ACTIVE_STATUSES or _pid_alive(entry.get("pid")):
         raise ValueError(f"training job is still active: {job_id}")
 
+    pipeline = entry.get("simple_pipeline") if isinstance(entry.get("simple_pipeline"), dict) else {}
+    child_id = pipeline.get("text2comp_job_id")
+    if child_id:
+        try:
+            child = text2comp_manager.get_job(str(child_id), refresh=True)
+        except KeyError:
+            child = None
+        if child and child.get("status") in TRAINING_ACTIVE_STATUSES:
+            raise ValueError(f"Text2Comp training job is still active: {child_id}")
+
     remaining = [item for item in entries if item["job_id"] != job_id]
     staged = _stage_job_artifacts_for_delete(entry)
     try:
@@ -450,8 +779,13 @@ def delete_job(job_id: str) -> dict[str, Any]:
         raise
 
     _remove_job_log(entry)
-    task_locks.release_lock(f"gpu:{entry.get('gpu_id')}", job_id)
+    _release_gpu_lock(entry, job_id)
     _remove_job_stop_file(entry)
+    if child_id:
+        try:
+            text2comp_manager.delete_job(str(child_id))
+        except (KeyError, ValueError):
+            LOGGER.debug("Text2Comp child job could not be deleted: %s", child_id, exc_info=True)
     _delete_job_artifacts_in_background([target for _, target in staged])
     return entry
 
@@ -603,8 +937,19 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
             "input_representation": resolved_input_representation,
             "embedding_model": embedding_metadata.embedding_model,
             "embedding_tokenizer": embedding_metadata.tokenizer_name,
+            "simple_pipeline_enabled": bool(payload.get("simple_pipeline_enabled", False)),
+            "simple_text2comp_epochs": int(payload.get("simple_text2comp_epochs", QUICK_TEXT2COMP_DEFAULTS["epochs"])),
+            "simple_text2comp_max_samples": int(
+                payload.get("simple_text2comp_max_samples", QUICK_TEXT2COMP_DEFAULTS["max_samples"])
+            ),
             **auto_stop_options,
         },
+        "simple_pipeline": {
+            "stage": "router",
+            "uploaded_expert_id": payload.get("uploaded_expert_id") or None,
+        }
+        if payload.get("simple_pipeline_enabled")
+        else {},
         "command": [],
         "prepared_name": prepared_name,
         "terminated": False,
@@ -660,6 +1005,11 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
     requested_gpu_id = payload.get("gpu_id")
     gpu_id = _auto_select_gpu_id() if requested_gpu_id is None else int(requested_gpu_id)
     requested_seed = payload.get("seed")
+    uploaded_expert_id = payload.get("uploaded_expert_id") or None
+    if uploaded_expert_id is not None:
+        _select_uploaded_expert(str(uploaded_expert_id))
+    else:
+        _select_uploaded_expert(None)
     quick_payload = dict(QUICK_TRAINING_DEFAULTS)
     quick_payload.update(
         {
@@ -672,6 +1022,10 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
             "gpu_id": gpu_id,
             "resume_from": payload.get("resume_from") or None,
             "seed": requested_seed if requested_seed is not None else QUICK_TRAINING_DEFAULTS["seed"],
+            "simple_pipeline_enabled": True,
+            "uploaded_expert_id": uploaded_expert_id,
+            "simple_text2comp_epochs": QUICK_TEXT2COMP_DEFAULTS["epochs"],
+            "simple_text2comp_max_samples": QUICK_TEXT2COMP_DEFAULTS["max_samples"],
         }
     )
     return create_job(quick_payload)
@@ -679,12 +1033,14 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
 
 def _payload_from_queued_entry(entry: dict[str, Any]) -> dict[str, Any]:
     config = dict(entry.get("config") or {})
+    pipeline = entry.get("simple_pipeline") if isinstance(entry.get("simple_pipeline"), dict) else {}
     payload = {
         **config,
         "name": entry.get("name"),
         "simulator": entry.get("simulator"),
         "scenarios": entry.get("scenarios") or [],
         "gpu_id": entry.get("gpu_id"),
+        "uploaded_expert_id": pipeline.get("uploaded_expert_id"),
         "_job_id": entry.get("job_id"),
         "_created_at": entry.get("created_at"),
     }
@@ -897,7 +1253,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                     text=True,
                 )
             except Exception as exc:
-                task_locks.release_lock(gpu_lock_key, job_id)
+                _release_gpu_lock({"gpu_id": gpu_id}, job_id)
                 log_handle.write(f"[error] failed to spawn training subprocess: {exc}\n")
                 log_handle.flush()
                 log_handle.close()
@@ -939,8 +1295,21 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                     "input_representation": resolved_input_representation,
                     "embedding_model": embedding_metadata.embedding_model,
                     "embedding_tokenizer": embedding_metadata.tokenizer_name,
+                    "simple_pipeline_enabled": bool(payload.get("simple_pipeline_enabled", False)),
+                    "simple_text2comp_epochs": int(
+                        payload.get("simple_text2comp_epochs", QUICK_TEXT2COMP_DEFAULTS["epochs"])
+                    ),
+                    "simple_text2comp_max_samples": int(
+                        payload.get("simple_text2comp_max_samples", QUICK_TEXT2COMP_DEFAULTS["max_samples"])
+                    ),
                     **auto_stop_options,
                 },
+                "simple_pipeline": {
+                    "stage": "router",
+                    "uploaded_expert_id": payload.get("uploaded_expert_id") or None,
+                }
+                if payload.get("simple_pipeline_enabled")
+                else {},
                 "command": command,
                 "prepared_name": prepared_name,
                 "terminated": False,
@@ -975,7 +1344,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                         _safe_kill_process_group(int(process_obj.pid), signal.SIGKILL)
                     except Exception:
                         LOGGER.exception("Failed to kill unregistered training process for job=%s", job_id)
-                task_locks.release_lock(gpu_lock_key, job_id)
+                _release_gpu_lock({"gpu_id": gpu_id}, job_id)
             raise
 
 
@@ -1037,6 +1406,24 @@ def stop_job(job_id: str) -> dict[str, Any]:
     entries = _load_registry()
     entry = _find_job(entries, job_id)
     entry = _refresh_entry(entry)
+    pipeline = entry.get("simple_pipeline") if isinstance(entry.get("simple_pipeline"), dict) else {}
+    child_id = pipeline.get("text2comp_job_id")
+    if child_id and entry.get("status") in {"starting", "running", "evaluating", "stopping"}:
+        try:
+            child = text2comp_manager.get_job(str(child_id), refresh=True)
+            if child.get("status") in {"starting", "running", "evaluating", "queued"}:
+                text2comp_manager.stop_job(str(child_id))
+                pipeline["text2comp_status"] = "terminated"
+                pipeline["stage"] = "terminated"
+                entry["status"] = "terminated"
+                entry["terminated"] = True
+                entry["ended_at"] = time.time()
+                entry["exit_reason"] = "platform_stop_requested"
+                entry["error_message"] = None
+                _save_registry(entries)
+                return entry
+        except KeyError:
+            pass
     pid = entry.get("pid")
     if not pid or not _pid_alive(pid):
         if entry.get("status") in TRAINING_TERMINAL_STATUSES:

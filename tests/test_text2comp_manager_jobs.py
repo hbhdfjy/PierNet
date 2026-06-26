@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,21 @@ def _patch_job_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[
 
 def _train_data_arg(command: list[str]) -> str:
     return command[command.index("--train-data") + 1]
+
+
+def test_validate_training_data_uses_stdlib_jsonl(tmp_path: Path) -> None:
+    dataset = tmp_path / "uploaded_train.jsonl"
+    rows = [
+        {"prompt": "sample 1", "label": [0.0, 1.0, 2.0, 3.0]},
+        {"prompt": "sample 2", "label": [4.0, 5.0, 6.0, 7.0]},
+    ]
+    dataset.write_text("\n".join(json.dumps(row) for row in rows), encoding="utf-8")
+
+    result = text2comp_manager.validate_training_data(str(dataset), expected_dim=4)
+
+    assert result["is_valid"] is True
+    assert result["valid_samples"] == 2
+    assert result["actual_dims"] == [4]
 
 
 def test_create_job_accepts_dataset_path_alias(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:

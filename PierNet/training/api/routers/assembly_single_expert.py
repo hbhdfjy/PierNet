@@ -39,7 +39,7 @@ _ROUTER_ARTIFACTS_ROOT = Path(
     os.getenv("PIERN_ROUTER_ARTIFACTS_DIR", str(_ARTIFACTS_ROOT / "token_router"))
 ).expanduser()
 _FNO_MODELS_ROOT = Path(os.getenv("PIERN_FNO_MODELS_DIR", str(_ARTIFACTS_ROOT / "fno_models"))).expanduser()
-_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
+_DEFAULT_TEXT2COMP_BASE_MODEL = "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct"
 
 # 导入DOMAIN_REGISTRY用于prompt生成
 from PierNet.synth.text2comp.generator import DOMAIN_REGISTRY

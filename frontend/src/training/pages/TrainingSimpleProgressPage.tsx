@@ -25,7 +25,16 @@ type ProgressStage = {
   stageIndex: number
 }
 
-const STAGE_LABELS = ['提交任务', '分配资源', '准备数据', '构建输入', '初始化模型', '训练迭代', '评估保存', '完成']
+const STAGE_LABELS = [
+  '提交任务',
+  'Router 准备',
+  'Router 训练',
+  'Router 保存',
+  'Text2Comp 数据',
+  'Text2Comp 训练',
+  '拼装就绪',
+  '完成',
+]
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value))
@@ -42,7 +51,7 @@ function finiteTrainingPercent(job: TrainingJobDetail): number | null {
   const currentStep = Number(job.latest_step || 0)
   const stepsPerEpoch = Number(job.steps_per_epoch || 0)
   const epochProgress = stepsPerEpoch > 0 ? currentStep / stepsPerEpoch : 0
-  return clampPercent(56 + ((currentEpoch + epochProgress) / epochs) * 32)
+  return clampPercent(42 + ((currentEpoch + epochProgress) / epochs) * 18)
 }
 
 function estimateEta(job: TrainingJobDetail | undefined, stage: ProgressStage): string {
@@ -82,11 +91,16 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
     }
   }
 
+  const pipelineStage = job.pipeline_stage
+  const text2compActive = pipelineStage === 'text2comp'
+
   if (job.status === 'done') {
     return {
-      label: '模型训练完成',
-      step: '保存最终结果',
-      detail: '训练结果、指标和 checkpoint 已经写入任务目录。',
+      label: '分阶段训练完成',
+      step: 'Router 和 Text2Comp 已保存',
+      detail: job.text2comp_model_path
+        ? 'Router checkpoint 和 Text2Comp 模型已经写入任务目录，可以进入模型拼装。'
+        : 'Router checkpoint 已写入任务目录。',
       percent: 100,
       tone: 'emerald',
       active: false,
@@ -99,7 +113,8 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
     return {
       label: '训练失败',
       step: '等待处理异常',
-      detail: job.error_message || '训练过程没有正常完成，请在复杂训练任务中查看完整日志。',
+      detail:
+        job.text2comp_error_message || job.error_message || '训练过程没有正常完成，请在复杂训练任务中查看完整日志。',
       percent: 100,
       tone: 'amber',
       active: false,
@@ -137,7 +152,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
   if (job.status === 'stopping') {
     return {
       label: '正在安全停止',
-      step: '保存当前进度',
+      step: text2compActive ? '停止 Text2Comp 训练' : '停止 Router 训练',
       detail: '已发送停止请求，正在等待 checkpoint 或任务状态安全落盘。',
       percent: 96,
       tone: 'amber',
@@ -149,71 +164,85 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
 
   if (job.status === 'evaluating') {
     return {
-      label: '正在评估并保存',
+      label: text2compActive ? '正在评估 Text2Comp' : '正在评估 Router',
       step: '计算验证指标',
-      detail: '正在评估训练结果，更新指标并保存最新权重。',
-      percent: 92,
+      detail: text2compActive
+        ? 'Router 已完成，正在评估文生计算模型并保存权重。'
+        : '正在评估 Router 训练结果，更新指标并保存最新权重。',
+      percent: text2compActive ? 86 : 58,
       tone: 'violet',
       active: true,
       icon: 'running',
-      stageIndex: 6,
+      stageIndex: text2compActive ? 5 : 3,
     }
   }
 
   if (job.status === 'starting') {
-    if (logsContain(lines, 'phase=prepare')) {
+    if (text2compActive) {
       return {
-        label: '正在准备训练数据',
-        step: '读取场景并生成训练缓存',
-        detail: '正在按所选场景整理 Router 数据、过滤样本并写入 prepared cache。',
-        percent: 24,
-        tone: 'sky',
-        active: true,
-        icon: 'running',
-        stageIndex: 2,
-      }
-    }
-    if (logsContain(lines, 'phase=dataloader')) {
-      return {
-        label: '正在构建训练输入',
-        step: '创建 dataloader',
-        detail: '正在组织 batch、切分训练/验证集，并准备数据加载器。',
-        percent: 38,
-        tone: 'sky',
-        active: true,
-        icon: 'running',
-        stageIndex: 3,
-      }
-    }
-    if (logsContain(lines, 'phase=encoder')) {
-      return {
-        label: '正在构建训练输入',
-        step: '生成文本向量表示',
-        detail: '正在调用嵌入模型处理上下文，将文本样本转换为训练特征。',
-        percent: 46,
-        tone: 'sky',
-        active: true,
-        icon: 'running',
-        stageIndex: 3,
-      }
-    }
-    if (logsContain(lines, 'phase=model')) {
-      return {
-        label: '正在初始化模型',
-        step: '装载训练头和优化器',
-        detail: '正在创建模型参数、优化器和训练状态，马上进入迭代训练。',
-        percent: 54,
+        label: '正在准备 Text2Comp',
+        step: '装载 Qwen 与回归头',
+        detail: `Router 已完成，正在用 Uploaded Expert ${job.uploaded_expert_name ?? ''} 的输入维度训练文生计算。`,
+        percent: 68,
         tone: 'sky',
         active: true,
         icon: 'running',
         stageIndex: 4,
       }
     }
+    if (logsContain(lines, 'phase=prepare')) {
+      return {
+        label: '正在准备 Router 数据',
+        step: '读取场景并生成训练缓存',
+        detail: '正在按所选场景整理 Router 数据、过滤样本并写入 prepared cache。',
+        percent: 20,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 1,
+      }
+    }
+    if (logsContain(lines, 'phase=dataloader')) {
+      return {
+        label: '正在构建 Router 输入',
+        step: '创建 dataloader',
+        detail: '正在组织 batch、切分训练/验证集，并准备数据加载器。',
+        percent: 28,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 1,
+      }
+    }
+    if (logsContain(lines, 'phase=encoder')) {
+      return {
+        label: '正在构建 Router 输入',
+        step: '生成文本向量表示',
+        detail: '正在调用嵌入模型处理上下文，将文本样本转换为训练特征。',
+        percent: 34,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 1,
+      }
+    }
+    if (logsContain(lines, 'phase=model')) {
+      return {
+        label: '正在初始化 Router',
+        step: '装载训练头和优化器',
+        detail: '正在创建模型参数、优化器和训练状态，马上进入迭代训练。',
+        percent: 40,
+        tone: 'sky',
+        active: true,
+        icon: 'running',
+        stageIndex: 2,
+      }
+    }
     return {
       label: '正在启动训练',
       step: '检查任务配置',
-      detail: '正在写入任务目录、确认场景范围并启动训练进程。',
-      percent: 16,
+      detail: '正在写入任务目录、确认场景范围，并准备先训练 Router。',
+      percent: 10,
       tone: 'sky',
       active: true,
       icon: 'running',
@@ -222,18 +251,33 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
   }
 
   if (job.status === 'running') {
+    if (text2compActive) {
+      const epoch = Number(job.latest_epoch ?? 0)
+      const step = Number(job.latest_step ?? 0)
+      const totalEpochs = Number(job.config.simple_text2comp_epochs || 0)
+      return {
+        label: '正在训练 Text2Comp',
+        step: totalEpochs > 0 ? `第 ${epoch + 1}/${totalEpochs} 轮 · step ${step}` : `训练 step ${step}`,
+        detail: `Text2Comp 正在学习生成 Uploaded Expert ${job.uploaded_expert_name ?? ''} 的输入参数。`,
+        percent: job.text2comp_model_path ? 92 : 78,
+        tone: 'emerald',
+        active: true,
+        icon: 'running',
+        stageIndex: 5,
+      }
+    }
     const epoch = Number(job.latest_epoch ?? 0)
     const step = Number(job.latest_step ?? 0)
     const totalEpochs = Number(job.config.epochs || 0)
     return {
-      label: '正在训练模型',
+      label: '正在训练 Router',
       step: totalEpochs > 0 ? `第 ${epoch + 1}/${totalEpochs} 轮 · step ${step}` : `训练 step ${step}`,
-      detail: '正在基于所选场景更新模型参数，并持续记录损失、指标和剩余时间。',
-      percent: finiteTrainingPercent(job) ?? 72,
+      detail: '正在基于所选场景更新 Router 参数，并持续记录损失、指标和剩余时间。',
+      percent: finiteTrainingPercent(job) ?? 50,
       tone: 'emerald',
       active: true,
       icon: 'running',
-      stageIndex: 5,
+      stageIndex: 2,
     }
   }
 
