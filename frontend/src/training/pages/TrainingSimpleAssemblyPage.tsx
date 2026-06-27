@@ -26,29 +26,6 @@ type AssemblyMode = 'profile' | 'training_job'
 
 type AssemblyProfile = NonNullable<AssemblyStatus['assembly_profiles']>[number]
 
-const TRAINING_BUNDLES = [
-  {
-    id: 'diff-sorp-20260103-0124',
-    label: 'diff-sorp',
-    createdAt: '2026-01-24',
-    task: 'diff_sorp',
-    llm: 'Qwen3-4B-Instruct-2507',
-    router: '0124_pde_router_best_model',
-    text2comp: '0103_raw_1d_diff-sorp_text2computation_best_model_7e-6',
-    fno: '1D_diff-sorp_NA_NA_FNO_2_1',
-  },
-  {
-    id: 'burgers-missing-demo',
-    label: 'burgers',
-    createdAt: '2026-01-25',
-    task: 'burgers',
-    llm: 'missing-burgers-llm',
-    router: 'missing-burgers-router',
-    text2comp: 'missing-burgers-text2comp',
-    fno: 'missing-burgers-fno',
-  },
-] as const
-
 const QUICK_TEST_INPUTS = [
   {
     label: '\u666e\u901a\u95ee\u5019',
@@ -140,22 +117,6 @@ function pickGpu(status: AssemblyStatus | undefined) {
     if (availability !== 0) return availability
     return (b.memory_free_mb ?? 0) - (a.memory_free_mb ?? 0)
   })[0]
-}
-
-function findModelByName<T extends SelectableModel>(items: T[] | undefined, name: string): T | null {
-  const expected = name.toLowerCase()
-  return (
-    (items ?? []).find(item => item.name.toLowerCase() === expected || item.name.toLowerCase().includes(expected)) ??
-    null
-  )
-}
-
-function presetMissingLabels(models: Record<string, SelectableModel | null>, gpuReady: boolean): string[] {
-  const missing = Object.entries(models)
-    .filter(([, model]) => !model)
-    .map(([label]) => label)
-  if (!gpuReady) missing.push('GPU')
-  return missing
 }
 
 function compatibleUploadedExperts(
@@ -252,7 +213,6 @@ export default function TrainingSimpleAssemblyPage() {
   const [trainingJobId, setTrainingJobId] = useState('')
   const [fnoPath, setFnoPath] = useState('')
   const [uploadedExpertId, setUploadedExpertId] = useState('')
-  const [selectedBundleId, setSelectedBundleId] = useState<string>(TRAINING_BUNDLES[0]?.id ?? '')
   const [gpuId, setGpuId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -302,24 +262,6 @@ export default function TrainingSimpleAssemblyPage() {
     [bestGpu, gpuId, status?.gpus],
   )
   const expert = executorMode === 'uploaded' ? uploaded : fno
-  const selectedTrainingBundle = useMemo(
-    () => TRAINING_BUNDLES.find(bundle => bundle.id === selectedBundleId) ?? TRAINING_BUNDLES[0] ?? null,
-    [selectedBundleId],
-  )
-  const selectedBundleModels = useMemo(
-    () => ({
-      LLM: selectedTrainingBundle ? findModelByName(status?.llms, selectedTrainingBundle.llm) : null,
-      Router: selectedTrainingBundle ? findModelByName(status?.routers, selectedTrainingBundle.router) : null,
-      Text2Comp: selectedTrainingBundle ? findModelByName(status?.text2comps, selectedTrainingBundle.text2comp) : null,
-      Expert: selectedTrainingBundle ? findModelByName(status?.fno_experts, selectedTrainingBundle.fno) : null,
-    }),
-    [selectedTrainingBundle, status?.fno_experts, status?.llms, status?.routers, status?.text2comps],
-  )
-  const selectedBundleMissing = useMemo(
-    () => presetMissingLabels(selectedBundleModels, Boolean(selectedGpu)),
-    [selectedBundleModels, selectedGpu],
-  )
-  const canLoadSelectedBundle = Boolean(selectedTrainingBundle) && selectedBundleMissing.length === 0
   const profileLoaded = Boolean(status?.loaded_models?.assembly_profile?.loaded)
   const isLoaded = Boolean(profileLoaded || status?.loaded_models?.llm?.loaded)
   const canLoadTrainingJob = Boolean(
@@ -425,49 +367,6 @@ export default function TrainingSimpleAssemblyPage() {
           auto_sync: true,
         })
       }
-      await refresh()
-    } catch (err) {
-      setActionError(errorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const loadSelectedBundle = async () => {
-    if (!selectedTrainingBundle) {
-      setActionError('\u6ca1\u6709\u53ef\u7528\u7684\u8bad\u7ec3\u7ed3\u679c\u3002')
-      return
-    }
-    if (!canLoadSelectedBundle || !selectedGpu) {
-      setActionError(
-        `\u8be5\u8bad\u7ec3\u7ed3\u679c\u7f3a\u5c11\uff1a${selectedBundleMissing.join('\u3001') || '\u672a\u77e5\u6a21\u578b'}`,
-      )
-      return
-    }
-    const bundleLLM = selectedBundleModels.LLM
-    const bundleRouter = selectedBundleModels.Router
-    const bundleText2Comp = selectedBundleModels.Text2Comp
-    const bundleExpert = selectedBundleModels.Expert
-    if (!bundleLLM?.path || !bundleExpert?.path) {
-      setActionError(
-        '\u8be5\u8bad\u7ec3\u7ed3\u679c\u7684\u6a21\u578b\u8def\u5f84\u4e0d\u5b8c\u6574\uff0c\u65e0\u6cd5\u52a0\u8f7d\u3002',
-      )
-      return
-    }
-    setExecutorMode('fno')
-    setBusy(true)
-    setActionError(null)
-    setTestResult(null)
-    try {
-      await api.loadAssemblyModels({
-        llm_path: bundleLLM.path,
-        llm_gpu_id: resourceMode === 'auto' ? selectedGpu.index : selectedGpu.index,
-        router_path: bundleRouter?.path,
-        text2comp_path: bundleText2Comp?.path,
-        fno_path: bundleExpert.path,
-        expert_executor: 'fno',
-        auto_sync: true,
-      })
       await refresh()
     } catch (err) {
       setActionError(errorMessage(err))
@@ -598,80 +497,6 @@ export default function TrainingSimpleAssemblyPage() {
               {actionError ?? `无法加载模型拼装状态：${error?.message}`}
             </div>
           )}
-
-          <section className="training-card training-card--compact training-simple-panel">
-            <div className="card-header">
-              <Layers3 size={16} className="text-violet-300" />
-              <SectionTitle
-                title={'\u5386\u53f2\u8bad\u7ec3\u7ed3\u679c'}
-                copy={
-                  '\u6309\u4efb\u52a1\u7c7b\u578b\u548c\u65f6\u95f4\u9009\u62e9\u53ef\u52a0\u8f7d\u7684\u6a21\u578b\u7ec4\u5408'
-                }
-              />
-              <button
-                type="button"
-                className="btn-primary ml-auto"
-                onClick={loadSelectedBundle}
-                disabled={!canLoadSelectedBundle || busy}
-              >
-                {busy ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-                {'\u52a0\u8f7d\u8bad\u7ec3\u7ec4\u5408'}
-              </button>
-            </div>
-            <div className="training-card__body space-y-3">
-              <div className="training-simple-option-grid">
-                {TRAINING_BUNDLES.map(bundle => {
-                  const active = selectedTrainingBundle?.id === bundle.id
-                  return (
-                    <button
-                      key={bundle.id}
-                      type="button"
-                      className={`training-simple-option ${active ? 'training-simple-option--active' : ''}`}
-                      onClick={() => setSelectedBundleId(bundle.id)}
-                    >
-                      <Layers3 size={16} />
-                      <span>
-                        <strong>{bundle.label}</strong>
-                        <small>
-                          {bundle.createdAt} - {bundle.task}
-                        </small>
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-              <div className="training-simple-assembly-grid">
-                {Object.entries(selectedBundleModels).map(([label, model]) => (
-                  <div key={label} className="training-simple-assembly-card training-simple-assembly-card--violet">
-                    <div className="training-simple-assembly-card__head">
-                      <span>
-                        <CheckCircle2 size={16} />
-                      </span>
-                      <strong>{label}</strong>
-                      {model && <CheckCircle2 size={15} />}
-                    </div>
-                    <div className="training-simple-assembly-card__name">
-                      {model?.name ?? '\u672a\u627e\u5230\u6a21\u578b'}
-                    </div>
-                    <div className="training-simple-assembly-card__note">
-                      {model
-                        ? modelNote(model)
-                        : '\u8bf7\u786e\u8ba4\u6a21\u578b\u76ee\u5f55\u5df2\u626b\u63cf\u5230\u8be5\u6a21\u578b'}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              {!canLoadSelectedBundle && (
-                <div className="training-simple-job__notice">
-                  <AlertTriangle size={14} />
-                  <span>
-                    {'\u8be5\u8bad\u7ec3\u7ed3\u679c\u6682\u4e0d\u53ef\u52a0\u8f7d\uff0c\u7f3a\u5c11\uff1a'}
-                    {selectedBundleMissing.join('\u3001')}
-                  </span>
-                </div>
-              )}
-            </div>
-          </section>
 
           <div className="training-simple-bottom-grid">
             <section className="training-card training-card--compact training-simple-panel">
