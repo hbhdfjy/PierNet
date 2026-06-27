@@ -1820,10 +1820,16 @@ async def test_assembly(req: AssemblyTestRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     latency = (time.time() - start_time) * 1000
 
+    cleaned_response = _strip_thinking_content(response)
+    if final_answer and cleaned_response:
+        display_answer = f"{cleaned_response}\n\n{final_answer}"
+    else:
+        display_answer = final_answer or cleaned_response
+
     return AssemblyTestResponse(
         router_prediction=ASSEMBLY_ROUTER_CLASS_NAMES[router_pred],
         first_cot_result=response,
-        final_answer=final_answer or _strip_thinking_content(response),
+        final_answer=display_answer,
         llm_response=response,
         expert_output=expert_output or None,
         expert_used=bool(expert_output),
