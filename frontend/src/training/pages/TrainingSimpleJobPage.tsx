@@ -36,7 +36,6 @@ export default function TrainingSimpleJobPage() {
     refreshInterval: 10000,
     revalidateOnFocus: false,
   })
-
   const [simulator, setSimulator] = useState('')
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
@@ -107,7 +106,6 @@ export default function TrainingSimpleJobPage() {
       setError('请至少选择一个训练场景。')
       return
     }
-
     setSubmitting(true)
     setError(null)
     try {
@@ -136,13 +134,14 @@ export default function TrainingSimpleJobPage() {
             <div className="training-simple-hero__copy">
               <div className="training-eyebrow">模型训练</div>
               <h1 className="training-simple-hero__title">选择场景后开始训练</h1>
-              <p className="training-copy">只选择训练数据范围，平台自动分配资源并使用默认训练策略。</p>
+              <p className="training-copy">选择训练数据范围，平台自动训练 Router，并按训练数据输出训练 Text2Comp。</p>
               <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-slate-400">
                 <span className="training-chip">
                   场景 {selectedScenarios.length}/{dataset?.scenarios.length ?? 0}
                 </span>
                 <span className="training-chip">样本 {formatCount(stats.count)}</span>
                 <span className="training-chip">资源 自动分配</span>
+                <span className="training-chip">Text2Comp 按数据输出</span>
               </div>
             </div>
             <button

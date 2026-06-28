@@ -208,6 +208,8 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
     normalized["uploaded_expert_id"] = pipeline.get("uploaded_expert_id")
     normalized["uploaded_expert_name"] = pipeline.get("uploaded_expert_name")
     normalized["uploaded_expert_input_dim"] = pipeline.get("uploaded_expert_input_dim")
+    normalized["text2comp_output_dim"] = pipeline.get("text2comp_output_dim") or pipeline.get("uploaded_expert_input_dim")
+    normalized["text2comp_target_source"] = pipeline.get("text2comp_target_source")
     return normalized
 
 
@@ -252,6 +254,18 @@ def _release_gpu_lock(entry: dict[str, Any], owner: str | None = None) -> None:
         task_locks.release_lock(f"gpu:{gpu_id}", lock_owner)
     except Exception:
         LOGGER.warning("Failed to release GPU lock gpu=%s owner=%s", gpu_id, lock_owner, exc_info=True)
+
+
+def _should_release_gpu_lock(entry: dict[str, Any]) -> bool:
+    if entry.get("status") not in TRAINING_TERMINAL_STATUSES:
+        return False
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    if not config.get("simple_pipeline_enabled"):
+        return True
+    pipeline = entry.get("simple_pipeline") if isinstance(entry.get("simple_pipeline"), dict) else {}
+    if entry.get("status") == "done" and pipeline.get("stage") in {None, "router"} and not pipeline.get("text2comp_job_id"):
+        return False
+    return True
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -344,25 +358,32 @@ def _scenario_h5_path(simulator: str, scenario: str) -> Path:
     return DATA_ROOT / simulator / f"{simulator}_{scenario}.h5"
 
 
-def _label_from_h5_row(handle: Any, row_index: int, input_dim: int) -> list[float] | None:
+def _label_from_h5_row(
+    handle: Any,
+    row_index: int,
+    expected_dim: int | None = None,
+) -> tuple[list[float], str] | None:
     try:
         import numpy as np
     except Exception as exc:  # pragma: no cover - numpy is part of the runtime
         raise RuntimeError("numpy is required to prepare Text2Comp data") from exc
 
     source = None
+    source_name = ""
     if "params" in handle:
         source = np.asarray(handle["params"][row_index], dtype=np.float32).reshape(-1)
+        source_name = "params"
     elif "timeseries" in handle:
         source = np.asarray(handle["timeseries"][row_index], dtype=np.float32).reshape(-1)
+        source_name = "timeseries"
     if source is None or source.size == 0 or not np.isfinite(source).all():
         return None
-    if source.size < input_dim:
-        source = np.pad(source, (0, input_dim - source.size), mode="constant")
-    return [float(x) for x in source[:input_dim]]
+    if expected_dim is not None and int(source.size) != expected_dim:
+        return None
+    return [float(x) for x in source], source_name
 
 
-def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, Any]) -> dict[str, Any]:
+def _prepare_simple_text2comp_dataset(entry: dict[str, Any]) -> dict[str, Any]:
     try:
         import h5py
     except Exception as exc:  # pragma: no cover - h5py is part of the runtime
@@ -370,10 +391,6 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, A
 
     simulator = str(entry.get("simulator") or "")
     scenarios = [str(item) for item in entry.get("scenarios") or []]
-    input_dim = int(expert.get("input_dim") or 0)
-    if input_dim <= 0:
-        raise ValueError("Uploaded Expert input_dim must be positive")
-
     config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
     max_samples = max(1, int(config.get("simple_text2comp_max_samples") or QUICK_TEXT2COMP_DEFAULTS["max_samples"]))
     output_path = DATA_ROOT / "text2comp" / f"{simulator}_{entry['job_id']}.jsonl"
@@ -381,6 +398,8 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, A
 
     generated = 0
     skipped = 0
+    output_dim: int | None = None
+    target_source: str | None = None
     used_sources: list[str] = []
     with output_path.open("w", encoding="utf-8") as handle_out:
         for scenario in scenarios:
@@ -400,13 +419,17 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, A
                 for row_index in range(n_rows):
                     if generated >= max_samples:
                         break
-                    label = _label_from_h5_row(h5, row_index, input_dim)
-                    if label is None:
+                    label_result = _label_from_h5_row(h5, row_index, output_dim)
+                    if label_result is None:
                         skipped += 1
                         continue
+                    label, source_name = label_result
+                    if output_dim is None:
+                        output_dim = len(label)
+                        target_source = source_name
                     prompt = (
-                        f"请为 {simulator.upper()} / {scenario} 场景生成 Uploaded Expert "
-                        f"{expert.get('name') or expert.get('model_id')} 的 {input_dim} 维输入参数。"
+                        f"请根据 {simulator.upper()} / {scenario} 场景训练数据生成 Text2Comp 目标参数。"
+                        f"目标来自训练数据字段 {target_source or source_name}，共 {output_dim} 维。"
                         f"样本编号：{row_index}。"
                     )
                     handle_out.write(json.dumps({"prompt": prompt, "label": label}, ensure_ascii=False) + "\n")
@@ -414,7 +437,7 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, A
                 if generated >= max_samples:
                     break
 
-    if generated == 0:
+    if generated == 0 or output_dim is None:
         try:
             output_path.unlink()
         except OSError:
@@ -425,7 +448,8 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any], expert: dict[str, A
         "path": str(output_path),
         "generated": generated,
         "skipped": skipped,
-        "input_dim": input_dim,
+        "output_dim": output_dim,
+        "target_source": target_source or "unknown",
         "sources": used_sources,
     }
 
@@ -449,23 +473,17 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
     pipeline = _simple_pipeline_fields(entry)
     if pipeline.get("text2comp_job_id"):
         return
-    expert = _select_uploaded_expert(pipeline.get("uploaded_expert_id"))
-    pipeline.update(
-        {
-            "uploaded_expert_id": expert.get("model_id"),
-            "uploaded_expert_name": expert.get("name") or expert.get("model_id"),
-            "uploaded_expert_input_dim": int(expert.get("input_dim") or 0),
-        }
-    )
-    dataset = _prepare_simple_text2comp_dataset(entry, expert)
+    dataset = _prepare_simple_text2comp_dataset(entry)
     pipeline["text2comp_dataset_path"] = dataset["path"]
     pipeline["text2comp_dataset_samples"] = dataset["generated"]
+    pipeline["text2comp_output_dim"] = int(dataset["output_dim"])
+    pipeline["text2comp_target_source"] = dataset["target_source"]
     _append_launch_log(
         Path(entry["log_path"]),
         (
             "[pipeline] stage=text2comp_prepare "
             f"dataset={dataset['path']} samples={dataset['generated']} "
-            f"uploaded_expert={pipeline['uploaded_expert_id']}"
+            f"output_dim={dataset['output_dim']} target_source={dataset['target_source']}"
         ),
     )
     config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
@@ -474,7 +492,7 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
         "expert_model": "expert_model",
         "dataset_path": dataset["path"],
         "gpu_id": int(entry.get("gpu_id") or 0),
-        "output_dim": int(expert.get("input_dim") or 0),
+        "output_dim": int(dataset["output_dim"]),
         "epochs": int(config.get("simple_text2comp_epochs") or QUICK_TEXT2COMP_DEFAULTS["epochs"]),
         "eval_interval": int(config.get("simple_text2comp_eval_interval") or QUICK_TEXT2COMP_DEFAULTS["eval_interval"]),
         "batch_size": int(config.get("simple_text2comp_batch_size") or QUICK_TEXT2COMP_DEFAULTS["batch_size"]),
@@ -721,10 +739,10 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
                         )
             entry["ended_at"] = entry.get("ended_at") or time.time()
 
-    if entry.get("status") in TRAINING_TERMINAL_STATUSES:
+    if _should_release_gpu_lock(entry):
         _release_gpu_lock(entry)
     entry = _sync_simple_pipeline(entry)
-    if entry.get("status") in TRAINING_TERMINAL_STATUSES:
+    if _should_release_gpu_lock(entry):
         _release_gpu_lock(entry)
     _sync_platform_stop_message(entry, alive=alive)
     entry["checkpoints"] = _checkpoint_entries(run_dir)
@@ -1006,10 +1024,6 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
     gpu_id = _auto_select_gpu_id() if requested_gpu_id is None else int(requested_gpu_id)
     requested_seed = payload.get("seed")
     uploaded_expert_id = payload.get("uploaded_expert_id") or None
-    if uploaded_expert_id is not None:
-        _select_uploaded_expert(str(uploaded_expert_id))
-    else:
-        _select_uploaded_expert(None)
     quick_payload = dict(QUICK_TRAINING_DEFAULTS)
     quick_payload.update(
         {
@@ -1420,6 +1434,7 @@ def stop_job(job_id: str) -> dict[str, Any]:
                 entry["ended_at"] = time.time()
                 entry["exit_reason"] = "platform_stop_requested"
                 entry["error_message"] = None
+                _release_gpu_lock(entry, job_id)
                 _save_registry(entries)
                 return entry
         except KeyError:
@@ -1432,6 +1447,7 @@ def stop_job(job_id: str) -> dict[str, Any]:
         entry["terminated"] = True
         entry["status"] = "terminated" if entry.get("status") in TRAINING_ACTIVE_STATUSES else "terminated"
         entry["ended_at"] = entry.get("ended_at") or time.time()
+        _release_gpu_lock(entry, job_id)
         _save_registry(entries)
         return entry
 

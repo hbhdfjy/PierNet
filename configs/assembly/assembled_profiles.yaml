@@ -10,3 +10,23 @@ profiles:
     chat_enabled: true
     source: verl_piernet_recipe
     source_thread_id: 019ece38-4df9-7bd2-8ae3-47a902f20d4c
+    demo_prompt_label: MODFLOW 强化学习样例
+    demo_prompt: "请使用 MODFLOW 地下水专家。场景=unified_aquifer。参数：K_mean=17.653585; K_std=0; K_anisotropy=1; S_storage=0.15034731; Q_pumping=-9940.1953; H_initial=8.997509; R_recharge=0.0090303216; R_variation=0; BC_strength=0; n_layers=1; C_concentration=0; D_dispersion=0; lambda_decay=0; phi_porosity=0.30000001; rho_density=1000; scenario_type=0; output_type=0; complexity=1。请返回 5 口井各 12 个月的 hydraulic_head，并给出中文趋势总结。"
+  - model_id: diff_sorp_demo
+    name: PierNet diff-sorp 对话拼装模型
+    description: 使用 Qwen3-4B-Instruct-2507、0124 PDE Router、0103 diff-sorp Text2Comp 和 1D diff-sorp FNO Expert 组成的完整演示链路。
+    executor: fno_profile
+    simulator: diff_sorp
+    root: /root/data/PierNet
+    llm_path: /root/eb-public/huggingface-models/Qwen/Qwen3-4B-Instruct-2507
+    router_path: /root/data/PierNet/artifacts/token_router/0124_pde_router_best_model.pt
+    text2comp_path: /root/data/PierNet/artifacts/text2comp_models/legacy/0103_raw_1d_diff-sorp_text2computation_best_model_7e-6.pt
+    expert_path: /root/data/PierNet/artifacts/fno_models/legacy/1D_diff-sorp_NA_NA_FNO_2_1.pt
+    feature_dim: 128
+    output_shape: [64]
+    sample_count: 0
+    chat_enabled: true
+    force_split: true
+    source: registered_demo_profile
+    demo_prompt_label: diff-sorp 标准样例
+    demo_prompt: "请通过分析两帧归一化输入数据，基于传质动力学的理论框架，预测吸附系统在下一时间步的状态演变。\n[0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]"

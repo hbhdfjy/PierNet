@@ -621,6 +621,7 @@ export interface TrainingQuickJobCreateRequest {
   gpu_id?: number | null
   resume_from?: string | null
   seed?: number | null
+  uploaded_expert_id?: string | null
 }
 
 export type TrainingPoint = components['schemas']['TrainingPoint']

@@ -3186,10 +3186,14 @@ export interface components {
             text2comp_job_id?: string | null;
             /** Text2Comp Model Path */
             text2comp_model_path?: string | null;
+            /** Text2Comp Output Dim */
+            text2comp_output_dim?: number | null;
             /** Text2Comp Run Dir */
             text2comp_run_dir?: string | null;
             /** Text2Comp Status */
             text2comp_status?: string | null;
+            /** Text2Comp Target Source */
+            text2comp_target_source?: string | null;
             /** Uploaded Expert Id */
             uploaded_expert_id?: string | null;
             /** Uploaded Expert Input Dim */
@@ -3269,10 +3273,14 @@ export interface components {
             text2comp_job_id?: string | null;
             /** Text2Comp Model Path */
             text2comp_model_path?: string | null;
+            /** Text2Comp Output Dim */
+            text2comp_output_dim?: number | null;
             /** Text2Comp Run Dir */
             text2comp_run_dir?: string | null;
             /** Text2Comp Status */
             text2comp_status?: string | null;
+            /** Text2Comp Target Source */
+            text2comp_target_source?: string | null;
             /** Uploaded Expert Id */
             uploaded_expert_id?: string | null;
             /** Uploaded Expert Input Dim */

@@ -21,6 +21,7 @@ import re
 import time
 import json
 import yaml
+import logging
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -34,6 +35,67 @@ from pydantic import BaseModel
 
 from PierNet.synth.services import expert_models as uploaded_expert_models
 from PierNet.training.api.modflow_assembly import ModflowAssemblyProfilePipeline
+
+
+logger = logging.getLogger(__name__)
+
+
+_QWEN3_COMPAT_REGISTERED = False
+
+
+def _ensure_qwen3_transformers_compat() -> None:
+    """Allow older Transformers builds to load Qwen3 checkpoints with the Qwen2 implementation."""
+    global _QWEN3_COMPAT_REGISTERED
+    if _QWEN3_COMPAT_REGISTERED:
+        return
+    try:
+        from transformers import AutoConfig, AutoModelForCausalLM
+        from transformers.models.qwen2.configuration_qwen2 import Qwen2Config
+        from transformers.models.qwen2.modeling_qwen2 import Qwen2ForCausalLM
+    except Exception:
+        return
+
+    class Qwen3CompatConfig(Qwen2Config):
+        model_type = "qwen3"
+
+    class Qwen3CompatForCausalLM(Qwen2ForCausalLM):
+        config_class = Qwen3CompatConfig
+
+    try:
+        AutoConfig.register("qwen3", Qwen3CompatConfig)
+    except ValueError:
+        pass
+    try:
+        AutoModelForCausalLM.register(Qwen3CompatConfig, Qwen3CompatForCausalLM, exist_ok=True)
+    except ValueError:
+        pass
+    _QWEN3_COMPAT_REGISTERED = True
+
+
+def _preferred_torch_dtype(model_path: str | Path) -> torch.dtype | None:
+    config_path = Path(str(model_path)).expanduser() / "config.json"
+    if not config_path.exists():
+        return None
+    try:
+        raw = json.loads(config_path.read_text(encoding="utf-8")).get("torch_dtype")
+    except Exception:
+        return None
+    if raw == "bfloat16" and (not torch.cuda.is_available() or torch.cuda.is_bf16_supported()):
+        return torch.bfloat16
+    if raw in {"float16", "fp16"}:
+        return torch.float16
+    return None
+
+
+def _load_causal_lm(model_path: str | Path, **kwargs):
+    _ensure_qwen3_transformers_compat()
+    from transformers import AutoModelForCausalLM
+
+    kwargs.setdefault("trust_remote_code", True)
+    dtype = _preferred_torch_dtype(model_path)
+    if dtype is not None:
+        kwargs.setdefault("torch_dtype", dtype)
+    return AutoModelForCausalLM.from_pretrained(str(model_path), **kwargs)
 
 
 # ===== 配置文件动态扫描 =====
@@ -52,6 +114,7 @@ _ROUTER_ARTIFACTS_ROOT = Path(
 ).expanduser()
 _FNO_MODELS_ROOT = Path(os.getenv("PIERN_FNO_MODELS_DIR", str(_ARTIFACTS_ROOT / "fno_models"))).expanduser()
 _DEFAULT_TEXT2COMP_BASE_MODEL = "/root/data/PierNet/models/Qwen/Qwen2.5-0.5B-Instruct"
+_QWEN3_06B_TEXT2COMP_BASE_MODEL = "/root/eb-public/huggingface-models/Qwen/Qwen3-0.6B"
 
 def _load_config():
     if _CONFIG_PATH.exists():
@@ -81,6 +144,23 @@ def _profile_artifact_path(root: Path, manifest: dict[str, Any], key: str, defau
     return str(path)
 
 
+def _profile_explicit_or_artifact_path(
+    item: dict[str, Any],
+    root: Path,
+    manifest: dict[str, Any],
+    item_key: str,
+    artifact_key: str,
+    default_name: str,
+) -> str:
+    raw = item.get(item_key)
+    if raw:
+        path = Path(str(raw)).expanduser()
+        if not path.is_absolute():
+            path = root / path
+        return str(path)
+    return _profile_artifact_path(root, manifest, artifact_key, default_name)
+
+
 def _scan_assembly_profiles() -> list[dict[str, Any]]:
     config_path = _assembly_profiles_config_path()
     if not config_path.exists():
@@ -95,27 +175,38 @@ def _scan_assembly_profiles() -> list[dict[str, Any]]:
         if not root_value:
             continue
         root = _resolve_repo_path(str(root_value))
-        manifest_rel = item.get("manifest", "artifacts/manifest.json")
-        manifest_path = Path(str(manifest_rel)).expanduser()
-        if not manifest_path.is_absolute():
-            manifest_path = root / manifest_path
+        manifest_declared = "manifest" in item
+        manifest_rel = item.get("manifest", "artifacts/manifest.json") if manifest_declared else None
+        manifest_path: Path | None = None
         manifest: dict[str, Any] = {}
-        if manifest_path.exists():
-            try:
-                manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-            except Exception:
-                manifest = {}
+        if manifest_rel:
+            manifest_path = Path(str(manifest_rel)).expanduser()
+            if not manifest_path.is_absolute():
+                manifest_path = root / manifest_path
+            if manifest_path.exists():
+                try:
+                    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+                except Exception:
+                    manifest = {}
         llm_path = str(item.get("llm_path") or manifest.get("llm_path") or "")
         chat_llm_path = str(item.get("chat_llm_path") or "")
-        router_path = _profile_artifact_path(root, manifest, "router", "router_modflow.pt")
-        text2comp_path = _profile_artifact_path(root, manifest, "text2comp", "text2comp_modflow.pt")
-        expert_path = _profile_artifact_path(root, manifest, "expert", "expert_modflow_dnn.pt")
-        required_paths = [str(root), str(manifest_path), llm_path, router_path, text2comp_path, expert_path]
+        router_path = _profile_explicit_or_artifact_path(
+            item, root, manifest, "router_path", "router", "router_modflow.pt"
+        )
+        text2comp_path = _profile_explicit_or_artifact_path(
+            item, root, manifest, "text2comp_path", "text2comp", "text2comp_modflow.pt"
+        )
+        expert_path = _profile_explicit_or_artifact_path(
+            item, root, manifest, "expert_path", "expert", "expert_modflow_dnn.pt"
+        )
+        required_paths = [str(root), llm_path, router_path, text2comp_path, expert_path]
+        if manifest_declared:
+            required_paths.append(str(manifest_path or ""))
         if chat_llm_path:
             required_paths.append(chat_llm_path)
         trained = all(bool(p) and os.path.exists(p) for p in required_paths)
         model_id = str(item.get("model_id") or item.get("id") or root.name)
-        target_shape = manifest.get("target_shape") or []
+        target_shape = item.get("output_shape") or manifest.get("target_shape") or []
         profiles.append({
             "model_id": model_id,
             "name": str(item.get("name") or manifest.get("name") or model_id),
@@ -123,21 +214,24 @@ def _scan_assembly_profiles() -> list[dict[str, Any]]:
             "executor": str(item.get("executor") or "modflow_profile"),
             "simulator": str(item.get("simulator") or "modflow"),
             "root": str(root),
-            "manifest_path": str(manifest_path),
+            "manifest_path": str(manifest_path) if manifest_path else None,
             "llm_path": llm_path,
             "chat_llm_path": chat_llm_path or None,
             "router_path": router_path,
             "text2comp_path": text2comp_path,
             "expert_path": expert_path,
-            "feature_dim": int(manifest.get("feature_dim") or 0),
-            "param_count": len(manifest.get("param_names") or []),
+            "feature_dim": int(item.get("feature_dim") or manifest.get("feature_dim") or 0),
+            "param_count": int(item.get("param_count") or len(manifest.get("param_names") or [])),
             "output_shape": target_shape,
-            "sample_count": int(manifest.get("sample_count") or 0),
-            "metrics": manifest.get("metrics") or {},
+            "sample_count": int(item.get("sample_count") or manifest.get("sample_count") or 0),
+            "metrics": item.get("metrics") or manifest.get("metrics") or {},
             "trained": trained,
             "chat_enabled": bool(item.get("chat_enabled", True)) and trained,
+            "force_split": bool(item.get("force_split", False)),
             "source_thread_id": item.get("source_thread_id"),
             "source": item.get("source") or "registered_profile",
+            "demo_prompt": str(item.get("demo_prompt") or manifest.get("demo_prompt") or ""),
+            "demo_prompt_label": str(item.get("demo_prompt_label") or manifest.get("demo_prompt_label") or "演示 Prompt"),
             "missing_paths": [p for p in required_paths if not p or not os.path.exists(p)],
         })
     return profiles
@@ -687,6 +781,17 @@ TEXT2COMP_BASE_MODEL_PATH = os.getenv(
 )
 
 
+def _resolve_text2comp_base_model_path(text2comp_infos: list[dict[str, Any]] | None = None) -> str:
+    """Pick the Text2Comp base model that matches known legacy checkpoints."""
+    infos = text2comp_infos or []
+    qwen3_06b = Path(_QWEN3_06B_TEXT2COMP_BASE_MODEL)
+    for info in infos:
+        marker = f"{info.get('name', '')} {info.get('path', '')} {info.get('simulator', '')}".lower()
+        if ("diff-sorp" in marker or "diff_sorp" in marker) and qwen3_06b.exists():
+            return str(qwen3_06b)
+    return TEXT2COMP_BASE_MODEL_PATH
+
+
 # ===== 已加载模型状态 =====
 
 _LOADED_MODELS = {
@@ -705,6 +810,7 @@ _LOADED_MODELS = {
     "router_path": None,
     "router_type": None,
     "router_meta": {},
+    "text2comp_base_path": None,
     "text2comp_paths": [],
     "fno_paths": [],
     "expert_executor": "fno",
@@ -1049,6 +1155,41 @@ def _strip_thinking_content(text: str) -> str:
     return cleaned.strip()
 
 
+def _format_expert_prediction_answer(simulator: str, y_field: Any) -> str:
+    arr = np.asarray(y_field, dtype=float).reshape(-1)
+    simulator_label = {
+        "diff_sorp": "diff-sorp",
+        "burgers": "Burgers",
+    }.get(simulator, simulator)
+    if arr.size == 0:
+        return f"{simulator_label} 专家模型已完成预测。"
+
+    first = float(arr[0])
+    last = float(arr[-1])
+    min_value = float(np.min(arr))
+    max_value = float(np.max(arr))
+    if abs(last - first) < 1e-6:
+        trend = "首尾水平基本一致"
+    elif last > first:
+        trend = "末端高于起始水平"
+    else:
+        trend = "末端低于起始水平"
+
+    value_lines = ["预测数值："]
+    group_size = 8
+    for start in range(0, arr.size, group_size):
+        end = min(start + group_size, arr.size)
+        values = "，".join(f"{float(value):.5f}" for value in arr[start:end])
+        value_lines.append(f"第 {start + 1}-{end} 点：{values}")
+
+    return (
+        f"{simulator_label} 专家模型已完成下一时间步预测。"
+        f"预测向量共 {arr.size} 个数值点，范围约 {min_value:.5f} 到 {max_value:.5f}，"
+        f"首端约 {first:.5f}，末端约 {last:.5f}，{trend}。\n\n"
+        + "\n".join(value_lines)
+    )
+
+
 def _sync_device(device):
     if device is not None and getattr(device, "type", None) == "cuda" and torch.cuda.is_available():
         torch.cuda.synchronize(device)
@@ -1149,7 +1290,7 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
                 expert_calls += 1
                 ans_str = np.array2string(y_field, precision=5, separator=", ", threshold=np.inf)
                 expert_output = ans_str
-                final_answer = f"[{ans_str}]。"
+                final_answer = _format_expert_prediction_answer(simulator, y_field)
                 result_ids = tokenizer.encode(final_answer, add_special_tokens=False, return_tensors="pt").to(llm_device)
                 expert_token_count += result_ids.shape[1]
                 generated_ids = torch.cat([generated_ids, result_ids], dim=1)
@@ -1384,6 +1525,7 @@ def _clear_standard_model_state() -> None:
     _LOADED_MODELS["grid"] = {}
     _LOADED_MODELS["router_type"] = None
     _LOADED_MODELS["router_meta"] = {}
+    _LOADED_MODELS["text2comp_base_path"] = None
     _LOADED_MODELS["text2comp_paths"] = []
     _LOADED_MODELS["fno_paths"] = []
     _LOADED_MODELS["uploaded_expert_model"] = None
@@ -1392,13 +1534,41 @@ def _clear_standard_model_state() -> None:
     _LOADED_MODELS["uploaded_expert_path"] = None
 
 
-def _load_assembly_profile_models(req: LoadAllRequest):
+async def _load_assembly_profile_models(req: LoadAllRequest):
     profile = _get_assembly_profile(str(req.assembly_profile_id or ""))
-    if profile.get("executor") != "modflow_profile":
-        raise HTTPException(status_code=400, detail=f"Unsupported assembly profile executor: {profile.get('executor')}")
     if not profile.get("trained"):
         missing = profile.get("missing_paths") or []
         raise HTTPException(status_code=400, detail=f"Assembly profile is incomplete: {missing}")
+    executor = str(profile.get("executor") or "").strip().lower()
+
+    if executor in {"fno_profile", "standard_fno_profile"}:
+        result = await load_all_models(
+            LoadAllRequest(
+                llm_path=profile.get("llm_path"),
+                llm_gpu_id=req.llm_gpu_id,
+                router_gpu_id=req.router_gpu_id,
+                router_path=profile.get("router_path"),
+                text2comp_path=profile.get("text2comp_path"),
+                fno_path=profile.get("expert_path"),
+                expert_executor="fno",
+                force_split=bool(profile.get("force_split", req.force_split)),
+                auto_sync=req.auto_sync,
+            )
+        )
+        _LOADED_MODELS["assembly_profile"] = {"executor": executor}
+        _LOADED_MODELS["assembly_profile_info"] = profile
+        result.update(
+            {
+                "profile": profile,
+                "expert_executor": "fno",
+                "message": f"拼装模型 {profile.get('name')} 已加载完成",
+                "architecture": "registered FNO profile: LLM + Router + Text2Comp + FNO Expert",
+            }
+        )
+        return result
+
+    if executor != "modflow_profile":
+        raise HTTPException(status_code=400, detail=f"Unsupported assembly profile executor: {profile.get('executor')}")
     if torch.cuda.is_available():
         device = torch.device(f"cuda:{req.llm_gpu_id}")
     else:
@@ -1444,6 +1614,31 @@ def _test_assembly_profile(req: AssemblyTestRequest) -> AssemblyTestResponse:
     profile = _LOADED_MODELS.get("assembly_profile_info") or {}
     if pipeline is None:
         raise HTTPException(status_code=400, detail="Assembly profile 尚未加载")
+    executor = str(profile.get("executor") or "").strip().lower()
+    if executor in {"fno_profile", "standard_fno_profile"}:
+        start_time = time.time()
+        try:
+            response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(req.test_input)
+        except uploaded_expert_models.ExpertModelError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        except Exception:
+            logger.exception("Assembly profile test failed")
+            raise
+        latency = (time.time() - start_time) * 1000
+        cleaned_response = _strip_thinking_content(response)
+        display_answer = f"{cleaned_response}\n\n{final_answer}" if final_answer and cleaned_response else final_answer or cleaned_response
+        debug_info["assembly_profile"] = profile
+        return AssemblyTestResponse(
+            router_prediction=ASSEMBLY_ROUTER_CLASS_NAMES[router_pred],
+            first_cot_result=response,
+            final_answer=display_answer,
+            llm_response=response,
+            expert_output=expert_output or None,
+            expert_used=bool(expert_output),
+            latency_ms=latency,
+            debug_info=debug_info,
+        )
+
     start_time = time.time()
     result = pipeline.chat(req.test_input)
     latency = (time.time() - start_time) * 1000
@@ -1479,12 +1674,12 @@ async def load_all_models(req: LoadAllRequest):
     - force_split用于大LLM切分到多GPU
     """
     if req.assembly_profile_id:
-        return _load_assembly_profile_models(req)
+        return await _load_assembly_profile_models(req)
     if not req.llm_path:
         raise HTTPException(status_code=400, detail="llm_path is required unless assembly_profile_id is provided")
     _clear_profile_state()
 
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from transformers import AutoTokenizer
 
     # 确定设备
     llm_device = torch.device(f"cuda:{req.llm_gpu_id}")
@@ -1503,14 +1698,12 @@ async def load_all_models(req: LoadAllRequest):
     if req.force_split:
         # 使用accelerate切分LLM到多GPU
         try:
-            llm = AutoModelForCausalLM.from_pretrained(
-                req.llm_path, trust_remote_code=True, device_map="auto"
-            )
+            llm = _load_causal_lm(req.llm_path, device_map="auto")
         except ImportError:
             # accelerate不可用，回退到单GPU
-            llm = AutoModelForCausalLM.from_pretrained(req.llm_path, trust_remote_code=True).to(llm_device)
+            llm = _load_causal_lm(req.llm_path).to(llm_device)
     else:
-        llm = AutoModelForCausalLM.from_pretrained(req.llm_path, trust_remote_code=True).to(llm_device)
+        llm = _load_causal_lm(req.llm_path).to(llm_device)
 
     llm.eval()
     _LOADED_MODELS["llm"] = llm
@@ -1526,13 +1719,6 @@ async def load_all_models(req: LoadAllRequest):
     _LOADED_MODELS["router_type"] = router_meta.get("router_type")
     _LOADED_MODELS["router_meta"] = router_meta
 
-    # 3. 加载Text2Comp基础模型（必须使用Qwen3-0.6B）
-    text_base = AutoModelForCausalLM.from_pretrained(TEXT2COMP_BASE_MODEL_PATH, trust_remote_code=True).to(text2comp_device)
-    text_base.eval()
-    _LOADED_MODELS["text2comp_base"] = text_base
-
-    _LOADED_MODELS["text2comp"] = {}
-    _LOADED_MODELS["text2comp_paths"] = []
     text2comp_registry = _scan_text2comp()
     selected_text2comps = (
         [t for t in text2comp_registry if t["path"] == req.text2comp_path]
@@ -1541,6 +1727,16 @@ async def load_all_models(req: LoadAllRequest):
     )
     if req.text2comp_path and not selected_text2comps:
         raise HTTPException(status_code=404, detail=f"Text2Comp not found: {req.text2comp_path}")
+
+    # 3. 加载Text2Comp基础模型。legacy diff-sorp checkpoint 使用 Qwen3-0.6B，其它模型保持配置默认值。
+    text2comp_base_path = _resolve_text2comp_base_model_path(selected_text2comps)
+    text_base = _load_causal_lm(text2comp_base_path).to(text2comp_device)
+    text_base.eval()
+    _LOADED_MODELS["text2comp_base"] = text_base
+    _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
+
+    _LOADED_MODELS["text2comp"] = {}
+    _LOADED_MODELS["text2comp_paths"] = []
 
     # 加载页面选择的Text2Comp；未传选择时保持兼容，加载全部
     for t in selected_text2comps:
@@ -1629,7 +1825,7 @@ async def load_all_models(req: LoadAllRequest):
 @router.post("/llms/load")
 async def load_llm(req: LoadLLMRequest):
     """单独加载LLM"""
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from transformers import AutoTokenizer
 
     device = torch.device(f"cuda:{req.gpu_id}")
     _LOADED_MODELS["llm_device"] = device
@@ -1638,11 +1834,11 @@ async def load_llm(req: LoadLLMRequest):
 
     if req.force_split:
         try:
-            llm = AutoModelForCausalLM.from_pretrained(req.llm_path, trust_remote_code=True, device_map="auto")
-        except:
-            llm = AutoModelForCausalLM.from_pretrained(req.llm_path, trust_remote_code=True).to(device)
+            llm = _load_causal_lm(req.llm_path, device_map="auto")
+        except Exception:
+            llm = _load_causal_lm(req.llm_path).to(device)
     else:
-        llm = AutoModelForCausalLM.from_pretrained(req.llm_path, trust_remote_code=True).to(device)
+        llm = _load_causal_lm(req.llm_path).to(device)
 
     llm.eval()
     _LOADED_MODELS["llm"] = llm
@@ -1687,21 +1883,28 @@ async def load_router(req: LoadRouterRequest):
 @router.post("/text2comps/load")
 async def load_text2comp(req: LoadText2CompRequest):
     """单独加载Text2Comp"""
-    from transformers import AutoModelForCausalLM
-
     device = torch.device(f"cuda:{req.gpu_id}")
     _LOADED_MODELS["text2comp_device"] = device
 
     # 加载基础模型
+    t_info = next((t for t in _scan_text2comp() if t["simulator"] == req.simulator), None)
+    text2comp_base_path = _resolve_text2comp_base_model_path([t_info] if t_info else None)
     if _LOADED_MODELS["text2comp_base"] is None:
-        text_base = AutoModelForCausalLM.from_pretrained(TEXT2COMP_BASE_MODEL_PATH, trust_remote_code=True).to(device)
+        text_base = _load_causal_lm(text2comp_base_path).to(device)
         text_base.eval()
         _LOADED_MODELS["text2comp_base"] = text_base
+        _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
+    elif _LOADED_MODELS.get("text2comp_base_path") != text2comp_base_path:
+        _LOADED_MODELS["text2comp_base"] = None
+        torch.cuda.empty_cache()
+        text_base = _load_causal_lm(text2comp_base_path).to(device)
+        text_base.eval()
+        _LOADED_MODELS["text2comp_base"] = text_base
+        _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
     else:
         text_base = _LOADED_MODELS["text2comp_base"]
 
     # 加载对应simulator的Text2Comp
-    t_info = next((t for t in _scan_text2comp() if t["simulator"] == req.simulator), None)
     if t_info and os.path.exists(t_info["path"]):
         if t_info["output_dim"] == 32:
             model = LMRegression32D(text_base).to(device)
@@ -1774,6 +1977,7 @@ async def unload_all():
     _LOADED_MODELS["router_path"] = None
     _LOADED_MODELS["router_type"] = None
     _LOADED_MODELS["router_meta"] = {}
+    _LOADED_MODELS["text2comp_base_path"] = None
     _LOADED_MODELS["text2comp_paths"] = []
     _LOADED_MODELS["fno_paths"] = []
     _LOADED_MODELS["expert_executor"] = "fno"
@@ -1791,14 +1995,17 @@ async def unload_all():
 async def test_assembly(req: AssemblyTestRequest):
     """测试PiERN推理"""
     profile_id = str(req.config.get("assembly_profile_id") or "").strip()
-    if _LOADED_MODELS.get("assembly_profile") is None and profile_id:
+    loaded_profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    loaded_profile_id = str(loaded_profile.get("model_id") or "").strip()
+    if profile_id and (_LOADED_MODELS.get("assembly_profile") is None or loaded_profile_id != profile_id):
         gpu_id = req.config.get("gpu_config", {}).get("llm_gpu_ids", [0])[0]
         await load_all_models(LoadAllRequest(
             llm_path=req.config.get("main_llm_path"),
             llm_gpu_id=gpu_id,
             assembly_profile_id=profile_id,
+            force_split=bool(req.config.get("force_split", False)),
         ))
-    if _LOADED_MODELS.get("assembly_profile") is not None:
+    if profile_id and _LOADED_MODELS.get("assembly_profile") is not None:
         return _test_assembly_profile(req)
 
     # 如果模型未加载，先加载
@@ -1818,6 +2025,9 @@ async def test_assembly(req: AssemblyTestRequest):
         response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(req.test_input)
     except uploaded_expert_models.ExpertModelError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        logger.exception("Assembly test failed")
+        raise
     latency = (time.time() - start_time) * 1000
 
     cleaned_response = _strip_thinking_content(response)

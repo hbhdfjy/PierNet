@@ -11,6 +11,7 @@ import {
   isTrainingJobDeletable,
   isTrainingJobStoppable,
   statusLabel,
+  trainingJobDetailPath,
   trainingJobRefreshInterval,
 } from '../shared'
 
@@ -323,10 +324,11 @@ export default function TrainingSimpleProgressPage() {
     },
   )
 
+  const isSimpleJob = !job || job.config?.simple_pipeline_enabled === true
   const stage = stageFromJob(job, logs?.lines ?? [])
   const eta = estimateEta(job, stage)
-  const canStop = job ? isTrainingJobStoppable(job.status) : false
-  const canDelete = job ? isTrainingJobDeletable(job.status) : false
+  const canStop = job && isSimpleJob ? isTrainingJobStoppable(job.status) : false
+  const canDelete = job && isSimpleJob ? isTrainingJobDeletable(job.status) : false
 
   const refreshAll = async () => {
     await Promise.all([mutate('training-jobs'), mutate('training-overview'), mutate('training-gpus')])
@@ -358,6 +360,37 @@ export default function TrainingSimpleProgressPage() {
       setActionError(`删除失败：${actionErrorMessage(error)}`)
       setBusy(false)
     }
+  }
+
+  if (job && !isSimpleJob) {
+    return (
+      <div className="training-page">
+        <div className="training-page__body training-simple-progress-page">
+          <div className="training-simple-progress-wrap">
+            <section className="training-simple-progress-card">
+              <div className="training-simple-progress__icon training-simple-progress__icon--amber">
+                <AlertTriangle size={22} />
+              </div>
+              <div className="training-eyebrow">训练详情</div>
+              <h1 className="training-simple-progress__title">这不是简洁训练任务</h1>
+              <p className="training-simple-progress__copy">
+                当前任务来自完整训练平台，请进入普通训练详情页查看日志、指标和操作。
+              </p>
+              <div className="training-simple-progress__actions">
+                <Link to="/training/simple/tasks" className="btn-ghost">
+                  <RefreshCw size={14} />
+                  返回任务
+                </Link>
+                <Link to={trainingJobDetailPath(job.job_id)} className="btn-primary">
+                  <PlayCircle size={14} />
+                  打开普通训练详情
+                </Link>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (

@@ -26,26 +26,26 @@ type AssemblyMode = 'profile' | 'training_job'
 
 type AssemblyProfile = NonNullable<AssemblyStatus['assembly_profiles']>[number]
 
-const QUICK_TEST_INPUTS = [
-  {
-    label: '\u666e\u901a\u95ee\u5019',
-    value: '\u4f60\u597d',
-  },
-  {
-    label: 'Diff-Sorption \u6807\u51c6\u6837\u4f8b',
-    value:
-      '\u8bf7\u901a\u8fc7\u5206\u6790\u4e24\u5e27\u5f52\u4e00\u5316\u8f93\u5165\u6570\u636e\uff0c\u57fa\u4e8e\u4f20\u8d28\u52a8\u529b\u5b66\u7684\u7406\u8bba\u6846\u67b6\uff0c\u9884\u6d4b\u5438\u9644\u7cfb\u7edf\u5728\u4e0b\u4e00\u65f6\u95f4\u6b65\u7684\u72b6\u6001\u6f14\u53d8\u3002 [0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]',
-  },
-  {
-    label: 'Diff-Sorption \u77ed\u6837\u4f8b',
-    value:
-      '\u8fd9\u662fdiff-sorption\u4efb\u52a1\uff0c\u8bf7\u9884\u6d4b\u4e0b\u4e00\u65f6\u523b\u7684\u6d53\u5ea6\u5206\u5e03\u3002\u6570\u636e\u5982\u4e0b\uff1a [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]',
-  },
-  {
-    label: '\u666e\u901a\u79d1\u5b66\u95ee\u7b54',
-    value: '\u8bf7\u7b80\u8981\u89e3\u91ca\u4ec0\u4e48\u662f\u4f20\u8d28\u52a8\u529b\u5b66\u3002',
-  },
-] as const
+type TrainingBundle = {
+  id: string
+  label: string
+  createdAt: string
+  task: string
+  llm: string
+  router: string
+  text2comp: string
+  fno: string
+}
+
+const DIFF_SORP_TEST_INPUT =
+  '请通过分析两帧归一化输入数据，基于传质动力学的理论框架，预测吸附系统在下一时间步的状态演变。\n[0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]'
+
+const TRAINING_BUNDLES: readonly TrainingBundle[] = []
+
+const TRAINING_BUNDLE_PATHS: Record<
+  string,
+  { llm: string; router: string; text2comp: string; fno: string; text2compOutputDim: number; fnoInputDim: number }
+> = {}
 
 type SelectableModel = {
   name: string
@@ -57,13 +57,33 @@ type SelectableModel = {
   description?: string
 }
 
+type TrainingAssemblySource = {
+  id: string
+  kind: 'bundle' | 'job'
+  name: string
+  label: string
+  createdAt: string
+  simulator: string
+  scenarios: string[]
+  llm: SelectableModel | null
+  router: SelectableModel | null
+  text2comp: SelectableModel | null
+  fno: SelectableModel | null
+  uploadedExpertName?: string | null
+  uploadedExpertInputDim?: number | null
+  defaultPrompt?: string
+  sourceJob?: TrainingJobSummary
+}
+
 function pickFirst<T extends SelectableModel>(items: T[] | undefined, predicate?: (item: T) => boolean): T | null {
   const list = items ?? []
   return list.find(item => predicate?.(item)) ?? list.find(item => item.trained) ?? list[0] ?? null
 }
 
 function isUsableTrainingJob(job: TrainingJobSummary): boolean {
-  return Boolean(job.run_dir && job.status === 'done' && job.text2comp_model_path)
+  return Boolean(
+    job.config?.simple_pipeline_enabled === true && job.run_dir && job.status === 'done' && job.text2comp_model_path,
+  )
 }
 
 function routerPathFromTrainingJob(job: TrainingJobSummary): string {
@@ -84,13 +104,76 @@ function routerModelFromTrainingJob(job: TrainingJobSummary | null): SelectableM
 
 function text2compModelFromTrainingJob(job: TrainingJobSummary | null): SelectableModel | null {
   if (!job?.text2comp_model_path) return null
-  const expert = job.uploaded_expert_name ? ` · Uploaded Expert ${job.uploaded_expert_name}` : ''
+  const outputDim = job.text2comp_output_dim ?? job.uploaded_expert_input_dim
+  const source = job.text2comp_target_source ? ` · 数据字段 ${job.text2comp_target_source}` : ''
   return {
     name: `${job.name || job.job_id} Text2Comp`,
     path: job.text2comp_model_path,
     trained: true,
-    output_dim: job.uploaded_expert_input_dim,
-    description: `输出维度 ${job.uploaded_expert_input_dim ?? '--'}${expert}`,
+    output_dim: outputDim,
+    description: `输出维度 ${outputDim ?? '--'}${source}`,
+  }
+}
+
+function findScannedModel<T extends SelectableModel>(
+  items: T[] | undefined,
+  name: string,
+  path: string,
+): T | SelectableModel {
+  const list = items ?? []
+  return (
+    list.find(item => item.path === path) ??
+    list.find(item => item.name === name) ??
+    list.find(item => item.name.includes(name) || path.includes(item.name)) ?? {
+      name,
+      path,
+      trained: true,
+    }
+  )
+}
+
+function trainingSourceFromBundle(bundle: TrainingBundle, status: AssemblyStatus | undefined): TrainingAssemblySource {
+  const paths = TRAINING_BUNDLE_PATHS[bundle.id]
+  return {
+    id: `bundle:${bundle.id}`,
+    kind: 'bundle',
+    name: bundle.label,
+    label: bundle.label,
+    createdAt: bundle.createdAt,
+    simulator: bundle.task,
+    scenarios: [bundle.task],
+    llm: findScannedModel(status?.llms, bundle.llm, paths.llm),
+    router: findScannedModel(status?.routers, bundle.router, paths.router),
+    text2comp: {
+      ...findScannedModel(status?.text2comps, bundle.text2comp, paths.text2comp),
+      output_dim: paths.text2compOutputDim,
+      description: `输出维度 ${paths.text2compOutputDim}`,
+    },
+    fno: {
+      ...findScannedModel(status?.fno_experts, bundle.fno, paths.fno),
+      input_dim: paths.fnoInputDim,
+      description: `输入维度 ${paths.fnoInputDim} · FNO Expert`,
+    },
+    defaultPrompt: bundle.id === 'diff-sorp-20260103-0124' ? DIFF_SORP_TEST_INPUT : undefined,
+  }
+}
+
+function trainingSourceFromJob(job: TrainingJobSummary): TrainingAssemblySource {
+  return {
+    id: `job:${job.job_id}`,
+    kind: 'job',
+    name: job.name || job.job_id,
+    label: job.name || job.job_id,
+    createdAt: new Date((job.ended_at ?? job.created_at) * 1000).toISOString().slice(0, 10),
+    simulator: job.simulator,
+    scenarios: job.scenarios,
+    llm: null,
+    router: routerModelFromTrainingJob(job),
+    text2comp: text2compModelFromTrainingJob(job),
+    fno: null,
+    uploadedExpertName: job.uploaded_expert_name,
+    uploadedExpertInputDim: job.uploaded_expert_input_dim,
+    sourceJob: job,
   }
 }
 
@@ -119,13 +202,25 @@ function pickGpu(status: AssemblyStatus | undefined) {
   })[0]
 }
 
+function compatibleFnoExperts(
+  status: AssemblyStatus | undefined,
+  text2comp: SelectableModel | null,
+): SelectableModel[] {
+  const expectedDim = text2comp?.output_dim
+  return (status?.fno_experts ?? []).filter(expert => {
+    if (!expert.trained) return false
+    if (expectedDim == null || expert.input_dim == null) return true
+    return expert.input_dim === expectedDim
+  })
+}
+
 function compatibleUploadedExperts(
   status: AssemblyStatus | undefined,
   text2comp: SelectableModel | null,
 ): ExpertModelInfo[] {
   const expectedDim = text2comp?.output_dim
   return (status?.custom_experts ?? []).filter(expert => {
-    if (expert.status !== 'active' || expert.assembly_enabled === false) return false
+    if (expert.status !== 'active' || expert.assembly_enabled === false || expert.exists === false) return false
     if (expectedDim == null || expert.input_dim == null) return true
     return expert.input_dim === expectedDim
   })
@@ -136,13 +231,161 @@ function pathName(path?: string | null): string {
   return path.split('/').filter(Boolean).pop() || path
 }
 
+function samePath(left?: string | null, right?: string | null): boolean {
+  return Boolean(left && right && left === right)
+}
+
+function pathListIncludes(paths: string[] | undefined, expected?: string | null): boolean {
+  return Boolean(expected && (paths ?? []).includes(expected))
+}
+
+type ParsedModflowAnswer = {
+  isModflow: boolean
+  raw: string
+  matrix: number[][] | null
+  trendLines: string[]
+}
+
+function splitTrendLines(text: string): string[] {
+  return text
+    .replace(/\s+(?=\d+\.\s*(?:井|#)\d+[:：])/g, '\n')
+    .split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+}
+
+function parseModflowAnswer(answer?: string): ParsedModflowAnswer {
+  const raw = (answer || '').trim()
+  const trigger = 'MODFLOW地下水专家输出：'
+  const trendMarker = '中文趋势总结：'
+  if (!raw.includes(trigger)) {
+    return { isModflow: false, raw, matrix: null, trendLines: [] }
+  }
+
+  const body = raw.slice(raw.indexOf(trigger) + trigger.length).trim()
+  const trendIndex = body.indexOf(trendMarker)
+  const matrixSource = (trendIndex >= 0 ? body.slice(0, trendIndex) : body).trim()
+  const trendText = trendIndex >= 0 ? body.slice(trendIndex + trendMarker.length).trim() : ''
+  const matrixMatch = matrixSource.match(/\[\[[\s\S]*\]\]/)
+  let matrix: number[][] | null = null
+  if (matrixMatch) {
+    try {
+      const parsed = JSON.parse(matrixMatch[0])
+      if (
+        Array.isArray(parsed) &&
+        parsed.every(row => Array.isArray(row) && row.every(value => typeof value === 'number'))
+      ) {
+        matrix = parsed
+      }
+    } catch {
+      matrix = null
+    }
+  }
+
+  return {
+    isModflow: true,
+    raw,
+    matrix,
+    trendLines: splitTrendLines(trendText),
+  }
+}
+
+function formatResultNumber(value: number): string {
+  return Number.isFinite(value) ? value.toFixed(4) : '--'
+}
+
+function numericSummary(values: number[]): string {
+  if (values.length === 0) return ''
+  const first = values[0]
+  const last = values[values.length - 1]
+  let min = first
+  let max = first
+  values.forEach(value => {
+    if (value < min) min = value
+    if (value > max) max = value
+  })
+  const direction =
+    Math.abs(last - first) < 1e-6 ? '末端与起始水平接近' : last > first ? '末端高于起始水平' : '末端低于起始水平'
+  return `专家模型返回了一组数值预测，共 ${values.length} 个数值点，范围约 ${formatResultNumber(min)} 到 ${formatResultNumber(max)}，${direction}。`
+}
+
+function formatPlainModflowAnswer(parsed: ParsedModflowAnswer): string {
+  if (!parsed.matrix) return formatConversationalAnswer(parsed.raw)
+  const lines = ['已完成 MODFLOW 地下水预测。']
+  lines.push('', '预测数值（hydraulic_head）：')
+  parsed.matrix.forEach((row, index) => {
+    lines.push(`井${index + 1}：${row.map(formatResultNumber).join('，')}`)
+  })
+  if (parsed.trendLines.length > 0) {
+    lines.push('', '中文趋势总结：', ...parsed.trendLines)
+  } else {
+    const values = parsed.matrix.flat()
+    const summary = numericSummary(values)
+    if (summary) lines.push('', summary)
+  }
+  return lines.join('\n')
+}
+
+function stripDenseNumericLines(text: string): { text: string; values: number[] } {
+  const values: number[] = []
+  const numberPattern = /-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi
+  const kept = text
+    .split('\n')
+    .filter(line => {
+      const matches = line.match(numberPattern) ?? []
+      const trimmed = line.trim()
+      const isReadableValueLine = /^第\s*\d+\s*-\s*\d+\s*点[:：]/.test(trimmed)
+      const denseArrayLine =
+        !isReadableValueLine &&
+        matches.length >= 4 &&
+        (trimmed.startsWith('[') || trimmed.endsWith(']') || /^[\d\s.,，+\-eE]+[,.，]?$/.test(trimmed))
+      if (denseArrayLine) {
+        matches.forEach(item => values.push(Number(item)))
+        return false
+      }
+      return true
+    })
+    .map(line => line.trimEnd())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  return { text: kept, values }
+}
+
+function formatConversationalAnswer(answer?: string): string {
+  const raw = (answer || '').trim()
+  if (!raw) return ''
+  const { text, values } = stripDenseNumericLines(raw)
+  const normalized = text
+    .replace(/^\s*[\w-]*\s*(?:FNO|Expert|专家)?\s*输出[:：]\s*$/i, '')
+    .replace(/^\s*[\u4e00-\u9fffA-Za-z0-9_-]*专家输出[:：]\s*$/i, '')
+    .trim()
+  const summary = numericSummary(values)
+  if (normalized && summary) return `${normalized}\n\n${summary}`
+  if (normalized) return normalized
+
+  if (summary) return `已完成专家模型预测。\n\n${summary}`
+  return raw
+}
+
+function AssemblyResultAnswer({ answer }: { answer?: string }) {
+  const parsed = useMemo(() => parseModflowAnswer(answer), [answer])
+  if (!parsed.raw) {
+    return <div className="text-sm text-slate-400">没有返回最终答案。</div>
+  }
+
+  const displayText = parsed.isModflow ? formatPlainModflowAnswer(parsed) : formatConversationalAnswer(parsed.raw)
+  return <div className="training-simple-chat-result__answer">{displayText}</div>
+}
+
 function profileToCards(profile: AssemblyProfile, loaded: boolean) {
+  const isFnoProfile = profile.executor === 'fno_profile' || profile.executor === 'standard_fno_profile'
   return [
     {
       key: 'llm',
       title: 'LLM',
       icon: Brain,
-      model: { name: pathName(profile.llm_path), description: 'Qwen base / embedding' },
+      model: { name: pathName(profile.llm_path), description: isFnoProfile ? 'Qwen model' : 'Qwen base / embedding' },
       loaded,
       tone: 'violet',
     },
@@ -167,11 +410,13 @@ function profileToCards(profile: AssemblyProfile, loaded: boolean) {
     },
     {
       key: 'expert',
-      title: 'DNN Expert',
+      title: isFnoProfile ? 'FNO Expert' : 'DNN Expert',
       icon: Activity,
       model: {
         name: pathName(profile.expert_path),
-        description: `输出 ${(profile.output_shape ?? []).join(' x ') || '--'}`,
+        description: isFnoProfile
+          ? `输入 ${profile.feature_dim || '--'} · FNO Expert`
+          : `输出 ${(profile.output_shape ?? []).join(' x ') || '--'}`,
       },
       loaded,
       tone: 'emerald',
@@ -238,19 +483,31 @@ export default function TrainingSimpleAssemblyPage() {
         .sort((a, b) => (b.ended_at ?? b.created_at) - (a.ended_at ?? a.created_at)),
     [trainingJobs],
   )
-  const selectedTrainingJob = useMemo(
-    () => usableTrainingJobs.find(item => item.job_id === trainingJobId) ?? usableTrainingJobs[0] ?? null,
-    [trainingJobId, usableTrainingJobs],
+  const trainingSources = useMemo(
+    () => [
+      ...TRAINING_BUNDLES.map(bundle => trainingSourceFromBundle(bundle, status)),
+      ...usableTrainingJobs.map(trainingSourceFromJob),
+    ],
+    [status, usableTrainingJobs],
   )
-  const llm = useMemo(() => pickLLM(status), [status])
-  const trainingJobRouter = useMemo(() => routerModelFromTrainingJob(selectedTrainingJob), [selectedTrainingJob])
-  const trainingJobText2Comp = useMemo(() => text2compModelFromTrainingJob(selectedTrainingJob), [selectedTrainingJob])
+  const selectedTrainingSource = useMemo(
+    () => trainingSources.find(item => item.id === trainingJobId) ?? trainingSources[0] ?? null,
+    [trainingJobId, trainingSources],
+  )
+  const defaultLLM = useMemo(() => pickLLM(status), [status])
+  const llm = assemblyMode === 'training_job' ? selectedTrainingSource?.llm || defaultLLM : defaultLLM
+  const trainingJobRouter = selectedTrainingSource?.router ?? null
+  const trainingJobText2Comp = selectedTrainingSource?.text2comp ?? null
   const registryRouter = useMemo(() => pickFirst(status?.routers, item => item.trained), [status?.routers])
   const router = assemblyMode === 'training_job' ? trainingJobRouter : registryRouter
   const registryText2Comp = useMemo(() => pickFirst(status?.text2comps, item => item.trained), [status?.text2comps])
   const text2comp = assemblyMode === 'training_job' ? trainingJobText2Comp : registryText2Comp
-  const fnoModels = useMemo(() => (status?.fno_experts ?? []).filter(item => item.trained), [status?.fno_experts])
-  const fno = useMemo(() => fnoModels.find(item => item.path === fnoPath) ?? fnoModels[0] ?? null, [fnoModels, fnoPath])
+  const fnoModels = useMemo(() => compatibleFnoExperts(status, text2comp), [status, text2comp])
+  const selectedBundleFno = selectedTrainingSource?.kind === 'bundle' ? selectedTrainingSource.fno : null
+  const fno = useMemo(
+    () => selectedBundleFno ?? fnoModels.find(item => item.path === fnoPath) ?? fnoModels[0] ?? null,
+    [fnoModels, fnoPath, selectedBundleFno],
+  )
   const uploadedExperts = useMemo(() => compatibleUploadedExperts(status, text2comp), [status, text2comp])
   const uploaded = useMemo(
     () => uploadedExperts.find(item => item.model_id === uploadedExpertId) ?? uploadedExperts[0] ?? null,
@@ -262,10 +519,45 @@ export default function TrainingSimpleAssemblyPage() {
     [bestGpu, gpuId, status?.gpus],
   )
   const expert = executorMode === 'uploaded' ? uploaded : fno
+  const trainingExpert = selectedTrainingSource?.kind === 'bundle' ? fno : expert
   const profileLoaded = Boolean(status?.loaded_models?.assembly_profile?.loaded)
-  const isLoaded = Boolean(profileLoaded || status?.loaded_models?.llm?.loaded)
+  const selectedProfileLoaded = Boolean(
+    profileLoaded &&
+    assemblyProfile?.model_id &&
+    status?.loaded_models?.assembly_profile?.model_id === assemblyProfile.model_id,
+  )
+  const loadedModels = status?.loaded_models
+  const standardLlmLoaded = Boolean(loadedModels?.llm?.loaded && samePath(loadedModels?.llm?.path, llm?.path))
+  const standardRouterLoaded = Boolean(
+    loadedModels?.router?.loaded && samePath(loadedModels?.router?.path, trainingJobRouter?.path),
+  )
+  const standardText2CompLoaded = Boolean(
+    loadedModels?.text2comp?.loaded && pathListIncludes(loadedModels?.text2comp?.paths, text2comp?.path),
+  )
+  const standardExpertLoaded =
+    selectedTrainingSource?.kind === 'bundle' || executorMode === 'fno'
+      ? Boolean(loadedModels?.fno?.loaded && pathListIncludes(loadedModels?.fno?.paths, fno?.path))
+      : Boolean(
+          loadedModels?.uploaded_expert?.loaded &&
+          uploaded?.model_id &&
+          loadedModels?.uploaded_expert?.model_id === uploaded.model_id,
+        )
+  const standardChainLoaded = Boolean(
+    assemblyMode === 'training_job' &&
+    !profileLoaded &&
+    standardLlmLoaded &&
+    standardRouterLoaded &&
+    standardText2CompLoaded &&
+    standardExpertLoaded,
+  )
+  const isLoaded = assemblyMode === 'profile' ? selectedProfileLoaded : standardChainLoaded
   const canLoadTrainingJob = Boolean(
-    llm && selectedGpu && trainingJobRouter && text2comp && (executorMode === 'fno' ? fno : uploaded),
+    llm &&
+    selectedGpu &&
+    selectedTrainingSource &&
+    trainingJobRouter &&
+    text2comp &&
+    (selectedTrainingSource.kind === 'bundle' ? fno : executorMode === 'fno' ? fno : uploaded),
   )
   const canLoad = Boolean(selectedGpu && (assemblyMode === 'profile' ? assemblyProfile : canLoadTrainingJob))
 
@@ -280,9 +572,9 @@ export default function TrainingSimpleAssemblyPage() {
   }, [assemblyProfiles, profileId])
 
   useEffect(() => {
-    if (trainingJobId && usableTrainingJobs.some(item => item.job_id === trainingJobId)) return
-    setTrainingJobId(usableTrainingJobs[0]?.job_id ?? '')
-  }, [trainingJobId, usableTrainingJobs])
+    if (trainingJobId && trainingSources.some(item => item.id === trainingJobId)) return
+    setTrainingJobId(trainingSources[0]?.id ?? '')
+  }, [trainingJobId, trainingSources])
 
   useEffect(() => {
     if (fnoPath && fnoModels.some(item => item.path === fnoPath)) return
@@ -295,9 +587,25 @@ export default function TrainingSimpleAssemblyPage() {
   }, [uploadedExpertId, uploadedExperts])
 
   useEffect(() => {
+    if (assemblyMode !== 'profile') return
+    const prompt = assemblyProfile?.demo_prompt?.trim()
+    if (!prompt) return
+    setTestInput(prompt)
+    setTestResult(null)
+  }, [assemblyMode, assemblyProfile?.demo_prompt, assemblyProfile?.model_id])
+
+  useEffect(() => {
+    if (assemblyMode !== 'training_job') return
+    if (selectedTrainingSource?.kind === 'bundle') {
+      setExecutorMode('fno')
+      if (selectedTrainingSource.defaultPrompt && !testInput.trim()) {
+        setTestInput(selectedTrainingSource.defaultPrompt)
+      }
+      return
+    }
     if (executorMode === 'uploaded' && uploadedExperts.length === 0 && fno) setExecutorMode('fno')
     if (executorMode === 'fno' && !fno && uploadedExperts.length > 0) setExecutorMode('uploaded')
-  }, [executorMode, fno, uploadedExperts.length])
+  }, [assemblyMode, executorMode, fno, selectedTrainingSource, testInput, uploadedExperts.length])
 
   useEffect(() => {
     if (!status) return
@@ -305,10 +613,10 @@ export default function TrainingSimpleAssemblyPage() {
       setAssemblyMode('training_job')
       return
     }
-    if (assemblyProfile && !selectedTrainingJob && assemblyMode === 'training_job') {
+    if (assemblyProfile && !selectedTrainingSource && assemblyMode === 'training_job') {
       setAssemblyMode('profile')
     }
-  }, [assemblyMode, assemblyProfile, selectedTrainingJob, status])
+  }, [assemblyMode, assemblyProfile, selectedTrainingSource, status])
 
   const refresh = async () => {
     await Promise.all([mutate('assembly-status'), mutate('training-jobs')])
@@ -326,8 +634,8 @@ export default function TrainingSimpleAssemblyPage() {
         return
       }
     } else {
-      if (!selectedTrainingJob || !trainingJobRouter) {
-        setActionError('请先选择一个已有 checkpoint 的简洁训练任务。')
+      if (!selectedTrainingSource || !trainingJobRouter) {
+        setActionError('请先选择一个可拼装的简洁训练任务或训练组合。')
         return
       }
       selectedRouter = trainingJobRouter
@@ -335,11 +643,11 @@ export default function TrainingSimpleAssemblyPage() {
         setActionError('缺少 LLM 或本次训练产出的 Text2Comp，无法把训练任务拼装为完整链路。')
         return
       }
-      if (executorMode === 'fno' && !fno) {
+      if ((selectedTrainingSource.kind === 'bundle' || executorMode === 'fno') && !fno) {
         setActionError('没有可用 FNO Expert。')
         return
       }
-      if (executorMode === 'uploaded' && !uploaded) {
+      if (selectedTrainingSource.kind !== 'bundle' && executorMode === 'uploaded' && !uploaded) {
         setActionError('没有可用 Uploaded Expert，或输入维度不匹配。')
         return
       }
@@ -353,6 +661,7 @@ export default function TrainingSimpleAssemblyPage() {
           assembly_profile_id: assemblyProfile.model_id,
           llm_path: assemblyProfile.llm_path,
           llm_gpu_id: selectedGpu.index,
+          force_split: assemblyProfile.force_split,
           auto_sync: true,
         })
       } else {
@@ -361,9 +670,11 @@ export default function TrainingSimpleAssemblyPage() {
           llm_gpu_id: resourceMode === 'auto' ? selectedGpu.index : selectedGpu.index,
           router_path: selectedRouter?.path,
           text2comp_path: text2comp?.path,
-          fno_path: executorMode === 'fno' ? fno?.path : undefined,
-          expert_executor: executorMode,
-          uploaded_expert_id: executorMode === 'uploaded' ? uploaded?.model_id : undefined,
+          fno_path: selectedTrainingSource?.kind === 'bundle' || executorMode === 'fno' ? fno?.path : undefined,
+          expert_executor: selectedTrainingSource?.kind === 'bundle' ? 'fno' : executorMode,
+          uploaded_expert_id:
+            selectedTrainingSource?.kind !== 'bundle' && executorMode === 'uploaded' ? uploaded?.model_id : undefined,
+          force_split: selectedTrainingSource?.kind === 'bundle',
           auto_sync: true,
         })
       }
@@ -398,9 +709,7 @@ export default function TrainingSimpleAssemblyPage() {
       const result = await api.testAssembly({
         config: {
           main_llm_path: assemblyMode === 'profile' ? assemblyProfile?.llm_path : llm?.path,
-          assembly_profile_id:
-            status?.loaded_models?.assembly_profile?.model_id ||
-            (assemblyMode === 'profile' ? assemblyProfile?.model_id : undefined),
+          assembly_profile_id: assemblyMode === 'profile' ? assemblyProfile?.model_id : undefined,
           gpu_config: { llm_gpu_ids: selectedGpu ? [selectedGpu.index] : [] },
         },
         test_input: testInput,
@@ -423,7 +732,7 @@ export default function TrainingSimpleAssemblyPage() {
       title: 'LLM',
       icon: Brain,
       model: llm,
-      loaded: Boolean(status?.loaded_models?.llm?.loaded),
+      loaded: standardLlmLoaded,
       tone: 'violet',
     },
     {
@@ -431,7 +740,7 @@ export default function TrainingSimpleAssemblyPage() {
       title: 'Router',
       icon: Route,
       model: router,
-      loaded: Boolean(status?.loaded_models?.router?.loaded),
+      loaded: standardRouterLoaded,
       tone: 'amber',
     },
     {
@@ -439,20 +748,23 @@ export default function TrainingSimpleAssemblyPage() {
       title: 'Text2Comp',
       icon: Layers3,
       model: text2comp,
-      loaded: Boolean(status?.loaded_models?.text2comp?.loaded),
+      loaded: standardText2CompLoaded,
       tone: 'sky',
     },
     {
       key: 'expert',
-      title: executorMode === 'uploaded' ? 'Uploaded Expert' : 'FNO Expert',
+      title: selectedTrainingSource?.kind === 'bundle' || executorMode === 'fno' ? 'FNO Expert' : 'Uploaded Expert',
       icon: Activity,
-      model: expert,
-      loaded: Boolean(status?.loaded_models?.fno?.loaded || status?.loaded_models?.uploaded_expert?.loaded),
+      model: trainingExpert,
+      loaded: standardExpertLoaded,
       tone: 'emerald',
     },
   ]
   const modelCards =
-    assemblyMode === 'profile' && assemblyProfile ? profileToCards(assemblyProfile, profileLoaded) : componentCards
+    assemblyMode === 'profile' && assemblyProfile
+      ? profileToCards(assemblyProfile, selectedProfileLoaded)
+      : componentCards
+  const loadButtonLabel = assemblyMode === 'training_job' ? '加载训练组合' : '一键加载'
 
   return (
     <div className="training-page">
@@ -487,7 +799,7 @@ export default function TrainingSimpleAssemblyPage() {
                 disabled={!canLoad || busy}
               >
                 {busy ? <Loader2 size={15} className="animate-spin" /> : <Power size={15} />}
-                一键加载
+                {loadButtonLabel}
               </button>
             )}
           </section>
@@ -522,12 +834,12 @@ export default function TrainingSimpleAssemblyPage() {
                     type="button"
                     className={`training-simple-option ${assemblyMode === 'training_job' ? 'training-simple-option--active' : ''}`}
                     onClick={() => setAssemblyMode('training_job')}
-                    disabled={!selectedTrainingJob}
+                    disabled={!selectedTrainingSource}
                   >
                     <Cpu size={16} />
                     <span>
                       <strong>简洁训练任务</strong>
-                      <small>{selectedTrainingJob ? selectedTrainingJob.name : '暂无可拼装任务'}</small>
+                      <small>{selectedTrainingSource ? selectedTrainingSource.name : '暂无可拼装任务'}</small>
                     </span>
                   </button>
                 </div>
@@ -561,24 +873,24 @@ export default function TrainingSimpleAssemblyPage() {
                     <select
                       id="assembly-training-job-select"
                       className="select"
-                      value={selectedTrainingJob?.job_id ?? ''}
+                      value={selectedTrainingSource?.id ?? ''}
                       onChange={event => setTrainingJobId(event.target.value)}
-                      disabled={usableTrainingJobs.length === 0}
+                      disabled={trainingSources.length === 0}
                     >
-                      {usableTrainingJobs.length === 0 ? (
+                      {trainingSources.length === 0 ? (
                         <option value="">暂无可拼装训练任务</option>
                       ) : (
-                        usableTrainingJobs.map(job => (
-                          <option key={job.job_id} value={job.job_id}>
-                            {job.name} · {job.simulator.toUpperCase()} · {job.scenarios.length} 个场景
+                        trainingSources.map(source => (
+                          <option key={source.id} value={source.id}>
+                            {source.label} · {source.simulator.toUpperCase()} · {source.scenarios.length} 个场景
                           </option>
                         ))
                       )}
                     </select>
                     <div className="rounded-lg border border-sky-500/25 bg-sky-500/8 p-3 text-xs leading-5 text-slate-300">
-                      {selectedTrainingJob
-                        ? `使用 ${pathName(routerPathFromTrainingJob(selectedTrainingJob))} 作为 Router，使用 ${pathName(selectedTrainingJob.text2comp_model_path)} 作为 Text2Comp，Expert 默认使用 Uploaded Expert。`
-                        : '完成一次分阶段简洁训练后，这里会显示可用于拼装的完整训练任务。'}
+                      {selectedTrainingSource
+                        ? `${selectedTrainingSource.kind === 'bundle' ? '训练组合' : '训练任务'} ${selectedTrainingSource.label}：LLM ${selectedTrainingSource.llm?.name ?? pathName(selectedTrainingSource.llm?.path)}，Router ${pathName(selectedTrainingSource.router?.path)}，Text2Comp ${pathName(selectedTrainingSource.text2comp?.path)}，Expert ${pathName((selectedTrainingSource.kind === 'bundle' ? selectedTrainingSource.fno : trainingExpert)?.path)}。`
+                        : '完成一次分阶段简洁训练后，或注册一个训练组合后，这里会显示可用于拼装的完整链路。'}
                     </div>
                   </div>
                 )}
@@ -604,7 +916,12 @@ export default function TrainingSimpleAssemblyPage() {
                     )
                   })}
                 </div>
-                {assemblyMode === 'training_job' && (
+                {assemblyMode === 'training_job' && selectedTrainingSource?.kind === 'bundle' && (
+                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/8 p-3 text-xs leading-5 text-emerald-100">
+                    当前训练组合固定使用 FNO Expert：{selectedTrainingSource.fno?.name ?? '未找到 FNO Expert'}。
+                  </div>
+                )}
+                {assemblyMode === 'training_job' && selectedTrainingSource?.kind !== 'bundle' && (
                   <>
                     <div className="training-simple-option-grid">
                       <button
@@ -616,7 +933,7 @@ export default function TrainingSimpleAssemblyPage() {
                         <Activity size={16} />
                         <span>
                           <strong>FNO Expert</strong>
-                          <small>{fno ? fno.name : '暂无可用模型'}</small>
+                          <small>{fno ? fno.name : '暂无匹配模型'}</small>
                         </span>
                       </button>
                       <button
@@ -648,7 +965,7 @@ export default function TrainingSimpleAssemblyPage() {
                           disabled={fnoModels.length === 0}
                         >
                           {fnoModels.length === 0 ? (
-                            <option value="">暂无 FNO Expert</option>
+                            <option value="">暂无匹配 FNO Expert</option>
                           ) : (
                             fnoModels.map(item => (
                               <option key={item.path} value={item.path}>
@@ -752,20 +1069,6 @@ export default function TrainingSimpleAssemblyPage() {
                   </div>
                 )}
                 <div className="space-y-2">
-                  <div className="flex flex-wrap items-center gap-2 text-[12px] text-slate-400">
-                    <span>快捷输入</span>
-                    {QUICK_TEST_INPUTS.map(item => (
-                      <button
-                        key={item.label}
-                        type="button"
-                        className="btn-ghost px-2 py-1 text-[12px]"
-                        onClick={() => setTestInput(item.value)}
-                        disabled={busy}
-                      >
-                        {item.label}
-                      </button>
-                    ))}
-                  </div>
                   <textarea
                     className="input min-h-[6rem] resize-y"
                     value={testInput}
@@ -787,7 +1090,7 @@ export default function TrainingSimpleAssemblyPage() {
                   ) : (
                     <button type="button" className="btn-primary" onClick={load} disabled={!canLoad || busy}>
                       {busy ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-                      一键加载
+                      {loadButtonLabel}
                     </button>
                   )}
                   {isLoaded && (
@@ -812,21 +1115,15 @@ export default function TrainingSimpleAssemblyPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <PlayCircle size={16} className="text-emerald-300" />
-                <SectionTitle title="测试结果" copy="只展示粗粒度推理结果" />
+                <SectionTitle title="模型回复" copy="对话样式结果" />
               </div>
               <div className="training-card__body">
-                <div className="training-simple-result-grid">
-                  <div>
-                    <span>Router 判断</span>
-                    <strong>{testResult.router_class_name || '--'}</strong>
+                <div className="training-simple-chat-result">
+                  <AssemblyResultAnswer answer={testResult.final_answer} />
+                  <div className="training-simple-chat-result__meta">
+                    <span>Router：{testResult.router_class_name || '--'}</span>
+                    <span>耗时：{testResult.latency_ms != null ? `${testResult.latency_ms.toFixed(2)} ms` : '--'}</span>
                   </div>
-                  <div>
-                    <span>延迟</span>
-                    <strong>{testResult.latency_ms != null ? `${testResult.latency_ms.toFixed(2)} ms` : '--'}</strong>
-                  </div>
-                </div>
-                <div className="mt-3 rounded-lg border border-emerald-500/20 bg-emerald-500/8 p-3 text-sm leading-6 text-slate-200">
-                  {testResult.final_answer || '没有返回最终答案。'}
                 </div>
               </div>
             </section>

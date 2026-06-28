@@ -34,14 +34,15 @@ export default function TrainingSimpleTasksPage() {
     revalidateOnFocus: false,
   })
 
+  const simpleJobs = useMemo(() => (jobs ?? []).filter(job => job.config?.simple_pipeline_enabled === true), [jobs])
   const orderedJobs = useMemo(
     () =>
-      [...(jobs ?? [])].sort((left, right) => {
+      [...simpleJobs].sort((left, right) => {
         const activeDelta = Number(isTrainingJobActive(right.status)) - Number(isTrainingJobActive(left.status))
         if (activeDelta !== 0) return activeDelta
         return (right.created_at ?? 0) - (left.created_at ?? 0)
       }),
-    [jobs],
+    [simpleJobs],
   )
   const runningCount = orderedJobs.filter(job => isTrainingJobActive(job.status)).length
   const completedCount = orderedJobs.filter(job => job.status === 'done').length

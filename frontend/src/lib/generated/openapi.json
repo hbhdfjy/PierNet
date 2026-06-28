@@ -3377,6 +3377,17 @@
             ],
             "title": "Text2Comp Model Path"
           },
+          "text2comp_output_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Output Dim"
+          },
           "text2comp_run_dir": {
             "anyOf": [
               {
@@ -3398,6 +3409,17 @@
               }
             ],
             "title": "Text2Comp Status"
+          },
+          "text2comp_target_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Target Source"
           },
           "uploaded_expert_id": {
             "anyOf": [
@@ -3744,6 +3766,17 @@
             ],
             "title": "Text2Comp Model Path"
           },
+          "text2comp_output_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Output Dim"
+          },
           "text2comp_run_dir": {
             "anyOf": [
               {
@@ -3765,6 +3798,17 @@
               }
             ],
             "title": "Text2Comp Status"
+          },
+          "text2comp_target_source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Target Source"
           },
           "uploaded_expert_id": {
             "anyOf": [

@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import json
 
 import pytest
 import sqlite3
@@ -292,6 +293,8 @@ def test_training_launch_passes_runtime_router_dir(monkeypatch, tmp_path):
 
     command = captured["command"]
     assert command[command.index("--router-dir") + 1] == str(router_dir)
+    assert command.count("--prepare-workers") == 1
+    assert command[command.index("--prepare-workers") + 1] == "0"
     assert entry["command"] == command
 
 
@@ -318,6 +321,195 @@ def test_refresh_entry_tolerates_gpu_lock_release_failure(monkeypatch, tmp_path)
 
     assert refreshed["status"] == "done"
     assert refreshed["exit_reason"] == "completed"
+
+
+def test_prepare_simple_text2comp_dataset_uses_training_data_params(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    data_root = tmp_path / "data"
+    monkeypatch.setattr(training_manager, "DATA_ROOT", data_root)
+    h5_path = data_root / "modflow" / "modflow_coastal_seawater.h5"
+    h5_path.parent.mkdir(parents=True)
+
+    import h5py
+    import numpy as np
+
+    with h5py.File(h5_path, "w") as h5:
+        h5.create_dataset("params", data=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32))
+        h5.create_dataset("timeseries", data=np.zeros((2, 5, 12), dtype=np.float32))
+
+    entry = {
+        "job_id": "train-data-driven",
+        "simulator": "modflow",
+        "scenarios": ["coastal_seawater"],
+        "config": {"simple_text2comp_max_samples": 2},
+    }
+
+    result = training_manager._prepare_simple_text2comp_dataset(entry)
+
+    assert result["output_dim"] == 3
+    assert result["target_source"] == "params"
+    rows = [json.loads(line) for line in Path(result["path"]).read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 2
+    assert rows[0]["label"] == [1.0, 2.0, 3.0]
+    assert "共 3 维" in rows[0]["prompt"]
+    assert "Uploaded Expert" not in rows[0]["prompt"]
+
+
+def test_simple_pipeline_keeps_gpu_lock_while_text2comp_runs(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    entry = training_manager._queued_training_entry(
+        {
+            **_payload(),
+            "simple_pipeline_enabled": True,
+            "uploaded_expert_id": "uploaded-identity",
+        }
+    )
+    entry["status"] = "starting"
+    entry["pid"] = 99999999
+    entry["started_at"] = 2.0
+    run_dir = Path(entry["run_dir"])
+    run_dir.mkdir(parents=True)
+    (run_dir / "router_final.pt").write_bytes(b"ok")
+    Path(entry["log_path"]).parent.mkdir(parents=True)
+    Path(entry["log_path"]).write_text("[done]\n", encoding="utf-8")
+    training_manager._save_registry([entry])
+
+    release_calls = []
+
+    def fake_release(lock_key, owner):
+        release_calls.append((lock_key, owner))
+        return True
+
+    def fake_start_simple_text2comp_stage(active_entry):
+        pipeline = active_entry.setdefault("simple_pipeline", {})
+        pipeline.update(
+            {
+                "stage": "text2comp",
+                "text2comp_job_id": "text2comp-child",
+                "text2comp_status": "running",
+                "uploaded_expert_id": "uploaded-identity",
+            }
+        )
+
+    monkeypatch.setattr(training_manager.task_locks, "release_lock", fake_release)
+    monkeypatch.setattr(training_manager, "_start_simple_text2comp_stage", fake_start_simple_text2comp_stage)
+    monkeypatch.setattr(
+        training_manager.text2comp_manager,
+        "get_job",
+        lambda job_id, refresh=True: {"job_id": job_id, "status": "running", "run_dir": str(tmp_path / "text2comp")},
+    )
+
+    refreshed = training_manager.get_job(entry["job_id"], refresh=True)
+
+    assert refreshed["status"] == "running"
+    assert refreshed["pipeline_stage"] == "text2comp"
+    assert release_calls == []
+
+
+def test_stop_simple_pipeline_text2comp_releases_gpu_lock(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    entry = training_manager._queued_training_entry(
+        {
+            **_payload(),
+            "simple_pipeline_enabled": True,
+            "uploaded_expert_id": "uploaded-identity",
+        }
+    )
+    entry["status"] = "running"
+    entry["pid"] = None
+    entry["started_at"] = 2.0
+    entry["simple_pipeline"] = {
+        "stage": "text2comp",
+        "text2comp_job_id": "text2comp-child",
+        "text2comp_status": "running",
+        "uploaded_expert_id": "uploaded-identity",
+    }
+    Path(entry["run_dir"]).mkdir(parents=True)
+    Path(entry["log_path"]).parent.mkdir(parents=True)
+    Path(entry["log_path"]).write_text("[pipeline] stage=text2comp\n", encoding="utf-8")
+    training_manager._save_registry([entry])
+
+    release_calls = []
+    stop_calls = []
+
+    monkeypatch.setattr(training_manager, "_refresh_entry", lambda active_entry: active_entry)
+    monkeypatch.setattr(
+        training_manager.text2comp_manager,
+        "get_job",
+        lambda job_id, refresh=True: {"job_id": job_id, "status": "running"},
+    )
+    monkeypatch.setattr(training_manager.text2comp_manager, "stop_job", lambda job_id: stop_calls.append(job_id))
+    monkeypatch.setattr(
+        training_manager.task_locks,
+        "release_lock",
+        lambda lock_key, owner: release_calls.append((lock_key, owner)) or True,
+    )
+
+    stopped = training_manager.stop_job(entry["job_id"])
+
+    assert stopped["status"] == "terminated"
+    assert stopped["simple_pipeline"]["stage"] == "terminated"
+    assert stop_calls == ["text2comp-child"]
+    assert release_calls == [("gpu:0", entry["job_id"])]
+
+
+def test_simple_pipeline_releases_gpu_lock_after_text2comp_done(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    entry = training_manager._queued_training_entry(
+        {
+            **_payload(),
+            "simple_pipeline_enabled": True,
+            "uploaded_expert_id": "uploaded-identity",
+        }
+    )
+    entry["status"] = "starting"
+    entry["pid"] = 99999999
+    entry["started_at"] = 2.0
+    run_dir = Path(entry["run_dir"])
+    run_dir.mkdir(parents=True)
+    (run_dir / "router_final.pt").write_bytes(b"ok")
+    Path(entry["log_path"]).parent.mkdir(parents=True)
+    Path(entry["log_path"]).write_text("[done]\n", encoding="utf-8")
+    training_manager._save_registry([entry])
+
+    release_calls = []
+
+    def fake_release(lock_key, owner):
+        release_calls.append((lock_key, owner))
+        return True
+
+    def fake_start_simple_text2comp_stage(active_entry):
+        pipeline = active_entry.setdefault("simple_pipeline", {})
+        pipeline.update(
+            {
+                "stage": "text2comp",
+                "text2comp_job_id": "text2comp-child",
+                "text2comp_status": "done",
+                "uploaded_expert_id": "uploaded-identity",
+            }
+        )
+
+    monkeypatch.setattr(training_manager.task_locks, "release_lock", fake_release)
+    monkeypatch.setattr(training_manager, "_start_simple_text2comp_stage", fake_start_simple_text2comp_stage)
+    monkeypatch.setattr(
+        training_manager.text2comp_manager,
+        "get_job",
+        lambda job_id, refresh=True: {
+            "job_id": job_id,
+            "status": "done",
+            "run_dir": str(tmp_path / "text2comp"),
+            "ended_at": 9.0,
+        },
+    )
+
+    refreshed = training_manager.get_job(entry["job_id"], refresh=True)
+
+    assert refreshed["status"] == "done"
+    assert refreshed["pipeline_stage"] == "done"
+    assert release_calls == [("gpu:0", entry["job_id"])]
 
 
 def test_launch_job_does_not_start_cancelled_queued_entry(monkeypatch, tmp_path):

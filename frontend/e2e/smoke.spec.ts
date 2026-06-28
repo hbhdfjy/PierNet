@@ -68,6 +68,35 @@ const text2CompOverview = {
   completed_job_count: 0,
 }
 
+const uploadedExpertModels = {
+  interface: 'def predict(inputs: list[float]) -> float | list[float]',
+  interface_version: 3,
+  constraints: {},
+  example_source: '',
+  max_model_bytes: 1_073_741_824,
+  max_input_dim: 4096,
+  max_input_points: 1_000_000,
+  models: [
+    {
+      model_id: 'uploaded-expert-ci',
+      name: 'uploaded_expert_ci',
+      status: 'active',
+      runtime: 'python',
+      file_name: 'expert.py',
+      path: '/models/uploaded/expert.py',
+      created_at: now,
+      file_size_bytes: 1024,
+      input_dim: 128,
+      output_dim: 64,
+      assembly_enabled: true,
+      data_generation_enabled: true,
+      interface: 'predict',
+      interface_version: 3,
+      exists: true,
+    },
+  ],
+}
+
 const assemblyStatus = {
   llms: [{ name: 'Qwen2.5-0.5B-Instruct', path: '/models/qwen', size: '0.5B', downloaded: true }],
   routers: [
@@ -118,7 +147,7 @@ const assemblyStatus = {
     fno: { loaded: false, paths: [] },
     uploaded_expert: { loaded: false, model_id: null, path: null, executor: null },
   },
-  custom_experts: [],
+  custom_experts: uploadedExpertModels.models,
   gpu_available: true,
   architecture_note: 'CI assembly stub',
 }
@@ -212,6 +241,7 @@ function apiPayloadFor(pathname: string): unknown {
   if (pathname === '/api/training/datasets') return trainingDatasets
   if (pathname === '/api/training/gpus') return trainingGpus
   if (pathname === '/api/training/jobs') return []
+  if (pathname === '/api/expert-models') return uploadedExpertModels
   if (pathname === '/api/text2comp/overview' || pathname === '/api/text2comp/status') return text2CompOverview
   if (pathname === '/api/text2comp/datasets') return text2CompOverview.datasets
   if (pathname === '/api/text2comp/gpus') return text2CompOverview.gpus
@@ -324,8 +354,7 @@ test('dark and light themes keep core pages visually stable', async ({ page }) =
     '/',
     '/training',
     '/training/simple',
-    '/training/simple/router',
-    '/training/simple/text2comp',
+    '/training/simple/tasks',
     '/training/simple/assembly',
     '/training/new',
     '/training/jobs',
@@ -359,8 +388,7 @@ test('mobile training and synthesis shells avoid horizontal overflow', async ({ 
   for (const route of [
     '/training',
     '/training/simple',
-    '/training/simple/router',
-    '/training/simple/text2comp',
+    '/training/simple/tasks',
     '/training/simple/assembly',
     '/training/new',
     '/training/files',

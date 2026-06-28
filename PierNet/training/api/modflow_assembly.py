@@ -52,7 +52,6 @@ class ModflowFeatureBuilder:
     def _number_pattern() -> str:
         return r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?"
 
-
     @staticmethod
     def _load_embedding_tensor(llm_path: str) -> torch.Tensor:
         root = Path(llm_path)
@@ -104,6 +103,26 @@ class ModflowFeatureBuilder:
                 "content": (
                     "你是 PierNet MODFLOW 拼装模型。普通问题自然回答；地下水或 MODFLOW "
                     "数值任务需要调用 Router、Text2Comp 和 Expert 形成预测。"
+                ),
+            },
+            {"role": "user", "content": user_prompt},
+        ]
+        try:
+            return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        except Exception:
+            return f"system: {messages[0]['content']}\nuser: {user_prompt}\nassistant:"
+
+    def routed_chat_text(self, user_prompt: str, trigger_suffix: str) -> str:
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "你是 PierNet MODFLOW 助手。用户请求 MODFLOW 地下水数值结果时，"
+                    "你的第一步必须只输出下面这一行触发短语，不得输出其他内容，"
+                    "不得复述用户问题，不得生成任何数值：\n"
+                    f"{trigger_suffix}\n"
+                    "输出触发短语后立刻等待系统注入专家结果。专家结果注入后，"
+                    "直接基于注入结果完成用户要求的中文回答，不要复述系统提示。"
                 ),
             },
             {"role": "user", "content": user_prompt},
@@ -269,7 +288,6 @@ class ModflowAssemblyProfilePipeline:
         router_logit = float(self._run_model(self.router, features).reshape(-1)[0])
         return self._sigmoid(router_logit)
 
-
     def looks_like_modflow_task(self, prompt: str) -> bool:
         lowered = prompt.lower()
         keyword_hit = any(key in lowered for key in ("modflow", "groundwater", "hydraulic", "aquifer"))
@@ -304,6 +322,55 @@ class ModflowAssemblyProfilePipeline:
             "expert_output_serialized": self._serialize(output),
         }
 
+    @staticmethod
+    def _extract_float_param(prompt: str, name: str) -> float | None:
+        pattern = re.compile(
+            rf"\b{re.escape(name)}\s*=\s*({ModflowFeatureBuilder._number_pattern()})",
+            flags=re.IGNORECASE,
+        )
+        match = pattern.search(prompt)
+        if not match:
+            return None
+        try:
+            return float(match.group(1))
+        except ValueError:
+            return None
+
+    def _trend_summary(self, output: list[list[float]], prompt: str) -> str:
+        initial = self._extract_float_param(prompt, "H_initial")
+        lines = ["中文趋势总结："]
+        for index, row in enumerate(output, start=1):
+            if not row:
+                lines.append(f"{index}. 井{index}：未获得有效序列。")
+                continue
+            start = float(row[0])
+            end = float(row[-1])
+            diffs = np.diff(np.asarray(row, dtype=np.float32))
+            early_delta = float(row[min(2, len(row) - 1)] - row[0]) if len(row) > 1 else 0.0
+            amplitude = float(max(row) - min(row))
+            max_step = float(np.max(np.abs(diffs))) if diffs.size else 0.0
+            if early_delta > 1.0:
+                early = "前期上升"
+            elif early_delta < -1.0:
+                early = "前期下降"
+            else:
+                early = "前期没有明显跳变"
+            later = "随后存在波动" if amplitude > 2.5 or max_step > 1.5 else "随后整体较稳定"
+            baseline = float(initial) if initial is not None else start
+            if end > baseline + 0.5:
+                terminal = "末段高于起始水平"
+            elif end < baseline - 0.5:
+                terminal = "末段低于起始水平"
+            else:
+                terminal = "末段接近起始水平"
+            lines.append(f"{index}. 井{index}：{early}，{later}，{terminal}。")
+        return "\n".join(lines)
+
+    def _format_modflow_answer(self, expert_result: dict[str, Any], prompt: str, trigger_suffix: str) -> str:
+        output = expert_result["expert_output"]
+        matrix = expert_result["expert_output_serialized"]
+        return f"{trigger_suffix}\n{matrix}\n{self._trend_summary(output, prompt)}"
+
     def plain_chat(self, prompt: str, max_new_tokens: int = 160) -> str:
         try:
             llm, tokenizer = self._load_chat_llm()
@@ -325,8 +392,14 @@ class ModflowAssemblyProfilePipeline:
         return answer or "我已经加载为 PierNet 拼装模型，可以处理普通对话和 MODFLOW 数值任务。"
 
     def chat(self, prompt: str) -> dict[str, Any]:
-        router_prob = self.router_probability(prompt)
         task_gate = self.looks_like_modflow_task(prompt)
+        trigger_suffix = "MODFLOW地下水专家输出："
+        llm_context = (
+            self.feature_builder.routed_chat_text(prompt, trigger_suffix)
+            if task_gate
+            else self.feature_builder.chat_text(prompt)
+        )
+        router_prob = self.router_probability(llm_context)
         expert_used = task_gate
         if not expert_used:
             answer = self.plain_chat(prompt)
@@ -336,23 +409,21 @@ class ModflowAssemblyProfilePipeline:
                 "task_gate": task_gate,
                 "router_prediction": "normal",
                 "answer": answer,
-                "llm_context": self.feature_builder.chat_text(prompt),
+                "llm_context": llm_context,
                 "device_report": self.device_report(),
             }
 
-        expert_result = self._run_expert_from_context(prompt)
-        answer = (
-            "MODFLOW 拼装模型已完成 Router -> Text2Comp -> Expert 推理。"
-            f"Router 置信度 {router_prob:.4f}，输出 shape={expert_result['expert_output_shape']}。\n"
-            f"预测结果：{expert_result['expert_output_serialized']}"
-        )
+        expert_result = self._run_expert_from_context(llm_context)
+        answer = self._format_modflow_answer(expert_result, prompt, trigger_suffix)
         return {
             "expert_used": True,
             "router_probability": router_prob,
             "task_gate": task_gate,
             "router_prediction": "modflow",
             "answer": answer,
-            "llm_context": self.feature_builder.chat_text(prompt),
+            "llm_context": llm_context,
+            "pre_expert_generated_text": trigger_suffix,
+            "raw_injected_matrix": expert_result["expert_output_serialized"],
             "device_report": self.device_report(),
             **expert_result,
         }

@@ -157,6 +157,8 @@ class TrainingJobSummary(BaseModel):
     uploaded_expert_id: str | None = None
     uploaded_expert_name: str | None = None
     uploaded_expert_input_dim: int | None = None
+    text2comp_output_dim: int | None = None
+    text2comp_target_source: str | None = None
 
 
 class TrainingCheckpointInfo(BaseModel):

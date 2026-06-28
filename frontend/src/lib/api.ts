@@ -584,8 +584,11 @@ export const api = {
       metrics?: Record<string, number>
       trained: boolean
       chat_enabled: boolean
+      force_split?: boolean
       source_thread_id?: string | null
       source?: string
+      demo_prompt?: string
+      demo_prompt_label?: string
       missing_paths?: string[]
     }[]
     routers: {
