@@ -158,7 +158,7 @@ function GPUCard({ gpu, isLoaded, compact }: { gpu: GPUInfo; isLoaded?: boolean;
 
   return (
     <div
-      className={`rounded-xl border p-3 ${isLoaded ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-slate-700/40 bg-slate-900/30'}`}
+      className={`rounded-lg border p-3 ${isLoaded ? 'border-emerald-500/40 bg-emerald-500/10' : 'border-slate-700/40 bg-slate-900/30'}`}
     >
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center gap-2">
@@ -187,27 +187,25 @@ function GPUCard({ gpu, isLoaded, compact }: { gpu: GPUInfo; isLoaded?: boolean;
 
 function RouterInfoCard({ router }: { router: RouterModel }) {
   return (
-    <div className="rounded-xl border border-amber-500/40 bg-amber-500/15 p-3">
-      <div className="flex items-center gap-2 mb-2">
-        <Activity size={16} className="text-amber-400" />
-        <span className="font-semibold text-slate-100">{router.name}</span>
-      </div>
-      <div className="text-xs text-slate-400 mb-2">{router.description}</div>
-      {router.router_type && (
-        <div className="flex items-center gap-2 mb-2">
-          <span className="text-xs text-slate-400">Type</span>
-          <span className="text-xs font-medium text-amber-300">{router.router_type}</span>
+    <div className="assembly-router-info">
+      <div className="min-w-0">
+        <div className="flex min-w-0 items-center gap-2">
+          <Activity size={16} className="shrink-0 text-amber-400" />
+          <span className="truncate font-semibold text-slate-100" title={router.name}>
+            {router.name}
+          </span>
         </div>
-      )}
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-xs text-slate-400">分类数:</span>
-        <span className="text-xs font-medium text-amber-300">{router.num_classes}</span>
+        <div className="mt-1 text-xs leading-5 text-slate-400">{router.description}</div>
       </div>
-      <div className="flex flex-wrap gap-1">
+      <div className="assembly-router-info__meta">
+        {router.router_type && <span>{router.router_type}</span>}
+        <span>{router.num_classes} 个分类</span>
+      </div>
+      <div className="assembly-router-info__classes">
         {router.class_names.map((cls, idx) => (
           <span
             key={cls}
-            className={`px-2 py-0.5 rounded text-xs ${
+            className={`rounded px-2 py-0.5 text-xs ${
               cls === 'normal'
                 ? 'bg-slate-600/40 text-slate-300'
                 : cls === 'diff_reaction'
@@ -298,8 +296,8 @@ function ModelSelector({
     : selectedArray[0] || placeholder || '-- 请选择模型 --'
 
   return (
-    <div className={`rounded-2xl border p-4 ${colorClasses[color] || ''} relative`} ref={dropdownRef}>
-      <div className="flex items-center justify-between mb-3">
+    <div className={`relative rounded-lg border p-3 ${colorClasses[color] || ''}`} ref={dropdownRef}>
+      <div className="mb-2 flex items-center justify-between">
         <div className="flex items-center gap-2">
           <Icon size={16} className={iconColors[color] || ''} />
           <span className="font-semibold text-slate-100">{title}</span>
@@ -314,8 +312,8 @@ function ModelSelector({
       {/* 下拉框按钮 */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className={`w-full rounded-xl border bg-slate-900/50 px-3 py-2.5 text-sm text-slate-200
-          focus:outline-none cursor-pointer flex items-center justify-between
+        className={`flex w-full cursor-pointer items-center justify-between rounded-md border bg-slate-900/50 px-3 py-2 text-sm text-slate-200
+          focus:outline-none
           ${!selected || (multiple && selectedArray.length === 0) ? 'text-slate-400' : ''}`}
       >
         <span className="truncate">{displayText}</span>
@@ -324,7 +322,7 @@ function ModelSelector({
 
       {/* 下拉选项 */}
       {isOpen && (
-        <div className="absolute z-10 mt-1 left-0 right-0 min-w-[200px] rounded-xl border border-slate-600 bg-slate-900 shadow-lg overflow-auto max-h-60">
+        <div className="absolute left-0 right-0 z-10 mt-1 max-h-60 min-w-[200px] overflow-auto rounded-lg border border-slate-600 bg-slate-900 shadow-lg">
           {models.length === 0 ? (
             <div className="p-3 text-xs text-slate-400">无可用模型</div>
           ) : (
@@ -627,19 +625,19 @@ export default function AssemblyPage() {
   return (
     <div className="training-page">
       <div className="training-page__body">
-        <div className="space-y-5 p-5">
+        <div className="space-y-4">
           {/* Header */}
-          <section className="training-hero">
-            <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <section className="training-hero training-hero--compact">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="training-eyebrow">模型拼装</div>
-                <h1 className="mt-3 text-[1.8rem] font-semibold tracking-tight text-white xl:text-[2.1rem]">
-                  PiERN Pipeline Builder
-                </h1>
-                <p className="mt-2 text-slate-400 text-sm">Router → Text2Comp → Expert 多模型组合拼装界面</p>
+                <h1 className="mt-2 text-2xl font-semibold text-white">配置 PierNet 推理链路</h1>
+                <p className="mt-1 text-sm text-slate-400">
+                  选择并装载 Router、Text2Comp 与 Expert，随后运行推理测试。
+                </p>
                 {status?.architecture_note && <p className="mt-1 text-xs text-slate-500">{status.architecture_note}</p>}
               </div>
-              <button className="btn-secondary" onClick={() => navigate('/training')}>
+              <button className="btn-ghost shrink-0" onClick={() => navigate('/training')}>
                 <Settings size={14} />
                 返回概览
               </button>
@@ -647,18 +645,21 @@ export default function AssemblyPage() {
           </section>
 
           {/* GPU Status - 全部8个GPU */}
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-            <div className="flex items-center justify-between mb-4">
+          <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Server size={18} className="text-sky-400" />
                 <span className="font-semibold text-slate-100">GPU 状态 ({status?.gpus?.length || 0}个)</span>
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-xs text-slate-400">选择GPU:</label>
+                <label className="text-xs text-slate-400" htmlFor="assembly-gpu">
+                  运行 GPU
+                </label>
                 <select
+                  id="assembly-gpu"
                   value={selectedGPU}
                   onChange={e => setSelectedGPU(Number(e.target.value))}
-                  className="rounded border border-slate-600 bg-slate-800 px-2 py-1 text-sm text-slate-200"
+                  className="select w-auto min-w-[12rem] py-1.5 text-xs"
                 >
                   {status?.gpus?.map(gpu => (
                     <option key={gpu.index} value={gpu.index}>
@@ -668,61 +669,75 @@ export default function AssemblyPage() {
                 </select>
               </div>
             </div>
-            <div className="grid gap-2 grid-cols-4 md:grid-cols-8">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:grid-cols-8">
               {status?.gpus?.map(gpu => (
                 <GPUCard key={gpu.index} gpu={gpu} isLoaded={status.loaded_models?.llm?.gpu_id === gpu.index} compact />
               ))}
             </div>
           </section>
 
-          {/* Architecture Diagram */}
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-            <div className="flex items-center justify-center gap-3 py-3 overflow-x-auto">
-              {['LLM', 'Router', 'Text2Comp', expertExecutor === 'uploaded' ? 'Uploaded Expert' : 'FNO', 'Output'].map(
-                (name, idx) => {
+          <div className="assembly-overview-grid">
+            <section className="assembly-panel">
+              <div className="assembly-panel__header">
+                <Workflow size={16} className="text-violet-400" />
+                <span>推理链路</span>
+              </div>
+              <div className="assembly-flow">
+                {[
+                  'LLM',
+                  'Router',
+                  'Text2Comp',
+                  expertExecutor === 'uploaded' ? 'Uploaded Expert' : 'FNO',
+                  'Output',
+                ].map((name, idx) => {
                   const icons = [Box, Box, Layers, Activity, Zap]
                   const Icon = icons[idx]
                   const loadedKeys = ['llm', 'router', 'text2comp', 'fno'] as const
                   const isLd =
-                    idx === 4 ? true : status?.loaded_models?.[loadedKeys[idx] as (typeof loadedKeys)[number]]?.loaded
+                    idx === 4
+                      ? true
+                      : idx === 3 && expertExecutor === 'uploaded'
+                        ? Boolean(status?.loaded_models?.uploaded_expert?.loaded)
+                        : Boolean(status?.loaded_models?.[loadedKeys[idx] as (typeof loadedKeys)[number]]?.loaded)
                   const colors = ['amber', 'amber', 'sky', 'emerald', 'violet']
                   const color = colors[idx]
                   return (
-                    <div key={name} className="flex flex-col items-center gap-1 min-w-[60px]">
-                      <div
-                        className={`rounded-xl border p-2 ${isLd ? `border-emerald-500/40 bg-emerald-500/15` : `border-${color}-500/40 bg-${color}-500/15`}`}
-                      >
-                        <Icon size={20} className={isLd ? 'text-emerald-400' : `text-${color}-400`} />
+                    <div key={name} className="assembly-flow__segment">
+                      <div className="assembly-flow__step">
+                        <span
+                          className={`assembly-flow__icon ${isLd ? 'border-emerald-500/40 bg-emerald-500/15' : `border-${color}-500/40 bg-${color}-500/15`}`}
+                        >
+                          <Icon size={18} className={isLd ? 'text-emerald-400' : `text-${color}-400`} />
+                        </span>
+                        <span title={name}>{name}</span>
                       </div>
-                      <span className="text-xs text-slate-300">{name}</span>
-                      {idx < 4 && <ArrowRight size={16} className="text-slate-500" />}
+                      {idx < 4 && <ArrowRight size={15} className="shrink-0 text-slate-500" />}
                     </div>
                   )
-                },
-              )}
-            </div>
-          </section>
-
-          {/* Router信息显示 */}
-          {selectedRouter && currentRouter && (
-            <section className="rounded-2xl border border-amber-500/20 bg-amber-500/8 p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <Info size={16} className="text-amber-400" />
-                <span className="font-semibold text-slate-100">Router 分类信息</span>
-              </div>
-              <RouterInfoCard router={currentRouter} />
-              <div className="mt-2 text-xs text-slate-400">
-                该Router可将输入路由到 {currentRouter.class_names.filter(c => c !== 'normal').join('、')} 等专家模型
+                })}
               </div>
             </section>
-          )}
+
+            {selectedRouter && currentRouter && (
+              <section className="assembly-panel assembly-panel--router">
+                <div className="assembly-panel__header">
+                  <Info size={16} className="text-amber-400" />
+                  <span>Router 分类信息</span>
+                </div>
+                <RouterInfoCard router={currentRouter} />
+                <div className="mt-2 text-xs text-slate-400">
+                  可路由至 {currentRouter.class_names.filter(c => c !== 'normal').join('、')} 等专家模型
+                </div>
+              </section>
+            )}
+          </div>
 
           {/* Load/Unload Controls */}
-          <section className="rounded-2xl border border-violet-500/20 bg-violet-500/8 p-4">
-            <div className="flex items-center justify-between">
+          <section className="rounded-lg border border-violet-500/20 bg-violet-500/8 p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-3">
                 <Zap size={18} className="text-violet-400" />
-                <span className="font-semibold text-slate-100">模型加载控制</span>
+                <span className="font-semibold text-slate-100">装载设置</span>
               </div>
               <div className="flex items-center gap-3">
                 {!isLoaded ? (
@@ -746,33 +761,30 @@ export default function AssemblyPage() {
                 )}
               </div>
             </div>
-            <div className="mt-3 text-xs text-slate-400">
-              LLM: {selectedLLM || '未选择'} | Text2Comp: {selectedText2Comp || '未选择'} | FNO:{' '}
-              {expertExecutor === 'uploaded' ? selectedUploadedExpert || '未选择' : selectedFNO || '未选择'} → GPU{' '}
-              {selectedGPU}
-            </div>
-          </section>
-
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <Activity size={18} className="text-emerald-400" />
-                <span className="font-semibold text-slate-100">专家执行器</span>
+            <div className="assembly-control-grid">
+              <div>
+                <div className="mb-2 text-xs font-semibold text-slate-400">专家执行器</div>
+                <div className="training-segmented">
+                  {(['fno', 'uploaded'] as const).map(mode => (
+                    <button
+                      key={mode}
+                      className={`training-segmented__button ${expertExecutor === mode ? 'training-segmented__button--active' : ''}`}
+                      onClick={() => setExpertExecutor(mode)}
+                    >
+                      {mode === 'fno' ? 'FNO Expert' : 'Uploaded Expert'}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex rounded-xl border border-slate-700/45 bg-slate-950/45 p-1">
-                {(['fno', 'uploaded'] as const).map(mode => (
-                  <button
-                    key={mode}
-                    className={`rounded-lg px-3 py-1.5 text-xs transition-all ${
-                      expertExecutor === mode
-                        ? 'bg-emerald-500/15 text-emerald-200 border border-emerald-500/35'
-                        : 'text-slate-500 hover:text-slate-300'
-                    }`}
-                    onClick={() => setExpertExecutor(mode)}
-                  >
-                    {mode === 'fno' ? 'FNO Expert' : 'Uploaded Expert'}
-                  </button>
-                ))}
+              <div className="assembly-selection-summary">
+                <span title={selectedLLM || undefined}>LLM · {selectedLLM || '未选择'}</span>
+                <span title={selectedRouter || undefined}>Router · {selectedRouter || '未选择'}</span>
+                <span title={selectedText2Comp || undefined}>Text2Comp · {selectedText2Comp || '未选择'}</span>
+                <span title={(expertExecutor === 'uploaded' ? selectedUploadedExpert : selectedFNO) || undefined}>
+                  Expert ·{' '}
+                  {expertExecutor === 'uploaded' ? selectedUploadedExpert || '未选择' : selectedFNO || '未选择'}
+                </span>
+                <span>GPU · {selectedGPU}</span>
               </div>
             </div>
             {expertExecutor === 'uploaded' && dimMismatch && (
@@ -853,7 +865,7 @@ export default function AssemblyPage() {
           </section>
 
           {/* Prompt 管理 */}
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
+          <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-4">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
                 <FileText size={18} className="text-violet-400" />
@@ -870,7 +882,7 @@ export default function AssemblyPage() {
             {showPromptPanel && (
               <div className="space-y-4">
                 {/* 流程说明 */}
-                <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3 text-xs text-slate-300">
+                <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 p-3 text-xs text-slate-300">
                   <div className="flex items-center gap-2 mb-2">
                     <Info size={14} className="text-sky-400" />
                     <span className="font-medium">Prompt生成流程</span>
@@ -924,7 +936,7 @@ export default function AssemblyPage() {
                     System Prompt <span className="ml-2 text-slate-600">可直接编辑</span>
                   </label>
                   <textarea
-                    className="w-full rounded-xl border border-slate-700/40 bg-slate-900/30 p-3 text-sm text-slate-200 font-mono whitespace-pre-wrap resize-y focus:border-violet-500/40 focus:outline-none"
+                    className="w-full resize-y whitespace-pre-wrap rounded-lg border border-slate-700/40 bg-slate-900/30 p-3 font-mono text-sm text-slate-200 focus:border-violet-500/40 focus:outline-none"
                     rows={8}
                     value={promptText}
                     onChange={e => setPromptText(e.target.value)}
@@ -952,7 +964,7 @@ export default function AssemblyPage() {
           </section>
 
           {/* Test Input */}
-          <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
+          <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-4">
             <div className="flex items-center gap-3 mb-4">
               <PlayCircle size={18} className="text-violet-400" />
               <span className="font-semibold text-slate-100">推理测试</span>
@@ -964,7 +976,7 @@ export default function AssemblyPage() {
               <div>
                 <label className="text-sm text-slate-400 mb-2 block">用户输入文本</label>
                 <textarea
-                  className="w-full rounded-xl border border-slate-700/40 bg-slate-900/30 p-3 text-sm text-slate-200 focus:border-violet-500/40 focus:outline-none"
+                  className="w-full rounded-lg border border-slate-700/40 bg-slate-900/30 p-3 text-sm text-slate-200 focus:border-violet-500/40 focus:outline-none"
                   rows={3}
                   placeholder="例如：求解1维扩散-吸附问题..."
                   value={testInput}
@@ -983,19 +995,19 @@ export default function AssemblyPage() {
 
           {/* Test Results - 改进显示 */}
           {testResult && (
-            <section className="rounded-2xl border border-slate-700/40 bg-slate-900/30 p-4">
+            <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-4">
               <div className="flex items-center gap-3 mb-4">
                 <Workflow size={18} className="text-emerald-400" />
                 <span className="font-semibold text-slate-100">测试结果</span>
               </div>
 
               <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/8 p-3">
+                <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 p-3">
                   <div className="text-xs text-amber-400 mb-1">Router判断</div>
                   <div className="text-lg font-semibold text-slate-100">{testResult.router_class_name}</div>
                 </div>
                 {testResult.expert_used && (
-                  <div className="rounded-xl border border-sky-500/20 bg-sky-500/8 p-3">
+                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 p-3">
                     <div className="text-xs text-sky-400 mb-1">使用专家</div>
                     <div className="text-lg font-semibold text-slate-100">
                       {expertExecutor === 'uploaded'
@@ -1004,14 +1016,14 @@ export default function AssemblyPage() {
                     </div>
                   </div>
                 )}
-                <div className="rounded-xl border border-violet-500/20 bg-violet-500/8 p-3">
+                <div className="rounded-lg border border-violet-500/20 bg-violet-500/8 p-3">
                   <div className="text-xs text-violet-400 mb-1">推理延迟</div>
                   <div className="text-lg font-semibold text-slate-100">{testResult.latency_ms.toFixed(2)} ms</div>
                 </div>
               </div>
 
               {/* 最终答案 */}
-              <div className="mt-4 rounded-xl border border-emerald-500/20 bg-emerald-500/8 p-3">
+              <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/8 p-3">
                 <div className="text-xs text-emerald-400 mb-2">最终答案</div>
                 <div className="text-sm text-slate-200 whitespace-pre-wrap">{testResult.final_answer}</div>
               </div>
@@ -1027,41 +1039,13 @@ export default function AssemblyPage() {
                 </button>
               </div>
               {showFullResponse && (
-                <div className="mt-2 rounded-xl border border-slate-700/40 bg-slate-900/50 p-3 max-h-60 overflow-auto">
+                <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-slate-700/40 bg-slate-900/50 p-3">
                   <div className="text-xs text-slate-400 mb-2">完整LLM响应</div>
                   <div className="text-sm text-slate-200 whitespace-pre-wrap font-mono">{testResult.full_response}</div>
                 </div>
               )}
             </section>
           )}
-
-          {/* Current Selection Summary */}
-          <section className="rounded-2xl border border-violet-500/20 bg-violet-500/8 p-4">
-            <div className="flex items-center gap-3 mb-3">
-              <Zap size={16} className="text-violet-400" />
-              <span className="font-medium text-slate-100">当前选择</span>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <div className="text-xs text-slate-400">LLM</div>
-                <div className="text-slate-200 mt-1 truncate">{selectedLLM || '未选择'}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">Router</div>
-                <div className="text-slate-200 mt-1 truncate">{selectedRouter || '未选择'}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">Text2Comp</div>
-                <div className="text-slate-200 mt-1 truncate">{selectedText2Comp || '未选择'}</div>
-              </div>
-              <div>
-                <div className="text-xs text-slate-400">Expert</div>
-                <div className="text-slate-200 mt-1 truncate">
-                  {expertExecutor === 'uploaded' ? selectedUploadedExpert || '未选择' : selectedFNO || '未选择'}
-                </div>
-              </div>
-            </div>
-          </section>
         </div>
       </div>
     </div>

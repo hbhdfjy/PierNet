@@ -323,8 +323,19 @@ export function AppShell({
     const active = document.querySelector<HTMLElement>('.app-nav .nav-item--active')
     const nav = active?.closest<HTMLElement>('.app-nav')
     if (!active || !nav) return
-    const targetLeft = active.offsetLeft - nav.offsetLeft - 8
-    nav.scrollTo({ left: Math.max(0, targetLeft), behavior: 'auto' })
+    if (nav.scrollWidth > nav.clientWidth + 2) {
+      const targetLeft = active.offsetLeft - nav.offsetLeft - 8
+      nav.scrollTo({ left: Math.max(0, targetLeft), behavior: 'auto' })
+    }
+    if (nav.scrollHeight > nav.clientHeight + 2) {
+      const maxTop = nav.scrollHeight - nav.clientHeight
+      const targetTop =
+        active.offsetTop - nav.offsetTop - Math.max(0, Math.round((nav.clientHeight - active.offsetHeight) / 2))
+      nav.scrollTo({
+        top: Math.max(0, Math.min(maxTop, targetTop)),
+        behavior: 'auto',
+      })
+    }
   }, [location.pathname])
 
   return (

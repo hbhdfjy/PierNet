@@ -406,3 +406,45 @@ test('mobile training and synthesis shells avoid horizontal overflow', async ({ 
     await expectNoHorizontalOverflow(page)
   }
 })
+
+test('desktop shell keeps brand, navigation and utility controls visible on deep pages', async ({ page }) => {
+  await setTheme(page, 'dark')
+  await page.setViewportSize({ width: 1440, height: 900 })
+
+  for (const route of ['/synth/files', '/training/assembly']) {
+    await gotoApp(page, route)
+    await expect(page.locator('.app-brand')).toBeVisible()
+    await expect(page.locator('.app-sidebar__footer')).toBeVisible()
+    await expect(page.locator('.app-nav .nav-item--active')).toBeVisible()
+
+    const geometry = await page.evaluate(() => {
+      const rect = (selector: string) => document.querySelector(selector)?.getBoundingClientRect()
+      const brand = rect('.app-brand')
+      const switcher = rect('.platform-switcher')
+      const nav = rect('.app-nav')
+      const active = rect('.app-nav .nav-item--active')
+      const footer = rect('.app-sidebar__footer')
+      return {
+        viewportHeight: window.innerHeight,
+        brandTop: brand?.top ?? -1,
+        brandBottom: brand?.bottom ?? -1,
+        switcherTop: switcher?.top ?? -1,
+        navTop: nav?.top ?? -1,
+        navBottom: nav?.bottom ?? -1,
+        activeTop: active?.top ?? -1,
+        activeBottom: active?.bottom ?? -1,
+        footerTop: footer?.top ?? -1,
+        footerBottom: footer?.bottom ?? -1,
+      }
+    })
+
+    expect(geometry.brandTop).toBeGreaterThanOrEqual(0)
+    expect(geometry.switcherTop).toBeGreaterThanOrEqual(geometry.brandBottom)
+    expect(geometry.navTop).toBeGreaterThanOrEqual(geometry.switcherTop)
+    expect(geometry.activeTop).toBeGreaterThanOrEqual(geometry.navTop - 1)
+    expect(geometry.activeBottom).toBeLessThanOrEqual(geometry.navBottom + 1)
+    expect(geometry.footerTop).toBeGreaterThanOrEqual(geometry.navTop)
+    expect(geometry.footerBottom).toBeLessThanOrEqual(geometry.viewportHeight + 1)
+    await expectNoHorizontalOverflow(page)
+  }
+})
