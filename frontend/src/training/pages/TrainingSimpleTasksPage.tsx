@@ -85,14 +85,12 @@ export default function TrainingSimpleTasksPage() {
         <div className="space-y-4 p-4">
           <section className="training-hero training-hero--compact training-simple-hero">
             <div className="training-simple-hero__copy">
-              <div className="training-eyebrow">训练任务</div>
-              <h1 className="training-simple-hero__title">查看模型训练任务</h1>
-              <p className="training-copy">这里只保留任务状态、训练详情入口和必要的停止/删除操作。</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-slate-400">
-                <span className="training-chip">运行中 {runningCount}</span>
-                <span className="training-chip">已完成 {completedCount}</span>
-                <span className="training-chip">总任务 {orderedJobs.length}</span>
-              </div>
+              <h1 className="training-simple-hero__title">训练任务</h1>
+              <p className="training-simple-hero__meta">
+                <span>运行中 {runningCount}</span>
+                <span>已完成 {completedCount}</span>
+                <span>总任务 {orderedJobs.length}</span>
+              </p>
             </div>
             <Link to="/training/simple" className="btn-primary training-simple-hero__action">
               <PlayCircle size={15} />
@@ -110,10 +108,15 @@ export default function TrainingSimpleTasksPage() {
           <section className="training-card training-card--compact training-simple-panel">
             <div className="card-header">
               <Clock3 size={16} className="text-sky-300" />
-              <SectionTitle title="任务列表" copy="点击训练详情查看单进度条状态" />
-              <button type="button" className="btn-ghost ml-auto" onClick={() => refreshAll()}>
+              <SectionTitle title="任务列表" />
+              <button
+                type="button"
+                className="training-icon-button ml-auto"
+                onClick={() => refreshAll()}
+                aria-label="刷新任务"
+                title="刷新任务"
+              >
                 <RefreshCw size={14} />
-                刷新
               </button>
             </div>
             <div className="training-card__body">
@@ -139,25 +142,10 @@ export default function TrainingSimpleTasksPage() {
                           </div>
                           <StatusBadge className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</StatusBadge>
                         </div>
-                        <div className="training-meta-grid">
-                          <div className="training-surface--dense">
-                            <div className="training-label">创建时间</div>
-                            <div className="mt-1 truncate text-[13px] text-slate-100">
-                              {formatDateTime(job.created_at)}
-                            </div>
-                          </div>
-                          <div className="training-surface--dense">
-                            <div className="training-label">最近 F1</div>
-                            <div className="mt-1 truncate text-[13px] text-slate-100">
-                              {formatMetric(job.latest_metrics?.f1, 4)}
-                            </div>
-                          </div>
-                          <div className="training-surface--dense">
-                            <div className="training-label">预计剩余</div>
-                            <div className="mt-1 truncate text-[13px] text-slate-100">
-                              {formatDuration(job.eta_seconds)}
-                            </div>
-                          </div>
+                        <div className="training-simple-job__facts">
+                          <span>创建 {formatDateTime(job.created_at)}</span>
+                          <span>F1 {formatMetric(job.latest_metrics?.f1, 4)}</span>
+                          <span>剩余 {formatDuration(job.eta_seconds)}</span>
                         </div>
                         {notice && (
                           <div

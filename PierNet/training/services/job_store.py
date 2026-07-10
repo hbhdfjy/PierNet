@@ -10,9 +10,10 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Iterator
 
 from PierNet.shared.db.migrations import Migration, ensure_sqlite_schema
 from PierNet.shared.runtime.paths import RUNLOG_ROOT
@@ -31,6 +32,16 @@ def _connect() -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+@contextmanager
+def _connection() -> Iterator[sqlite3.Connection]:
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
@@ -74,7 +85,7 @@ def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         ensure_sqlite_schema(conn, "training_jobs", [Migration(1, "initial training jobs", _create_schema)])
         _INITIALIZED = True
 
@@ -113,7 +124,7 @@ def upsert_job(entry: dict[str, Any]) -> None:
         "command": entry.get("command") or [],
         "scenarios": entry.get("scenarios") or [],
     }
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         previous = conn.execute(
             "SELECT status, deleted FROM training_jobs WHERE job_id=?",
             (job_id,),
@@ -172,7 +183,7 @@ def save_jobs(entries: list[dict[str, Any]]) -> None:
 def mark_deleted(job_id: str) -> None:
     init_store()
     now = time.time()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             "UPDATE training_jobs SET deleted=1, status='deleted', updated_at=? WHERE job_id=?",
             (now, job_id),
@@ -183,7 +194,7 @@ def mark_deleted(job_id: str) -> None:
 def list_job_snapshots(include_deleted: bool = False) -> list[dict[str, Any]]:
     init_store()
     where = "" if include_deleted else "WHERE deleted=0"
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             f"SELECT snapshot_json FROM training_jobs {where} ORDER BY created_at DESC, updated_at DESC"
         ).fetchall()
@@ -197,7 +208,7 @@ def list_job_snapshots(include_deleted: bool = False) -> list[dict[str, Any]]:
 
 def list_events(job_id: str) -> list[dict[str, Any]]:
     init_store()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             "SELECT event_type, ts, payload_json FROM training_job_events WHERE job_id=? ORDER BY id ASC",
             (job_id,),

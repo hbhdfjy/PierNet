@@ -6,9 +6,10 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator
 
 from PierNet.shared.db.migrations import Migration, ensure_sqlite_schema
 from PierNet.shared.runtime.paths import RUNLOG_ROOT
@@ -47,6 +48,16 @@ def _connect() -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+@contextmanager
+def _connection() -> Iterator[sqlite3.Connection]:
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
@@ -90,7 +101,7 @@ def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         ensure_sqlite_schema(conn, "synth_jobs", [Migration(1, "initial synth jobs", _create_schema)])
         _INITIALIZED = True
 
@@ -113,7 +124,7 @@ def upsert_job(
     status = normalize_status(status)
     now = time.time()
     request_payload = json.dumps(request_json, ensure_ascii=False, sort_keys=True) if request_json is not None else None
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             """
             INSERT INTO jobs(
@@ -155,7 +166,7 @@ def append_event(job_id: str, event: dict[str, Any]) -> None:
     init_store()
     event_type = str(event.get("type") or "event")
     ts = float(event.get("ts") or time.time())
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             """
             INSERT INTO job_events(job_id, event_type, ts, payload_json)
@@ -225,7 +236,7 @@ def _row_to_job(row: sqlite3.Row, *, events: list[dict[str, Any]] | None = None)
 
 def load_job(job_id: str, *, include_events: bool = True) -> dict[str, Any] | None:
     init_store()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         row = conn.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
         if row is None:
             return None
@@ -235,7 +246,7 @@ def load_job(job_id: str, *, include_events: bool = True) -> dict[str, Any] | No
 
 def load_events_after(job_id: str, after_id: int = 0, *, limit: int = 1000) -> tuple[int, list[dict[str, Any]]]:
     init_store()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         return _event_rows_after(conn, job_id, after_id=after_id, limit=limit)
 
 
@@ -257,7 +268,7 @@ def list_jobs(
         params.append(status)
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.append(max(1, int(limit)))
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             f"SELECT * FROM jobs {where} ORDER BY started_at DESC, created_at DESC LIMIT ?",
             params,
@@ -274,7 +285,7 @@ def mark_incomplete_external_terminated(active_job_ids: Iterable[str] = ()) -> l
     now = time.time()
     message = "服务重启或任务执行器消失，任务已标记为外部终止。"
     updated: list[str] = []
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         placeholders = ", ".join("?" for _ in ORPHAN_RECOVERY_STATUSES)
         rows = conn.execute(
             f"SELECT job_id FROM jobs WHERE status IN ({placeholders})",

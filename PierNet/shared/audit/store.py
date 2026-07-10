@@ -6,9 +6,10 @@ import json
 import os
 import sqlite3
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Iterator
 
 from PierNet.shared.db.migrations import Migration, ensure_sqlite_schema
 from PierNet.shared.runtime.paths import RUNLOG_ROOT
@@ -26,6 +27,16 @@ def _connect() -> sqlite3.Connection:
     conn.execute("PRAGMA busy_timeout=5000")
     conn.execute("PRAGMA journal_mode=WAL")
     return conn
+
+
+@contextmanager
+def _connection() -> Iterator[sqlite3.Connection]:
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
 
 
 def _create_schema(conn: sqlite3.Connection) -> None:
@@ -55,7 +66,7 @@ def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         ensure_sqlite_schema(conn, "audit_events", [Migration(1, "initial audit events", _create_schema)])
         _INITIALIZED = True
 
@@ -74,7 +85,7 @@ def append_event(
     ts: float | None = None,
 ) -> None:
     init_store()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             """
             INSERT INTO audit_events(
@@ -109,7 +120,7 @@ def list_events(*, limit: int = 200, action: str | None = None, target: str | No
         params.append(f"{target}%")
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
     params.append(max(1, min(int(limit), 1000)))
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             f"""
             SELECT id, ts, actor, action, target, method, path, status_code, request_id, client, details_json

@@ -1,4 +1,14 @@
-import { AlertTriangle, CheckCircle2, Clock3, Loader2, PauseCircle, PlayCircle, RefreshCw, Trash2 } from 'lucide-react'
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Layers3,
+  Loader2,
+  PauseCircle,
+  PlayCircle,
+  RefreshCw,
+  Trash2,
+} from 'lucide-react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { useState } from 'react'
@@ -25,17 +35,6 @@ type ProgressStage = {
   icon: 'waiting' | 'running' | 'done' | 'warning'
   stageIndex: number
 }
-
-const STAGE_LABELS = [
-  '提交任务',
-  'Router 准备',
-  'Router 训练',
-  'Router 保存',
-  'Text2Comp 数据',
-  'Text2Comp 训练',
-  '拼装就绪',
-  '完成',
-]
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value))
@@ -183,7 +182,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
       return {
         label: '正在准备 Text2Comp',
         step: '装载 Qwen 与回归头',
-        detail: `Router 已完成，正在用 Uploaded Expert ${job.uploaded_expert_name ?? ''} 的输入维度训练文生计算。`,
+        detail: 'Router 已完成，正在读取训练数据中的目标输出并初始化文生计算模型。',
         percent: 68,
         tone: 'sky',
         active: true,
@@ -259,7 +258,7 @@ function stageFromJob(job: TrainingJobDetail | undefined, lines: string[]): Prog
       return {
         label: '正在训练 Text2Comp',
         step: totalEpochs > 0 ? `第 ${epoch + 1}/${totalEpochs} 轮 · step ${step}` : `训练 step ${step}`,
-        detail: `Text2Comp 正在学习生成 Uploaded Expert ${job.uploaded_expert_name ?? ''} 的输入参数。`,
+        detail: 'Text2Comp 正在学习训练数据中的目标输出。',
         percent: job.text2comp_model_path ? 92 : 78,
         tone: 'emerald',
         active: true,
@@ -401,48 +400,17 @@ export default function TrainingSimpleProgressPage() {
             <div className={`training-simple-progress__icon training-simple-progress__icon--${stage.tone}`}>
               {stageIcon(stage)}
             </div>
-            <div className="training-eyebrow">训练详情</div>
             <h1 className="training-simple-progress__title">{stage.label}</h1>
-            <p className="training-simple-progress__copy">{stage.detail}</p>
+            <p className="training-simple-progress__copy">{stage.step}</p>
 
             <div className="training-simple-progress__bar" aria-label="模型训练进度">
               <TrainingUsageBar value={stage.percent} tone={stage.tone} className="" />
               <div className="training-simple-progress__percent">{Math.round(stage.percent)}%</div>
             </div>
 
-            <div className="training-simple-stage-detail">
-              <div>
-                <span>当前阶段 / 细分步骤</span>
-                <strong>{stage.step}</strong>
-              </div>
-              <div>
-                <span>预计剩余时间</span>
-                <strong>{eta}</strong>
-              </div>
-              <div>
-                <span>训练范围</span>
-                <strong>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '读取中'}</strong>
-              </div>
-            </div>
-
-            <div className="training-simple-stage-list-wrap">
-              <div className="training-simple-stage-list__label">阶段拆分</div>
-              <div className="training-simple-stage-list" aria-label="阶段拆分">
-                {STAGE_LABELS.map((label, index) => (
-                  <span
-                    key={label}
-                    className={
-                      index < stage.stageIndex
-                        ? 'training-simple-stage-list__done'
-                        : index === stage.stageIndex
-                          ? 'training-simple-stage-list__active'
-                          : ''
-                    }
-                  >
-                    {label}
-                  </span>
-                ))}
-              </div>
+            <div className="training-simple-progress__summary">
+              <span>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '正在读取任务'}</span>
+              <span>{stage.active ? `剩余 ${eta}` : statusLabel(job?.status as TrainingJobStatus)}</span>
             </div>
 
             {(jobError || actionError) && (
@@ -450,15 +418,17 @@ export default function TrainingSimpleProgressPage() {
                 {actionError ?? `加载训练进度失败：${jobError?.message}`}
               </div>
             )}
-            <div className="training-simple-progress__meta">
-              <span>{job?.name ?? jobId}</span>
-              <span>{job ? statusLabel(job.status) : '读取中'}</span>
-            </div>
             <div className="training-simple-progress__actions">
               <Link to="/training/simple/tasks" className="btn-ghost">
                 <RefreshCw size={14} />
                 返回任务
               </Link>
+              {job?.status === 'done' && (
+                <Link to="/training/simple/assembly" className="btn-primary">
+                  <Layers3 size={14} />
+                  模型拼装
+                </Link>
+              )}
               {canStop && (
                 <button
                   type="button"

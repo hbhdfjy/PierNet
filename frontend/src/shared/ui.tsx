@@ -38,11 +38,11 @@ export function MetricTile({
   )
 }
 
-export function PanelTitle({ title, copy, className }: { title: string; copy: string; className?: string }) {
+export function PanelTitle({ title, copy, className }: { title: string; copy?: string; className?: string }) {
   return (
     <div className={cn('min-w-0', className)}>
       <div className="training-panel-title">{title}</div>
-      <div className="training-panel-copy">{copy}</div>
+      {copy && <div className="training-panel-copy">{copy}</div>}
     </div>
   )
 }

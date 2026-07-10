@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, Database, Layers3, PlayCircle } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import { useSeed } from '../../lib/seedContext'
@@ -132,17 +132,12 @@ export default function TrainingSimpleJobPage() {
         <div className="space-y-4 p-4">
           <section className="training-hero training-hero--compact training-simple-hero">
             <div className="training-simple-hero__copy">
-              <div className="training-eyebrow">模型训练</div>
-              <h1 className="training-simple-hero__title">选择场景后开始训练</h1>
-              <p className="training-copy">选择训练数据范围，平台自动训练 Router，并按训练数据输出训练 Text2Comp。</p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-slate-400">
-                <span className="training-chip">
-                  场景 {selectedScenarios.length}/{dataset?.scenarios.length ?? 0}
-                </span>
-                <span className="training-chip">样本 {formatCount(stats.count)}</span>
-                <span className="training-chip">资源 自动分配</span>
-                <span className="training-chip">Text2Comp 按数据输出</span>
-              </div>
+              <h1 className="training-simple-hero__title">模型训练</h1>
+              <p className="training-simple-hero__meta">
+                {dataset
+                  ? `${dataset.simulator.toUpperCase()} · ${selectedScenarios.length} 个场景 · ${formatCount(stats.count)} 条`
+                  : '正在读取训练数据'}
+              </p>
             </div>
             <button
               type="button"
@@ -166,7 +161,7 @@ export default function TrainingSimpleJobPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <Database size={16} className="text-sky-300" />
-                <SectionTitle title="大场景" copy="选择本次模型训练的数据来源" />
+                <SectionTitle title="大场景" />
               </div>
               <div className="training-card__body">
                 {isLoading && !datasets ? (
@@ -206,7 +201,7 @@ export default function TrainingSimpleJobPage() {
             <section className="training-card training-card--compact training-simple-panel training-simple-panel--scenarios">
               <div className="card-header">
                 <Layers3 size={16} className="text-emerald-300" />
-                <SectionTitle title="子场景" copy="勾选需要训练的场景" />
+                <SectionTitle title="子场景" />
               </div>
               <div className="training-card__body space-y-3">
                 <div className="training-simple-summary">
@@ -268,22 +263,6 @@ export default function TrainingSimpleJobPage() {
                 </div>
               </div>
             </section>
-          </div>
-
-          <div className="training-simple-footer">
-            <div className="flex min-w-0 items-center gap-2 text-[13px] text-slate-400">
-              <PlayCircle size={15} className="text-sky-300" />
-              <span className="truncate">启动后进入训练详情页，详情页只显示一个分阶段进度条。</span>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Link to="/training/simple/tasks" className="btn-ghost">
-                查看任务
-              </Link>
-              <button type="button" className="btn-primary" onClick={submit} disabled={!canSubmit}>
-                <PlayCircle size={15} />
-                {submitting ? '启动中...' : '开始训练'}
-              </button>
-            </div>
           </div>
         </div>
       </div>

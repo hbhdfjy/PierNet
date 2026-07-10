@@ -88,6 +88,16 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def _connection() -> Iterator[sqlite3.Connection]:
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
 def _create_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -112,7 +122,7 @@ def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         ensure_sqlite_schema(conn, "worker_heartbeats", [Migration(1, "initial worker heartbeats", _create_schema)])
         _INITIALIZED = True
 
@@ -130,7 +140,7 @@ def upsert_worker(
     now = time.time()
     host = socket.gethostname()
     pid = os.getpid()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             """
             INSERT INTO worker_heartbeats(
@@ -164,7 +174,7 @@ def upsert_worker(
 def mark_worker_stopped(worker_id: str | None = None) -> None:
     init_store()
     wid = worker_id or default_worker_id()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         conn.execute(
             "UPDATE worker_heartbeats SET status='stopped', heartbeat_at=?, current_job_id=NULL WHERE worker_id=?",
             (time.time(), wid),
@@ -174,7 +184,7 @@ def mark_worker_stopped(worker_id: str | None = None) -> None:
 def list_workers(*, stale_after_seconds: float = DEFAULT_STALE_AFTER_SECONDS) -> list[dict[str, Any]]:
     init_store()
     now = time.time()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             """
             SELECT worker_id, kind, host, pid, started_at, heartbeat_at, status, current_job_id, metadata_json

@@ -219,7 +219,7 @@ describe('TrainingSimpleAssemblyPage', () => {
   it('assembles a completed simple training job with an uploaded expert', async () => {
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     expect(screen.queryByText(/burgers/)).toBeNull()
     const sourceSelect = screen.getByLabelText('简洁训练任务') as HTMLSelectElement
     fireEvent.change(sourceSelect, { target: { value: 'job:train-ready' } })
@@ -227,7 +227,7 @@ describe('TrainingSimpleAssemblyPage', () => {
     await waitFor(() => expect(screen.queryAllByText(/Uploaded Expert/).length).toBeGreaterThan(0))
     expect(screen.queryByText(/missing_uploaded_expert/)).toBeNull()
 
-    fireEvent.click(screen.getAllByRole('button', { name: /加载训练组合/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: /加载训练组合/ }))
 
     await waitFor(() => expect(mockApi.loadAssemblyModels).toHaveBeenCalled())
     expect(mockApi.loadAssemblyModels.mock.calls[0][0]).toMatchObject({
@@ -267,13 +267,13 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
     fireEvent.click(screen.getByRole('button', { name: /FNO Expert/ }))
     const fnoSelect = screen.getByLabelText('FNO Expert') as HTMLSelectElement
 
     expect(Array.from(fnoSelect.options).map(option => option.textContent)).toEqual(['fno-4'])
-    fireEvent.click(screen.getAllByRole('button', { name: /加载训练组合/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: /加载训练组合/ }))
 
     await waitFor(() => expect(mockApi.loadAssemblyModels).toHaveBeenCalled())
     expect(mockApi.loadAssemblyModels.mock.calls[0][0]).toMatchObject({
@@ -300,7 +300,7 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
     const sourceSelect = screen.getByLabelText('简洁训练任务') as HTMLSelectElement
     const optionTexts = Array.from(sourceSelect.options).map(option => option.textContent ?? '')
@@ -365,7 +365,7 @@ describe('TrainingSimpleAssemblyPage', () => {
     await waitFor(() => expect(profileSelect.value).toBe('diff_sorp_demo'))
     expect(screen.queryByText('diff-sorp 标准样例')).toBeNull()
     await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('0.99644'))
-    fireEvent.click(screen.getAllByRole('button', { name: /一键加载/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: /一键加载/ }))
 
     await waitFor(() => expect(mockApi.loadAssemblyModels).toHaveBeenCalled())
     expect(mockApi.loadAssemblyModels.mock.calls[0][0]).toMatchObject({
@@ -429,11 +429,11 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
 
-    expect(screen.getAllByText('待加载')).toHaveLength(4)
-    expect(screen.queryByText('已加载')).toBeNull()
+    expect(screen.getAllByText(/· 待加载$/)).toHaveLength(4)
+    expect(screen.queryByText(/· 已加载$/)).toBeNull()
   })
 
   it('does not treat a partially loaded standard chain as ready to test', async () => {
@@ -447,11 +447,11 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
 
     expect(screen.queryByRole('button', { name: /运行测试/ })).toBeNull()
-    expect(screen.getAllByRole('button', { name: /加载训练组合/ }).length).toBeGreaterThan(0)
+    expect(screen.getByRole('button', { name: /加载训练组合/ })).toBeTruthy()
   })
 
   it('renders diff-sorp vector results as a conversational summary', async () => {
@@ -468,7 +468,7 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '请预测 diff-sorp 下一时间步。' } })
     fireEvent.click(screen.getByRole('button', { name: /运行测试/ }))
 
@@ -492,7 +492,7 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/Ready training job/)).toBeTruthy())
+    await screen.findByLabelText('简洁训练任务')
     fireEvent.change(screen.getByRole('textbox'), { target: { value: '请预测 diff-sorp 下一时间步。' } })
     fireEvent.click(screen.getByRole('button', { name: /运行测试/ }))
 

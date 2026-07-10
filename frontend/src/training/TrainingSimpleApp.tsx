@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { Activity, Cpu, Layers3, PlayCircle, Workflow } from 'lucide-react'
+import { Layers3, PlayCircle, Workflow } from 'lucide-react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 import { AppShell, type ShellNavGroup } from '../platform/AppShell'
@@ -18,21 +18,6 @@ const navGroups: ShellNavGroup[] = [
       { to: '/training/simple/assembly', icon: Layers3, label: '模型拼装', tone: 'violet' },
     ],
   },
-  {
-    label: '训练闭环',
-    note: (
-      <div className="grid gap-1 text-[12px] font-medium text-slate-200">
-        <div className="flex items-center gap-2">
-          <Cpu size={13} />
-          <span>场景选择 · 自动训练</span>
-        </div>
-        <div className="flex items-center gap-2 text-slate-400">
-          <Activity size={13} />
-          <span>进度、任务、拼装</span>
-        </div>
-      </div>
-    ),
-  },
 ]
 
 export default function TrainingSimpleApp({ theme, toggleTheme }: { theme: Theme; toggleTheme: () => void }) {
@@ -41,7 +26,7 @@ export default function TrainingSimpleApp({ theme, toggleTheme }: { theme: Theme
       platform="simple-training"
       mark="S"
       title="PierNet 简洁训练"
-      subtitle="低配置训练入口"
+      subtitle="训练与模型拼装"
       navGroups={navGroups}
       theme={theme}
       toggleTheme={toggleTheme}

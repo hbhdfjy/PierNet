@@ -32,6 +32,16 @@ def _connect() -> sqlite3.Connection:
     return conn
 
 
+@contextmanager
+def _connection() -> Iterator[sqlite3.Connection]:
+    conn = _connect()
+    try:
+        with conn:
+            yield conn
+    finally:
+        conn.close()
+
+
 def _create_schema(conn: sqlite3.Connection) -> None:
     conn.execute(
         """
@@ -51,7 +61,7 @@ def init_store() -> None:
     global _INITIALIZED
     if _INITIALIZED:
         return
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         ensure_sqlite_schema(conn, "shared_job_locks", [Migration(1, "initial job locks", _create_schema)])
         _INITIALIZED = True
 
@@ -70,7 +80,7 @@ def acquire_lock(
     init_store()
     now = time.time()
     expires_at = now + max(1.0, float(ttl_seconds))
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         row = conn.execute("SELECT owner, expires_at FROM job_locks WHERE lock_key=?", (lock_key,)).fetchone()
         if row is not None and row["owner"] != owner and float(row["expires_at"]) > now:
             return False
@@ -92,7 +102,7 @@ def acquire_lock(
 def refresh_lock(lock_key: str, owner: str, *, ttl_seconds: float = DEFAULT_TTL_SECONDS) -> bool:
     init_store()
     expires_at = time.time() + max(1.0, float(ttl_seconds))
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         cur = conn.execute(
             "UPDATE job_locks SET expires_at=? WHERE lock_key=? AND owner=?",
             (expires_at, lock_key, owner),
@@ -107,14 +117,14 @@ def release_lock(lock_key: str, owner: str | None = None) -> bool:
     if owner is not None:
         query += " AND owner=?"
         params = (lock_key, owner)
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         cur = conn.execute(query, params)
     return cur.rowcount > 0
 
 
 def release_owner(owner: str) -> int:
     init_store()
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         cur = conn.execute("DELETE FROM job_locks WHERE owner=?", (owner,))
     return int(cur.rowcount or 0)
 
@@ -149,7 +159,7 @@ def refresh_lock_while(
 def cleanup_expired(now: float | None = None) -> int:
     init_store()
     cutoff = time.time() if now is None else float(now)
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         cur = conn.execute("DELETE FROM job_locks WHERE expires_at<=?", (cutoff,))
     return int(cur.rowcount or 0)
 
@@ -166,7 +176,7 @@ def list_locks(*, prefix: str | None = None, include_expired: bool = False) -> l
         clauses.append("expires_at > ?")
         params.append(time.time())
     where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
-    with _LOCK, _connect() as conn:
+    with _LOCK, _connection() as conn:
         rows = conn.execute(
             f"SELECT lock_key, owner, acquired_at, expires_at, metadata_json FROM job_locks {where} ORDER BY lock_key",
             params,

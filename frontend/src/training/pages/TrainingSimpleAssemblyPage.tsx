@@ -16,12 +16,10 @@ import {
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import type { ExpertModelInfo, TrainingJobSummary } from '../../lib/types'
-import { TrainingSectionTitle as SectionTitle, TrainingUsageBar as UsageBar } from '../components/common'
-import { gpuUsageLabel } from '../shared'
+import { TrainingSectionTitle as SectionTitle } from '../components/common'
 
 type AssemblyStatus = Awaited<ReturnType<typeof api.getAssemblyStatus>>
 type ExecutorMode = 'fno' | 'uploaded'
-type ResourceMode = 'auto' | 'manual'
 type AssemblyMode = 'profile' | 'training_job'
 
 type AssemblyProfile = NonNullable<AssemblyStatus['assembly_profiles']>[number]
@@ -452,7 +450,6 @@ export default function TrainingSimpleAssemblyPage() {
     revalidateOnFocus: false,
   })
   const [executorMode, setExecutorMode] = useState<ExecutorMode>('uploaded')
-  const [resourceMode, setResourceMode] = useState<ResourceMode>('auto')
   const [assemblyMode, setAssemblyMode] = useState<AssemblyMode>('profile')
   const [profileId, setProfileId] = useState('')
   const [trainingJobId, setTrainingJobId] = useState('')
@@ -562,9 +559,9 @@ export default function TrainingSimpleAssemblyPage() {
   const canLoad = Boolean(selectedGpu && (assemblyMode === 'profile' ? assemblyProfile : canLoadTrainingJob))
 
   useEffect(() => {
-    if (gpuId != null && (status?.gpus ?? []).some(gpu => gpu.index === gpuId)) return
-    setGpuId(bestGpu?.index ?? null)
-  }, [bestGpu?.index, gpuId, status?.gpus])
+    if (gpuId == null || (status?.gpus ?? []).some(gpu => gpu.index === gpuId)) return
+    setGpuId(null)
+  }, [gpuId, status?.gpus])
 
   useEffect(() => {
     if (profileId && assemblyProfiles.some(item => item.model_id === profileId)) return
@@ -667,7 +664,7 @@ export default function TrainingSimpleAssemblyPage() {
       } else {
         await api.loadAssemblyModels({
           llm_path: llm?.path,
-          llm_gpu_id: resourceMode === 'auto' ? selectedGpu.index : selectedGpu.index,
+          llm_gpu_id: selectedGpu.index,
           router_path: selectedRouter?.path,
           text2comp_path: text2comp?.path,
           fno_path: selectedTrainingSource?.kind === 'bundle' || executorMode === 'fno' ? fno?.path : undefined,
@@ -772,19 +769,12 @@ export default function TrainingSimpleAssemblyPage() {
         <div className="space-y-4 p-4">
           <section className="training-hero training-hero--compact training-simple-hero">
             <div className="training-simple-hero__copy">
-              <div className="training-eyebrow">简洁训练 / 模型拼装</div>
-              <h1 className="training-simple-hero__title">装载 PierNet 推理链路</h1>
-              <p className="training-copy">
-                选择已注册完整模型，或选择一个简洁训练任务作为 Router 来源，再切换 Expert。
+              <h1 className="training-simple-hero__title">模型拼装</h1>
+              <p className="training-simple-hero__meta">
+                {assemblyMode === 'profile'
+                  ? assemblyProfile?.name || '选择已注册模型'
+                  : selectedTrainingSource?.label || '选择训练任务'}
               </p>
-              <div className="mt-2 flex flex-wrap gap-2 text-[12px] text-slate-400">
-                <span className="training-chip">LLM {status?.llms.length ?? 0}</span>
-                <span className="training-chip">Router {status?.routers.length ?? 0}</span>
-                <span className="training-chip">Text2Comp {status?.text2comps.length ?? 0}</span>
-                <span className="training-chip">
-                  Expert {(status?.fno_experts.length ?? 0) + (status?.custom_experts.length ?? 0)}
-                </span>
-              </div>
             </div>
             {isLoaded ? (
               <button type="button" className="btn-ghost training-simple-hero__action" onClick={unload} disabled={busy}>
@@ -814,33 +804,25 @@ export default function TrainingSimpleAssemblyPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <Layers3 size={16} className="text-violet-300" />
-                <SectionTitle title="拼装来源" copy="选择完整模型或简洁训练任务" />
+                <SectionTitle title="拼装来源" />
               </div>
               <div className="training-card__body space-y-3">
-                <div className="training-simple-option-grid">
+                <div className="training-simple-segmented" aria-label="拼装来源">
                   <button
                     type="button"
-                    className={`training-simple-option ${assemblyMode === 'profile' ? 'training-simple-option--active' : ''}`}
+                    className={assemblyMode === 'profile' ? 'is-active' : ''}
                     onClick={() => setAssemblyMode('profile')}
                     disabled={!assemblyProfile}
                   >
-                    <Layers3 size={16} />
-                    <span>
-                      <strong>已注册拼装模型</strong>
-                      <small>{assemblyProfile ? assemblyProfile.name : '暂无完整模型'}</small>
-                    </span>
+                    已注册拼装模型
                   </button>
                   <button
                     type="button"
-                    className={`training-simple-option ${assemblyMode === 'training_job' ? 'training-simple-option--active' : ''}`}
+                    className={assemblyMode === 'training_job' ? 'is-active' : ''}
                     onClick={() => setAssemblyMode('training_job')}
                     disabled={!selectedTrainingSource}
                   >
-                    <Cpu size={16} />
-                    <span>
-                      <strong>简洁训练任务</strong>
-                      <small>{selectedTrainingSource ? selectedTrainingSource.name : '暂无可拼装任务'}</small>
-                    </span>
+                    简洁训练任务
                   </button>
                 </div>
                 {assemblyMode === 'profile' && assemblyProfile && (
@@ -860,9 +842,6 @@ export default function TrainingSimpleAssemblyPage() {
                         </option>
                       ))}
                     </select>
-                    <div className="rounded-lg border border-cyan-500/25 bg-cyan-500/8 p-3 text-xs leading-5 text-slate-300">
-                      {assemblyProfile.description}
-                    </div>
                   </div>
                 )}
                 {assemblyMode === 'training_job' && (
@@ -887,69 +866,47 @@ export default function TrainingSimpleAssemblyPage() {
                         ))
                       )}
                     </select>
-                    <div className="rounded-lg border border-sky-500/25 bg-sky-500/8 p-3 text-xs leading-5 text-slate-300">
-                      {selectedTrainingSource
-                        ? `${selectedTrainingSource.kind === 'bundle' ? '训练组合' : '训练任务'} ${selectedTrainingSource.label}：LLM ${selectedTrainingSource.llm?.name ?? pathName(selectedTrainingSource.llm?.path)}，Router ${pathName(selectedTrainingSource.router?.path)}，Text2Comp ${pathName(selectedTrainingSource.text2comp?.path)}，Expert ${pathName((selectedTrainingSource.kind === 'bundle' ? selectedTrainingSource.fno : trainingExpert)?.path)}。`
-                        : '完成一次分阶段简洁训练后，或注册一个训练组合后，这里会显示可用于拼装的完整链路。'}
-                    </div>
                   </div>
                 )}
-                <div className="training-simple-assembly-grid">
+                <div className="training-simple-chain">
                   {modelCards.map(item => {
                     const Icon = item.icon
                     return (
-                      <div
-                        key={item.key}
-                        className={`training-simple-assembly-card training-simple-assembly-card--${item.tone}`}
-                      >
-                        <div className="training-simple-assembly-card__head">
-                          <span>
-                            <Icon size={16} />
-                          </span>
-                          <strong>{item.title}</strong>
-                          {item.loaded && <CheckCircle2 size={15} />}
+                      <div key={item.key} className="training-simple-chain__item">
+                        <div className="training-simple-chain__label">
+                          <Icon size={14} />
+                          <span>{item.title}</span>
+                          {item.loaded && <CheckCircle2 size={14} />}
                         </div>
-                        <div className="training-simple-assembly-card__name">{item.model?.name ?? '未找到模型'}</div>
-                        <div className="training-simple-assembly-card__note">{modelNote(item.model)}</div>
-                        <div className="training-simple-assembly-card__status">{statusText(item.loaded)}</div>
+                        <strong title={item.model?.name}>{item.model?.name ?? '未找到模型'}</strong>
+                        <small title={`${modelNote(item.model)} · ${statusText(item.loaded)}`}>
+                          {modelNote(item.model)} · {statusText(item.loaded)}
+                        </small>
                       </div>
                     )
                   })}
                 </div>
-                {assemblyMode === 'training_job' && selectedTrainingSource?.kind === 'bundle' && (
-                  <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/8 p-3 text-xs leading-5 text-emerald-100">
-                    当前训练组合固定使用 FNO Expert：{selectedTrainingSource.fno?.name ?? '未找到 FNO Expert'}。
-                  </div>
-                )}
                 {assemblyMode === 'training_job' && selectedTrainingSource?.kind !== 'bundle' && (
                   <>
-                    <div className="training-simple-option-grid">
+                    <div className="training-simple-segmented" aria-label="专家类型">
                       <button
                         type="button"
-                        className={`training-simple-option ${executorMode === 'fno' ? 'training-simple-option--active' : ''}`}
+                        className={executorMode === 'fno' ? 'is-active' : ''}
                         onClick={() => setExecutorMode('fno')}
                         disabled={!fno}
                       >
-                        <Activity size={16} />
-                        <span>
-                          <strong>FNO Expert</strong>
-                          <small>{fno ? fno.name : '暂无匹配模型'}</small>
-                        </span>
+                        FNO Expert
                       </button>
                       <button
                         type="button"
-                        className={`training-simple-option ${executorMode === 'uploaded' ? 'training-simple-option--active' : ''}`}
+                        className={executorMode === 'uploaded' ? 'is-active' : ''}
                         onClick={() => setExecutorMode('uploaded')}
                         disabled={uploadedExperts.length === 0}
                       >
-                        <Activity size={16} />
-                        <span>
-                          <strong>Uploaded Expert</strong>
-                          <small>{uploaded ? uploaded.name : '暂无匹配模型'}</small>
-                        </span>
+                        Uploaded Expert
                       </button>
                     </div>
-                    <div className="training-simple-option-grid">
+                    {executorMode === 'fno' ? (
                       <div className="space-y-2">
                         <label className="training-label" htmlFor="assembly-fno-select">
                           FNO Expert
@@ -975,6 +932,7 @@ export default function TrainingSimpleAssemblyPage() {
                           )}
                         </select>
                       </div>
+                    ) : (
                       <div className="space-y-2">
                         <label className="training-label" htmlFor="assembly-uploaded-select">
                           Uploaded Expert
@@ -1000,7 +958,7 @@ export default function TrainingSimpleAssemblyPage() {
                           )}
                         </select>
                       </div>
-                    </div>
+                    )}
                   </>
                 )}
               </div>
@@ -1009,75 +967,47 @@ export default function TrainingSimpleAssemblyPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <Cpu size={16} className="text-emerald-300" />
-                <SectionTitle title="装载资源与测试" copy="选择资源后加载链路并运行一次测试" />
-                <button type="button" className="btn-ghost ml-auto" onClick={() => refresh()}>
+                <SectionTitle title="资源与测试" />
+                <button
+                  type="button"
+                  className="training-icon-button ml-auto"
+                  onClick={() => refresh()}
+                  aria-label="刷新拼装状态"
+                  title="刷新拼装状态"
+                >
                   <RefreshCw size={14} />
-                  刷新
                 </button>
               </div>
               <div className="training-card__body space-y-3">
-                <div className="training-simple-option-grid">
-                  <button
-                    type="button"
-                    className={`training-simple-option ${resourceMode === 'auto' ? 'training-simple-option--active' : ''}`}
-                    onClick={() => setResourceMode('auto')}
+                <div className="space-y-2">
+                  <label className="training-label" htmlFor="assembly-gpu-select">
+                    运行资源
+                  </label>
+                  <select
+                    id="assembly-gpu-select"
+                    className="select"
+                    value={gpuId == null ? 'auto' : String(gpuId)}
+                    onChange={event => setGpuId(event.target.value === 'auto' ? null : Number(event.target.value))}
                   >
-                    <CheckCircle2 size={16} />
-                    <span>
-                      <strong>自动分配</strong>
-                      <small>
-                        {bestGpu ? `GPU ${bestGpu.index} · ${bestGpu.available ? '可用' : '排队'}` : '等待 GPU 信息'}
-                      </small>
-                    </span>
-                  </button>
-                  <button
-                    type="button"
-                    className={`training-simple-option ${resourceMode === 'manual' ? 'training-simple-option--active' : ''}`}
-                    onClick={() => setResourceMode('manual')}
-                  >
-                    <Cpu size={16} />
-                    <span>
-                      <strong>指定资源</strong>
-                      <small>{selectedGpu ? `GPU ${selectedGpu.index}` : '等待 GPU 信息'}</small>
-                    </span>
-                  </button>
+                    <option value="auto">{bestGpu ? `自动分配 · GPU ${bestGpu.index}` : '自动分配 · 等待 GPU'}</option>
+                    {(status?.gpus ?? []).map(gpu => (
+                      <option key={gpu.index} value={gpu.index}>
+                        GPU {gpu.index} · {gpu.available ? '可用' : '占用中，可排队'}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                {resourceMode === 'manual' && (
-                  <div className="training-simple-gpu-list training-scroll">
-                    {(status?.gpus ?? []).map(gpu => {
-                      const total = gpu.memory_total_mb || 0
-                      const used = gpu.memory_used_mb || 0
-                      const ratio = total > 0 ? (used / total) * 100 : 0
-                      return (
-                        <button
-                          key={gpu.index}
-                          type="button"
-                          className={`training-simple-gpu ${selectedGpu?.index === gpu.index ? 'training-simple-gpu--active' : ''}`}
-                          onClick={() => setGpuId(gpu.index)}
-                        >
-                          <span>
-                            <strong>GPU {gpu.index}</strong>
-                            <small>{gpu.available ? '可用' : '占用中，可排队'}</small>
-                          </span>
-                          <span className="training-simple-gpu__meter">
-                            <span>{gpuUsageLabel(used, total)}</span>
-                            <UsageBar value={ratio} />
-                          </span>
-                        </button>
-                      )
-                    })}
-                  </div>
-                )}
                 <div className="space-y-2">
                   <textarea
                     className="input min-h-[6rem] resize-y"
                     value={testInput}
                     onChange={event => setTestInput(event.target.value)}
                     placeholder="输入一句任务描述，用于验证已装载链路"
+                    aria-label="测试输入"
                   />
                 </div>
-                <div className="training-simple-job__actions">
-                  {isLoaded ? (
+                {isLoaded && (
+                  <div className="training-simple-job__actions">
                     <button
                       type="button"
                       className="btn-primary"
@@ -1087,19 +1017,8 @@ export default function TrainingSimpleAssemblyPage() {
                       {busy ? <Loader2 size={14} className="animate-spin" /> : <PlayCircle size={14} />}
                       运行测试
                     </button>
-                  ) : (
-                    <button type="button" className="btn-primary" onClick={load} disabled={!canLoad || busy}>
-                      {busy ? <Loader2 size={14} className="animate-spin" /> : <Power size={14} />}
-                      {loadButtonLabel}
-                    </button>
-                  )}
-                  {isLoaded && (
-                    <button type="button" className="btn-ghost" onClick={unload} disabled={busy}>
-                      <PowerOff size={14} />
-                      卸载
-                    </button>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
             </section>
           </div>
@@ -1115,7 +1034,7 @@ export default function TrainingSimpleAssemblyPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <PlayCircle size={16} className="text-emerald-300" />
-                <SectionTitle title="模型回复" copy="对话样式结果" />
+                <SectionTitle title="模型回复" />
               </div>
               <div className="training-card__body">
                 <div className="training-simple-chat-result">

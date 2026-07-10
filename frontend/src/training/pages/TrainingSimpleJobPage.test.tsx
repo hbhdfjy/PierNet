@@ -63,9 +63,9 @@ describe('TrainingSimpleJobPage', () => {
   it('submits selected data ranges to the quick training API without an expert model', async () => {
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/MODFLOW/)).toBeTruthy())
+    await screen.findByRole('button', { name: /modflow/i })
     expect(screen.queryByText(/专家模型/)).toBeNull()
-    fireEvent.click(screen.getAllByRole('button', { name: /开始训练/ })[0])
+    fireEvent.click(screen.getByRole('button', { name: /开始训练/ }))
 
     await waitFor(() => expect(mockApi.createQuickTrainingJob).toHaveBeenCalled())
     expect(mockApi.createQuickTrainingJob.mock.calls[0][0]).toMatchObject({
@@ -78,11 +78,11 @@ describe('TrainingSimpleJobPage', () => {
   it('blocks quick training only when no scenario is selected', async () => {
     renderPage()
 
-    await waitFor(() => expect(screen.getByText(/MODFLOW/)).toBeTruthy())
+    await screen.findByRole('button', { name: /modflow/i })
     fireEvent.click(screen.getByRole('button', { name: /清空/ }))
-    const submitButtons = screen.getAllByRole('button', { name: /开始训练/ })
-    expect(submitButtons.every(button => button.hasAttribute('disabled'))).toBe(true)
-    submitButtons.forEach(button => fireEvent.click(button))
+    const submitButton = screen.getByRole('button', { name: /开始训练/ })
+    expect(submitButton.hasAttribute('disabled')).toBe(true)
+    fireEvent.click(submitButton)
     expect(mockApi.createQuickTrainingJob).not.toHaveBeenCalled()
   })
 })
