@@ -4430,6 +4430,10 @@ export interface components {
             scenarios?: string[];
             /** Seed */
             seed?: number | null;
+            /** Simple Text2Comp Max Normalized Rmse */
+            simple_text2comp_max_normalized_rmse?: number | null;
+            /** Simple Text2Comp Target Normalized Rmse */
+            simple_text2comp_target_normalized_rmse?: number | null;
             /**
              * Simulator
              * @default modflow

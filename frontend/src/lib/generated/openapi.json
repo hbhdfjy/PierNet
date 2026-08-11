@@ -5507,6 +5507,30 @@
             ],
             "title": "Seed"
           },
+          "simple_text2comp_max_normalized_rmse": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Max Normalized Rmse"
+          },
+          "simple_text2comp_target_normalized_rmse": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Target Normalized Rmse"
+          },
           "simulator": {
             "default": "modflow",
             "title": "Simulator",

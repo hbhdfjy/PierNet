@@ -317,8 +317,9 @@ export function App() {
         task_description: goal,
       })
       setWorkflow(snapshot)
-      const maxSamples = Math.max(4, Math.min(100, sourceCount))
-      const variants = Math.min(8, Math.max(1, Math.ceil(100 / maxSamples)))
+      const targetSamples = 1000
+      const maxSamples = Math.max(4, Math.min(targetSamples, sourceCount))
+      const variants = Math.min(8, Math.max(1, Math.ceil(targetSamples / maxSamples)))
       setPreparingMessage('正在生成 Router 与 Text2Comp 训练数据')
       await workflowApi.generate(created.workflow_id, maxSamples, variants)
       snapshot = await waitForWorkflow(created.workflow_id, update => {

@@ -201,6 +201,8 @@ export const workflowApi = {
         gpu_id: null,
         resume_from: null,
         seed: 42,
+        simple_text2comp_target_normalized_rmse: 0.48,
+        simple_text2comp_max_normalized_rmse: 0.5,
       }),
     }),
   trainingJob: (jobId: string) => request<TrainingJob>(`/training/jobs/${encodeURIComponent(jobId)}`),

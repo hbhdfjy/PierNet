@@ -1360,8 +1360,12 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
             "simple_text2comp_min_samples": QUICK_TEXT2COMP_DEFAULTS["min_samples"],
             "simple_text2comp_min_epochs": QUICK_TEXT2COMP_DEFAULTS["min_epochs"],
             "simple_text2comp_early_stop_patience": QUICK_TEXT2COMP_DEFAULTS["early_stop_patience"],
-            "simple_text2comp_target_normalized_rmse": QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"],
-            "simple_text2comp_max_normalized_rmse": QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"],
+            "simple_text2comp_target_normalized_rmse": payload.get("simple_text2comp_target_normalized_rmse")
+            if payload.get("simple_text2comp_target_normalized_rmse") is not None
+            else QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"],
+            "simple_text2comp_max_normalized_rmse": payload.get("simple_text2comp_max_normalized_rmse")
+            if payload.get("simple_text2comp_max_normalized_rmse") is not None
+            else QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"],
             "simple_text2comp_require_quality": QUICK_TEXT2COMP_DEFAULTS["require_quality"],
         }
     )

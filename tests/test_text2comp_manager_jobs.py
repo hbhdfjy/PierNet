@@ -74,6 +74,34 @@ def test_create_job_accepts_dataset_path_alias(monkeypatch: pytest.MonkeyPatch, 
     assert job["expert_model"] == "diff-sorp"
 
 
+def test_create_job_validates_explicit_text2comp_output_dim(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    captured = _patch_job_runtime(monkeypatch, tmp_path)
+    validation: dict[str, Any] = {}
+
+    def capture_validation(path: str, expected_dim: int) -> dict[str, Any]:
+        validation.update(path=path, expected_dim=expected_dim)
+        return {"is_valid": True}
+
+    monkeypatch.setattr(text2comp_manager, "validate_training_data", capture_validation)
+
+    text2comp_manager.create_job(
+        {
+            "expert_model": "modflow",
+            "dataset_path": "/tmp/modflow_expert_input.jsonl",
+            "output_dim": 18,
+            "gpu_id": 0,
+            "epochs": 1,
+        }
+    )
+
+    command = captured["command"]
+    assert validation == {"path": "/tmp/modflow_expert_input.jsonl", "expected_dim": 18}
+    assert command[command.index("--output-dim") + 1] == "18"
+
+
 def test_create_job_passes_formal_quality_options(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured = _patch_job_runtime(monkeypatch, tmp_path)
 

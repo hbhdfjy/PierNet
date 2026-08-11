@@ -130,6 +130,8 @@ class TrainingQuickJobCreateRequest(BaseModel):
     seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
     uploaded_expert_id: str | None = None
     dataset_id: str | None = None
+    simple_text2comp_target_normalized_rmse: float | None = Field(default=None, ge=0.0)
+    simple_text2comp_max_normalized_rmse: float | None = Field(default=None, ge=0.0)
 
 
 class TrainingMetricsSummary(BaseModel):

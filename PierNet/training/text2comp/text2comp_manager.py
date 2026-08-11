@@ -775,7 +775,11 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             f"No training data found for simulator={simulator!r}. Provide dataset_path, train_data_path, or train_path."
         )
 
-    validation = validate_training_data(train_data_path, expert_info["output_dim"])
+    training_output_dim = int(payload.get("output_dim") or expert_info["output_dim"])
+    if training_output_dim <= 0:
+        raise ValueError("output_dim must be a positive integer")
+
+    validation = validate_training_data(train_data_path, training_output_dim)
     if not validation["is_valid"]:
         raise ValueError(f"Invalid training data: {validation}")
 
@@ -815,7 +819,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
 
     # 输出维度自动推断
     if config.get("output_dim", 0) == 0:
-        config["output_dim"] = expert_info["output_dim"]
+        config["output_dim"] = training_output_dim
     config["dataset_id"] = dataset_id
 
     # 构建训练命令

@@ -722,6 +722,24 @@ def test_quick_training_job_queues_with_platform_defaults(monkeypatch, tmp_path)
     assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
 
 
+def test_quick_training_job_accepts_text2comp_quality_overrides(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+
+    entry = training_manager.create_quick_job(
+        {
+            "simulator": "modflow",
+            "scenarios": ["coastal_seawater"],
+            "simple_text2comp_target_normalized_rmse": 0.48,
+            "simple_text2comp_max_normalized_rmse": 0.5,
+        }
+    )
+
+    assert entry["config"]["simple_text2comp_target_normalized_rmse"] == 0.48
+    assert entry["config"]["simple_text2comp_max_normalized_rmse"] == 0.5
+
+
 def test_quick_training_job_preserves_coarse_options(monkeypatch, tmp_path):
     _use_tmp_runtime(monkeypatch, tmp_path)
     _mock_training_prereqs(monkeypatch)
