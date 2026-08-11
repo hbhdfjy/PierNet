@@ -1,0 +1,28 @@
+simulator: expert_model
+scenario: column_buckling_expert_demo
+output_dir: data/expert_model
+output_file: expert_model_column_buckling_expert_demo.h5
+expert_model_id: column_buckling_expert-6fe0c576a5cd
+expert_model_name: column_buckling_expert
+expert_package_type: python_file
+expert_entrypoint: column_buckling_expert.py
+expert_callable: predict
+expert_interface: 'def predict(inputs: list[float]) -> float | list[float]'
+input_prompt: '{   "values": [     [2.0, 50.0, 20.0, 210.0, 80.0, 1.0],     [1.5,
+  60.0, 30.0, 200.0, 25.0, 0.7],     [3.0, 40.0, 25.0, 70.0, 15.0, 2.0],     [2.5,
+  80.0, 40.0, 110.0, 100.0, 0.5],     [4.0, 50.0, 30.0, 210.0, 50.0, 1.0]   ] }'
+input_plan:
+  kind: explicit_values
+  source: json
+  count: 5
+  input_dim: 6
+  start: 2.0
+  step: null
+  param_names:
+  - input_0
+  - input_1
+  - input_2
+  - input_3
+  - input_4
+  - input_5
+  summary: 显式输入 5 个点，输入维度 6

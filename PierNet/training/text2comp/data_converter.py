@@ -5,12 +5,12 @@
 - Text2Comp模型：文本 → 数值预测（生成专家模型输入参数）
 - 专家模型：接收Text2Comp输出 → 计算最终物理结果
 
-原始平台fill_samples输出格式（5字段）：
+原始平台 fill_samples 输出格式（5字段）：
 {
     "input": "自然语言描述",
     "number": [原始参数],
     "params_transformed": [变换后参数],
-    "target": "引导语+数值矩阵",       # 这是专家模型的输入参数
+    "target": "引导语+物理时序矩阵",   # 专家模型输出真值，不是 Text2Comp 标签
     "metadata": {...}
 }
 
@@ -21,14 +21,16 @@
 }
 
 关键概念：
-- label维度 = 专家模型输入维度（如FNO的128维输入）
-- 不是最终物理结果，而是传给专家的中间参数
+- label 维度 = 专家模型输入维度
+- label 必须来自 expert_input / params_transformed / number
+- target 是专家模型的物理输出，只能用于验证或端到端评测
 """
 
 from __future__ import annotations
 
 import json
 import logging
+import math
 import re
 from pathlib import Path
 
@@ -120,17 +122,43 @@ def convert_sample(sample: dict) -> dict | None:
         logger.warning("样本缺少input字段")
         return None
 
-    target = sample.get("target", "")
-    label = extract_numbers_from_target(target)
+    # Text2Comp 负责生成专家模型输入参数。Stage 3 的 target 是物理输出，
+    # 不能再作为标签。变换后的参数与 input 中出现的数值一致，优先级最高。
+    raw_label = sample.get("expert_input")
+    label_source = "expert_input"
+    if raw_label is None:
+        raw_label = sample.get("params_transformed")
+        label_source = "params_transformed"
+    if raw_label is None:
+        raw_label = sample.get("number")
+        label_source = "number"
 
-    if label is None or len(label) == 0:
-        logger.warning("无法提取label，跳过样本")
+    label = _coerce_expert_input(raw_label)
+    if label is None:
+        logger.warning("样本缺少有效的专家输入参数，跳过样本")
         return None
 
     return {
         "prompt": prompt,
-        "label": label
+        "label": label,
+        "expert_input": label,
+        "metadata": {
+            "schema_name": "piernet.text2comp",
+            "schema_version": 1,
+            "label_semantics": "expert_input",
+            "label_source": label_source,
+        },
     }
+
+
+def _coerce_expert_input(value) -> list[float] | None:
+    """Return a finite one-dimensional expert input vector."""
+    if value is None or isinstance(value, (str, bytes, bytearray, dict)):
+        return None
+    flattened = flatten_matrix(value)
+    if not flattened or not all(math.isfinite(item) for item in flattened):
+        return None
+    return flattened
 
 
 def convert_jsonl(

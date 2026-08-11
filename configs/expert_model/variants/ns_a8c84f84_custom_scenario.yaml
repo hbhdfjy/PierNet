@@ -1,0 +1,38 @@
+simulator: expert_model
+scenario: ns_a8c84f84_custom_scenario
+output_dir: data/expert_model
+output_file: expert_model_ns_a8c84f84_custom_scenario.h5
+expert_model_id: gcam_unified_mlp_v2-ea65a9b47f7b
+expert_model_name: gcam_unified_mlp_v2
+expert_package_type: zip
+expert_entrypoint: adapter.py
+expert_callable: predict
+expert_interface: 'def predict(inputs: list[float]) -> float | list[float]'
+input_prompt: 请生成覆盖典型工况的专家模型输入与输出样本
+input_plan:
+  kind: linear_sweep
+  source: rule_agent
+  count: 100
+  input_dim: 18
+  start: 0.0
+  step: 1.0
+  param_names:
+  - input_0
+  - input_1
+  - input_2
+  - input_3
+  - input_4
+  - input_5
+  - input_6
+  - input_7
+  - input_8
+  - input_9
+  - input_10
+  - input_11
+  - input_12
+  - input_13
+  - input_14
+  - input_15
+  - input_16
+  - input_17
+  summary: 生成 100 个输入点：从 0 开始，每次加 1，输入维度 18

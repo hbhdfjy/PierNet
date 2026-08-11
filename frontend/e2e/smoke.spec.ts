@@ -310,13 +310,13 @@ test('platform entry and core workbenches render without layout overflow', async
   await page.setViewportSize({ width: 1440, height: 900 })
 
   await gotoApp(page, '/')
-  await expect(page.getByText('PierNet 控制台')).toBeVisible()
-  await expect(page.getByRole('link', { name: /打开简洁训练/ })).toBeVisible()
-  await expect(page.getByRole('link', { name: /打开复杂训练/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '工业与科学时序语言多模态大模型自动化训练平台' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /开始创建/ })).toBeVisible()
+  await expect(page.getByRole('link', { name: /查看已有任务/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/training')
-  await expect(page.getByText('PierNet 训练')).toBeVisible()
+  await expect(page.getByText('Piern 训练')).toBeVisible()
   await expect(page.getByText('训练平台')).toBeVisible()
   await expect(page.getByRole('link', { name: /任务管理/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
@@ -333,7 +333,7 @@ test('platform entry and core workbenches render without layout overflow', async
   await expectNoHorizontalOverflow(page)
 
   await gotoApp(page, '/synth/fill')
-  await expect(page.getByText('PierNet 数据')).toBeVisible()
+  await expect(page.getByText('Piern 数据')).toBeVisible()
   await expect(page.getByRole('heading', { name: '样本填充' })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
@@ -342,8 +342,8 @@ test('mobile shell keeps primary navigation usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 })
 
   await gotoApp(page, '/')
-  await expect(page.getByText('PierNet 控制台')).toBeVisible()
-  await expect(page.getByRole('link', { name: /打开数据合成/ })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '工业与科学时序语言多模态大模型自动化训练平台' })).toBeVisible()
+  await expect(page.getByRole('link', { name: /开始创建/ })).toBeVisible()
   await expectNoHorizontalOverflow(page)
 })
 
@@ -356,8 +356,10 @@ test('dark and light themes keep core pages visually stable', async ({ page }) =
     '/training/simple',
     '/training/simple/tasks',
     '/training/simple/assembly',
+    '/training/simple/chat',
     '/training/new',
     '/training/jobs',
+    '/training/chat',
     '/training/files',
     '/synth/fill',
     '/synth/router',
@@ -390,7 +392,9 @@ test('mobile training and synthesis shells avoid horizontal overflow', async ({ 
     '/training/simple',
     '/training/simple/tasks',
     '/training/simple/assembly',
+    '/training/simple/chat',
     '/training/new',
+    '/training/chat',
     '/training/files',
     '/synth/fill',
     '/synth/router',
@@ -411,7 +415,7 @@ test('desktop shell keeps brand, navigation and utility controls visible on deep
   await setTheme(page, 'dark')
   await page.setViewportSize({ width: 1440, height: 900 })
 
-  for (const route of ['/synth/files', '/training/assembly']) {
+  for (const route of ['/synth/files', '/training/assembly', '/training/chat']) {
     await gotoApp(page, route)
     await expect(page.locator('.app-brand')).toBeVisible()
     await expect(page.locator('.app-sidebar__footer')).toBeVisible()

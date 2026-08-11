@@ -1,0 +1,17 @@
+[Unit]
+Description=PiERN Studio Vite frontend
+After=PierNet-backend.service
+Wants=PierNet-backend.service
+
+[Service]
+Type=simple
+WorkingDirectory=__ROOT__
+Environment=PierNet_ENV_FILE=__ROOT__/.env
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+ExecStart=__ROOT__/scripts/services/run-studio.sh
+
+[Install]
+WantedBy=default.target

@@ -28,6 +28,11 @@ def get_training_datasets():
     return [TrainingDatasetInfo(**item) for item in training_manager.list_datasets()]
 
 
+@router.get("/simple-datasets", response_model=list[TrainingDatasetInfo])
+def get_simple_training_datasets():
+    return [TrainingDatasetInfo(**item) for item in training_manager.list_simple_datasets()]
+
+
 @router.get("/gpus", response_model=list[GPUInfo])
 def get_training_gpus():
     return [GPUInfo(**item) for item in training_manager.get_gpu_inventory()]
@@ -35,7 +40,7 @@ def get_training_gpus():
 
 @router.get("/jobs", response_model=list[TrainingJobSummary])
 def get_training_jobs():
-    return [TrainingJobSummary(**item) for item in training_manager.list_jobs(refresh=True)]
+    return [TrainingJobSummary(**item) for item in training_manager.list_jobs(refresh=False)]
 
 
 @router.post("/jobs", response_model=TrainingJobSummary)
@@ -61,7 +66,7 @@ def create_quick_training_job(req: TrainingQuickJobCreateRequest):
 @router.get("/jobs/{job_id}", response_model=TrainingJobDetail)
 def get_training_job(job_id: str):
     try:
-        return TrainingJobDetail(**training_manager.get_job(job_id, refresh=True))
+        return TrainingJobDetail(**training_manager.get_job(job_id, refresh=False))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
 

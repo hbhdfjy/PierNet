@@ -1,6 +1,6 @@
 import { Check, Cpu, Database, PlayCircle, Sparkles } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import { TrainingSectionTitle as SectionTitle, TrainingUsageBar as UsageBar } from '../components/common'
@@ -51,19 +51,21 @@ function toNumber(value: string, fallback: number): number {
 
 function Field({ label, children, note }: { label: string; children: React.ReactNode; note?: string }) {
   return (
-    <div>
-      <label className="training-label">{label}</label>
+    <label className="block">
+      <span className="training-label">{label}</span>
       <div className="mt-1.5">{children}</div>
       {note && <div className="mt-1 training-note">{note}</div>}
-    </div>
+    </label>
   )
 }
 
 export default function TrainingNewJobPage() {
   const { mutate } = useSWRConfig()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const requestedDatasetId = searchParams.get('datasetId')
   const { seed } = useSeed()
-  const selectedSimulatorRef = useRef<string | null>(null)
+  const selectedDatasetRef = useRef<string | null>(null)
 
   const { data: datasets } = useSWR<TrainingDatasetInfo[]>('training-datasets', api.getTrainingDatasets, {
     refreshInterval: 15000,
@@ -78,7 +80,7 @@ export default function TrainingNewJobPage() {
     revalidateOnFocus: false,
   })
 
-  const [simulator, setSimulator] = useState('modflow')
+  const [datasetKey, setDatasetKey] = useState(requestedDatasetId ?? '')
   const [jobName, setJobName] = useState('')
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [gpuId, setGpuId] = useState<number | null>(null)
@@ -97,9 +99,10 @@ export default function TrainingNewJobPage() {
   const [error, setError] = useState<string | null>(null)
 
   const dataset = useMemo(
-    () => datasets?.find(item => item.simulator === simulator) ?? datasets?.[0] ?? null,
-    [datasets, simulator],
+    () => datasets?.find(item => (item.dataset_id ?? item.simulator) === datasetKey) ?? datasets?.[0] ?? null,
+    [datasetKey, datasets],
   )
+  const simulator = dataset?.simulator ?? 'modflow'
   const visibleGpus = useMemo(() => gpus ?? [], [gpus])
   const availableGpus = useMemo(() => visibleGpus.filter(gpu => gpu.available), [visibleGpus])
   const checkpointCandidates = useMemo(
@@ -133,28 +136,30 @@ export default function TrainingNewJobPage() {
   useEffect(() => {
     if (!datasets) return
     if (datasets.length === 0) {
-      selectedSimulatorRef.current = null
+      selectedDatasetRef.current = null
       setSelectedScenarios([])
       return
     }
-    if (!datasets.some(item => item.simulator === simulator)) {
-      setSimulator(datasets[0].simulator)
+    if (!datasetKey || !datasets.some(item => (item.dataset_id ?? item.simulator) === datasetKey)) {
+      const requested = requestedDatasetId ? datasets.find(item => item.dataset_id === requestedDatasetId) : undefined
+      setDatasetKey(requested?.dataset_id ?? datasets[0].dataset_id ?? datasets[0].simulator)
     }
-  }, [datasets, simulator])
+  }, [datasetKey, datasets, requestedDatasetId])
 
   useEffect(() => {
     if (!dataset) {
-      selectedSimulatorRef.current = null
+      selectedDatasetRef.current = null
       setSelectedScenarios([])
       return
     }
-    const previousSimulator = selectedSimulatorRef.current
-    selectedSimulatorRef.current = dataset.simulator
+    const currentDatasetKey = dataset.dataset_id ?? dataset.simulator
+    const previousDatasetKey = selectedDatasetRef.current
+    selectedDatasetRef.current = currentDatasetKey
     const nextScenarios = dataset.scenarios.map(item => item.scenario)
     setSelectedScenarios(prev => {
       const available = new Set(nextScenarios)
       const kept = prev.filter(item => available.has(item))
-      return previousSimulator === dataset.simulator ? kept : nextScenarios
+      return previousDatasetKey === currentDatasetKey ? kept : nextScenarios
     })
   }, [dataset])
 
@@ -189,6 +194,7 @@ export default function TrainingNewJobPage() {
     }
 
     const payload: TrainingCreateJobRequest = {
+      dataset_id: dataset.dataset_id ?? null,
       name: jobName.trim() || null,
       simulator: dataset.simulator,
       scenarios: selectedScenarios,
@@ -275,12 +281,12 @@ export default function TrainingNewJobPage() {
                     <Field label="大场景">
                       <select
                         className="select"
-                        value={dataset?.simulator ?? simulator}
-                        onChange={e => setSimulator(e.target.value)}
+                        value={dataset?.dataset_id ?? dataset?.simulator ?? datasetKey}
+                        onChange={e => setDatasetKey(e.target.value)}
                       >
                         {(datasets ?? []).map(item => (
-                          <option key={item.simulator} value={item.simulator}>
-                            {item.simulator.toUpperCase()} · {formatCount(item.total_count)} 条
+                          <option key={item.dataset_id ?? item.simulator} value={item.dataset_id ?? item.simulator}>
+                            {(item.display_name ?? item.simulator).toUpperCase()} · {formatCount(item.total_count)} 条
                           </option>
                         ))}
                       </select>

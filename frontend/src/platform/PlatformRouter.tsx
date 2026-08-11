@@ -13,6 +13,7 @@ function PlatformFallback() {
 
 const SYNTH_LEGACY_ROUTES = [
   '/simulate',
+  '/pipeline',
   '/upload',
   '/register',
   '/templates',

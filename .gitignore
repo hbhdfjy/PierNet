@@ -4,6 +4,7 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .cache/
+.vite/
 *.py[cod]
 *.egg-info/
 dist/
@@ -39,6 +40,8 @@ data/**/*.ckpt
 data/**/*.nc
 data/**/*.npy
 data/**/*.npz
+data/studio/
+data/new_synth/
 *.pt
 *.pth
 *.ckpt
@@ -66,6 +69,8 @@ docs/*.docx
 # OS
 .DS_Store
 **/.DS_Store
+._*
+**/._*
 
 # Temporary files
 *.tmp

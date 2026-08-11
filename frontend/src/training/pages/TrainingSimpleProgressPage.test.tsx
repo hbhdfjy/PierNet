@@ -62,6 +62,8 @@ function job(overrides: Partial<TrainingJobDetail> = {}): TrainingJobDetail {
       auto_stop_threshold: 0.98,
       auto_stop_min_epochs: 1,
       simple_pipeline_enabled: true,
+      simple_quality_gate_enabled: true,
+      simple_router_min_f1: 0.95,
       simple_text2comp_epochs: 1,
       simple_text2comp_max_samples: 1024,
     },

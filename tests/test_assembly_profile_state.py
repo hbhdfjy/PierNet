@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 
+import numpy as np
+
 from PierNet.training.api.routers import assembly
 
 
@@ -73,3 +75,30 @@ def test_assembly_test_with_matching_profile_id_uses_loaded_profile(monkeypatch)
         assert result.expert_used is True
     finally:
         _restore_loaded_models(snapshot)
+
+
+def test_explicit_gcam_request_selects_loaded_uploaded_expert() -> None:
+    snapshot = dict(assembly._LOADED_MODELS)
+    try:
+        assembly._LOADED_MODELS["expert_executor"] = "uploaded"
+        assembly._LOADED_MODELS["uploaded_expert_model"] = {"simulator": "gcam"}
+
+        assert assembly._explicit_uploaded_expert_simulator("请使用 GCAM 完成预测") == "gcam"
+        assert assembly._explicit_uploaded_expert_simulator("你好") == ""
+        assert assembly._expert_router_trigger_prefill("请使用 GCAM 完成预测")
+        assert assembly.map_router_prediction_for_assembly(1) == (1, "gcam")
+    finally:
+        _restore_loaded_models(snapshot)
+
+
+def test_gcam_prediction_formats_five_trajectories() -> None:
+    answer = assembly._format_expert_prediction_answer(
+        "gcam",
+        np.arange(80, dtype=np.float32),
+    )
+
+    assert "2025—2100 年预测" in answer
+    assert "煤电占比：2025: 0.00000" in answer
+    assert "可再生能源占比：2025: 16.00000" in answer
+    assert "全球平均气温异常：2025: 64.00000" in answer
+    assert "2100: 79.00000" in answer

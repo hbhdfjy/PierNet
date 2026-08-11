@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { AlertTriangle, Check, Database, Layers3, PlayCircle } from 'lucide-react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
 import { useSeed } from '../../lib/seedContext'
@@ -25,25 +25,27 @@ function selectedStats(dataset: TrainingDatasetInfo | null | undefined, selected
 
 export default function TrainingSimpleJobPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const requestedDatasetId = searchParams.get('datasetId')
   const { mutate } = useSWRConfig()
   const { seed } = useSeed()
-  const selectedSimulatorRef = useRef<string | null>(null)
+  const selectedDatasetRef = useRef<string | null>(null)
   const {
     data: datasets,
     error: datasetError,
     isLoading,
-  } = useSWR('training-datasets', api.getTrainingDatasets, {
+  } = useSWR('training-simple-datasets', api.getSimpleTrainingDatasets, {
     refreshInterval: 10000,
     revalidateOnFocus: false,
   })
-  const [simulator, setSimulator] = useState('')
+  const [datasetKey, setDatasetKey] = useState(requestedDatasetId ?? '')
   const [selectedScenarios, setSelectedScenarios] = useState<string[]>([])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const dataset = useMemo(
-    () => datasets?.find(item => item.simulator === simulator) ?? datasets?.[0] ?? null,
-    [datasets, simulator],
+    () => datasets?.find(item => (item.dataset_id ?? item.simulator) === datasetKey) ?? datasets?.[0] ?? null,
+    [datasetKey, datasets],
   )
   const stats = useMemo(() => selectedStats(dataset, selectedScenarios), [dataset, selectedScenarios])
   const canSubmit = Boolean(dataset && selectedScenarios.length > 0 && !submitting)
@@ -51,28 +53,30 @@ export default function TrainingSimpleJobPage() {
   useEffect(() => {
     if (!datasets) return
     if (datasets.length === 0) {
-      selectedSimulatorRef.current = null
+      selectedDatasetRef.current = null
       setSelectedScenarios([])
       return
     }
-    if (!simulator || !datasets.some(item => item.simulator === simulator)) {
-      setSimulator(datasets[0].simulator)
+    if (!datasetKey || !datasets.some(item => (item.dataset_id ?? item.simulator) === datasetKey)) {
+      const requested = requestedDatasetId ? datasets.find(item => item.dataset_id === requestedDatasetId) : undefined
+      setDatasetKey(requested?.dataset_id ?? datasets[0].dataset_id ?? datasets[0].simulator)
     }
-  }, [datasets, simulator])
+  }, [datasetKey, datasets, requestedDatasetId])
 
   useEffect(() => {
     if (!dataset) {
-      selectedSimulatorRef.current = null
+      selectedDatasetRef.current = null
       setSelectedScenarios([])
       return
     }
-    const previousSimulator = selectedSimulatorRef.current
-    selectedSimulatorRef.current = dataset.simulator
+    const currentDatasetKey = dataset.dataset_id ?? dataset.simulator
+    const previousDatasetKey = selectedDatasetRef.current
+    selectedDatasetRef.current = currentDatasetKey
     const nextScenarios = dataset.scenarios.map(item => item.scenario)
     setSelectedScenarios(prev => {
       const available = new Set(nextScenarios)
       const kept = prev.filter(item => available.has(item))
-      return previousSimulator === dataset.simulator ? kept : nextScenarios
+      return previousDatasetKey === currentDatasetKey ? kept : nextScenarios
     })
   }, [dataset])
 
@@ -80,14 +84,15 @@ export default function TrainingSimpleJobPage() {
     await Promise.all([
       mutate('training-overview'),
       mutate('training-datasets'),
+      mutate('training-simple-datasets'),
       mutate('training-gpus'),
       mutate('training-jobs'),
     ])
   }
 
-  const selectDataset = (nextSimulator: string) => {
-    setSimulator(nextSimulator)
-    const nextDataset = datasets?.find(item => item.simulator === nextSimulator)
+  const selectDataset = (nextDatasetKey: string) => {
+    setDatasetKey(nextDatasetKey)
+    const nextDataset = datasets?.find(item => (item.dataset_id ?? item.simulator) === nextDatasetKey)
     setSelectedScenarios(nextDataset?.scenarios.map(item => item.scenario) ?? [])
   }
 
@@ -110,7 +115,8 @@ export default function TrainingSimpleJobPage() {
     setError(null)
     try {
       const job = await api.createQuickTrainingJob({
-        name: null,
+        dataset_id: dataset.dataset_id ?? null,
+        name: `${dataset.display_name ?? dataset.simulator} 完整训练`,
         simulator: dataset.simulator,
         scenarios: selectedScenarios,
         gpu_id: null,
@@ -132,10 +138,10 @@ export default function TrainingSimpleJobPage() {
         <div className="space-y-4 p-4">
           <section className="training-hero training-hero--compact training-simple-hero">
             <div className="training-simple-hero__copy">
-              <h1 className="training-simple-hero__title">模型训练</h1>
+              <h1 className="training-simple-hero__title">完整模型训练</h1>
               <p className="training-simple-hero__meta">
                 {dataset
-                  ? `${dataset.simulator.toUpperCase()} · ${selectedScenarios.length} 个场景 · ${formatCount(stats.count)} 条`
+                  ? `${dataset.display_name ?? dataset.simulator} · ${selectedScenarios.length} 个场景 · ${formatCount(stats.count)} 条`
                   : '正在读取训练数据'}
               </p>
             </div>
@@ -173,27 +179,28 @@ export default function TrainingSimpleJobPage() {
                 ) : datasets?.length ? (
                   <div className="training-simple-dataset-grid">
                     {datasets.map(item => {
-                      const active = item.simulator === dataset?.simulator
+                      const itemKey = item.dataset_id ?? item.simulator
+                      const active = itemKey === (dataset?.dataset_id ?? dataset?.simulator)
                       return (
                         <button
-                          key={item.simulator}
+                          key={itemKey}
                           type="button"
                           className={`training-simple-dataset ${active ? 'training-simple-dataset--active' : ''}`}
-                          onClick={() => selectDataset(item.simulator)}
+                          onClick={() => selectDataset(itemKey)}
                         >
                           <div className="training-simple-dataset__top">
-                            <div className="training-simple-dataset__name">{item.simulator}</div>
+                            <div className="training-simple-dataset__name">{item.display_name ?? item.simulator}</div>
                             {active && <Check size={15} />}
                           </div>
                           <div className="training-simple-dataset__meta">
-                            {item.scenarios.length} 个子场景 · {formatCount(item.total_count)} 条
+                            {item.scenarios.length} 个场景 · {formatCount(item.total_count)} 条训练样本
                           </div>
                         </button>
                       )
                     })}
                   </div>
                 ) : (
-                  <div className="training-surface text-sm text-slate-400">当前没有可用训练数据。</div>
+                  <div className="training-surface text-sm text-slate-400">当前没有满足完整训练条件的数据。</div>
                 )}
               </div>
             </section>
@@ -201,7 +208,7 @@ export default function TrainingSimpleJobPage() {
             <section className="training-card training-card--compact training-simple-panel training-simple-panel--scenarios">
               <div className="card-header">
                 <Layers3 size={16} className="text-emerald-300" />
-                <SectionTitle title="子场景" />
+                <SectionTitle title="小场景" />
               </div>
               <div className="training-card__body space-y-3">
                 <div className="training-simple-summary">
@@ -223,7 +230,7 @@ export default function TrainingSimpleJobPage() {
 
                 {dataset && (
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-[13px] text-slate-400">{dataset.simulator.toUpperCase()}</div>
+                    <div className="text-[13px] text-slate-400">{dataset.display_name ?? dataset.simulator}</div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"

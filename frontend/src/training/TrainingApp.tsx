@@ -1,5 +1,5 @@
 import { lazy } from 'react'
-import { BarChart3, Brain, Cpu, FolderOpen, HardDrive, Layers, PlayCircle, Workflow } from 'lucide-react'
+import { BarChart3, Brain, Cpu, FolderOpen, HardDrive, Layers, MessageSquare, PlayCircle, Workflow } from 'lucide-react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import type { Theme } from '../shared/theme'
 import { AppShell, type ShellNavGroup } from '../platform/AppShell'
@@ -10,6 +10,7 @@ const TrainingJobsPage = lazy(() => import('./pages/TrainingJobsPage'))
 const TrainingJobDetailPage = lazy(() => import('./pages/TrainingJobDetailPage'))
 const Text2CompPage = lazy(() => import('./pages/Text2CompPage'))
 const AssemblyPage = lazy(() => import('./pages/AssemblyPage'))
+const ModelChatPage = lazy(() => import('./pages/ModelChatPage'))
 const TrainedModelsPage = lazy(() => import('./pages/TrainedModelsPage'))
 const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
@@ -24,6 +25,7 @@ const navGroups: ShellNavGroup[] = [
       { to: '/training/jobs', icon: Workflow, label: '任务管理', tone: 'violet' },
       { to: '/training/text2comp', icon: Brain, label: '文生计算', tone: 'emerald' },
       { to: '/training/assembly', icon: Layers, label: '模型拼装', tone: 'violet' },
+      { to: '/training/chat', icon: MessageSquare, label: '模型对话', tone: 'sky' },
       { to: '/training/models', icon: HardDrive, label: '模型文件', tone: 'amber' },
       { to: '/training/files', icon: FolderOpen, label: '文件管理', tone: 'neutral' },
     ],
@@ -44,7 +46,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
     <AppShell
       platform="training"
       mark="T"
-      title="PierNet 训练"
+      title="Piern 训练"
       subtitle="模型训练工作台"
       navGroups={navGroups}
       theme={theme}
@@ -57,6 +59,7 @@ export default function TrainingApp({ theme, toggleTheme }: { theme: Theme; togg
         <Route path="jobs/:jobId" element={<TrainingJobDetailPage />} />
         <Route path="text2comp" element={<Text2CompPage />} />
         <Route path="assembly" element={<AssemblyPage />} />
+        <Route path="chat" element={<ModelChatPage />} />
         <Route path="models" element={<TrainedModelsPage />} />
         <Route
           path="files"

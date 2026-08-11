@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Workflow,
-  PlayCircle,
   CheckCircle2,
   ArrowRight,
   Zap,
@@ -21,8 +20,6 @@ import {
   Sparkles,
   Save,
   Info,
-  Eye,
-  EyeOff,
   X,
 } from 'lucide-react'
 import { api } from '../../lib/api'
@@ -109,16 +106,6 @@ interface AssemblyStatus {
   loaded_models: LoadedModels
   gpu_available: boolean
   architecture_note?: string
-}
-
-interface TestResult {
-  router_prediction: string
-  router_class_name: string
-  final_answer: string
-  full_response: string
-  expert_used?: boolean
-  expert_output?: string
-  latency_ms: number
 }
 
 interface DomainInfo {
@@ -379,11 +366,7 @@ export default function AssemblyPage() {
   const [expertExecutor, setExpertExecutor] = useState<'fno' | 'uploaded'>('fno')
   const [selectedUploadedExpert, setSelectedUploadedExpert] = useState<string | null>(null)
   const [selectedGPU, setSelectedGPU] = useState<number>(0)
-  const [testInput, setTestInput] = useState('')
-  const [testResult, setTestResult] = useState<TestResult | null>(null)
-  const [testing, setTesting] = useState(false)
   const [loadingModels, setLoadingModels] = useState(false)
-  const [showFullResponse, setShowFullResponse] = useState(false)
 
   // Prompt管理状态
   const [showPromptPanel, setShowPromptPanel] = useState(false)
@@ -568,38 +551,7 @@ export default function AssemblyPage() {
     }
   }
 
-  const runTest = async () => {
-    if (!testInput.trim()) return
-    setTesting(true)
-    setTestResult(null)
-    setShowFullResponse(false)
-    try {
-      const result = await api.testAssembly({
-        config: {
-          main_llm_path: status?.llms.find(l => l.name === selectedLLM)?.path,
-          gpu_config: { llm_gpu_ids: [selectedGPU] },
-        },
-        test_input: testInput,
-      })
-      setTestResult({
-        router_prediction: result.router_prediction || '',
-        router_class_name: result.router_class_name || result.router_prediction,
-        final_answer: result.final_answer || result.first_cot_result?.split('\n').pop() || '',
-        full_response: result.llm_response || result.first_cot_result || '',
-        expert_used: result.expert_used,
-        expert_output: result.expert_output,
-        latency_ms: result.latency_ms,
-      })
-    } catch (e) {
-      console.error('Test failed:', e)
-      alert(`测试失败: ${e}`)
-    } finally {
-      setTesting(false)
-    }
-  }
-
   const isLoaded = status?.loaded_models?.llm?.loaded || false
-  const canTest = isLoaded && testInput.trim()
   const currentRouter = status?.routers?.find(r => r.name === selectedRouter)
   const selectedText2CompInfo = status?.text2comps?.find(t => t.name === selectedText2Comp)
   const selectedUploadedExpertInfo = status?.custom_experts?.find(expert => expert.name === selectedUploadedExpert)
@@ -631,10 +583,8 @@ export default function AssemblyPage() {
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <div className="training-eyebrow">模型拼装</div>
-                <h1 className="mt-2 text-2xl font-semibold text-white">配置 PierNet 推理链路</h1>
-                <p className="mt-1 text-sm text-slate-400">
-                  选择并装载 Router、Text2Comp 与 Expert，随后运行推理测试。
-                </p>
+                <h1 className="mt-2 text-2xl font-semibold text-white">配置 Piern 推理链路</h1>
+                <p className="mt-1 text-sm text-slate-400">选择并装载 Router、Text2Comp 与 Expert。</p>
                 {status?.architecture_note && <p className="mt-1 text-xs text-slate-500">{status.architecture_note}</p>}
               </div>
               <button className="btn-ghost shrink-0" onClick={() => navigate('/training')}>
@@ -962,90 +912,6 @@ export default function AssemblyPage() {
               </div>
             )}
           </section>
-
-          {/* Test Input */}
-          <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <PlayCircle size={18} className="text-violet-400" />
-              <span className="font-semibold text-slate-100">推理测试</span>
-              {isLoaded && (
-                <span className="badge border border-emerald-500/20 bg-emerald-500/8 text-emerald-300">模型已加载</span>
-              )}
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="text-sm text-slate-400 mb-2 block">用户输入文本</label>
-                <textarea
-                  className="w-full rounded-lg border border-slate-700/40 bg-slate-900/30 p-3 text-sm text-slate-200 focus:border-violet-500/40 focus:outline-none"
-                  rows={3}
-                  placeholder="例如：求解1维扩散-吸附问题..."
-                  value={testInput}
-                  onChange={e => setTestInput(e.target.value)}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div className="text-xs text-slate-500">{canTest ? '模型已加载，可测试' : '请先加载模型'}</div>
-                <button className="btn-primary" disabled={!canTest || testing} onClick={runTest}>
-                  <PlayCircle size={14} />
-                  {testing ? '运行中...' : '开始测试'}
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* Test Results - 改进显示 */}
-          {testResult && (
-            <section className="rounded-lg border border-slate-700/40 bg-slate-900/30 p-4">
-              <div className="flex items-center gap-3 mb-4">
-                <Workflow size={18} className="text-emerald-400" />
-                <span className="font-semibold text-slate-100">测试结果</span>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-3">
-                <div className="rounded-lg border border-amber-500/20 bg-amber-500/8 p-3">
-                  <div className="text-xs text-amber-400 mb-1">Router判断</div>
-                  <div className="text-lg font-semibold text-slate-100">{testResult.router_class_name}</div>
-                </div>
-                {testResult.expert_used && (
-                  <div className="rounded-lg border border-sky-500/20 bg-sky-500/8 p-3">
-                    <div className="text-xs text-sky-400 mb-1">使用专家</div>
-                    <div className="text-lg font-semibold text-slate-100">
-                      {expertExecutor === 'uploaded'
-                        ? selectedUploadedExpert || 'Uploaded Expert'
-                        : selectedFNO || 'FNO Expert'}
-                    </div>
-                  </div>
-                )}
-                <div className="rounded-lg border border-violet-500/20 bg-violet-500/8 p-3">
-                  <div className="text-xs text-violet-400 mb-1">推理延迟</div>
-                  <div className="text-lg font-semibold text-slate-100">{testResult.latency_ms.toFixed(2)} ms</div>
-                </div>
-              </div>
-
-              {/* 最终答案 */}
-              <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/8 p-3">
-                <div className="text-xs text-emerald-400 mb-2">最终答案</div>
-                <div className="text-sm text-slate-200 whitespace-pre-wrap">{testResult.final_answer}</div>
-              </div>
-
-              {/* 查看完整响应 */}
-              <div className="mt-3 flex items-center justify-between">
-                <button
-                  className="text-xs text-slate-400 hover:text-slate-300 flex items-center gap-1"
-                  onClick={() => setShowFullResponse(!showFullResponse)}
-                >
-                  {showFullResponse ? <EyeOff size={14} /> : <Eye size={14} />}
-                  {showFullResponse ? '隐藏完整响应' : '查看完整响应'}
-                </button>
-              </div>
-              {showFullResponse && (
-                <div className="mt-2 max-h-60 overflow-auto rounded-lg border border-slate-700/40 bg-slate-900/50 p-3">
-                  <div className="text-xs text-slate-400 mb-2">完整LLM响应</div>
-                  <div className="text-sm text-slate-200 whitespace-pre-wrap font-mono">{testResult.full_response}</div>
-                </div>
-              )}
-            </section>
-          )}
         </div>
       </div>
     </div>

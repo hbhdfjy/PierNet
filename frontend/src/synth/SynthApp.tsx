@@ -15,6 +15,7 @@ import {
   KeyRound,
   Network,
   UploadCloud,
+  Workflow,
   Zap,
 } from 'lucide-react'
 import type { Theme } from '../shared/theme'
@@ -33,11 +34,16 @@ const TemplateGenerator = lazy(() => import('./pages/TemplateGenerator'))
 const TemplateViewer = lazy(() => import('./pages/TemplateViewer'))
 const DataUploadPage = lazy(() => import('./pages/DataUploadPage'))
 const ExpertModelManager = lazy(() => import('./pages/ExpertModelManager'))
+const PipelineGuidePage = lazy(() => import('./pages/PipelineGuidePage'))
 const FileManagerContent = lazy(() =>
   import('../files/FileManagerPage').then(module => ({ default: module.FileManagerContent })),
 )
 
 const navGroups: ShellNavGroup[] = [
+  {
+    label: '全流程',
+    items: [{ to: '/synth/pipeline', icon: Workflow, label: '流程向导', tone: 'sky' }],
+  },
   {
     label: '数据总览',
     items: [{ to: '/synth', end: true, icon: BarChart2, label: '数据总览' }],
@@ -88,7 +94,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
     <AppShell
       platform="synth"
       mark="P"
-      title="PierNet 数据"
+      title="Piern 数据"
       subtitle="数据合成工作台"
       navGroups={navGroups}
       theme={theme}
@@ -96,6 +102,7 @@ export default function SynthApp({ theme, toggleTheme }: { theme: Theme; toggleT
     >
       <Routes>
         <Route index element={<DatasetStats />} />
+        <Route path="pipeline" element={<PipelineGuidePage />} />
         <Route path="simulate" element={<SimulationRunner />} />
         <Route path="upload" element={<DataUploadPage />} />
         <Route path="register" element={<RegisterSimulator />} />

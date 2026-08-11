@@ -180,7 +180,9 @@ export default function RouterDataBuilder() {
             </div>
             {hasRouterData && <div className="text-xs text-slate-500">{status!.total.toLocaleString()} 条</div>}
           </div>
-          <p className="text-slate-500 text-sm mt-1 ml-9">从阶段 3 样本构建 Token 路由二分类训练数据</p>
+          <p className="text-slate-500 text-sm mt-1 ml-9">
+            当前构建二分类 Token Router 数据，类别设计后续可扩展到多场景分类
+          </p>
         </div>
 
         {/* 场景选择（flex-1，独立滚动）*/}
@@ -261,6 +263,13 @@ export default function RouterDataBuilder() {
               <Settings size={12} className="text-slate-500" />
               <span className="text-sm font-medium text-slate-400">参数</span>
             </div>
+            <div className="border-l-2 border-rose-500/55 bg-rose-500/[0.055] px-3 py-2.5">
+              <div className="text-xs font-semibold text-rose-200">当前：二分类 Router</div>
+              <div className="mt-1 text-xs leading-5 text-slate-400">label 0 = LLM 继续生成，label 1 = 专家接管。</div>
+              <div className="mt-1 text-xs leading-5 text-slate-500">
+                后续可扩展为 0 = 继续生成、1..N = 不同场景；当前版本不生成多分类标签。
+              </div>
+            </div>
             {/* 负样本倍数 */}
             <div>
               <div className="flex items-center justify-between mb-1">
@@ -294,9 +303,9 @@ export default function RouterDataBuilder() {
               {'Embedding Backbone \u56fa\u5b9a\u4e3a '}
               <span
                 className="pretty-tooltip inline-block max-w-full align-bottom"
-                data-tooltip="由 PierNet_QWEN_EMBEDDING_MODEL 配置，默认读取 ~/Qwen/Qwen2.5-0.5B-Instruct"
+                data-tooltip="由服务端 Embedding Backbone 配置"
               >
-                <span className="block truncate font-mono text-sky-300">PierNet_QWEN_EMBEDDING_MODEL</span>
+                <span className="block truncate font-mono text-sky-300">Qwen2.5-0.5B-Instruct</span>
               </span>
             </div>
             <div>
@@ -338,7 +347,8 @@ export default function RouterDataBuilder() {
                   </>
                 ) : (
                   <>
-                    <GitBranch size={14} /> 生成路由数据{selected.size > 0 ? `（${selected.size} 个场景）` : ''}
+                    <GitBranch size={14} /> 生成二分类路由数据
+                    {selected.size > 0 ? `（${selected.size} 个场景）` : ''}
                   </>
                 )}
               </button>

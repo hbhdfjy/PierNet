@@ -14,13 +14,19 @@ fi
 RUN_DIR=${PierNet_SERVICE_RUN_DIR:-"$ROOT/.runlogs/services"}
 BACKEND_PID_FILE="$RUN_DIR/backend.pid"
 FRONTEND_PID_FILE="$RUN_DIR/frontend.pid"
+STUDIO_PID_FILE="$RUN_DIR/studio.pid"
+NEW_SYNTH_PID_FILE="$RUN_DIR/new-synth.pid"
 WORKER_PID_FILE="$RUN_DIR/worker.pid"
 BACKEND_LOG="$RUN_DIR/backend.log"
 FRONTEND_LOG="$RUN_DIR/frontend.log"
+STUDIO_LOG="$RUN_DIR/studio.log"
+NEW_SYNTH_LOG="$RUN_DIR/new-synth.log"
 WORKER_LOG="$RUN_DIR/worker.log"
 HOST=${PierNet_HOST:-${PierNet_SERVICE_HOST:-0.0.0.0}}
 BACKEND_PORT=${PierNet_BACKEND_PORT:-8000}
 FRONTEND_PORT=${PierNet_FRONTEND_PORT:-3000}
+STUDIO_PORT=${PierNet_STUDIO_PORT:-3001}
+NEW_SYNTH_PORT=${PierNet_NEW_SYNTH_PORT:-3002}
 DEFAULT_CONDA_ENV="$HOME/.conda/envs/PierNet"
 if [[ -x "$ROOT/.conda/env/bin/python" ]]; then
   DEFAULT_CONDA_ENV="$ROOT/.conda/env"
@@ -96,6 +102,14 @@ find_backend_pid() {
 
 find_frontend_pid() {
   first_matching_pid "vite.*--port[ =]*$FRONTEND_PORT" || true
+}
+
+find_studio_pid() {
+  first_matching_pid "vite.*--port[ =]*$STUDIO_PORT" || true
+}
+
+find_new_synth_pid() {
+  first_matching_pid "vite.*--port[ =]*$NEW_SYNTH_PORT" || true
 }
 
 find_worker_pid() {

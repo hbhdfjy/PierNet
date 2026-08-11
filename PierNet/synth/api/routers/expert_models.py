@@ -17,6 +17,8 @@ class ExpertModelUpdateRequest(BaseModel):
     status: Literal["active", "disabled", "invalid"] | None = None
     domain: str | None = Field(None, max_length=160)
     simulator: str | None = Field(None, max_length=160)
+    demo_prompt: str | None = Field(None, max_length=4000)
+    demo_prompt_label: str | None = Field(None, max_length=80)
     assembly_enabled: bool | None = None
     data_generation_enabled: bool | None = None
 

@@ -343,12 +343,12 @@ def text2comp_manifest_like() -> dict[str, Any] | None:
     }
 
 
-def router_manifest_like() -> dict[str, Any] | None:
+def router_manifest_like(*, include_label_counts: bool = True) -> dict[str, Any] | None:
     partitions = discover_partitions("router")
     if not partitions:
         return None
 
-    label_counts = _group_counts("router", "label")
+    label_counts = _group_counts("router", "label") if include_label_counts else {}
     scenarios = [
         {
             "scenario": part.scenario,

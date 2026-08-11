@@ -7,7 +7,6 @@ import {
   Cpu,
   Layers3,
   Loader2,
-  PlayCircle,
   Power,
   PowerOff,
   RefreshCw,
@@ -34,9 +33,6 @@ type TrainingBundle = {
   text2comp: string
   fno: string
 }
-
-const DIFF_SORP_TEST_INPUT =
-  '请通过分析两帧归一化输入数据，基于传质动力学的理论框架，预测吸附系统在下一时间步的状态演变。\n[0.99644, 0.93487, 0.86565, 0.79567, 0.72738, 0.66152, 0.59858, 0.53898, 0.48310, 0.43119]'
 
 const TRAINING_BUNDLES: readonly TrainingBundle[] = []
 
@@ -69,7 +65,6 @@ type TrainingAssemblySource = {
   fno: SelectableModel | null
   uploadedExpertName?: string | null
   uploadedExpertInputDim?: number | null
-  defaultPrompt?: string
   sourceJob?: TrainingJobSummary
 }
 
@@ -152,7 +147,6 @@ function trainingSourceFromBundle(bundle: TrainingBundle, status: AssemblyStatus
       input_dim: paths.fnoInputDim,
       description: `输入维度 ${paths.fnoInputDim} · FNO Expert`,
     },
-    defaultPrompt: bundle.id === 'diff-sorp-20260103-0124' ? DIFF_SORP_TEST_INPUT : undefined,
   }
 }
 
@@ -237,145 +231,6 @@ function pathListIncludes(paths: string[] | undefined, expected?: string | null)
   return Boolean(expected && (paths ?? []).includes(expected))
 }
 
-type ParsedModflowAnswer = {
-  isModflow: boolean
-  raw: string
-  matrix: number[][] | null
-  trendLines: string[]
-}
-
-function splitTrendLines(text: string): string[] {
-  return text
-    .replace(/\s+(?=\d+\.\s*(?:井|#)\d+[:：])/g, '\n')
-    .split('\n')
-    .map(line => line.trim())
-    .filter(Boolean)
-}
-
-function parseModflowAnswer(answer?: string): ParsedModflowAnswer {
-  const raw = (answer || '').trim()
-  const trigger = 'MODFLOW地下水专家输出：'
-  const trendMarker = '中文趋势总结：'
-  if (!raw.includes(trigger)) {
-    return { isModflow: false, raw, matrix: null, trendLines: [] }
-  }
-
-  const body = raw.slice(raw.indexOf(trigger) + trigger.length).trim()
-  const trendIndex = body.indexOf(trendMarker)
-  const matrixSource = (trendIndex >= 0 ? body.slice(0, trendIndex) : body).trim()
-  const trendText = trendIndex >= 0 ? body.slice(trendIndex + trendMarker.length).trim() : ''
-  const matrixMatch = matrixSource.match(/\[\[[\s\S]*\]\]/)
-  let matrix: number[][] | null = null
-  if (matrixMatch) {
-    try {
-      const parsed = JSON.parse(matrixMatch[0])
-      if (
-        Array.isArray(parsed) &&
-        parsed.every(row => Array.isArray(row) && row.every(value => typeof value === 'number'))
-      ) {
-        matrix = parsed
-      }
-    } catch {
-      matrix = null
-    }
-  }
-
-  return {
-    isModflow: true,
-    raw,
-    matrix,
-    trendLines: splitTrendLines(trendText),
-  }
-}
-
-function formatResultNumber(value: number): string {
-  return Number.isFinite(value) ? value.toFixed(4) : '--'
-}
-
-function numericSummary(values: number[]): string {
-  if (values.length === 0) return ''
-  const first = values[0]
-  const last = values[values.length - 1]
-  let min = first
-  let max = first
-  values.forEach(value => {
-    if (value < min) min = value
-    if (value > max) max = value
-  })
-  const direction =
-    Math.abs(last - first) < 1e-6 ? '末端与起始水平接近' : last > first ? '末端高于起始水平' : '末端低于起始水平'
-  return `专家模型返回了一组数值预测，共 ${values.length} 个数值点，范围约 ${formatResultNumber(min)} 到 ${formatResultNumber(max)}，${direction}。`
-}
-
-function formatPlainModflowAnswer(parsed: ParsedModflowAnswer): string {
-  if (!parsed.matrix) return formatConversationalAnswer(parsed.raw)
-  const lines = ['已完成 MODFLOW 地下水预测。']
-  lines.push('', '预测数值（hydraulic_head）：')
-  parsed.matrix.forEach((row, index) => {
-    lines.push(`井${index + 1}：${row.map(formatResultNumber).join('，')}`)
-  })
-  if (parsed.trendLines.length > 0) {
-    lines.push('', '中文趋势总结：', ...parsed.trendLines)
-  } else {
-    const values = parsed.matrix.flat()
-    const summary = numericSummary(values)
-    if (summary) lines.push('', summary)
-  }
-  return lines.join('\n')
-}
-
-function stripDenseNumericLines(text: string): { text: string; values: number[] } {
-  const values: number[] = []
-  const numberPattern = /-?\d+(?:\.\d+)?(?:e[+-]?\d+)?/gi
-  const kept = text
-    .split('\n')
-    .filter(line => {
-      const matches = line.match(numberPattern) ?? []
-      const trimmed = line.trim()
-      const isReadableValueLine = /^第\s*\d+\s*-\s*\d+\s*点[:：]/.test(trimmed)
-      const denseArrayLine =
-        !isReadableValueLine &&
-        matches.length >= 4 &&
-        (trimmed.startsWith('[') || trimmed.endsWith(']') || /^[\d\s.,，+\-eE]+[,.，]?$/.test(trimmed))
-      if (denseArrayLine) {
-        matches.forEach(item => values.push(Number(item)))
-        return false
-      }
-      return true
-    })
-    .map(line => line.trimEnd())
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n')
-    .trim()
-  return { text: kept, values }
-}
-
-function formatConversationalAnswer(answer?: string): string {
-  const raw = (answer || '').trim()
-  if (!raw) return ''
-  const { text, values } = stripDenseNumericLines(raw)
-  const normalized = text
-    .replace(/^\s*[\w-]*\s*(?:FNO|Expert|专家)?\s*输出[:：]\s*$/i, '')
-    .replace(/^\s*[\u4e00-\u9fffA-Za-z0-9_-]*专家输出[:：]\s*$/i, '')
-    .trim()
-  const summary = numericSummary(values)
-  if (normalized && summary) return `${normalized}\n\n${summary}`
-  if (normalized) return normalized
-
-  if (summary) return `已完成专家模型预测。\n\n${summary}`
-  return raw
-}
-
-function AssemblyResultAnswer({ answer }: { answer?: string }) {
-  const parsed = useMemo(() => parseModflowAnswer(answer), [answer])
-  if (!parsed.raw) {
-    return <div className="text-sm text-slate-400">没有返回最终答案。</div>
-  }
-
-  const displayText = parsed.isModflow ? formatPlainModflowAnswer(parsed) : formatConversationalAnswer(parsed.raw)
-  return <div className="training-simple-chat-result__answer">{displayText}</div>
-}
-
 function profileToCards(profile: AssemblyProfile, loaded: boolean) {
   const isFnoProfile = profile.executor === 'fno_profile' || profile.executor === 'standard_fno_profile'
   return [
@@ -458,12 +313,6 @@ export default function TrainingSimpleAssemblyPage() {
   const [gpuId, setGpuId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
-  const [testInput, setTestInput] = useState('')
-  const [testResult, setTestResult] = useState<{
-    final_answer?: string
-    router_class_name?: string
-    latency_ms?: number
-  } | null>(null)
 
   const assemblyProfiles = useMemo(
     () => (status?.assembly_profiles ?? []).filter(item => item.trained && item.chat_enabled),
@@ -584,25 +433,14 @@ export default function TrainingSimpleAssemblyPage() {
   }, [uploadedExpertId, uploadedExperts])
 
   useEffect(() => {
-    if (assemblyMode !== 'profile') return
-    const prompt = assemblyProfile?.demo_prompt?.trim()
-    if (!prompt) return
-    setTestInput(prompt)
-    setTestResult(null)
-  }, [assemblyMode, assemblyProfile?.demo_prompt, assemblyProfile?.model_id])
-
-  useEffect(() => {
     if (assemblyMode !== 'training_job') return
     if (selectedTrainingSource?.kind === 'bundle') {
       setExecutorMode('fno')
-      if (selectedTrainingSource.defaultPrompt && !testInput.trim()) {
-        setTestInput(selectedTrainingSource.defaultPrompt)
-      }
       return
     }
     if (executorMode === 'uploaded' && uploadedExperts.length === 0 && fno) setExecutorMode('fno')
     if (executorMode === 'fno' && !fno && uploadedExperts.length > 0) setExecutorMode('uploaded')
-  }, [assemblyMode, executorMode, fno, selectedTrainingSource, testInput, uploadedExperts.length])
+  }, [assemblyMode, executorMode, fno, selectedTrainingSource, uploadedExperts.length])
 
   useEffect(() => {
     if (!status) return
@@ -651,7 +489,6 @@ export default function TrainingSimpleAssemblyPage() {
     }
     setBusy(true)
     setActionError(null)
-    setTestResult(null)
     try {
       if (assemblyMode === 'profile' && assemblyProfile) {
         await api.loadAssemblyModels({
@@ -686,36 +523,9 @@ export default function TrainingSimpleAssemblyPage() {
   const unload = async () => {
     setBusy(true)
     setActionError(null)
-    setTestResult(null)
     try {
       await api.unloadAssemblyModels()
       await refresh()
-    } catch (err) {
-      setActionError(errorMessage(err))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  const runTest = async () => {
-    if (!testInput.trim()) return
-    setBusy(true)
-    setActionError(null)
-    setTestResult(null)
-    try {
-      const result = await api.testAssembly({
-        config: {
-          main_llm_path: assemblyMode === 'profile' ? assemblyProfile?.llm_path : llm?.path,
-          assembly_profile_id: assemblyMode === 'profile' ? assemblyProfile?.model_id : undefined,
-          gpu_config: { llm_gpu_ids: selectedGpu ? [selectedGpu.index] : [] },
-        },
-        test_input: testInput,
-      })
-      setTestResult({
-        final_answer: result.final_answer || result.first_cot_result?.split('\n').pop() || '',
-        router_class_name: result.router_class_name || result.router_prediction,
-        latency_ms: result.latency_ms,
-      })
     } catch (err) {
       setActionError(errorMessage(err))
     } finally {
@@ -861,7 +671,7 @@ export default function TrainingSimpleAssemblyPage() {
                       ) : (
                         trainingSources.map(source => (
                           <option key={source.id} value={source.id}>
-                            {source.label} · {source.simulator.toUpperCase()} · {source.scenarios.length} 个场景
+                            {source.label} · {source.scenarios.length} 个场景
                           </option>
                         ))
                       )}
@@ -967,7 +777,7 @@ export default function TrainingSimpleAssemblyPage() {
             <section className="training-card training-card--compact training-simple-panel">
               <div className="card-header">
                 <Cpu size={16} className="text-emerald-300" />
-                <SectionTitle title="资源与测试" />
+                <SectionTitle title="运行资源" />
                 <button
                   type="button"
                   className="training-icon-button ml-auto"
@@ -997,28 +807,10 @@ export default function TrainingSimpleAssemblyPage() {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-2">
-                  <textarea
-                    className="input min-h-[6rem] resize-y"
-                    value={testInput}
-                    onChange={event => setTestInput(event.target.value)}
-                    placeholder="输入一句任务描述，用于验证已装载链路"
-                    aria-label="测试输入"
-                  />
+                <div className={`training-simple-assembly-status ${isLoaded ? 'is-ready' : ''}`}>
+                  <CheckCircle2 size={14} />
+                  <span>{isLoaded ? '模型链路已加载，可前往模型对话。' : '装载完成后可在模型对话中使用。'}</span>
                 </div>
-                {isLoaded && (
-                  <div className="training-simple-job__actions">
-                    <button
-                      type="button"
-                      className="btn-primary"
-                      onClick={runTest}
-                      disabled={!testInput.trim() || busy}
-                    >
-                      {busy ? <Loader2 size={14} className="animate-spin" /> : <PlayCircle size={14} />}
-                      运行测试
-                    </button>
-                  </div>
-                )}
               </div>
             </section>
           </div>
@@ -1028,24 +820,6 @@ export default function TrainingSimpleAssemblyPage() {
               <AlertTriangle size={14} />
               <span>当前缺少一键拼装所需模型，请先注册完整拼装模型，或训练/上传组件模型。</span>
             </div>
-          )}
-
-          {testResult && (
-            <section className="training-card training-card--compact training-simple-panel">
-              <div className="card-header">
-                <PlayCircle size={16} className="text-emerald-300" />
-                <SectionTitle title="模型回复" />
-              </div>
-              <div className="training-card__body">
-                <div className="training-simple-chat-result">
-                  <AssemblyResultAnswer answer={testResult.final_answer} />
-                  <div className="training-simple-chat-result__meta">
-                    <span>Router：{testResult.router_class_name || '--'}</span>
-                    <span>耗时：{testResult.latency_ms != null ? `${testResult.latency_ms.toFixed(2)} ms` : '--'}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
           )}
         </div>
       </div>

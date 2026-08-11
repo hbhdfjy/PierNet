@@ -218,11 +218,19 @@ def test_update_revalidate_and_delete_model(monkeypatch, tmp_path: Path) -> None
 
     updated = expert_models.update_model(
         model["model_id"],
-        {"status": "disabled", "assembly_enabled": False, "data_generation_enabled": False},
+        {
+            "status": "disabled",
+            "assembly_enabled": False,
+            "data_generation_enabled": False,
+            "demo_prompt": "请运行专家模型。",
+            "demo_prompt_label": "默认样例",
+        },
     )
     assert updated["status"] == "disabled"
     assert updated["assembly_enabled"] is False
     assert updated["data_generation_enabled"] is False
+    assert updated["demo_prompt"] == "请运行专家模型。"
+    assert updated["demo_prompt_label"] == "默认样例"
     with pytest.raises(expert_models.ExpertModelError, match="未启用"):
         expert_models.generate_dataset(model_id=model["model_id"], scenario="disabled", prompt="有1个点")
 
@@ -246,6 +254,8 @@ def test_upload_bundle_manifest_optional_metadata_and_dim_inference(monkeypatch,
         "example_input": [1.0, 2.0, 3.0],
         "name": "bundle_declared",
         "domain": "custom_domain",
+        "demo_prompt": "请执行 bundle 专家。",
+        "demo_prompt_label": "Bundle 样例",
         "assembly_enabled": True,
         "data_generation_enabled": False,
     }
@@ -261,6 +271,8 @@ def test_upload_bundle_manifest_optional_metadata_and_dim_inference(monkeypatch,
     assert model["name"] == "bundle_declared"
     assert model["domain"] == "custom_domain"
     assert model["simulator"] == "custom_domain"
+    assert model["demo_prompt"] == "请执行 bundle 专家。"
+    assert model["demo_prompt_label"] == "Bundle 样例"
     assert model["input_dim"] == 3
     assert model["output_dim"] == 2
     assert model["data_generation_enabled"] is False

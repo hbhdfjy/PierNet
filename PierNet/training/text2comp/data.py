@@ -45,6 +45,7 @@ class PromptNumbersDataset(Dataset):
         self.system_prompt = system_prompt
         self.response_prefix = response_prefix
         self.samples = []
+        self.group_ids: list[str] = []
 
         # 加载JSONL数据
         path = Path(file_path)
@@ -94,6 +95,22 @@ class PromptNumbersDataset(Dataset):
 
                 label_tensor = torch.tensor(nums, dtype=torch.float32)
                 self.samples.append((wrapped_prompt, label_tensor))
+                metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+                sample_index = metadata.get("sample_index")
+                if sample_index is None:
+                    sample_index = metadata.get("sample_idx")
+                if sample_index is None:
+                    group_id = f"row:{line_no}"
+                else:
+                    group_id = ":".join(
+                        [
+                            str(metadata.get("workflow_id") or ""),
+                            str(metadata.get("dataset_id") or ""),
+                            str(metadata.get("scenario") or ""),
+                            str(sample_index),
+                        ]
+                    )
+                self.group_ids.append(group_id)
 
         if len(self.samples) == 0:
             raise ValueError(f"No valid samples in {file_path}")
@@ -132,14 +149,29 @@ class PromptNumbersDataset(Dataset):
 
     def _wrap_prompt(self, prompt: str) -> str:
         """将prompt包装为chat格式（使用服务器实际格式）"""
-        system_prompt = self.system_prompt or self.DEFAULT_SYSTEM_PROMPT
+        return self.wrap_prompt_text(
+            prompt,
+            system_prompt=self.system_prompt,
+            response_prefix=self.response_prefix,
+        )
+
+    @classmethod
+    def wrap_prompt_text(
+        cls,
+        prompt: str,
+        *,
+        system_prompt: str = "",
+        response_prefix: str = "好的，科学计算预测结果为：",
+    ) -> str:
+        """Build the exact Text2Comp tokenization input shared by training and inference."""
+        effective_system_prompt = system_prompt or cls.DEFAULT_SYSTEM_PROMPT
         return f'''<|im_start|>system
-{system_prompt}
+{effective_system_prompt}
 <|im_end|>
 <|im_start|>user
 {prompt}<|im_end|>
 <|im_start|>assistant
-{self.response_prefix}'''
+{response_prefix}'''
 
     def __len__(self) -> int:
         return len(self.samples)

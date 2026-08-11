@@ -1,11 +1,12 @@
 # PierNet
 
-PierNet 是一个面向物理与工程时序数据的双平台系统，当前由同一个 FastAPI + React 应用交付。
+PierNet 是一个面向物理与工程时序数据的数据合成与模型训练系统，当前由 FastAPI 和相互隔离的 React 前端共同交付。
 
 - `/synth`：Stage 1-4 数据合成工作台。
+- `/new-synth/`：面向普通用户的三步式新数据合成工作台。
 - `/training`：Token Router、Text2Comp 和模型拼装训练工作台。
 
-两个平台在代码命名空间和产品职责上分离，但共享启动入口、静态资源托管、主题样式和少量基础设施。
+旧数据合成、新数据合成和训练平台在代码命名空间与产品职责上分离；新数据合成拥有独立前端工程、构建产物和状态存储。
 
 ## 文档地图
 
@@ -14,6 +15,7 @@ PierNet 是一个面向物理与工程时序数据的双平台系统，当前由
 - `README.md`：安装、启动、快速命令和运行约定。
 - `PROJECT_OVERVIEW.md`：系统边界、架构和数据契约。
 - `CLAUDE.md`：开发者和编码 Agent 的实现注意事项。
+- `docs/NEW_DATA_SYNTHESIS.md`：新数据合成的用户流程、数据契约、API 和训练接入说明。
 - `docs/MIGRATION.md`：服务器迁移、便携式数据边界和恢复流程。
 - `docs/patents/README.md`：专利 Markdown、附图和 Word 生成说明。
 
@@ -24,13 +26,15 @@ PierNet 是一个面向物理与工程时序数据的双平台系统，当前由
 ```text
 首页       http://localhost:8000/
 数据合成   http://localhost:8000/synth
+新数据合成 http://localhost:8000/new-synth/
 训练平台   http://localhost:8000/training
 文件管理   http://localhost:8000/synth/files（/files 会重定向）
 API 文档   http://localhost:8000/docs
 Vite 开发  http://localhost:3000/
+新合成开发 http://localhost:3002/new-synth/
 ```
 
-`8000` 是 FastAPI 端口；当 `frontend/dist` 存在时，后端也会托管构建后的前端资源。`3000` 是 Vite 开发服务器端口。
+`8000` 是 FastAPI 端口，并托管生产构建；`3000` 是主前端 Vite 开发端口，`3002` 是隔离的新数据合成 Vite 开发端口。
 
 ## 安装
 
@@ -282,7 +286,9 @@ python scripts/router/build_router_data.py --seed 42 --input-format parquet --ou
 python scripts/router/build_router_data.py --seed 42 --input-format parquet --output-format parquet --chat-template qwen --neg-ratio 2
 ```
 
-Stage 4 会生成 Qwen chat template 上下文，用于二分类 Token Router 训练。
+Stage 4 当前生成二分类 Token Router 数据：`label=0` 表示 LLM 继续生成，`label=1` 表示专家接管。
+类别设计后续可以扩展为 `0=继续生成、1..N=不同场景`，但当前生成脚本、训练入口和拼装推理均只处理
+二分类数据。
 
 ### Token Router 训练
 
@@ -330,6 +336,10 @@ artifacts/text2comp_models/{simulator}/runs/{job_id}/
 - Router：默认 `artifacts/token_router/`，可通过 `PIERN_ROUTER_ARTIFACTS_DIR` 覆盖。
 - Text2Comp：默认 `artifacts/text2comp_models/`，可通过 `PIERN_TEXT2COMP_MODELS_DIR` 覆盖。
 - FNO：默认 `artifacts/fno_models/`，可通过 `PIERN_FNO_MODELS_DIR` 覆盖。
+
+模型拼装页面负责组件选型、链路装载和卸载，不再承载对话结果。通过 `/training/chat`
+进入独立模型对话界面，简洁训练对应 `/training/simple/chat`；对话页会列出全部模型文件完整且
+`trained + chat_enabled` 的拼装模型，选择后自动切换运行链路。
 
 公共 HuggingFace 模型目录仍可指向 `/root/eb-public/...`；项目产物不要默认依赖个人开发目录。
 

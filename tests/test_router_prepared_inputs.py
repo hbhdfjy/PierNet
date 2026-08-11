@@ -13,6 +13,7 @@ from PierNet.training.router.data import (
     PREPARED_FORMAT,
     PRETRAINED_EMBEDDINGS,
     PackedSequenceDataset,
+    RouterDatasetPreparationCancelled,
     collate_batch,
     inspect_router_input_representation,
     _materialize_parquet_router_files,
@@ -173,6 +174,59 @@ def test_prepare_router_dataset_embedding_defaults_to_qwen_backbone(tmp_path, mo
 
     assert summary.input_representation == PRETRAINED_EMBEDDINGS
     assert summary.embedding_model == DEFAULT_QWEN_EMBEDDING_MODEL
+
+
+def test_prepare_router_dataset_stop_cleans_incomplete_cache(tmp_path, monkeypatch):
+    router_dir = tmp_path / "router"
+    scenario_path = router_dir / "by_scenario" / "coastal_seawater.jsonl"
+    stop_file = tmp_path / "stop.json"
+    _write_router_jsonl(
+        scenario_path,
+        [
+            {
+                "context": "stop while tokenizing",
+                "label": 1,
+                "metadata": {
+                    "simulator": "modflow",
+                    "scenario": "coastal_seawater",
+                    "embedding_model": DEFAULT_QWEN_EMBEDDING_MODEL,
+                    "embedding_tokenizer": DEFAULT_QWEN_EMBEDDING_MODEL,
+                },
+            }
+        ],
+    )
+
+    class StoppingEncoder:
+        hidden_size = 3
+        model_vocab_size = 17
+
+        def __init__(self, spec):
+            self.spec = spec
+
+        def encode_ids_batch(self, texts: list[str]):
+            stop_file.write_text("stop", encoding="utf-8")
+            return [np.arange(1, 3, dtype=np.int64) for _ in texts]
+
+    monkeypatch.setattr("PierNet.training.router.data.PretrainedEmbeddingEncoder", StoppingEncoder)
+    monkeypatch.setattr("PierNet.training.router.data.can_resolve_embedding_backbone", lambda spec: (True, ""))
+
+    prepared_dir = tmp_path / "prepared"
+    with pytest.raises(RouterDatasetPreparationCancelled):
+        prepare_router_dataset(
+            simulator="modflow",
+            router_dir=router_dir,
+            output_dir=prepared_dir,
+            test_ratio=0.0,
+            force=True,
+            input_representation="embedding",
+            prepare_workers=1,
+            stop_file=stop_file,
+        )
+
+    assert prepared_dir.exists()
+    assert not (prepared_dir / "meta.json").exists()
+    assert not (prepared_dir / "source_files.json").exists()
+    assert not (prepared_dir / "train_token_ids.bin").exists()
 
 
 def test_prepare_router_dataset_parallel_token_cache_preserves_records(tmp_path, monkeypatch):

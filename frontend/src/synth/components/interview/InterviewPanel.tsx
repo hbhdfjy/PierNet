@@ -1535,15 +1535,17 @@ export default function InterviewPanel({
 
           {/* 提取结果编辑器 */}
           {agentStatus === 'confirming' && extracted && (
-            <ExtractionPreview
-              step={step}
-              extracted={extracted}
-              uncertain={extractionUncertain}
-              onDataChange={d => {
-                setExtracted(d)
-                setEditJson(JSON.stringify(d, null, 2))
-              }}
-            />
+            <div className="interview-extraction-scroll" data-testid="interview-extraction-scroll">
+              <ExtractionPreview
+                step={step}
+                extracted={extracted}
+                uncertain={extractionUncertain}
+                onDataChange={d => {
+                  setExtracted(d)
+                  setEditJson(JSON.stringify(d, null, 2))
+                }}
+              />
+            </div>
           )}
 
           {/* 完成横幅 */}

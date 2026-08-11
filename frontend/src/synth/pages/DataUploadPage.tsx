@@ -199,8 +199,7 @@ export function DataUploadContent({ compact = false }: { compact?: boolean }) {
                 上传物理数据
               </h1>
               <p className="mt-1 max-w-3xl text-[13px] leading-6 text-slate-400">
-                将外部仿真器/大场景的数据纳入 PierNet
-                合成链路。服务端先预检，合规后才会落盘；不合规数据不能覆盖现有文件。
+                将外部仿真器/大场景的数据纳入 Piern 合成链路。服务端先预检，合规后才会落盘；不合规数据不能覆盖现有文件。
               </p>
             </div>
             <div className="grid min-w-[420px] grid-cols-4 gap-2 max-lg:min-w-0 max-lg:w-full max-sm:grid-cols-2">

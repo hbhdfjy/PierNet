@@ -67,42 +67,199 @@
         "title": "BatchSimulateRequest",
         "type": "object"
       },
-      "ExpertGenerateRequest": {
+      "BuiltinSourceRequest": {
         "properties": {
-          "input_dim": {
-            "anyOf": [
-              {
-                "maximum": 4096.0,
-                "minimum": 1.0,
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Input Dim"
+          "n_samples": {
+            "default": 32,
+            "maximum": 100000.0,
+            "minimum": 4.0,
+            "title": "N Samples",
+            "type": "integer"
           },
-          "overwrite": {
-            "default": false,
-            "title": "Overwrite",
+          "reuse_existing": {
+            "default": true,
+            "title": "Reuse Existing",
             "type": "boolean"
           },
-          "prompt": {
-            "maxLength": 20000,
+          "scenario": {
+            "maxLength": 128,
             "minLength": 1,
-            "title": "Prompt",
+            "title": "Scenario",
             "type": "string"
           },
-          "scenario": {
-            "title": "Scenario",
+          "seed": {
+            "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "simulator": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Simulator",
             "type": "string"
           }
         },
         "required": [
-          "prompt",
+          "simulator",
           "scenario"
         ],
-        "title": "ExpertGenerateRequest",
+        "title": "BuiltinSourceRequest",
+        "type": "object"
+      },
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "maxLength": 8000,
+            "minLength": 1,
+            "title": "Message",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "type": "object"
+      },
+      "ChatResponse": {
+        "properties": {
+          "answer": {
+            "title": "Answer",
+            "type": "string"
+          },
+          "chart": {
+            "additionalProperties": true,
+            "title": "Chart",
+            "type": "object"
+          },
+          "chat_id": {
+            "title": "Chat Id",
+            "type": "string"
+          },
+          "confidence": {
+            "title": "Confidence",
+            "type": "number"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "inputs": {
+            "items": {
+              "type": "number"
+            },
+            "title": "Inputs",
+            "type": "array"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "number"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "output": {
+            "title": "Output"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "routed": {
+            "title": "Routed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "chat_id",
+          "project_id",
+          "message",
+          "answer",
+          "routed",
+          "confidence",
+          "inputs",
+          "output",
+          "chart",
+          "latency_ms",
+          "created_at"
+        ],
+        "title": "ChatResponse",
+        "type": "object"
+      },
+      "DefinitionRequest": {
+        "properties": {
+          "outputs": {
+            "items": {
+              "$ref": "#/components/schemas/OutputDefinition"
+            },
+            "minItems": 1,
+            "title": "Outputs",
+            "type": "array"
+          },
+          "parameters": {
+            "items": {
+              "$ref": "#/components/schemas/ParameterDefinition"
+            },
+            "minItems": 1,
+            "title": "Parameters",
+            "type": "array"
+          },
+          "sampling": {
+            "$ref": "#/components/schemas/SamplingDefinition"
+          },
+          "scenario": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          },
+          "simulator": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Simulator",
+            "type": "string"
+          },
+          "task_description": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Task Description",
+            "type": "string"
+          }
+        },
+        "required": [
+          "simulator",
+          "scenario",
+          "task_description",
+          "parameters",
+          "outputs"
+        ],
+        "title": "DefinitionRequest",
+        "type": "object"
+      },
+      "DeleteResponse": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "deleted",
+          "message"
+        ],
+        "title": "DeleteResponse",
         "type": "object"
       },
       "ExpertGenerateResponse": {
@@ -284,6 +441,30 @@
               }
             ],
             "title": "Data Generation Enabled"
+          },
+          "demo_prompt": {
+            "anyOf": [
+              {
+                "maxLength": 4000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Prompt"
+          },
+          "demo_prompt_label": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Demo Prompt Label"
           },
           "domain": {
             "anyOf": [
@@ -510,6 +691,46 @@
           "simulator"
         ],
         "title": "GeneratePromptRequest",
+        "type": "object"
+      },
+      "GenerateRequest": {
+        "properties": {
+          "max_samples": {
+            "anyOf": [
+              {
+                "maximum": 5000000.0,
+                "minimum": 4.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Samples"
+          },
+          "negative_ratio": {
+            "default": 1,
+            "maximum": 10.0,
+            "minimum": 1.0,
+            "title": "Negative Ratio",
+            "type": "integer"
+          },
+          "seed": {
+            "default": 42,
+            "maximum": 2147483647.0,
+            "minimum": 0.0,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "variants_per_sample": {
+            "default": 2,
+            "maximum": 8.0,
+            "minimum": 1.0,
+            "title": "Variants Per Sample",
+            "type": "integer"
+          }
+        },
+        "title": "GenerateRequest",
         "type": "object"
       },
       "GenerateTemplatesRequest": {
@@ -1060,6 +1281,32 @@
         "title": "LoadUploadedExpertRequest",
         "type": "object"
       },
+      "MappingRequest": {
+        "properties": {
+          "input_fields": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Input Fields",
+            "type": "array"
+          },
+          "output_fields": {
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Output Fields",
+            "type": "array"
+          }
+        },
+        "required": [
+          "input_fields",
+          "output_fields"
+        ],
+        "title": "MappingRequest",
+        "type": "object"
+      },
       "MetricsSummary": {
         "properties": {
           "generated_at": {
@@ -1109,6 +1356,459 @@
         "title": "MetricsSummary",
         "type": "object"
       },
+      "OutputDefinition": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "maxLength": 180,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name"
+        ],
+        "title": "OutputDefinition",
+        "type": "object"
+      },
+      "ParameterDefinition": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 1000,
+            "title": "Description",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "",
+            "maxLength": 180,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "index": {
+            "minimum": 0.0,
+            "title": "Index",
+            "type": "integer"
+          },
+          "name": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "unit": {
+            "default": "",
+            "maxLength": 64,
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "index",
+          "name"
+        ],
+        "title": "ParameterDefinition",
+        "type": "object"
+      },
+      "PierNet__new_synth__schemas__ExpertGenerateRequest": {
+        "properties": {
+          "input_dim": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Dim"
+          },
+          "model_id": {
+            "maxLength": 180,
+            "minLength": 1,
+            "title": "Model Id",
+            "type": "string"
+          },
+          "prompt": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "scenario": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "model_id",
+          "scenario",
+          "prompt"
+        ],
+        "title": "ExpertGenerateRequest",
+        "type": "object"
+      },
+      "PierNet__new_synth__schemas__RunResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "workflow_id": {
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "status",
+          "message"
+        ],
+        "title": "RunResponse",
+        "type": "object"
+      },
+      "PierNet__studio__schemas__RunResponse": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "ready",
+              "running",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "project_id",
+          "status",
+          "message"
+        ],
+        "title": "RunResponse",
+        "type": "object"
+      },
+      "PierNet__synth__api__routers__simulation__ExpertGenerateRequest": {
+        "properties": {
+          "input_dim": {
+            "anyOf": [
+              {
+                "maximum": 4096.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Dim"
+          },
+          "overwrite": {
+            "default": false,
+            "title": "Overwrite",
+            "type": "boolean"
+          },
+          "prompt": {
+            "maxLength": 20000,
+            "minLength": 1,
+            "title": "Prompt",
+            "type": "string"
+          },
+          "scenario": {
+            "title": "Scenario",
+            "type": "string"
+          }
+        },
+        "required": [
+          "prompt",
+          "scenario"
+        ],
+        "title": "ExpertGenerateRequest",
+        "type": "object"
+      },
+      "ProjectCreateRequest": {
+        "properties": {
+          "goal": {
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Goal",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "goal"
+        ],
+        "title": "ProjectCreateRequest",
+        "type": "object"
+      },
+      "ProjectSnapshot": {
+        "properties": {
+          "artifacts": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifacts"
+          },
+          "can_chat": {
+            "default": false,
+            "title": "Can Chat",
+            "type": "boolean"
+          },
+          "can_run": {
+            "default": false,
+            "title": "Can Run",
+            "type": "boolean"
+          },
+          "compatibility": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compatibility"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "current_stage": {
+            "title": "Current Stage",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "expert": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expert"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "inspection": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inspection"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "recommended_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recommended Prompt"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageSnapshot"
+            },
+            "title": "Stages",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "ready",
+              "running",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "goal",
+          "status",
+          "current_stage",
+          "created_at",
+          "updated_at",
+          "stages"
+        ],
+        "title": "ProjectSnapshot",
+        "type": "object"
+      },
+      "ProjectSummary": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "current_stage": {
+            "title": "Current Stage",
+            "type": "string"
+          },
+          "goal": {
+            "title": "Goal",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "project_id": {
+            "title": "Project Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "ready",
+              "running",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          }
+        },
+        "required": [
+          "project_id",
+          "name",
+          "goal",
+          "status",
+          "current_stage",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ProjectSummary",
+        "type": "object"
+      },
       "QueueSummary": {
         "properties": {
           "oldest_queued_age_seconds": {
@@ -1150,6 +1850,59 @@
           }
         },
         "title": "ResourceMetrics",
+        "type": "object"
+      },
+      "SamplingDefinition": {
+        "properties": {
+          "channels": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "integer"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Channels"
+          },
+          "max_time_points": {
+            "anyOf": [
+              {
+                "maximum": 1000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max Time Points"
+          },
+          "time_stride": {
+            "default": 1,
+            "maximum": 1000000.0,
+            "minimum": 1.0,
+            "title": "Time Stride",
+            "type": "integer"
+          }
+        },
+        "title": "SamplingDefinition",
+        "type": "object"
+      },
+      "SessionResponse": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "SessionResponse",
         "type": "object"
       },
       "SimulateRequest": {
@@ -1262,6 +2015,81 @@
           "config_path"
         ],
         "title": "SimulationScenario",
+        "type": "object"
+      },
+      "StageSnapshot": {
+        "properties": {
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "maximum": 1.0,
+                "minimum": 0.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Progress"
+          },
+          "retryable": {
+            "default": false,
+            "title": "Retryable",
+            "type": "boolean"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "enum": [
+              "waiting",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "status",
+          "message"
+        ],
+        "title": "StageSnapshot",
         "type": "object"
       },
       "StatusSummary": {
@@ -1437,6 +2265,28 @@
       "Text2CompDatasetInfo": {
         "description": "数据集信息",
         "properties": {
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "file_size_bytes": {
             "anyOf": [
               {
@@ -1447,6 +2297,17 @@
               }
             ],
             "title": "File Size Bytes"
+          },
+          "label_semantics": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label Semantics"
           },
           "mtime": {
             "anyOf": [
@@ -1470,9 +2331,31 @@
             ],
             "title": "N Samples"
           },
+          "output_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Dim"
+          },
           "path": {
             "title": "Path",
             "type": "string"
+          },
+          "router_dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Router Dataset Id"
           },
           "scenario": {
             "title": "Scenario",
@@ -1481,6 +2364,22 @@
           "simulator": {
             "title": "Simulator",
             "type": "string"
+          },
+          "source": {
+            "default": "legacy",
+            "title": "Source",
+            "type": "string"
+          },
+          "workflow_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Id"
           }
         },
         "required": [
@@ -1560,6 +2459,11 @@
             "title": "Batch Size",
             "type": "integer"
           },
+          "early_stop_patience": {
+            "default": 0,
+            "title": "Early Stop Patience",
+            "type": "integer"
+          },
           "epochs": {
             "default": 50,
             "title": "Epochs",
@@ -1574,6 +2478,16 @@
             "title": "Expert Model",
             "type": "string"
           },
+          "freeze_base": {
+            "default": false,
+            "title": "Freeze Base",
+            "type": "boolean"
+          },
+          "head_learning_rate": {
+            "default": 0.0001,
+            "title": "Head Learning Rate",
+            "type": "number"
+          },
           "learning_rate": {
             "default": 1e-05,
             "title": "Learning Rate",
@@ -1583,6 +2497,26 @@
             "default": 2048,
             "title": "Max Length",
             "type": "integer"
+          },
+          "max_normalized_rmse": {
+            "default": 0.25,
+            "title": "Max Normalized Rmse",
+            "type": "number"
+          },
+          "min_epochs": {
+            "default": 1,
+            "title": "Min Epochs",
+            "type": "integer"
+          },
+          "min_samples": {
+            "default": 2,
+            "title": "Min Samples",
+            "type": "integer"
+          },
+          "normalize_labels": {
+            "default": false,
+            "title": "Normalize Labels",
+            "type": "boolean"
           },
           "num_workers": {
             "default": 4,
@@ -1599,6 +2533,11 @@
             "title": "Precision",
             "type": "integer"
           },
+          "require_quality": {
+            "default": false,
+            "title": "Require Quality",
+            "type": "boolean"
+          },
           "resume_from": {
             "anyOf": [
               {
@@ -1610,6 +2549,11 @@
             ],
             "title": "Resume From"
           },
+          "target_normalized_rmse": {
+            "default": 0.15,
+            "title": "Target Normalized Rmse",
+            "type": "number"
+          },
           "test_batch_size": {
             "default": 32,
             "title": "Test Batch Size",
@@ -1619,6 +2563,11 @@
             "default": 0.1,
             "title": "Test Ratio",
             "type": "number"
+          },
+          "trainable_base_layers": {
+            "default": 0,
+            "title": "Trainable Base Layers",
+            "type": "integer"
           },
           "weight_decay": {
             "default": 0.01,
@@ -1640,6 +2589,17 @@
             "title": "Batch Size",
             "type": "integer"
           },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
           "dataset_path": {
             "anyOf": [
               {
@@ -1650,6 +2610,13 @@
               }
             ],
             "title": "Dataset Path"
+          },
+          "early_stop_patience": {
+            "default": 0,
+            "maximum": 100000.0,
+            "minimum": 0.0,
+            "title": "Early Stop Patience",
+            "type": "integer"
           },
           "epochs": {
             "default": 50,
@@ -1674,6 +2641,12 @@
             "title": "Gpu Id",
             "type": "integer"
           },
+          "head_learning_rate": {
+            "default": 0.0001,
+            "exclusiveMinimum": 0.0,
+            "title": "Head Learning Rate",
+            "type": "number"
+          },
           "learning_rate": {
             "default": 1e-05,
             "title": "Learning Rate",
@@ -1682,6 +2655,26 @@
           "max_length": {
             "default": 2048,
             "title": "Max Length",
+            "type": "integer"
+          },
+          "max_normalized_rmse": {
+            "default": 0.25,
+            "minimum": 0.0,
+            "title": "Max Normalized Rmse",
+            "type": "number"
+          },
+          "min_epochs": {
+            "default": 1,
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Min Epochs",
+            "type": "integer"
+          },
+          "min_samples": {
+            "default": 2,
+            "maximum": 100000000.0,
+            "minimum": 2.0,
+            "title": "Min Samples",
             "type": "integer"
           },
           "name": {
@@ -1694,6 +2687,11 @@
               }
             ],
             "title": "Name"
+          },
+          "normalize_labels": {
+            "default": false,
+            "title": "Normalize Labels",
+            "type": "boolean"
           },
           "num_workers": {
             "default": 4,
@@ -1712,6 +2710,11 @@
             "title": "Precision",
             "type": "integer"
           },
+          "require_quality": {
+            "default": false,
+            "title": "Require Quality",
+            "type": "boolean"
+          },
           "resume_from": {
             "anyOf": [
               {
@@ -1723,6 +2726,12 @@
             ],
             "title": "Resume From"
           },
+          "target_normalized_rmse": {
+            "default": 0.15,
+            "minimum": 0.0,
+            "title": "Target Normalized Rmse",
+            "type": "number"
+          },
           "test_batch_size": {
             "default": 32,
             "title": "Test Batch Size",
@@ -1732,6 +2741,13 @@
             "default": 0.1,
             "title": "Test Ratio",
             "type": "number"
+          },
+          "trainable_base_layers": {
+            "default": 0,
+            "maximum": 1000.0,
+            "minimum": 0.0,
+            "title": "Trainable Base Layers",
+            "type": "integer"
           },
           "weight_decay": {
             "default": 0.01,
@@ -1931,6 +2947,17 @@
               }
             ],
             "title": "Pid"
+          },
+          "quality_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Passed"
           },
           "run_dir": {
             "default": "",
@@ -2177,6 +3204,17 @@
             ],
             "title": "Pid"
           },
+          "quality_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quality Passed"
+          },
           "run_dir": {
             "default": "",
             "title": "Run Dir",
@@ -2295,6 +3333,28 @@
               }
             ],
             "title": "Mse"
+          },
+          "normalized_rmse": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Rmse"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
           },
           "rmse": {
             "anyOf": [
@@ -2632,6 +3692,28 @@
       },
       "TrainingDatasetInfo": {
         "properties": {
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
           "scenarios": {
             "items": {
               "$ref": "#/components/schemas/TrainingDatasetScenario"
@@ -2643,9 +3725,36 @@
             "title": "Simulator",
             "type": "string"
           },
+          "source": {
+            "default": "legacy",
+            "title": "Source",
+            "type": "string"
+          },
+          "text2comp_dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Dataset Id"
+          },
           "total_count": {
             "title": "Total Count",
             "type": "integer"
+          },
+          "workflow_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workflow Id"
           }
         },
         "required": [
@@ -2658,6 +3767,17 @@
       },
       "TrainingDatasetScenario": {
         "properties": {
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
           "file_size_bytes": {
             "title": "File Size Bytes",
             "type": "integer"
@@ -2727,6 +3847,17 @@
             "default": 256,
             "title": "Batch Size",
             "type": "integer"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
           },
           "embedding_model": {
             "default": "",
@@ -2823,6 +3954,27 @@
             "title": "Simple Pipeline Enabled",
             "type": "boolean"
           },
+          "simple_quality_gate_enabled": {
+            "default": false,
+            "title": "Simple Quality Gate Enabled",
+            "type": "boolean"
+          },
+          "simple_router_min_f1": {
+            "default": 0.95,
+            "title": "Simple Router Min F1",
+            "type": "number"
+          },
+          "simple_text2comp_early_stop_patience": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Early Stop Patience"
+          },
           "simple_text2comp_epochs": {
             "anyOf": [
               {
@@ -2834,6 +3986,50 @@
             ],
             "title": "Simple Text2Comp Epochs"
           },
+          "simple_text2comp_freeze_base": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Freeze Base"
+          },
+          "simple_text2comp_head_learning_rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Head Learning Rate"
+          },
+          "simple_text2comp_loss_fn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Loss Fn"
+          },
+          "simple_text2comp_max_normalized_rmse": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Max Normalized Rmse"
+          },
           "simple_text2comp_max_samples": {
             "anyOf": [
               {
@@ -2844,6 +4040,72 @@
               }
             ],
             "title": "Simple Text2Comp Max Samples"
+          },
+          "simple_text2comp_min_epochs": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Min Epochs"
+          },
+          "simple_text2comp_min_samples": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Min Samples"
+          },
+          "simple_text2comp_normalize_labels": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Normalize Labels"
+          },
+          "simple_text2comp_require_quality": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Require Quality"
+          },
+          "simple_text2comp_target_normalized_rmse": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Target Normalized Rmse"
+          },
+          "simple_text2comp_trainable_base_layers": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Simple Text2Comp Trainable Base Layers"
           },
           "test_batch_size": {
             "default": 256,
@@ -2903,6 +4165,17 @@
             "minimum": 1.0,
             "title": "Batch Size",
             "type": "integer"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
           },
           "epochs": {
             "default": 0,
@@ -3096,6 +4369,17 @@
             "title": "Created At",
             "type": "number"
           },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
           "ended_at": {
             "anyOf": [
               {
@@ -3243,6 +4527,16 @@
             ],
             "title": "Prepared Name"
           },
+          "router_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "router_status": {
             "anyOf": [
               {
@@ -3366,6 +4660,16 @@
             ],
             "title": "Text2Comp Job Id"
           },
+          "text2comp_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingText2CompMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "text2comp_model_path": {
             "anyOf": [
               {
@@ -3387,6 +4691,17 @@
               }
             ],
             "title": "Text2Comp Output Dim"
+          },
+          "text2comp_quality_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Quality Passed"
           },
           "text2comp_run_dir": {
             "anyOf": [
@@ -3495,6 +4810,17 @@
           "created_at": {
             "title": "Created At",
             "type": "number"
+          },
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
           },
           "ended_at": {
             "anyOf": [
@@ -3632,6 +4958,16 @@
             ],
             "title": "Pipeline Stage"
           },
+          "router_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "router_status": {
             "anyOf": [
               {
@@ -3755,6 +5091,16 @@
             ],
             "title": "Text2Comp Job Id"
           },
+          "text2comp_metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TrainingText2CompMetricsSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "text2comp_model_path": {
             "anyOf": [
               {
@@ -3776,6 +5122,17 @@
               }
             ],
             "title": "Text2Comp Output Dim"
+          },
+          "text2comp_quality_passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text2Comp Quality Passed"
           },
           "text2comp_run_dir": {
             "anyOf": [
@@ -4024,6 +5381,17 @@
       },
       "TrainingQuickJobCreateRequest": {
         "properties": {
+          "dataset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dataset Id"
+          },
           "gpu_id": {
             "anyOf": [
               {
@@ -4154,6 +5522,56 @@
         "title": "TrainingTestPoint",
         "type": "object"
       },
+      "TrainingText2CompMetricsSummary": {
+        "properties": {
+          "mae": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mae"
+          },
+          "mse": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mse"
+          },
+          "normalized_rmse": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Normalized Rmse"
+          },
+          "r2": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "R2"
+          }
+        },
+        "title": "TrainingText2CompMetricsSummary",
+        "type": "object"
+      },
       "UpdatePromptRequest": {
         "properties": {
           "piern_system_prompt": {
@@ -4247,11 +5665,196 @@
         ],
         "title": "WorkerMetrics",
         "type": "object"
+      },
+      "WorkflowCreateRequest": {
+        "properties": {
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "WorkflowCreateRequest",
+        "type": "object"
+      },
+      "WorkflowSnapshot": {
+        "properties": {
+          "artifacts": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Artifacts"
+          },
+          "can_define": {
+            "default": false,
+            "title": "Can Define",
+            "type": "boolean"
+          },
+          "can_generate": {
+            "default": false,
+            "title": "Can Generate",
+            "type": "boolean"
+          },
+          "can_open_training": {
+            "default": false,
+            "title": "Can Open Training",
+            "type": "boolean"
+          },
+          "cancel_requested": {
+            "default": false,
+            "title": "Cancel Requested",
+            "type": "boolean"
+          },
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "current_step": {
+            "enum": [
+              "source",
+              "definition",
+              "generation",
+              "complete"
+            ],
+            "title": "Current Step",
+            "type": "string"
+          },
+          "definition": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Definition"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          },
+          "workflow_id": {
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "name",
+          "status",
+          "current_step",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkflowSnapshot",
+        "type": "object"
+      },
+      "WorkflowSummary": {
+        "properties": {
+          "created_at": {
+            "title": "Created At",
+            "type": "number"
+          },
+          "current_step": {
+            "enum": [
+              "source",
+              "definition",
+              "generation",
+              "complete"
+            ],
+            "title": "Current Step",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "draft",
+              "running",
+              "succeeded",
+              "failed",
+              "cancelled"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "updated_at": {
+            "title": "Updated At",
+            "type": "number"
+          },
+          "workflow_id": {
+            "title": "Workflow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "workflow_id",
+          "name",
+          "status",
+          "current_step",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkflowSummary",
+        "type": "object"
       }
     }
   },
   "info": {
-    "title": "PierNet Unified API",
+    "title": "Piern Unified API",
     "version": "3.0"
   },
   "openapi": "3.1.0",
@@ -5994,6 +7597,997 @@
         ]
       }
     },
+    "/api/new-synth/experts/upload": {
+      "post": {
+        "operationId": "upload_expert_api_new_synth_experts_upload_post",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "maxLength": 180,
+              "minLength": 1,
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-File-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-File-Name"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Expert",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/health": {
+      "get": {
+        "operationId": "health_api_new_synth_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/presets": {
+      "get": {
+        "operationId": "get_presets_api_new_synth_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Presets",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/session": {
+      "post": {
+        "operationId": "create_session_api_new_synth_session_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows": {
+      "get": {
+        "operationId": "list_workflows_api_new_synth_workflows_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/WorkflowSummary"
+                  },
+                  "title": "Response List Workflows Api New Synth Workflows Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Workflows",
+        "tags": [
+          "new-synth"
+        ]
+      },
+      "post": {
+        "operationId": "create_workflow_api_new_synth_workflows_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkflowCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Workflow",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}": {
+      "get": {
+        "operationId": "get_workflow_api_new_synth_workflows__workflow_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Workflow",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/cancel": {
+      "post": {
+        "operationId": "cancel_workflow_api_new_synth_workflows__workflow_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Workflow",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/datasets": {
+      "get": {
+        "operationId": "workflow_datasets_api_new_synth_workflows__workflow_id__datasets_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workflow Datasets",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/definition": {
+      "put": {
+        "operationId": "save_definition_api_new_synth_workflows__workflow_id__definition_put",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Save Definition",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/definition/suggest": {
+      "post": {
+        "operationId": "suggest_definition_api_new_synth_workflows__workflow_id__definition_suggest_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefinitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DefinitionRequest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Suggest Definition",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/events": {
+      "get": {
+        "operationId": "workflow_events_api_new_synth_workflows__workflow_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "After Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Workflow Events",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/generate": {
+      "post": {
+        "operationId": "start_generation_api_new_synth_workflows__workflow_id__generate_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PierNet__new_synth__schemas__RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Generation",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/retry": {
+      "post": {
+        "operationId": "retry_generation_api_new_synth_workflows__workflow_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PierNet__new_synth__schemas__RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Generation",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/source/expert": {
+      "post": {
+        "operationId": "generate_expert_source_api_new_synth_workflows__workflow_id__source_expert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PierNet__new_synth__schemas__ExpertGenerateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Expert Source",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/source/simulation": {
+      "post": {
+        "operationId": "select_simulation_source_api_new_synth_workflows__workflow_id__source_simulation_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BuiltinSourceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Simulation Source",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
+    "/api/new-synth/workflows/{workflow_id}/source/upload": {
+      "post": {
+        "operationId": "upload_source_api_new_synth_workflows__workflow_id__source_upload_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflow_id",
+            "required": true,
+            "schema": {
+              "title": "Workflow Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-File-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-File-Name"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_new_synth_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern New Synth Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WorkflowSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Source",
+        "tags": [
+          "new-synth"
+        ]
+      }
+    },
     "/api/registry": {
       "get": {
         "description": "读取 registry.yaml，返回完整内容。",
@@ -6565,7 +9159,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/ExpertGenerateRequest"
+                "$ref": "#/components/schemas/PierNet__synth__api__routers__simulation__ExpertGenerateRequest"
               }
             }
           },
@@ -6746,6 +9340,957 @@
           }
         },
         "summary": "Upload Simulation Data"
+      }
+    },
+    "/api/studio/health": {
+      "get": {
+        "operationId": "studio_health_api_studio_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Studio Health",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/presets": {
+      "get": {
+        "operationId": "get_presets_api_studio_presets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Presets",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects": {
+      "get": {
+        "operationId": "list_projects_api_studio_projects_get",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectSummary"
+                  },
+                  "title": "Response List Projects Api Studio Projects Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Projects",
+        "tags": [
+          "studio"
+        ]
+      },
+      "post": {
+        "operationId": "create_project_api_studio_projects_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}": {
+      "delete": {
+        "operationId": "delete_project_api_studio_projects__project_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeleteResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Project",
+        "tags": [
+          "studio"
+        ]
+      },
+      "get": {
+        "operationId": "get_project_api_studio_projects__project_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/cancel": {
+      "post": {
+        "operationId": "cancel_project_api_studio_projects__project_id__cancel_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PierNet__studio__schemas__RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Cancel Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/chat": {
+      "post": {
+        "operationId": "chat_api_studio_projects__project_id__chat_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Chat",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/compatibility-check": {
+      "post": {
+        "operationId": "check_compatibility_api_studio_projects__project_id__compatibility_check_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Compatibility",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/data": {
+      "post": {
+        "operationId": "upload_data_api_studio_projects__project_id__data_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-File-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-File-Name"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Data",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/events": {
+      "get": {
+        "operationId": "project_events_api_studio_projects__project_id__events_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after_id",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "title": "After Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Project Events",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/expert": {
+      "post": {
+        "operationId": "upload_expert_api_studio_projects__project_id__expert_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-File-Name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-File-Name"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Upload Expert",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/inspect": {
+      "post": {
+        "operationId": "inspect_project_api_studio_projects__project_id__inspect_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Inspect Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/mapping": {
+      "post": {
+        "operationId": "apply_mapping_api_studio_projects__project_id__mapping_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MappingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Apply Mapping",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/retry": {
+      "post": {
+        "operationId": "retry_project_api_studio_projects__project_id__retry_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PierNet__studio__schemas__RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/projects/{project_id}/run": {
+      "post": {
+        "operationId": "run_project_api_studio_projects__project_id__run_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "project_id",
+            "required": true,
+            "schema": {
+              "title": "Project Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PierNet__studio__schemas__RunResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Project",
+        "tags": [
+          "studio"
+        ]
+      }
+    },
+    "/api/studio/session": {
+      "post": {
+        "operationId": "create_session_api_studio_session_post",
+        "parameters": [
+          {
+            "in": "cookie",
+            "name": "piern_studio_session",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Piern Studio Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session",
+        "tags": [
+          "studio"
+        ]
       }
     },
     "/api/templates": {
@@ -7688,6 +11233,31 @@
           }
         },
         "summary": "Create Quick Training Job",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/simple-datasets": {
+      "get": {
+        "operationId": "get_simple_training_datasets_api_training_simple_datasets_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TrainingDatasetInfo"
+                  },
+                  "title": "Response Get Simple Training Datasets Api Training Simple Datasets Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Simple Training Datasets",
         "tags": [
           "training"
         ]

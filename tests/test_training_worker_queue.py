@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+import hashlib
 import json
 
 import pytest
@@ -10,6 +11,95 @@ from PierNet.shared.tasks import locks, workers
 from PierNet.training.services import job_store as training_job_store
 from PierNet.training.services import training_manager
 from PierNet.training.services import worker_queue as training_worker_queue
+
+
+def test_prepared_cache_hash_preserves_builtin_legacy_key():
+    values = {
+        "simulator": "gcam",
+        "scenarios": ["energy_transition", "carbon_pricing", "climate_feedback"],
+        "test_ratio": 0.1,
+        "input_representation": "pretrained_embeddings",
+        "embedding_model": "/models/qwen",
+        "embedding_tokenizer": "/models/qwen",
+    }
+    legacy_payload = json.dumps(
+        {
+            "simulator": values["simulator"],
+            "scenarios": sorted(values["scenarios"]),
+            "test_ratio": values["test_ratio"],
+            "input_representation": values["input_representation"],
+            "embedding_model": values["embedding_model"],
+            "embedding_tokenizer": values["embedding_tokenizer"],
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    expected = f"gcam-{hashlib.blake2b(legacy_payload.encode('utf-8'), digest_size=6).hexdigest()}"
+
+    assert training_manager._hash_prepared_name(**values, dataset_id=None) == expected
+    assert training_manager._hash_prepared_name(**values, dataset_id="") == expected
+    assert training_manager._hash_prepared_name(**values, dataset_id="router-custom") != expected
+
+
+def test_reap_finished_training_processes_keeps_running_children(monkeypatch):
+    class FakeProcess:
+        def __init__(self, returncode):
+            self.returncode = returncode
+
+        def poll(self):
+            return self.returncode
+
+    running = FakeProcess(None)
+    finished = FakeProcess(0)
+    tracked = {101: running, 202: finished}
+    monkeypatch.setattr(training_manager, "_LAUNCHED_PROCESSES", tracked)
+
+    assert training_manager.reap_finished_processes() == 1
+    assert tracked == {101: running}
+
+
+def test_simple_pipeline_registers_text2comp_with_training_simulator(monkeypatch, tmp_path):
+    captured = {}
+    monkeypatch.setattr(
+        training_manager,
+        "_prepare_simple_text2comp_dataset",
+        lambda entry: {
+            "path": str(tmp_path / "gcam.jsonl"),
+            "generated": 100,
+            "output_dim": 18,
+            "target_source": "params",
+        },
+    )
+
+    def fake_create_job(payload):
+        captured.update(payload)
+        return {
+            "job_id": "text2comp-gcam",
+            "status": "starting",
+            "run_dir": str(tmp_path / "text2comp-run"),
+            "error_message": None,
+        }
+
+    monkeypatch.setattr(training_manager.text2comp_manager, "create_job", fake_create_job)
+    entry = {
+        "job_id": "train-gcam",
+        "name": "GCAM 简洁训练",
+        "simulator": "gcam",
+        "gpu_id": 0,
+        "log_path": str(tmp_path / "train-gcam.log"),
+        "config": {},
+        "simple_pipeline": {},
+    }
+
+    training_manager._start_simple_text2comp_stage(entry)
+
+    assert captured["expert_model"] == "gcam"
+    assert captured["output_dim"] == 18
+    assert captured["epochs"] == training_manager.QUICK_TEXT2COMP_DEFAULTS["epochs"]
+    assert captured["normalize_labels"] is True
+    assert captured["require_quality"] is True
+    assert captured["trainable_base_layers"] == 2
+    assert captured["head_learning_rate"] == training_manager.QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"]
 
 
 def _use_tmp_runtime(monkeypatch, tmp_path: Path):
@@ -336,6 +426,19 @@ def test_prepare_simple_text2comp_dataset_uses_training_data_params(monkeypatch,
     with h5py.File(h5_path, "w") as h5:
         h5.create_dataset("params", data=np.asarray([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=np.float32))
         h5.create_dataset("timeseries", data=np.zeros((2, 5, 12), dtype=np.float32))
+    template_path = data_root / "templates" / "coastal_seawater_templates.jsonl"
+    template_path.parent.mkdir(parents=True)
+    template_path.write_text("{}\n", encoding="utf-8")
+    template = SimpleNamespace(scenario="coastal_seawater", channel_indices=[0], time_indices=[0])
+    monkeypatch.setattr(training_manager, "load_templates", lambda path: [template])
+    monkeypatch.setattr(
+        training_manager,
+        "fill_sample",
+        lambda template, params, timeseries, sample_index: {
+            "input": f"hydraulic parameters: {params.tolist()}",
+            "params_transformed": params.tolist(),
+        },
+    )
 
     entry = {
         "job_id": "train-data-driven",
@@ -347,11 +450,11 @@ def test_prepare_simple_text2comp_dataset_uses_training_data_params(monkeypatch,
     result = training_manager._prepare_simple_text2comp_dataset(entry)
 
     assert result["output_dim"] == 3
-    assert result["target_source"] == "params"
+    assert result["target_source"] == "params_transformed"
     rows = [json.loads(line) for line in Path(result["path"]).read_text(encoding="utf-8").splitlines()]
     assert len(rows) == 2
     assert rows[0]["label"] == [1.0, 2.0, 3.0]
-    assert "共 3 维" in rows[0]["prompt"]
+    assert rows[0]["prompt"] == "hydraulic parameters: [1.0, 2.0, 3.0]"
     assert "Uploaded Expert" not in rows[0]["prompt"]
 
 
@@ -562,9 +665,13 @@ def test_quick_training_job_queues_with_platform_defaults(monkeypatch, tmp_path)
     assert entry["config"]["auto_stop_enabled"] is True
     assert entry["config"]["auto_stop_metric"] == "f1"
     assert entry["config"]["auto_stop_threshold"] == 0.98
-    assert entry["config"]["auto_stop_min_epochs"] == 1
+    assert entry["config"]["auto_stop_min_epochs"] == training_manager.QUICK_TRAINING_DEFAULTS["auto_stop_min_epochs"]
     assert entry["config"]["simple_pipeline_enabled"] is True
+    assert entry["config"]["simple_quality_gate_enabled"] is True
+    assert entry["config"]["simple_router_min_f1"] == training_manager.QUICK_ROUTER_MIN_F1
     assert entry["config"]["simple_text2comp_epochs"] == training_manager.QUICK_TEXT2COMP_DEFAULTS["epochs"]
+    assert entry["config"]["simple_text2comp_normalize_labels"] is True
+    assert entry["config"]["simple_text2comp_require_quality"] is True
     assert entry["simple_pipeline"]["stage"] == "router"
     assert "waiting for PierNet-worker" in Path(entry["log_path"]).read_text(encoding="utf-8")
 
@@ -619,3 +726,45 @@ def test_quick_training_job_accepts_uploaded_expert_selection(monkeypatch, tmp_p
     assert entry["simple_pipeline"]["uploaded_expert_id"] == "uploaded-identity"
     assert payload["uploaded_expert_id"] == "uploaded-identity"
     assert payload["simple_pipeline_enabled"] is True
+
+
+def test_quick_training_worker_preserves_custom_router_dataset(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    monkeypatch.setenv("PierNet_WORKER_QUEUE_TRAINING", "1")
+    router_dir = tmp_path / "new-synth" / "router"
+    dataset_id = "router-custom-uploaded"
+    monkeypatch.setattr(
+        training_manager,
+        "resolve_router_dataset",
+        lambda requested_id: {
+            "dataset_id": requested_id,
+            "simulator": "uploaded_expert",
+            "scenario": "custom_scenario",
+            "root_path": str(router_dir),
+        },
+    )
+
+    entry = training_manager.create_quick_job({"dataset_id": dataset_id, "gpu_id": 0})
+    payload = training_manager._payload_from_queued_entry(entry)
+
+    def fail_builtin_validation(*_args, **_kwargs):
+        raise AssertionError("custom datasets must not use the built-in simulator whitelist")
+
+    monkeypatch.setattr(training_manager, "_validate_scenarios", fail_builtin_validation)
+    launched = {}
+
+    def fake_launch(queued_payload):
+        launched["source"] = training_manager._resolve_router_training_source(queued_payload)
+        return {"job_id": queued_payload["_job_id"], "status": "starting"}
+
+    monkeypatch.setattr(training_manager, "_launch_job", fake_launch)
+
+    assert payload["dataset_id"] == dataset_id
+    assert training_worker_queue.run_next_queued_job(worker_id="worker-test") is True
+    assert launched["source"] == (
+        dataset_id,
+        "uploaded_expert",
+        ["custom_scenario"],
+        router_dir,
+    )

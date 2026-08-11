@@ -261,6 +261,15 @@ def _normalise_model_metadata(item: dict[str, Any]) -> dict[str, Any]:
                 model.get("simulator") or manifest.get("simulator") or manifest.get("domain"),
                 default=EXPERT_SIMULATOR,
             ),
+            "demo_prompt": _optional_text(
+                model.get("demo_prompt") or manifest.get("demo_prompt"),
+                max_len=4000,
+            ),
+            "demo_prompt_label": _optional_text(
+                model.get("demo_prompt_label") or manifest.get("demo_prompt_label"),
+                default="演示 Prompt",
+                max_len=80,
+            ),
             "assembly_enabled": _coerce_bool(model.get("assembly_enabled"), True),
             "data_generation_enabled": _coerce_bool(model.get("data_generation_enabled"), True),
             "checksum": str(model.get("checksum") or ""),
@@ -317,6 +326,8 @@ def update_model(model_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         "status",
         "domain",
         "simulator",
+        "demo_prompt",
+        "demo_prompt_label",
         "assembly_enabled",
         "data_generation_enabled",
     }
@@ -337,6 +348,14 @@ def update_model(model_id: str, updates: dict[str, Any]) -> dict[str, Any]:
         model["domain"] = _optional_text(updates.get("domain"), default="custom")
     if "simulator" in updates:
         model["simulator"] = _optional_text(updates.get("simulator"), default=EXPERT_SIMULATOR)
+    if "demo_prompt" in updates:
+        model["demo_prompt"] = _optional_text(updates.get("demo_prompt"), max_len=4000)
+    if "demo_prompt_label" in updates:
+        model["demo_prompt_label"] = _optional_text(
+            updates.get("demo_prompt_label"),
+            default="演示 Prompt",
+            max_len=80,
+        )
     if "assembly_enabled" in updates:
         model["assembly_enabled"] = _coerce_bool(updates.get("assembly_enabled"), True)
     if "data_generation_enabled" in updates:
@@ -513,6 +532,12 @@ def _load_bundle_manifest(root: Path) -> dict[str, Any]:
         "name": _optional_text(manifest.get("name")),
         "domain": _optional_text(manifest.get("domain"), default="custom"),
         "simulator": _optional_text(manifest.get("simulator") or manifest.get("domain"), default=EXPERT_SIMULATOR),
+        "demo_prompt": _optional_text(manifest.get("demo_prompt"), max_len=4000),
+        "demo_prompt_label": _optional_text(
+            manifest.get("demo_prompt_label"),
+            default="演示 Prompt",
+            max_len=80,
+        ),
         "input_dim": input_dim,
         "output_dim": output_dim,
         "assembly_enabled": _coerce_bool(manifest.get("assembly_enabled"), True),

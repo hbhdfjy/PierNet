@@ -81,6 +81,7 @@ frontend/src/files/            # unified file manager
 `frontend/src/synth/SynthApp.tsx` owns these routes:
 
 - `/synth`: `DatasetStats.tsx`
+- `/synth/pipeline`: `PipelineGuidePage.tsx`
 - `/synth/simulate`: `SimulationRunner.tsx`
 - `/synth/upload`: `DataUploadPage.tsx`
 - `/synth/register`: `RegisterSimulator.tsx`
@@ -200,8 +201,11 @@ Important assumptions:
 - `/training/jobs/:jobId`: `TrainingJobDetailPage.tsx`
 - `/training/text2comp`: `Text2CompPage.tsx`
 - `/training/assembly`: `AssemblyPage.tsx`
+- `/training/chat`: `ModelChatPage.tsx`
 - `/training/models`: `TrainedModelsPage.tsx`
 - `/training/files`: training-scoped `FileManagerContent`
+
+`frontend/src/training/TrainingSimpleApp.tsx` also exposes `/training/simple/assembly` for model loading and `/training/simple/chat` for the peer-level conversation surface.
 
 Training API implementation:
 

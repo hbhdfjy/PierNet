@@ -10,7 +10,6 @@ vi.mock('../../lib/api', () => ({
     getAssemblyGPUs: vi.fn(),
     loadAssemblyModels: vi.fn(),
     unloadAssemblyModels: vi.fn(),
-    testAssembly: vi.fn(),
     getDomains: vi.fn(),
     getPrompt: vi.fn(),
     updatePrompt: vi.fn(),
@@ -23,7 +22,6 @@ const mockApi = api as unknown as {
   getAssemblyGPUs: Mock
   loadAssemblyModels: Mock
   unloadAssemblyModels: Mock
-  testAssembly: Mock
   getDomains: Mock
   getPrompt: Mock
   updatePrompt: Mock
@@ -132,5 +130,14 @@ describe('AssemblyPage uploaded experts', () => {
       text2comp_path: '/artifacts/text2comp.pt',
       fno_path: undefined,
     })
+  })
+
+  it('keeps model conversation controls out of the assembly page', async () => {
+    renderPage()
+
+    await waitFor(() => expect(mockApi.getAssemblyStatus).toHaveBeenCalled())
+    expect(screen.queryByText('推理测试')).toBeNull()
+    expect(screen.queryByText('测试结果')).toBeNull()
+    expect(screen.queryByRole('button', { name: /开始测试/ })).toBeNull()
   })
 })

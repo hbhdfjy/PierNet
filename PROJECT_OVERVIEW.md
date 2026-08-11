@@ -133,7 +133,10 @@ data/router_parquet/simulator={simulator}/scenario={scenario}/part-*.parquet
 
 Legacy JSONL remains readable and migratable at `data/router/by_scenario/{scenario}.jsonl` and `data/router/train.jsonl`.
 
-Each Stage 3 sample becomes one positive expert-prefix sample plus negative LLM-prefix samples. Stage 4 currently assumes Qwen chat template formatting and records embedding metadata for the Qwen backbone.
+Each Stage 3 sample becomes one positive expert-prefix sample plus negative LLM-prefix samples. Stage 4 currently
+builds a binary Router dataset, assumes Qwen chat template formatting, and records embedding metadata for the Qwen
+backbone. The label design can later expand from `0=normal, 1=expert` to `0=normal, 1..N=scenario`, but the current
+generator, trainer, and assembly runtime remain binary.
 
 Implementation:
 

@@ -9,6 +9,12 @@ env PATH="$SERVICE_PATH" "$PYTHON" -m PierNet.shared.runtime.config
 echo "prod: building frontend static bundle"
 env PATH="$SERVICE_PATH" "$NPM" --prefix frontend run build
 
+echo "prod: building Studio static bundle"
+env PATH="$SERVICE_PATH" "$NPM" --prefix frontend-studio run build
+
+echo "prod: building new synthesis static bundle"
+env PATH="$SERVICE_PATH" "$NPM" --prefix frontend-new-synth run build
+
 if backend_pid=$(service_pid "$BACKEND_PID_FILE" find_backend_pid); then
   echo "backend: already running pid=$backend_pid"
 else

@@ -485,6 +485,8 @@ export const api = {
 
   getTrainingDatasets: (): Promise<TrainingDatasetInfo[]> => get('/training/datasets'),
 
+  getSimpleTrainingDatasets: (): Promise<TrainingDatasetInfo[]> => get('/training/simple-datasets'),
+
   getTrainingGPUs: (): Promise<TrainingGPUInfo[]> => get('/training/gpus'),
 
   getTrainingJobs: (): Promise<TrainingJobSummary[]> => get('/training/jobs'),
@@ -652,6 +654,7 @@ export const api = {
     custom_experts: ExpertModelInfo[]
     gpu_available: boolean
     architecture_note?: string
+    last_test_at?: number | null
   }> => get('/assembly/status'),
 
   getAssemblyGPUs: (): Promise<

@@ -26,6 +26,7 @@ const mockApi = api as unknown as {
 const datasets: TrainingDatasetInfo[] = [
   {
     simulator: 'modflow',
+    source: 'legacy',
     total_count: 30,
     scenarios: [
       {
@@ -61,10 +62,10 @@ function DatasetCacheProbe() {
   return null
 }
 
-function renderPage() {
+function renderPage(initialEntry = '/') {
   return render(
     <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0, shouldRetryOnError: false }}>
-      <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+      <MemoryRouter initialEntries={[initialEntry]} future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <DatasetCacheProbe />
         <TrainingNewJobPage />
       </MemoryRouter>
@@ -178,5 +179,41 @@ describe('TrainingNewJobPage', () => {
     })
 
     await waitFor(() => expect(screen.getByText(/已选择 1 \/ 2/)).toBeTruthy())
+  })
+
+  it('opens and submits a new synthesis dataset selected by stable id', async () => {
+    mockApi.getTrainingDatasets.mockResolvedValue([
+      ...datasets,
+      {
+        dataset_id: 'router-stable-id',
+        display_name: '结构预测数据 · Router',
+        source: 'new_synth',
+        simulator: 'mechanics',
+        total_count: 8,
+        scenarios: [
+          {
+            dataset_id: 'router-stable-id',
+            scenario: 'column_buckling',
+            simulator: 'mechanics',
+            router_count: 8,
+            file_size_bytes: 80,
+            mtime: 3,
+            path: '/data/new_synth/router.jsonl',
+          },
+        ],
+      },
+    ])
+
+    renderPage('/?datasetId=router-stable-id')
+
+    await waitFor(() => expect(screen.getByDisplayValue(/结构预测数据/)).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: /启动训练/ }))
+
+    await waitFor(() => expect(mockApi.createTrainingJob).toHaveBeenCalled())
+    expect(mockApi.createTrainingJob.mock.calls[0][0]).toMatchObject({
+      dataset_id: 'router-stable-id',
+      simulator: 'mechanics',
+      scenarios: ['column_buckling'],
+    })
   })
 })

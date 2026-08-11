@@ -449,6 +449,8 @@ export interface ExpertModelInfo {
   checksum?: string
   domain?: string
   simulator?: string
+  demo_prompt?: string
+  demo_prompt_label?: string
   input_dim?: number | null
   output_dim?: number | null
   assembly_enabled?: boolean
@@ -575,9 +577,18 @@ export interface RouterSamplesResponse {
   items: RouterSample[]
 }
 
-export type TrainingDatasetScenario = components['schemas']['TrainingDatasetScenario']
+export type TrainingDatasetScenario = components['schemas']['TrainingDatasetScenario'] & {
+  dataset_id?: string | null
+}
 
-export type TrainingDatasetInfo = components['schemas']['TrainingDatasetInfo']
+export type TrainingDatasetInfo = Omit<components['schemas']['TrainingDatasetInfo'], 'scenarios'> & {
+  dataset_id?: string | null
+  display_name?: string | null
+  source?: string | null
+  workflow_id?: string | null
+  text2comp_dataset_id?: string | null
+  scenarios: TrainingDatasetScenario[]
+}
 
 export type TrainingGPUInfo = components['schemas']['GPUInfo']
 
@@ -606,6 +617,7 @@ export type TrainingCreateJobRequest = Omit<
   | 'auto_stop_threshold'
   | 'auto_stop_min_epochs'
 > & {
+  dataset_id?: string | null
   scenarios: string[]
   input_representation?: 'embedding'
   auto_stop_enabled?: boolean
@@ -615,6 +627,7 @@ export type TrainingCreateJobRequest = Omit<
 }
 
 export interface TrainingQuickJobCreateRequest {
+  dataset_id?: string | null
   name?: string | null
   simulator: string
   scenarios: string[]
@@ -634,12 +647,22 @@ export type TrainingLogResponse = components['schemas']['TrainingLogResponse']
 
 export type Text2CompOverview = components['schemas']['Text2CompOverviewResponse']
 
-export type Text2CompDatasetInfo = components['schemas']['Text2CompDatasetInfo']
+export type Text2CompDatasetInfo = components['schemas']['Text2CompDatasetInfo'] & {
+  dataset_id?: string | null
+  display_name?: string | null
+  source?: string | null
+  workflow_id?: string | null
+  output_dim?: number | null
+  label_semantics?: string | null
+  router_dataset_id?: string | null
+}
 
 export type Text2CompGPUInfo = components['schemas']['Text2CompGPUInfo']
 
 export type Text2CompJobSummary = components['schemas']['Text2CompJobSummary']
 
-export type Text2CompTrainRequest = components['schemas']['Text2CompTrainRequest']
+export type Text2CompTrainRequest = components['schemas']['Text2CompTrainRequest'] & {
+  dataset_id?: string | null
+}
 
 export type Text2CompTrainResponse = components['schemas']['Text2CompTrainResponse']

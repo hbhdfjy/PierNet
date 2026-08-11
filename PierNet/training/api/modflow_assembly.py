@@ -101,7 +101,7 @@ class ModflowFeatureBuilder:
             {
                 "role": "system",
                 "content": (
-                    "你是 PierNet MODFLOW 拼装模型。普通问题自然回答；地下水或 MODFLOW "
+                    "你是 Piern MODFLOW 拼装模型。普通问题自然回答；地下水或 MODFLOW "
                     "数值任务需要调用 Router、Text2Comp 和 Expert 形成预测。"
                 ),
             },
@@ -117,7 +117,7 @@ class ModflowFeatureBuilder:
             {
                 "role": "system",
                 "content": (
-                    "你是 PierNet MODFLOW 助手。用户请求 MODFLOW 地下水数值结果时，"
+                    "你是 Piern MODFLOW 助手。用户请求 MODFLOW 地下水数值结果时，"
                     "你的第一步必须只输出下面这一行触发短语，不得输出其他内容，"
                     "不得复述用户问题，不得生成任何数值：\n"
                     f"{trigger_suffix}\n"
@@ -226,7 +226,7 @@ class ModflowAssemblyProfilePipeline:
             {
                 "role": "system",
                 "content": (
-                    "你是 PierNet MODFLOW 拼装模型。普通问题自然回答；地下水或 MODFLOW "
+                    "你是 Piern MODFLOW 拼装模型。普通问题自然回答；地下水或 MODFLOW "
                     "数值任务需要调用 Router、Text2Comp 和 Expert 形成预测。"
                 ),
             },
@@ -375,7 +375,7 @@ class ModflowAssemblyProfilePipeline:
         try:
             llm, tokenizer = self._load_chat_llm()
         except Exception:
-            return "我已经加载为 PierNet MODFLOW 拼装模型。普通问题可以继续对话；包含 MODFLOW 参数的任务会调用 Router、Text2Comp 和 Expert。"
+            return "我已经加载为 Piern MODFLOW 拼装模型。普通问题可以继续对话；包含 MODFLOW 参数的任务会调用 Router、Text2Comp 和 Expert。"
         if tokenizer.pad_token_id is None:
             tokenizer.pad_token_id = tokenizer.eos_token_id
         text = self._build_chat_text(tokenizer, prompt)
@@ -389,7 +389,7 @@ class ModflowAssemblyProfilePipeline:
             )
         generated = outputs[0, inputs["input_ids"].shape[1] :]
         answer = tokenizer.decode(generated, skip_special_tokens=True).strip()
-        return answer or "我已经加载为 PierNet 拼装模型，可以处理普通对话和 MODFLOW 数值任务。"
+        return answer or "我已经加载为 Piern 拼装模型，可以处理普通对话和 MODFLOW 数值任务。"
 
     def chat(self, prompt: str) -> dict[str, Any]:
         task_gate = self.looks_like_modflow_task(prompt)

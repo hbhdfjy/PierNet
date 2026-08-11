@@ -22,6 +22,7 @@ TrainingAutoStopMetric = Literal["accuracy", "precision", "recall", "f1", "pr_au
 
 
 class TrainingDatasetScenario(BaseModel):
+    dataset_id: str | None = None
     scenario: str
     simulator: str
     router_count: int
@@ -31,6 +32,11 @@ class TrainingDatasetScenario(BaseModel):
 
 
 class TrainingDatasetInfo(BaseModel):
+    dataset_id: str | None = None
+    display_name: str | None = None
+    source: str = "legacy"
+    workflow_id: str | None = None
+    text2comp_dataset_id: str | None = None
     simulator: str
     total_count: int
     scenarios: list[TrainingDatasetScenario]
@@ -70,8 +76,22 @@ class TrainingJobConfig(BaseModel):
     auto_stop_threshold: float = 0.98
     auto_stop_min_epochs: int = 1
     simple_pipeline_enabled: bool = False
+    simple_quality_gate_enabled: bool = False
+    simple_router_min_f1: float = 0.95
     simple_text2comp_epochs: int | None = None
     simple_text2comp_max_samples: int | None = None
+    simple_text2comp_loss_fn: str | None = None
+    simple_text2comp_head_learning_rate: float | None = None
+    simple_text2comp_freeze_base: bool | None = None
+    simple_text2comp_trainable_base_layers: int | None = None
+    simple_text2comp_normalize_labels: bool | None = None
+    simple_text2comp_min_samples: int | None = None
+    simple_text2comp_min_epochs: int | None = None
+    simple_text2comp_early_stop_patience: int | None = None
+    simple_text2comp_target_normalized_rmse: float | None = None
+    simple_text2comp_max_normalized_rmse: float | None = None
+    simple_text2comp_require_quality: bool | None = None
+    dataset_id: str | None = None
 
 
 class TrainingJobCreateRequest(BaseModel):
@@ -98,6 +118,7 @@ class TrainingJobCreateRequest(BaseModel):
     auto_stop_metric: TrainingAutoStopMetric = "f1"
     auto_stop_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
     auto_stop_min_epochs: int = Field(default=1, ge=1, le=100000)
+    dataset_id: str | None = None
 
 
 class TrainingQuickJobCreateRequest(BaseModel):
@@ -108,6 +129,7 @@ class TrainingQuickJobCreateRequest(BaseModel):
     resume_from: str | None = None
     seed: int | None = Field(default=None, ge=0, le=2_147_483_647)
     uploaded_expert_id: str | None = None
+    dataset_id: str | None = None
 
 
 class TrainingMetricsSummary(BaseModel):
@@ -116,6 +138,13 @@ class TrainingMetricsSummary(BaseModel):
     recall: float | None = None
     f1: float | None = None
     pr_auc: float | None = None
+
+
+class TrainingText2CompMetricsSummary(BaseModel):
+    mse: float | None = None
+    mae: float | None = None
+    normalized_rmse: float | None = None
+    r2: float | None = None
 
 
 class TrainingJobSummary(BaseModel):
@@ -159,6 +188,10 @@ class TrainingJobSummary(BaseModel):
     uploaded_expert_input_dim: int | None = None
     text2comp_output_dim: int | None = None
     text2comp_target_source: str | None = None
+    text2comp_quality_passed: bool | None = None
+    router_metrics: TrainingMetricsSummary | None = None
+    text2comp_metrics: TrainingText2CompMetricsSummary | None = None
+    dataset_id: str | None = None
 
 
 class TrainingCheckpointInfo(BaseModel):

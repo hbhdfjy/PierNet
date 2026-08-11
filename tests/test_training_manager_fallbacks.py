@@ -20,6 +20,7 @@ def _use_tmp_training_store(monkeypatch, tmp_path: Path):
 
 def test_list_datasets_returns_empty_when_router_manifest_is_missing(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(training_manager, "ROUTER_MANIFEST_PATH", tmp_path / "missing-router.json")
+    monkeypatch.setattr(training_manager.training_datasets, "list_router_datasets", lambda: [])
 
     assert training_manager.list_datasets() == []
     overview = training_manager.get_overview()

@@ -199,6 +199,13 @@ class LLMClient:
 
         if self.provider == "deepseek" and self.thinking in {"enabled", "disabled"}:
             payload["thinking"] = {"type": self.thinking}
+        elif self.provider == "siliconflow" and self.thinking in {
+            "enabled",
+            "disabled",
+        }:
+            payload["enable_thinking"] = self.thinking == "enabled"
+            if self.thinking == "disabled":
+                payload["thinking_budget"] = 128
 
         response = requests.post(
             f"{self.base_url}/chat/completions",

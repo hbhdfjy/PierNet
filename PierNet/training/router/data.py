@@ -9,7 +9,7 @@ from collections import Counter
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import MISSING, asdict, dataclass, fields
 from pathlib import Path
-from typing import BinaryIO, Iterable
+from typing import BinaryIO, Callable, Iterable
 
 import numpy as np
 import torch
@@ -40,6 +40,21 @@ DEFAULT_QWEN_EMBEDDING_TOKENIZER = os.getenv("PierNet_QWEN_EMBEDDING_TOKENIZER",
 
 def _log_prepare(message: str) -> None:
     print(f"[prepare] {message}")
+
+
+class RouterDatasetPreparationCancelled(RuntimeError):
+    """Raised when the platform stops an in-progress Router dataset build."""
+
+
+def _raise_if_preparation_cancelled(
+    *,
+    should_stop: Callable[[], bool] | None = None,
+    stop_file: str | Path | None = None,
+) -> None:
+    if should_stop is not None and should_stop():
+        raise RouterDatasetPreparationCancelled("Router dataset preparation was stopped")
+    if stop_file is not None and Path(stop_file).exists():
+        raise RouterDatasetPreparationCancelled("Router dataset preparation was stopped")
 
 
 @dataclass(slots=True)
@@ -787,7 +802,10 @@ def _prepare_token_cache_chunk(
     scenario_id_dtype_name: str,
     shard_dir: str,
     batch_size: int,
+    stop_file: str | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ) -> _TokenCacheShardResult:
+    _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
     os.environ.setdefault("TOKENIZERS_PARALLELISM", "false")
     path_obj = Path(path)
     shard_dir_obj = Path(shard_dir)
@@ -822,11 +840,21 @@ def _prepare_token_cache_chunk(
     pending_scenarios: list[str] = []
     pending_splits: list[str] = []
 
+    def check_cancelled() -> None:
+        try:
+            _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
+        except RouterDatasetPreparationCancelled:
+            for handle in token_handles.values():
+                handle.close()
+            raise
+
     def flush_pending() -> None:
         nonlocal max_sequence_length
         if not pending_texts:
             return
+        check_cancelled()
         encoded_batch = _encode_ids_batch(encoder, pending_texts)
+        check_cancelled()
         if len(encoded_batch) != len(pending_texts):
             raise RuntimeError(
                 f"Tokenizer returned {len(encoded_batch)} sequences for {len(pending_texts)} inputs"
@@ -853,6 +881,7 @@ def _prepare_token_cache_chunk(
         pending_splits.clear()
 
     processed = 0
+    lines_read = 0
     with path_obj.open("rb") as handle:
         if start_offset > 0:
             handle.seek(start_offset - 1)
@@ -867,6 +896,9 @@ def _prepare_token_cache_chunk(
             raw = handle.readline()
             if not raw:
                 break
+            lines_read += 1
+            if lines_read % 256 == 0:
+                check_cancelled()
             line = raw.strip()
             if not line:
                 continue
@@ -899,6 +931,7 @@ def _prepare_token_cache_chunk(
                     f"records={processed} offset={offset}"
                 )
     flush_pending()
+    check_cancelled()
 
     for split, handle in token_handles.items():
         handle.close()
@@ -943,6 +976,8 @@ def _merge_token_cache_split(
     split: str,
     shards: list[_TokenCacheShardResult],
     scenario_id_dtype: np.dtype,
+    should_stop: Callable[[], bool] | None = None,
+    stop_file: str | Path | None = None,
 ) -> tuple[int, int, int]:
     final_token_path = output_dir / f"{split}_token_ids.bin"
     offset_arrays: list[np.ndarray] = []
@@ -955,6 +990,7 @@ def _merge_token_cache_split(
 
     with final_token_path.open("wb") as output_handle:
         for shard in shards:
+            _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
             split_shard = getattr(shard, split)
             lengths = _load_array(Path(split_shard.lengths_path))
             labels = _load_array(Path(split_shard.labels_path))
@@ -975,6 +1011,7 @@ def _merge_token_cache_split(
             total_positive += int(labels.astype(np.uint64, copy=False).sum())
             with Path(split_shard.token_ids_path).open("rb") as input_handle:
                 shutil.copyfileobj(input_handle, output_handle, length=1024 * 1024 * 8)
+            _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
 
     _save_array(output_dir / f"{split}_token_offsets.npy", _concat_arrays(offset_arrays, np.dtype(np.uint64)))
     _save_array(output_dir / f"{split}_lengths.npy", _concat_arrays(length_arrays, np.dtype(np.uint32)))
@@ -992,7 +1029,10 @@ def _prepare_embedding_router_dataset(
     test_ratio: float,
     metadata: RouterEmbeddingMetadata,
     prepare_workers: int | None,
+    should_stop: Callable[[], bool] | None,
+    stop_file: str | Path | None,
 ) -> PrepareSummary:
+    _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
     _log_prepare(
         "starting dataset preparation "
         f"simulator={simulator} files={len(files)} test_ratio={test_ratio:.2f}"
@@ -1006,6 +1046,7 @@ def _prepare_embedding_router_dataset(
         f"embedding_model={metadata.embedding_model} tokenizer={metadata.tokenizer_name}"
     )
     encoder = PretrainedEmbeddingEncoder(metadata.to_backbone_spec())
+    _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
     _log_prepare(
         f"tokenizer ready vocab_size={encoder.model_vocab_size} hidden_size={encoder.hidden_size}"
     )
@@ -1040,12 +1081,14 @@ def _prepare_embedding_router_dataset(
                 "scenario_id_dtype_name": np.dtype(scenario_id_dtype).name,
                 "shard_dir": str(shard_dir),
                 "batch_size": TOKEN_CACHE_BATCH_SIZE,
+                "stop_file": str(stop_file) if stop_file is not None else None,
             }
             for file_id, chunk_id, start, end, path in chunks
         ]
         if workers <= 1:
             for kwargs in worker_kwargs:
-                result = _prepare_token_cache_chunk(**kwargs)
+                _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
+                result = _prepare_token_cache_chunk(**kwargs, should_stop=should_stop)
                 results.append(result)
                 _log_prepare(
                     f"chunk complete file={result.file_id + 1}/{len(files)} "
@@ -1054,14 +1097,21 @@ def _prepare_embedding_router_dataset(
         else:
             with ProcessPoolExecutor(max_workers=workers) as executor:
                 futures = [executor.submit(_prepare_token_cache_chunk, **kwargs) for kwargs in worker_kwargs]
-                for future in as_completed(futures):
-                    result = future.result()
-                    results.append(result)
-                    _log_prepare(
-                        f"chunk complete file={result.file_id + 1}/{len(files)} "
-                        f"chunk={result.chunk_id} train={result.train.samples} test={result.test.samples}"
-                    )
+                try:
+                    for future in as_completed(futures):
+                        _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
+                        result = future.result()
+                        results.append(result)
+                        _log_prepare(
+                            f"chunk complete file={result.file_id + 1}/{len(files)} "
+                            f"chunk={result.chunk_id} train={result.train.samples} test={result.test.samples}"
+                        )
+                except RouterDatasetPreparationCancelled:
+                    for future in futures:
+                        future.cancel()
+                    raise
 
+        _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
         results.sort(key=lambda item: (item.file_id, item.start_offset, item.chunk_id))
         scenario_counts: Counter[str] = Counter()
         max_sequence_length = 0
@@ -1074,12 +1124,16 @@ def _prepare_embedding_router_dataset(
             split="train",
             shards=results,
             scenario_id_dtype=np.dtype(scenario_id_dtype),
+            should_stop=should_stop,
+            stop_file=stop_file,
         )
         test_samples, test_tokens, test_positive = _merge_token_cache_split(
             output_dir=output_dir,
             split="test",
             shards=results,
             scenario_id_dtype=np.dtype(scenario_id_dtype),
+            should_stop=should_stop,
+            stop_file=stop_file,
         )
     finally:
         shutil.rmtree(shard_dir, ignore_errors=True)
@@ -1127,7 +1181,10 @@ def prepare_router_dataset(
     force: bool = False,
     input_representation: str = "embedding",
     prepare_workers: int | None = None,
+    should_stop: Callable[[], bool] | None = None,
+    stop_file: str | Path | None = None,
 ) -> PrepareSummary:
+    _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "meta.json"
 
@@ -1147,6 +1204,7 @@ def prepare_router_dataset(
         f"simulator={simulator} scenarios={','.join(selected_scenarios)} "
         f"representation={resolved_representation} source={source_storage} output_dir={output_dir}"
     )
+    _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
 
     if summary_path.exists() and not force:
         cached = PrepareSummary.from_dict(json.loads(summary_path.read_text(encoding="utf-8")))
@@ -1170,11 +1228,14 @@ def prepare_router_dataset(
                 f"train_samples={cached.train_samples} test_samples={cached.test_samples} "
                 f"prepared_format={cached.prepared_format}"
             )
+            _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
             return cached
 
     if parquet_partitions:
+        _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
         _log_prepare("cached prepared dataset missing or stale; materializing router Parquet partitions for rebuild")
         materialized = _materialize_parquet_router_files(router_dir, simulator, partitions=parquet_partitions)
+        _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
         by_scenario = {_router_file_scenario(path): path for path in files}
         by_scenario.update({_router_file_scenario(path): path for path in materialized})
         missing = sorted(set(selected_scenarios) - set(by_scenario))
@@ -1186,18 +1247,25 @@ def prepare_router_dataset(
 
     _log_prepare(f"rebuilding prepared dataset in {output_dir}")
     _cleanup_prepared_dir(output_dir)
-    summary = _prepare_embedding_router_dataset(
-        simulator=simulator,
-        files=files,
-        router_dir=router_dir,
-        output_dir=output_dir,
-        test_ratio=test_ratio,
-        metadata=metadata,
-        prepare_workers=prepare_workers,
-    )
-    summary.source_fingerprint = source_fingerprint
-
-    summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    try:
+        summary = _prepare_embedding_router_dataset(
+            simulator=simulator,
+            files=files,
+            router_dir=router_dir,
+            output_dir=output_dir,
+            test_ratio=test_ratio,
+            metadata=metadata,
+            prepare_workers=prepare_workers,
+            should_stop=should_stop,
+            stop_file=stop_file,
+        )
+        _raise_if_preparation_cancelled(should_stop=should_stop, stop_file=stop_file)
+        summary.source_fingerprint = source_fingerprint
+        summary_path.write_text(json.dumps(summary.to_dict(), ensure_ascii=False, indent=2), encoding="utf-8")
+    except RouterDatasetPreparationCancelled:
+        _cleanup_prepared_dir(output_dir)
+        _log_prepare(f"dataset preparation stopped; removed incomplete cache files from {output_dir}")
+        raise
     touch_prepared_cache_meta(
         output_dir,
         simulator=simulator,

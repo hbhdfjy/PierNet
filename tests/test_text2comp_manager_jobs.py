@@ -23,7 +23,11 @@ def _patch_job_runtime(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> dict[
 
     monkeypatch.setattr(text2comp_manager, "ARTIFACTS_ROOT", tmp_path / "artifacts")
     monkeypatch.setattr(text2comp_manager, "RUNLOGS_ROOT", tmp_path / "runlogs")
-    monkeypatch.setattr(text2comp_manager, "get_gpu_inventory", lambda: [{"index": 0, "available": True, "reason": None}])
+    monkeypatch.setattr(
+        text2comp_manager,
+        "get_gpu_inventory",
+        lambda **_kwargs: [{"index": 0, "available": True, "reason": None}],
+    )
     monkeypatch.setattr(text2comp_manager, "validate_training_data", lambda path, expected_dim: {"is_valid": True})
     monkeypatch.setattr(text2comp_manager, "_load_registry", lambda: [])
     monkeypatch.setattr(text2comp_manager, "_save_registry", lambda entries: captured.setdefault("entries", entries))
@@ -70,6 +74,35 @@ def test_create_job_accepts_dataset_path_alias(monkeypatch: pytest.MonkeyPatch, 
     assert job["expert_model"] == "diff-sorp"
 
 
+def test_create_job_passes_formal_quality_options(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    captured = _patch_job_runtime(monkeypatch, tmp_path)
+
+    text2comp_manager.create_job(
+        {
+            "expert_model": "diff-sorp",
+            "dataset_path": "/tmp/diff-sorp_train.jsonl",
+            "gpu_id": 0,
+            "epochs": 50,
+            "head_learning_rate": 1e-4,
+            "trainable_base_layers": 2,
+            "normalize_labels": True,
+            "min_samples": 100,
+            "min_epochs": 10,
+            "early_stop_patience": 8,
+            "target_normalized_rmse": 0.15,
+            "max_normalized_rmse": 0.25,
+            "require_quality": True,
+        }
+    )
+
+    command = captured["command"]
+    assert command[command.index("--trainable-base-layers") + 1] == "2"
+    assert command[command.index("--head-learning-rate") + 1] == "0.0001"
+    assert command[command.index("--min-samples") + 1] == "100"
+    assert "--normalize-labels" in command
+    assert "--require-quality" in command
+
+
 def test_create_job_auto_selects_matching_dataset(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     captured = _patch_job_runtime(monkeypatch, tmp_path)
     dataset_path = str(tmp_path / "diff-sorp_train.jsonl")
@@ -77,7 +110,12 @@ def test_create_job_auto_selects_matching_dataset(monkeypatch: pytest.MonkeyPatc
         text2comp_manager,
         "list_datasets",
         lambda: [
-            {"path": str(tmp_path / "burgers_train.jsonl"), "simulator": "burgers", "name": "burgers_train", "scenario": "burgers_train"},
+            {
+                "path": str(tmp_path / "burgers_train.jsonl"),
+                "simulator": "burgers",
+                "name": "burgers_train",
+                "scenario": "burgers_train",
+            },
             {"path": dataset_path, "simulator": "diff-sorp", "name": "diff-sorp_train", "scenario": "diff-sorp_train"},
         ],
     )

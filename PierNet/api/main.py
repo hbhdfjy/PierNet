@@ -12,6 +12,10 @@ from PierNet.shared.api.routers import metrics
 from PierNet.shared.api.static import SPAStaticFiles
 from PierNet.shared.runtime.config import load_runtime_config, log_runtime_config
 from PierNet.shared.runtime.paths import PROJECT_ROOT
+from PierNet.new_synth import service as new_synth_service
+from PierNet.new_synth.api import router as new_synth_router
+from PierNet.studio import service as studio_service
+from PierNet.studio.api import router as studio_router
 from PierNet.synth.api.routers import (
     config,
     datasets,
@@ -31,6 +35,8 @@ from PierNet.training.api.routers import assembly, text2comp, training
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     simulation.cleanup_stale_tmp_configs()
+    new_synth_service.initialize()
+    studio_service.initialize()
     log_runtime_config()
     yield
 
@@ -39,7 +45,7 @@ def _cors_origins() -> list[str]:
     return list(load_runtime_config().cors_origins)
 
 
-app = FastAPI(title="PierNet Unified API", version="3.0", lifespan=_lifespan)
+app = FastAPI(title="Piern Unified API", version="3.0", lifespan=_lifespan)
 install_error_handlers(app)
 install_audit(app)
 
@@ -68,8 +74,26 @@ for _router in [
     text2comp.router,
     assembly.router,
     training.router,
+    new_synth_router,
+    studio_router,
 ]:
     app.include_router(_router, prefix="/api")
+
+_new_synth_dist = PROJECT_ROOT / "frontend-new-synth" / "dist"
+if _new_synth_dist.exists():
+    app.mount(
+        "/new-synth",
+        SPAStaticFiles(directory=str(_new_synth_dist), html=True),
+        name="new-synth-static",
+    )
+
+_studio_dist = PROJECT_ROOT / "frontend-studio" / "dist"
+if _studio_dist.exists():
+    app.mount(
+        "/studio",
+        SPAStaticFiles(directory=str(_studio_dist), html=True),
+        name="studio-static",
+    )
 
 _dist = PROJECT_ROOT / "frontend" / "dist"
 if _dist.exists():

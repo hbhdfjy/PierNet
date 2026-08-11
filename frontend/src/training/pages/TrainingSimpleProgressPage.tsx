@@ -409,7 +409,7 @@ export default function TrainingSimpleProgressPage() {
             </div>
 
             <div className="training-simple-progress__summary">
-              <span>{job ? `${job.simulator.toUpperCase()} · ${job.scenarios.length} 个场景` : '正在读取任务'}</span>
+              <span>{job ? `${job.name} · ${job.scenarios.length} 个场景` : '正在读取任务'}</span>
               <span>{stage.active ? `剩余 ${eta}` : statusLabel(job?.status as TrainingJobStatus)}</span>
             </div>
 

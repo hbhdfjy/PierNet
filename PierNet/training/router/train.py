@@ -19,6 +19,7 @@ from PierNet.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT
 from .data import (
     LengthBucketBatchSampler,
     PackedSequenceDataset,
+    RouterDatasetPreparationCancelled,
     collate_batch,
     prepare_router_dataset,
 )
@@ -361,16 +362,23 @@ def run_training(config: RouterTrainingConfig) -> Path:
         f"router_dir={config.router_dir} output_dir={prepared_dir} force_prepare={config.force_prepare} "
         f"prepare_workers={config.prepare_workers if config.prepare_workers is not None else config.num_workers}",
     )
-    summary = prepare_router_dataset(
-        simulator=config.simulator,
-        scenarios=list(config.scenarios) if config.scenarios else None,
-        router_dir=Path(config.router_dir),
-        output_dir=prepared_dir,
-        test_ratio=config.test_ratio,
-        force=config.force_prepare,
-        input_representation=config.input_representation,
-        prepare_workers=config.prepare_workers if config.prepare_workers is not None else config.num_workers,
-    )
+    try:
+        summary = prepare_router_dataset(
+            simulator=config.simulator,
+            scenarios=list(config.scenarios) if config.scenarios else None,
+            router_dir=Path(config.router_dir),
+            output_dir=prepared_dir,
+            test_ratio=config.test_ratio,
+            force=config.force_prepare,
+            input_representation=config.input_representation,
+            prepare_workers=config.prepare_workers if config.prepare_workers is not None else config.num_workers,
+            should_stop=stop_controller.requested,
+            stop_file=stop_controller.stop_file,
+        )
+    except RouterDatasetPreparationCancelled:
+        print("[stop] platform stop accepted during dataset preparation")
+        _write_stop_state(run_dir, reason="platform_stop_during_prepare", epoch=None, step=None, global_step=0)
+        return run_dir
     _log_startup(
         "prepare",
         "done "

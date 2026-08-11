@@ -6,12 +6,13 @@ DRY_RUN=0
 ENABLE=0
 START_NOW=0
 INSTALL_WORKER=${PierNet_INSTALL_WORKER:-1}
+INSTALL_STUDIO=${PierNet_INSTALL_STUDIO:-1}
 
 usage() {
   cat <<USAGE
-Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--worker] [--no-worker]
+Usage: scripts/services/install-systemd.sh [--dry-run] [--enable] [--now] [--studio] [--no-studio] [--worker] [--no-worker]
 
-Installs user-level systemd units for PierNet backend, frontend, and worker.
+Installs user-level systemd units for PierNet backend, old frontend, Studio, and worker.
 The worker consumes queued synthesis/training jobs and performs shared housekeeping; use --no-worker only for API/UI-only deployments.
 USAGE
 }
@@ -21,6 +22,8 @@ while [[ $# -gt 0 ]]; do
     --dry-run) DRY_RUN=1 ;;
     --enable) ENABLE=1 ;;
     --now) ENABLE=1; START_NOW=1 ;;
+    --studio) INSTALL_STUDIO=1 ;;
+    --no-studio) INSTALL_STUDIO=0 ;;
     --worker) INSTALL_WORKER=1 ;;
     --no-worker) INSTALL_WORKER=0 ;;
     -h|--help) usage; exit 0 ;;
@@ -30,6 +33,9 @@ while [[ $# -gt 0 ]]; do
 done
 
 units=(PierNet-backend.service PierNet-frontend.service)
+if [[ "$INSTALL_STUDIO" == "1" ]]; then
+  units+=(PierNet-studio.service)
+fi
 if [[ "$INSTALL_WORKER" == "1" ]]; then
   units+=(PierNet-worker.service)
 fi

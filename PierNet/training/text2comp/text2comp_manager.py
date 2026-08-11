@@ -26,10 +26,21 @@ import signal
 import subprocess
 import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
+
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - Windows fallback keeps the process-local lock
+    fcntl = None
+
+from PierNet.new_synth.training_bridge import (
+    list_text2comp_datasets as list_new_synth_text2comp_datasets,
+    resolve_text2comp_dataset,
+)
 
 # 路径配置 - 使用项目内固定路径，避免数据丢失
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -60,12 +71,21 @@ DEFAULT_TRAINING_CONFIG = {
     "epochs": 100,
     "batch_size": 8,
     "learning_rate": 1e-5,
+    "head_learning_rate": 1e-4,
     "weight_decay": 0.0,
     "loss_fn": "mse",
     "max_length": 2048,
     "eval_interval": 10,
     "log_interval": 5,  # 降低日志间隔，确保小数据集也能记录进度
     "freeze_base": False,
+    "trainable_base_layers": 0,
+    "normalize_labels": False,
+    "min_samples": 2,
+    "min_epochs": 1,
+    "early_stop_patience": 0,
+    "target_normalized_rmse": 0.15,
+    "max_normalized_rmse": 0.25,
+    "require_quality": False,
 }
 
 # 专家模型配置库
@@ -74,8 +94,8 @@ EXPERT_MODEL_LIBRARY = {
     "diff-sorp": {
         "domain": "1D diffusion-sorption",
         "expert_type": "FNO",
-        "output_dim": 128,          # Text2Comp输出128维 → FNO输入
-        "expert_output_dim": 64,    # FNO最终输出64维
+        "output_dim": 128,  # Text2Comp输出128维 → FNO输入
+        "expert_output_dim": 64,  # FNO最终输出64维
         "spatial_points": 64,
         "time_steps": 2,
         "channels": 1,
@@ -84,7 +104,7 @@ EXPERT_MODEL_LIBRARY = {
     "diff-reaction": {
         "domain": "1D diffusion-reaction",
         "expert_type": "FNO",
-        "output_dim": 32,           # Text2Comp输出32维 → FNO输入
+        "output_dim": 32,  # Text2Comp输出32维 → FNO输入
         "expert_output_dim": 32,
         "spatial_points": 32,
         "time_steps": 1,
@@ -104,7 +124,7 @@ EXPERT_MODEL_LIBRARY = {
     "modflow": {
         "domain": "groundwater flow",
         "expert_type": "MODFLOW",
-        "output_dim": 60,           # 5观测井 × 12时间点
+        "output_dim": 60,  # 5观测井 × 12时间点
         "expert_output_dim": 60,
         "spatial_points": 5,
         "time_steps": 12,
@@ -114,7 +134,7 @@ EXPERT_MODEL_LIBRARY = {
     "power_flow": {
         "domain": "power system flow",
         "expert_type": "PowerFlow",
-        "output_dim": 43,           # IEEE 14节点参数
+        "output_dim": 43,  # IEEE 14节点参数
         "expert_output_dim": 43,
         "spatial_points": 43,
         "time_steps": 1,
@@ -128,12 +148,7 @@ CUSTOM_EXPERT_REGISTRY: dict[str, dict[str, Any]] = {}
 
 
 def register_custom_expert(
-    name: str,
-    output_dim: int,
-    domain: str = "",
-    expert_type: str = "Custom",
-    description: str = "",
-    **kwargs
+    name: str, output_dim: int, domain: str = "", expert_type: str = "Custom", description: str = "", **kwargs
 ) -> None:
     """
     注册自定义专家模型
@@ -155,13 +170,14 @@ def register_custom_expert(
         "time_steps": kwargs.get("time_steps", 1),
         "channels": kwargs.get("channels", 1),
         "description": description or f"自定义专家模型: {name}",
-        **kwargs
+        **kwargs,
     }
 
 
 def get_all_experts() -> dict[str, dict[str, Any]]:
     """获取所有专家模型配置（包括自定义）"""
     return {**EXPERT_MODEL_LIBRARY, **CUSTOM_EXPERT_REGISTRY}
+
 
 _REGISTRY_LOCK = RLock()
 LOGGER = logging.getLogger(__name__)
@@ -185,9 +201,12 @@ def _load_registry() -> list[dict[str, Any]]:
 def _save_registry(entries: list[dict[str, Any]]) -> None:
     """保存训练任务注册表"""
     _ensure_dirs()
-    tmp_path = REGISTRY_PATH.with_suffix(REGISTRY_PATH.suffix + ".tmp")
-    tmp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
-    tmp_path.replace(REGISTRY_PATH)
+    tmp_path = REGISTRY_PATH.with_name(f".{REGISTRY_PATH.name}.{os.getpid()}.{time.time_ns()}.tmp")
+    try:
+        tmp_path.write_text(json.dumps(entries, ensure_ascii=False, indent=2), encoding="utf-8")
+        tmp_path.replace(REGISTRY_PATH)
+    finally:
+        tmp_path.unlink(missing_ok=True)
 
 
 def _append_launch_log(path: Path, *lines: str) -> None:
@@ -198,11 +217,28 @@ def _append_launch_log(path: Path, *lines: str) -> None:
             handle.write(f"{line}\n")
 
 
+@contextmanager
+def _registry_guard():
+    """Serialize registry read-modify-write cycles across threads and processes."""
+    lock_path = REGISTRY_PATH.with_suffix(REGISTRY_PATH.suffix + ".lock")
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with _REGISTRY_LOCK, lock_path.open("a+", encoding="utf-8") as lock_handle:
+        if fcntl is not None:
+            fcntl.flock(lock_handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            if fcntl is not None:
+                fcntl.flock(lock_handle.fileno(), fcntl.LOCK_UN)
+
+
 def _with_registry_lock(func):
     """注册表锁装饰器"""
+
     def wrapper(*args, **kwargs):
-        with _REGISTRY_LOCK:
+        with _registry_guard():
             return func(*args, **kwargs)
+
     return wrapper
 
 
@@ -303,6 +339,17 @@ def _latest_test_metrics(run_dir: Path) -> dict[str, Any] | None:
         return None
 
 
+def _training_summary(run_dir: Path) -> dict[str, Any]:
+    path = run_dir / "training_summary.json"
+    if not path.exists():
+        return {}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return payload if isinstance(payload, dict) else {}
+
+
 def _checkpoint_entries(run_dir: Path) -> list[dict[str, Any]]:
     """获取checkpoint列表"""
     entries: list[dict[str, Any]] = []
@@ -317,13 +364,15 @@ def _checkpoint_entries(run_dir: Path) -> list[dict[str, Any]]:
                 epoch = int(stem.split("_")[-1].replace("epoch", ""))
             except ValueError:
                 epoch = None
-        entries.append({
-            "name": path.name,
-            "path": str(path),
-            "size_bytes": stat.st_size,
-            "mtime": stat.st_mtime,
-            "epoch": epoch,
-        })
+        entries.append(
+            {
+                "name": path.name,
+                "path": str(path),
+                "size_bytes": stat.st_size,
+                "mtime": stat.st_mtime,
+                "epoch": epoch,
+            }
+        )
     return sorted(entries, key=lambda item: item["mtime"], reverse=True)
 
 
@@ -362,7 +411,14 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
             "mse": latest_metrics.get("mse"),
             "mae": latest_metrics.get("mae"),
             "mean_relative_error": latest_metrics.get("mean_relative_error"),
+            "normalized_rmse": latest_metrics.get("normalized_rmse"),
+            "r2": latest_metrics.get("r2"),
         }
+
+    summary = _training_summary(run_dir)
+    if summary:
+        entry["quality_passed"] = bool(summary.get("quality_passed"))
+        entry["quality_summary"] = summary
 
     # 更新状态
     if alive:
@@ -371,7 +427,15 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
         if entry.get("status") not in {"done", "error", "terminated"}:
             if entry.get("terminated"):
                 entry["status"] = "terminated"
-            elif (run_dir / "final_model.pt").exists() or (run_dir / "best_model.pt").exists():
+            elif summary and not bool(summary.get("quality_passed")):
+                entry["status"] = "error"
+                best_metrics = summary.get("best_metrics") if isinstance(summary.get("best_metrics"), dict) else {}
+                score = best_metrics.get("normalized_rmse")
+                required = (summary.get("quality_gate") or {}).get("required_max")
+                entry["error_message"] = (
+                    f"Text2Comp 训练已结束，但验证质量未达到可用门槛（normalized RMSE={score}, 要求 <= {required}）。"
+                )
+            elif (run_dir / "final_model.pt").exists():
                 entry["status"] = "done"
             else:
                 last_lines = _tail_lines(log_path, 20)
@@ -388,6 +452,7 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
 
 
 # ==================== 公开API ====================
+
 
 @_with_registry_lock
 def list_jobs(refresh: bool = True) -> list[dict[str, Any]]:
@@ -410,7 +475,7 @@ def get_job(job_id: str, refresh: bool = True) -> dict[str, Any]:
     return entry
 
 
-def get_gpu_inventory() -> list[dict[str, Any]]:
+def get_gpu_inventory(*, jobs: list[dict[str, Any]] | None = None) -> list[dict[str, Any]]:
     """获取GPU资源状态"""
     try:
         raw_output = subprocess.check_output(
@@ -428,12 +493,9 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
         return []
 
     rows = [line.strip() for line in raw_output.splitlines() if line.strip()]
-    jobs = list_jobs(refresh=True)
-    locked = {
-        int(job["gpu_id"]): job["job_id"]
-        for job in jobs
-        if job["status"] in {"starting", "running"}
-    }
+    if jobs is None:
+        jobs = list_jobs(refresh=True)
+    locked = {int(job["gpu_id"]): job["job_id"] for job in jobs if job["status"] in {"starting", "running"}}
 
     gpus: list[dict[str, Any]] = []
     for row in rows:
@@ -460,16 +522,18 @@ def get_gpu_inventory() -> list[dict[str, Any]]:
             available = False
             reason = "utilization busy"
 
-        gpus.append({
-            "index": index,
-            "name": name,
-            "memory_used_mib": memory_used,
-            "memory_total_mib": memory_total,
-            "utilization_gpu": utilization,
-            "available": available,
-            "locked_by_job_id": locked_by_job_id,
-            "reason": reason,
-        })
+        gpus.append(
+            {
+                "index": index,
+                "name": name,
+                "memory_used_mib": memory_used,
+                "memory_total_mib": memory_total,
+                "utilization_gpu": utilization,
+                "available": available,
+                "locked_by_job_id": locked_by_job_id,
+                "reason": reason,
+            }
+        )
     return gpus
 
 
@@ -481,7 +545,7 @@ def list_simulators() -> list[dict[str, Any]]:
             "name": name,
             "domain": info["domain"],
             "expert_type": info.get("expert_type", "generic"),
-            "output_dim": info["output_dim"],       # Text2Comp输出维度
+            "output_dim": info["output_dim"],  # Text2Comp输出维度
             "expert_output_dim": info.get("expert_output_dim", info["output_dim"]),
             "spatial_points": info.get("spatial_points", 0),
             "time_steps": info.get("time_steps", 1),
@@ -493,7 +557,7 @@ def list_simulators() -> list[dict[str, Any]]:
 
 def list_datasets() -> list[dict[str, Any]]:
     """列出可用的训练数据集"""
-    datasets: list[dict[str, Any]] = []
+    datasets: list[dict[str, Any]] = list_new_synth_text2comp_datasets()
     if not TEXT2COMP_DATA_DIR.exists():
         return datasets
 
@@ -511,19 +575,21 @@ def list_datasets() -> list[dict[str, Any]]:
         except Exception:
             count = 0
 
-        datasets.append({
-            "path": str(path),
-            "name": stem,
-            "simulator": simulator,
-            "scenario": scenario,  # 添加scenario字段
-            "n_samples": count,
-            "sample_count": count,  # 兼容字段
-            "size_bytes": path.stat().st_size,
-            "file_size_bytes": path.stat().st_size,  # 兼容字段
-            "mtime": path.stat().st_mtime,
-        })
+        datasets.append(
+            {
+                "path": str(path),
+                "name": stem,
+                "simulator": simulator,
+                "scenario": scenario,  # 添加scenario字段
+                "n_samples": count,
+                "sample_count": count,  # 兼容字段
+                "size_bytes": path.stat().st_size,
+                "file_size_bytes": path.stat().st_size,  # 兼容字段
+                "mtime": path.stat().st_mtime,
+            }
+        )
 
-    return sorted(datasets, key=lambda item: item["simulator"])
+    return sorted(datasets, key=lambda item: (item.get("source") != "new_synth", item["simulator"]))
 
 
 def _select_default_training_data(simulator: str, scenario: str | None = None) -> str | None:
@@ -631,13 +697,24 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
     - simulator / expert_model
     """
     # 字段名兼容处理
-    simulator = payload.get("simulator") or payload.get("expert_model", "unknown")
-    scenario = payload.get("scenario")
-    train_data_path = (
+    dataset_id = str(payload.get("dataset_id") or "").strip() or None
+    registered_dataset = resolve_text2comp_dataset(dataset_id) if dataset_id else None
+    simulator = (
+        registered_dataset.get("simulator")
+        if registered_dataset
+        else payload.get("simulator") or payload.get("expert_model", "unknown")
+    )
+    scenario = registered_dataset.get("scenario") if registered_dataset else payload.get("scenario")
+    train_data_path = (_coerce_path_value(registered_dataset.get("path")) if registered_dataset else None) or (
         _coerce_path_value(payload.get("train_path"))
         or _coerce_path_value(payload.get("train_data_path"))
         or _coerce_path_value(payload.get("dataset_path"))
     )
+    if registered_dataset and not payload.get("output_dim"):
+        payload = {
+            **payload,
+            "output_dim": int((registered_dataset.get("metadata") or {}).get("input_dim") or 0),
+        }
     gpu_id = int(payload.get("gpu_id", 0))
 
     # 验证GPU
@@ -674,7 +751,11 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
                 domain=expert_info["domain"],
                 expert_type=expert_info["expert_type"],
                 description=expert_info["description"],
-                **{k: v for k, v in payload.items() if k in ["spatial_points", "time_steps", "channels", "expert_output_dim"]}
+                **{
+                    k: v
+                    for k, v in payload.items()
+                    if k in ["spatial_points", "time_steps", "channels", "expert_output_dim"]
+                },
             )
             expert_info = CUSTOM_EXPERT_REGISTRY.get(simulator)
         else:
@@ -689,8 +770,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         train_data_path = _select_default_training_data(simulator, scenario)
     if not train_data_path:
         raise ValueError(
-            f"No training data found for simulator={simulator!r}. "
-            "Provide dataset_path, train_data_path, or train_path."
+            f"No training data found for simulator={simulator!r}. Provide dataset_path, train_data_path, or train_path."
         )
 
     validation = validate_training_data(train_data_path, expert_info["output_dim"])
@@ -707,14 +787,34 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
 
     # 合并配置
     config = {**DEFAULT_TRAINING_CONFIG}
-    for key in ["epochs", "batch_size", "learning_rate", "weight_decay", "loss_fn",
-                "max_length", "eval_interval", "log_interval", "output_dim", "freeze_base"]:
+    for key in [
+        "epochs",
+        "batch_size",
+        "learning_rate",
+        "head_learning_rate",
+        "weight_decay",
+        "loss_fn",
+        "max_length",
+        "eval_interval",
+        "log_interval",
+        "output_dim",
+        "freeze_base",
+        "trainable_base_layers",
+        "normalize_labels",
+        "min_samples",
+        "min_epochs",
+        "early_stop_patience",
+        "target_normalized_rmse",
+        "max_normalized_rmse",
+        "require_quality",
+    ]:
         if key in payload:
             config[key] = payload[key]
 
     # 输出维度自动推断
     if config.get("output_dim", 0) == 0:
         config["output_dim"] = expert_info["output_dim"]
+    config["dataset_id"] = dataset_id
 
     # 构建训练命令
     # 使用模块方式运行
@@ -730,33 +830,66 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
         "-u",
         train_script,
         train_module,
-        "--base-model", base_model_path,
-        "--simulator", simulator,
-        "--train-data", str(train_data_path) if train_data_path else "",
-        "--output-dim", str(config["output_dim"]),
-        "--epochs", str(config["epochs"]),
-        "--batch-size", str(config["batch_size"]),
-        "--learning-rate", str(config["learning_rate"]),
-        "--weight-decay", str(config["weight_decay"]),
-        "--loss-fn", config["loss_fn"],
-        "--max-length", str(config["max_length"]),
-        "--eval-interval", str(config["eval_interval"]),
-        "--log-interval", str(config["log_interval"]),
-        "--device", f"cuda:0",
-        "--output-dir", str(ARTIFACTS_ROOT),
-        "--run-name", job_id,
+        "--base-model",
+        base_model_path,
+        "--simulator",
+        simulator,
+        "--train-data",
+        str(train_data_path) if train_data_path else "",
+        "--output-dim",
+        str(config["output_dim"]),
+        "--epochs",
+        str(config["epochs"]),
+        "--batch-size",
+        str(config["batch_size"]),
+        "--learning-rate",
+        str(config["learning_rate"]),
+        "--head-learning-rate",
+        str(config["head_learning_rate"]),
+        "--weight-decay",
+        str(config["weight_decay"]),
+        "--loss-fn",
+        config["loss_fn"],
+        "--max-length",
+        str(config["max_length"]),
+        "--trainable-base-layers",
+        str(config["trainable_base_layers"]),
+        "--min-samples",
+        str(config["min_samples"]),
+        "--min-epochs",
+        str(config["min_epochs"]),
+        "--early-stop-patience",
+        str(config["early_stop_patience"]),
+        "--target-normalized-rmse",
+        str(config["target_normalized_rmse"]),
+        "--max-normalized-rmse",
+        str(config["max_normalized_rmse"]),
+        "--eval-interval",
+        str(config["eval_interval"]),
+        "--log-interval",
+        str(config["log_interval"]),
+        "--device",
+        f"cuda:0",
+        "--output-dir",
+        str(ARTIFACTS_ROOT),
+        "--run-name",
+        job_id,
     ]
     if config.get("freeze_base"):
         command.append("--freeze-base")
     else:
         command.append("--unfreeze-base")
+    if config.get("normalize_labels"):
+        command.append("--normalize-labels")
+    if config.get("require_quality"):
+        command.append("--require-quality")
 
     # 创建任务记录并启动
-    with _REGISTRY_LOCK:
-        entries = _load_registry()
+    with _registry_guard():
+        entries = [_refresh_entry(entry) for entry in _load_registry()]
 
         # 再次检查GPU可用性
-        current_gpu_map = {item["index"]: item for item in get_gpu_inventory()}
+        current_gpu_map = {item["index"]: item for item in get_gpu_inventory(jobs=entries)}
         current_gpu = current_gpu_map.get(gpu_id)
         if current_gpu is None or not current_gpu["available"]:
             raise ValueError(f"GPU {gpu_id} is not available")
@@ -807,6 +940,7 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
             "scenario": scenario,
             "expert_model": simulator,
             "dataset_path": str(train_data_path),
+            "dataset_id": dataset_id,
             "gpu_id": gpu_id,
             "created_at": time.time(),
             "started_at": time.time(),
@@ -922,24 +1056,28 @@ def get_curves(job_id: str, max_points: int = 2000) -> dict[str, Any]:
                     payload = json.loads(line)
                 except json.JSONDecodeError:
                     continue
-                training_points.append({
-                    "epoch": int(payload.get("epoch", 0)),
-                    "step": int(payload.get("step", 0)),
-                    "global_step": int(payload.get("global_step", 0)),
-                    "loss": float(payload.get("loss", payload.get("avg_loss", 0.0))),
-                })
+                training_points.append(
+                    {
+                        "epoch": int(payload.get("epoch", 0)),
+                        "step": int(payload.get("step", 0)),
+                        "global_step": int(payload.get("global_step", 0)),
+                        "loss": float(payload.get("loss", payload.get("avg_loss", 0.0))),
+                    }
+                )
 
     # 读取评估指标
     eval_points: list[dict[str, Any]] = []
     for path in sorted(run_dir.glob("eval_epoch_*.json")):
         try:
             payload = json.loads(path.read_text(encoding="utf-8"))
-            eval_points.append({
-                "epoch": int(payload.get("epoch", 0)),
-                "loss": float(payload.get("loss", 0.0)),
-                "mse": float(payload.get("mse", 0.0)),
-                "mae": float(payload.get("mae", 0.0)),
-            })
+            eval_points.append(
+                {
+                    "epoch": int(payload.get("epoch", 0)),
+                    "loss": float(payload.get("loss", 0.0)),
+                    "mse": float(payload.get("mse", 0.0)),
+                    "mae": float(payload.get("mae", 0.0)),
+                }
+            )
         except Exception:
             continue
 

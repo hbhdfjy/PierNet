@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import {
   Brain,
@@ -17,10 +18,14 @@ import {
 } from 'lucide-react'
 
 interface Dataset {
+  dataset_id?: string | null
+  display_name?: string | null
   path: string
   simulator: string
   scenario: string
   n_samples: number
+  output_dim?: number | null
+  label_semantics?: string | null
 }
 
 interface Job {
@@ -81,6 +86,8 @@ function formatTime(timestamp: number | null): string {
 }
 
 export default function Text2CompPage() {
+  const [searchParams] = useSearchParams()
+  const requestedDatasetId = searchParams.get('datasetId')
   const { mutate } = useSWRConfig()
   const {
     data: status,
@@ -89,23 +96,28 @@ export default function Text2CompPage() {
   } = useSWR<Text2CompStatus>('t2c-status', api.getText2CompStatus, { refreshInterval: 3000 })
   const { data: datasets } = useSWR<Dataset[]>('t2c-datasets', api.getDatasets)
 
-  const [showForm, setShowForm] = useState(false)
-  const [formData, setFormData] = useState({ simulator: '', dataset: '', gpu_id: 0, epochs: 100 })
+  const [showForm, setShowForm] = useState(Boolean(requestedDatasetId))
+  const [formData, setFormData] = useState({ dataset: requestedDatasetId ?? '', gpu_id: 0, epochs: 100 })
   const [submitting, setSubmitting] = useState(false)
   const [errMsg, setErrMsg] = useState<string | null>(null)
   const [expandedJob, setExpandedJob] = useState<string | null>(null)
+  const selectedDataset = datasets?.find(d => (d.dataset_id ?? d.path) === formData.dataset)
+
+  useEffect(() => {
+    if (!datasets?.length) return
+    if (formData.dataset && datasets.some(item => (item.dataset_id ?? item.path) === formData.dataset)) return
+    setFormData(current => ({ ...current, dataset: datasets[0].dataset_id ?? datasets[0].path }))
+  }, [datasets, formData.dataset])
 
   if (error) return <div className="p-6 text-red-400">加载失败: {error.message}</div>
   if (isLoading || !status) return <div className="p-6 text-slate-400">加载中...</div>
 
   const availableGpus = status.gpus.filter(g => g.available)
-  const selectedModel = status.expert_models.find(m => m.name === formData.simulator)
-  const matchingDatasets = datasets?.filter(d => d.simulator === formData.simulator) || []
 
   const handleStartTrain = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.simulator || !formData.dataset) {
-      setErrMsg('请选择模型和数据集')
+    if (!selectedDataset) {
+      setErrMsg('请选择训练数据集')
       return
     }
     setSubmitting(true)
@@ -115,10 +127,11 @@ export default function Text2CompPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          simulator: formData.simulator,
-          scenario: formData.simulator,
-          train_path: formData.dataset,
-          output_dim: selectedModel?.output_dim || 128,
+          dataset_id: selectedDataset.dataset_id ?? null,
+          simulator: selectedDataset.simulator,
+          scenario: selectedDataset.scenario,
+          train_path: selectedDataset.path,
+          output_dim: selectedDataset.output_dim ?? undefined,
           epochs: formData.epochs,
           batch_size: 8,
           learning_rate: 0.00001,
@@ -177,31 +190,16 @@ export default function Text2CompPage() {
           >
             <h2 className="text-xl font-semibold text-slate-200">新建训练</h2>
             <div>
-              <label className="block text-sm text-slate-400 mb-1">专家模型</label>
-              <select
-                value={formData.simulator}
-                onChange={e => setFormData({ ...formData, simulator: e.target.value, dataset: '' })}
-                className="w-full rounded bg-slate-800 border border-slate-600 text-slate-200 p-2"
-              >
-                <option value="">选择模型...</option>
-                {status.expert_models.map(m => (
-                  <option key={m.name} value={m.name}>
-                    {m.name} ({m.domain})
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm text-slate-400 mb-1">数据集 ({matchingDatasets.length} 个可用)</label>
+              <label className="block text-sm text-slate-400 mb-1">训练数据集 ({datasets?.length ?? 0} 个可用)</label>
               <select
                 value={formData.dataset}
                 onChange={e => setFormData({ ...formData, dataset: e.target.value })}
                 className="w-full rounded bg-slate-800 border border-slate-600 text-slate-200 p-2"
               >
                 <option value="">选择数据集...</option>
-                {matchingDatasets.map(d => (
-                  <option key={d.path} value={d.path}>
-                    {d.scenario} ({d.n_samples} 样本)
+                {(datasets ?? []).map(d => (
+                  <option key={d.dataset_id ?? d.path} value={d.dataset_id ?? d.path}>
+                    {d.display_name ?? `${d.simulator} / ${d.scenario}`} ({d.n_samples} 样本)
                   </option>
                 ))}
               </select>
@@ -327,7 +325,8 @@ export default function Text2CompPage() {
             <button
               key={m.name}
               onClick={() => {
-                setFormData({ ...formData, simulator: m.name, dataset: '' })
+                const candidate = datasets?.find(dataset => dataset.simulator === m.name)
+                setFormData({ ...formData, dataset: candidate?.dataset_id ?? candidate?.path ?? '' })
                 setShowForm(true)
               }}
               className="rounded bg-slate-900/50 p-3 border border-slate-600 hover:border-emerald-600 text-left transition-colors"

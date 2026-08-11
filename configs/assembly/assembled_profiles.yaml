@@ -1,6 +1,6 @@
 profiles:
   - model_id: modflow_verl_demo
-    name: PierNet MODFLOW 对话拼装模型
+    name: Piern MODFLOW 对话拼装模型
     description: 基于 019ece38-4df9-7bd2-8ae3-47a902f20d4c 会话产物注册的完整 MODFLOW 拼装模型，链路为 Qwen embedding、Router、Text2Comp 和 DNN Expert。
     executor: modflow_profile
     simulator: modflow
@@ -13,7 +13,7 @@ profiles:
     demo_prompt_label: MODFLOW 强化学习样例
     demo_prompt: "请使用 MODFLOW 地下水专家。场景=unified_aquifer。参数：K_mean=17.653585; K_std=0; K_anisotropy=1; S_storage=0.15034731; Q_pumping=-9940.1953; H_initial=8.997509; R_recharge=0.0090303216; R_variation=0; BC_strength=0; n_layers=1; C_concentration=0; D_dispersion=0; lambda_decay=0; phi_porosity=0.30000001; rho_density=1000; scenario_type=0; output_type=0; complexity=1。请返回 5 口井各 12 个月的 hydraulic_head，并给出中文趋势总结。"
   - model_id: diff_sorp_demo
-    name: PierNet diff-sorp 对话拼装模型
+    name: Piern diff-sorp 对话拼装模型
     description: 使用 Qwen3-4B-Instruct-2507、0124 PDE Router、0103 diff-sorp Text2Comp 和 1D diff-sorp FNO Expert 组成的完整演示链路。
     executor: fno_profile
     simulator: diff_sorp

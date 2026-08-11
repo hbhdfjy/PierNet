@@ -1,3 +1,67 @@
+expert_model:
+  domain_context: This simulation addresses structural stability in solid mechanics,
+    specifically Euler elastic buckling of slender rectangular columns under axial
+    centric compression. It uses closed-form analytical formulas rather than solving
+    spatiotemporal PDEs, with no finite element meshing or spatial discretization.
+    The governing equations involve calculating the weak-axis second moment of area
+    (Iweak = min(b*h^3/12, h*b^3/12)) and critical buckling load (Pcr = π²*E*Iweak/(K*L)²),
+    followed by safety factor (Pcr/P) and binary stability flag. The output represents
+    critical load, safety factor, and stability status for each column configuration,
+    computed via Python floating-point operations with assumptions of linear elasticity,
+    isotropic material, and ideal geometry.
+  observation_config:
+    fixed_channels: null
+    fixed_time_mode: full
+    time_modes:
+    - desc_en: full, all time points
+      desc_zh: 完整，所有时间点
+      indices: full
+      name: full
+  output_description: '{ch} physical quantities × {ts} timestep for column buckling
+    analysis (critical load in kN, safety factor, stability flag)'
+  output_info:
+  - description: 理想细长柱发生欧拉弹性屈曲时对应的临界轴向压力
+    name: critical_load_kN
+    name_zh: 欧拉临界屈曲载荷
+    slice:
+    - 0
+    - 1
+    unit: kN
+  - description: 欧拉临界屈曲载荷与实际轴向压力的比值，即 Pcr/P
+    name: safety_factor
+    name_zh: 稳定安全系数
+    slice:
+    - 1
+    - 2
+    unit: 无量纲
+  - description: 根据实际轴向压力是否低于欧拉临界屈曲载荷得到的二值稳定性判断
+    name: stable_flag
+    name_zh: 稳定状态标志
+    slice:
+    - 2
+    - 3
+    unit: 无量纲
+  param_info:
+    applied_load_kN:
+    - 作用在柱上的轴向集中压力，正值表示压缩载荷
+    - kN
+    height_mm:
+    - 矩形截面的高度
+    - mm
+    k_factor:
+    - 有效长度系数，用于描述端部约束对柱有效屈曲长度的影响
+    - 无量纲
+    length_m:
+    - 柱的实际几何长度，即柱两端之间的长度
+    - m
+    width_mm:
+    - 矩形截面的宽度
+    - mm
+    young_gpa:
+    - 材料的杨氏模量，表示材料在线弹性阶段抵抗变形的能力
+    - GPa
+  scenarios:
+    column_buckling_expert_demo: 理想线弹性细长等截面矩形柱在给定端部约束和轴向中心压力作用下绕截面弱轴发生欧拉屈曲。
 gcam:
   domain_context: 'Energy-climate optimization simulation (PyPSA + HiGHS LP solver).
     Multi-period linear program minimizing total system cost over 2025-2100 (16 five-year
@@ -116,6 +180,67 @@ gcam:
       °C); explores tail risks of temperature overshoot
     energy_transition: Baseline energy transition scenario; moderate carbon tax, standard
       learning rates, 2°C-compatible pathway
+mechanics_column_buckling:
+  domain_context: 'This dataset addresses structural stability in solid mechanics,
+    specifically Euler elastic buckling of slender rectangular columns under axial
+    compression. It employs closed-form analytical equations based on Euler''s column
+    theory, not solving spatiotemporal PDEs or using finite element discretization.
+    The governing relations compute the weak-axis moment of inertia, critical buckling
+    load, safety factor, and stability flag via direct formulas in a custom Python
+    program. The output represents three derived quantities per sample: critical buckling
+    load, safety factor, and a binary stability indicator.'
+  observation_config:
+    fixed_channels: null
+    fixed_time_mode: full
+    time_modes:
+    - desc_en: full, all time points
+      desc_zh: 完整，所有时间点
+      indices: full
+      name: full
+  output_description: '{ch} derived buckling parameters × {ts} singleton timestep'
+  output_info:
+  - description: 理想细长柱发生欧拉弹性屈曲时对应的临界轴向压力
+    name: critical_load_kN
+    name_zh: 欧拉临界屈曲载荷
+    slice:
+    - 0
+    - 1
+    unit: kN
+  - description: 欧拉临界屈曲载荷与实际轴向压力之比，即 Pcr/P
+    name: safety_factor
+    name_zh: 稳定安全系数
+    slice:
+    - 1
+    - 2
+    unit: 无量纲
+  - description: 根据实际载荷是否低于欧拉临界载荷得到的二值稳定性判断，1.0表示稳定，0.0表示存在屈曲失稳风险
+    name: stable_flag
+    name_zh: 稳定状态标志
+    slice:
+    - 2
+    - null
+    unit: 无量纲
+  param_info:
+    applied_load_kN:
+    - 作用在柱上的轴向集中压力，正值表示压缩载荷
+    - kN
+    height_mm:
+    - 矩形截面的高度
+    - mm
+    k_factor:
+    - 有效长度系数，用于描述端部约束条件对柱有效屈曲长度的影响
+    - 无量纲
+    length_m:
+    - 柱的实际几何长度，即柱两端之间的长度
+    - m
+    width_mm:
+    - 矩形截面的宽度
+    - mm
+    young_gpa:
+    - 材料的杨氏模量，表示材料在线弹性阶段抵抗轴向变形的能力
+    - GPa
+  scenarios:
+    column_buckling_train: 理想线弹性细长等截面矩形柱，在给定端部约束和轴向中心压力作用下绕截面弱轴发生欧拉屈曲。
 modflow:
   domain_context: 'Groundwater flow simulation (MODFLOW). Parabolic PDE: S_s·∂h/∂t
     = ∇(K∇h) + W. FDM + PCG solver. Outputs hydraulic head (meters above datum) at

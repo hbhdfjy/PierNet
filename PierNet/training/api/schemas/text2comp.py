@@ -23,11 +23,18 @@ class ExpertModelSummary(BaseModel):
 class Text2CompDatasetInfo(BaseModel):
     """数据集信息"""
     path: str
+    dataset_id: str | None = None
+    display_name: str | None = None
+    source: str = "legacy"
+    workflow_id: str | None = None
     simulator: str
     scenario: str
     n_samples: int | None = None
     file_size_bytes: int | None = None
     mtime: float | None = None
+    output_dim: int | None = None
+    label_semantics: str | None = None
+    router_dataset_id: str | None = None
 
 
 class Text2CompGPUInfo(BaseModel):
@@ -57,6 +64,16 @@ class Text2CompJobConfig(BaseModel):
     max_length: int = 2048
     precision: int = 4
     resume_from: str | None = None
+    freeze_base: bool = False
+    trainable_base_layers: int = 0
+    normalize_labels: bool = False
+    min_samples: int = 2
+    min_epochs: int = 1
+    early_stop_patience: int = 0
+    target_normalized_rmse: float = 0.15
+    max_normalized_rmse: float = 0.25
+    require_quality: bool = False
+    head_learning_rate: float = 1e-4
 
 
 class Text2CompJobCreateRequest(BaseModel):
@@ -78,6 +95,16 @@ class Text2CompJobCreateRequest(BaseModel):
     precision: int = 4
     resume_from: str | None = None
     freeze_base: bool = False
+    head_learning_rate: float = Field(default=1e-4, gt=0.0)
+    trainable_base_layers: int = Field(default=0, ge=0, le=1000)
+    normalize_labels: bool = False
+    min_samples: int = Field(default=2, ge=2, le=100_000_000)
+    min_epochs: int = Field(default=1, ge=1, le=100_000)
+    early_stop_patience: int = Field(default=0, ge=0, le=100_000)
+    target_normalized_rmse: float = Field(default=0.15, ge=0.0)
+    max_normalized_rmse: float = Field(default=0.25, ge=0.0)
+    require_quality: bool = False
+    dataset_id: str | None = None
 
 
 class Text2CompMetricsSummary(BaseModel):
@@ -85,6 +112,8 @@ class Text2CompMetricsSummary(BaseModel):
     rmse: float | None = None
     mae: float | None = None
     mse: float | None = None
+    normalized_rmse: float | None = None
+    r2: float | None = None
 
 
 class Text2CompJobSummary(BaseModel):
@@ -115,6 +144,7 @@ class Text2CompJobSummary(BaseModel):
     latest_test_epoch: int | None = None
     latest_metrics: Text2CompMetricsSummary | None = None
     error_message: str | None = None
+    quality_passed: bool | None = None
 
 
 class Text2CompCheckpointInfo(BaseModel):

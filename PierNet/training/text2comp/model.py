@@ -66,6 +66,7 @@ class Text2CompModel(nn.Module):
         hidden_layers: list[int] = [128, 256, 512, 1024],
         activation: str = "relu",
         freeze_base: bool = True,
+        trainable_base_layers: int = 0,
         dropout: float = 0.0,
     ):
         super().__init__()
@@ -84,12 +85,30 @@ class Text2CompModel(nn.Module):
             # 尝试从embedding层推断
             self.hidden_size = self.base_model.model.embed_tokens.embedding_dim
 
-        # 冻结base model
+        # 冻结base model，或只解冻最后若干Transformer层。
         if freeze_base:
             for param in self.base_model.parameters():
                 param.requires_grad = False
-            # 可选：启用gradient checkpointing节省内存
+        elif trainable_base_layers > 0:
+            for param in self.base_model.parameters():
+                param.requires_grad = False
+            backbone = getattr(self.base_model, "model", None)
+            layers = getattr(backbone, "layers", None)
+            if layers is None:
+                raise ValueError("Base model does not expose model.layers for partial fine-tuning")
+            for layer in list(layers)[-trainable_base_layers:]:
+                for param in layer.parameters():
+                    param.requires_grad = True
+            final_norm = getattr(backbone, "norm", None)
+            if final_norm is not None:
+                for param in final_norm.parameters():
+                    param.requires_grad = True
+
+        if trainable_base_layers > 0:
             self.base_model.gradient_checkpointing_enable()
+            enable_input_grads = getattr(self.base_model, "enable_input_require_grads", None)
+            if callable(enable_input_grads):
+                enable_input_grads()
 
         # 回归头
         self.head = RegressionHead(
@@ -101,7 +120,14 @@ class Text2CompModel(nn.Module):
         )
 
         self.freeze_base = freeze_base
+        self.trainable_base_layers = trainable_base_layers
         self.output_dim = output_dim
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if self.freeze_base:
+            self.base_model.eval()
+        return self
 
     def forward(
         self,
@@ -159,5 +185,6 @@ def create_text2comp_model(config) -> Text2CompModel:
         hidden_layers=config.head_layers,
         activation=config.head_activation,
         freeze_base=config.freeze_base_model,
+        trainable_base_layers=config.trainable_base_layers,
         dropout=config.head_dropout,
     )

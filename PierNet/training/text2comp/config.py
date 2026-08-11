@@ -113,6 +113,7 @@ class Text2CompTrainingConfig:
     # === 模型配置 ===
     base_model_path: str = ""           # 预训练LLM路径 (如Qwen2.5-0.5B-Instruct)
     freeze_base_model: bool = False     # xhb reference fine-tunes the base model together with the head
+    trainable_base_layers: int = 0      # >0时只训练LLM最后N层；0表示按freeze_base_model决定全冻/全训
     hidden_size: int = 0                # LLM hidden size (自动推断)
 
     # 输出维度 = 专家模型输入维度
@@ -127,9 +128,17 @@ class Text2CompTrainingConfig:
     epochs: int = 100
     batch_size: int = 8
     learning_rate: float = 1e-5
+    head_learning_rate: float = 1e-4
     weight_decay: float = 0.0
     loss_fn: str = "mse"                # 损失函数: mse, mae, huber
     max_length: int = 2048              # 最大序列长度
+    normalize_labels: bool = False      # 按训练集统计量标准化回归目标
+    min_samples: int = 2                # 正式训练所需最少有效样本
+    min_epochs: int = 1                 # 达到目标前至少训练的轮数
+    early_stop_patience: int = 0        # 0表示关闭基于验证集停滞的早停
+    target_normalized_rmse: float = 0.15
+    max_normalized_rmse: float = 0.25
+    require_quality: bool = False       # 未达到max_normalized_rmse时任务失败
 
     # === 数据配置 ===
     train_data_path: str = ""           # 训练数据路径 (JSONL格式: {prompt, label})

@@ -137,7 +137,7 @@ export default function TrainingSimpleTasksPage() {
                           <div className="min-w-0">
                             <div className="training-simple-job__title">{job.name}</div>
                             <div className="training-simple-job__meta">
-                              {job.simulator.toUpperCase()} · GPU {job.gpu_id} · {job.scenarios.length} 个场景
+                              GPU {job.gpu_id} · {job.scenarios.length} 个场景
                             </div>
                           </div>
                           <StatusBadge className={statusBadgeClass(job.status)}>{statusLabel(job.status)}</StatusBadge>

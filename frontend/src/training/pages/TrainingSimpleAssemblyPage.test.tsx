@@ -11,7 +11,6 @@ vi.mock('../../lib/api', () => ({
     getTrainingJobs: vi.fn(),
     loadAssemblyModels: vi.fn(),
     unloadAssemblyModels: vi.fn(),
-    testAssembly: vi.fn(),
   },
 }))
 
@@ -20,7 +19,6 @@ const mockApi = api as unknown as {
   getTrainingJobs: Mock
   loadAssemblyModels: Mock
   unloadAssemblyModels: Mock
-  testAssembly: Mock
 }
 
 function statusPayload() {
@@ -128,16 +126,6 @@ function trainingJobsPayload() {
   ]
 }
 
-function loadedSimpleChain() {
-  return {
-    ...statusPayload().loaded_models,
-    llm: { loaded: true, path: '/models/qwen' },
-    router: { loaded: true, path: '/runs/train-ready/router_final.pt' },
-    text2comp: { loaded: true, paths: ['/artifacts/text2comp_models/train-ready/final_model.pt'] },
-    uploaded_expert: { loaded: true, model_id: 'uploaded-expert-4', executor: 'uploaded' },
-  }
-}
-
 function profilePayload() {
   return {
     model_id: 'modflow-demo',
@@ -162,7 +150,7 @@ function profilePayload() {
 function diffSorpProfilePayload() {
   return {
     model_id: 'diff_sorp_demo',
-    name: 'PierNet diff-sorp 对话拼装模型',
+    name: 'Piern diff-sorp 对话拼装模型',
     description: 'registered diff-sorp profile',
     executor: 'fno_profile',
     simulator: 'diff_sorp',
@@ -208,11 +196,6 @@ describe('TrainingSimpleAssemblyPage', () => {
       message: 'loaded',
       architecture: '',
       gpu_status: [],
-    })
-    mockApi.testAssembly.mockResolvedValue({
-      router_prediction: 'modflow',
-      final_answer: '',
-      latency_ms: 12.34,
     })
   })
 
@@ -317,28 +300,13 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('0.99644'))
+    await screen.findByLabelText('完整拼装模型')
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
 
     const sourceSelect = (await screen.findByLabelText('简洁训练任务')) as HTMLSelectElement
     const optionTexts = Array.from(sourceSelect.options).map(option => option.textContent ?? '')
     expect(optionTexts.some(text => text.includes('diff-sorp'))).toBe(false)
     expect(optionTexts.some(text => text.includes('Ready training job'))).toBe(true)
-  })
-
-  it('fills the registered assembly profile demo prompt into the test input', async () => {
-    mockApi.getAssemblyStatus.mockResolvedValue({
-      ...statusPayload(),
-      assembly_profiles: [profilePayload()],
-    })
-
-    renderPage()
-
-    await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('K_mean=42'))
-    expect(screen.queryByRole('button', { name: /使用演示 Prompt/ })).toBeNull()
-    expect(screen.queryByText('MODFLOW 演示')).toBeNull()
-    expect(screen.queryByText('快捷输入')).toBeNull()
-    expect(screen.queryByRole('button', { name: /Diff-Sorption/ })).toBeNull()
   })
 
   it('loads diff-sorp from registered assembly profiles', async () => {
@@ -359,12 +327,9 @@ describe('TrainingSimpleAssemblyPage', () => {
 
     renderPage()
 
-    await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('K_mean=42'))
-    const profileSelect = screen.getByLabelText('完整拼装模型') as HTMLSelectElement
+    const profileSelect = (await screen.findByLabelText('完整拼装模型')) as HTMLSelectElement
     fireEvent.change(profileSelect, { target: { value: 'diff_sorp_demo' } })
     await waitFor(() => expect(profileSelect.value).toBe('diff_sorp_demo'))
-    expect(screen.queryByText('diff-sorp 标准样例')).toBeNull()
-    await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('0.99644'))
     fireEvent.click(screen.getByRole('button', { name: /一键加载/ }))
 
     await waitFor(() => expect(mockApi.loadAssemblyModels).toHaveBeenCalled())
@@ -374,44 +339,6 @@ describe('TrainingSimpleAssemblyPage', () => {
       llm_gpu_id: 0,
       force_split: true,
     })
-  })
-
-  it('renders MODFLOW test results as conversational text without dense arrays', async () => {
-    mockApi.getAssemblyStatus.mockResolvedValue({
-      ...statusPayload(),
-      assembly_profiles: [profilePayload()],
-      loaded_models: {
-        ...statusPayload().loaded_models,
-        assembly_profile: {
-          loaded: true,
-          model_id: 'modflow-demo',
-          name: 'MODFLOW demo profile',
-          executor: 'modflow_profile',
-        },
-        llm: { loaded: true, path: '/models/qwen' },
-      },
-    })
-    mockApi.testAssembly.mockResolvedValue({
-      router_prediction: 'modflow',
-      final_answer:
-        'MODFLOW地下水专家输出：\n[[10.759705543518066,13.775484085083008,12.556607246398926],[10.423967361450195,13.48708438873291,12.2828759765625]]\n中文趋势总结：\n1. 井1：前期上升，随后存在波动，末段高于起始水平。\n2. 井2：前期上升，随后存在波动，末段高于起始水平。',
-      latency_ms: 38.72,
-    })
-
-    renderPage()
-
-    await waitFor(() => expect((screen.getByRole('textbox') as HTMLTextAreaElement).value).toContain('K_mean=42'))
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '请预测 MODFLOW 地下水任务。' } })
-    fireEvent.click(screen.getByRole('button', { name: /运行测试/ }))
-
-    await waitFor(() => expect(screen.getByText(/已完成 MODFLOW 地下水预测/)).toBeTruthy())
-    expect(screen.getByText(/预测数值（hydraulic_head）：/)).toBeTruthy()
-    expect(screen.getByText(/井1：10\.7597，13\.7755，12\.5566/)).toBeTruthy()
-    expect(screen.getByText(/井2：10\.4240，13\.4871，12\.2829/)).toBeTruthy()
-    expect(screen.getByText(/中文趋势总结：/)).toBeTruthy()
-    expect(screen.getByText(/井1：前期上升，随后存在波动/)).toBeTruthy()
-    expect(screen.queryByText('M3')).toBeNull()
-    expect(screen.queryByText(/10\.759705543518066/)).toBeNull()
   })
 
   it('marks training-chain cards loaded only when the selected paths match', async () => {
@@ -436,7 +363,7 @@ describe('TrainingSimpleAssemblyPage', () => {
     expect(screen.queryByText(/· 已加载$/)).toBeNull()
   })
 
-  it('does not treat a partially loaded standard chain as ready to test', async () => {
+  it('keeps model conversation controls out of the assembly page', async () => {
     mockApi.getAssemblyStatus.mockResolvedValue({
       ...statusPayload(),
       loaded_models: {
@@ -451,52 +378,8 @@ describe('TrainingSimpleAssemblyPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /简洁训练任务/ }))
 
     expect(screen.queryByRole('button', { name: /运行测试/ })).toBeNull()
+    expect(screen.queryByLabelText('测试输入')).toBeNull()
+    expect(screen.queryByText('模型回复')).toBeNull()
     expect(screen.getByRole('button', { name: /加载训练组合/ })).toBeTruthy()
-  })
-
-  it('renders diff-sorp vector results as a conversational summary', async () => {
-    mockApi.getAssemblyStatus.mockResolvedValue({
-      ...statusPayload(),
-      loaded_models: loadedSimpleChain(),
-    })
-    mockApi.testAssembly.mockResolvedValue({
-      router_prediction: 'diff_sorp',
-      final_answer:
-        '好的，科学计算预测结果为\n\n[[0.78702, 0.71876, 0.65693, 0.60376, 0.58216, 0.57277, 0.54237, 0.50554,\n 0.47619, 0.45402, 0.43197, 0.40665, 0.38764, 0.36925, 0.34288, 0.32403]]。',
-      latency_ms: 23.45,
-    })
-
-    renderPage()
-
-    await screen.findByLabelText('简洁训练任务')
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '请预测 diff-sorp 下一时间步。' } })
-    fireEvent.click(screen.getByRole('button', { name: /运行测试/ }))
-
-    await waitFor(() => expect(screen.getByText(/好的，科学计算预测结果为/)).toBeTruthy())
-    expect(screen.getByText(/专家模型返回了一组数值预测/)).toBeTruthy()
-    expect(screen.queryByText(/0\.78702, 0\.71876/)).toBeNull()
-    expect(screen.queryByText(/\[\[/)).toBeNull()
-  })
-
-  it('keeps readable diff-sorp prediction value rows in the chat answer', async () => {
-    mockApi.getAssemblyStatus.mockResolvedValue({
-      ...statusPayload(),
-      loaded_models: loadedSimpleChain(),
-    })
-    mockApi.testAssembly.mockResolvedValue({
-      router_prediction: 'diff_sorp',
-      final_answer:
-        '好的，科学计算预测结果为\n\ndiff-sorp 专家模型已完成下一时间步预测。预测向量共 64 个数值点。\n\n预测数值：\n第 1-8 点：0.78702，0.71876，0.65693，0.60376，0.58216，0.57277，0.54237，0.50554',
-      latency_ms: 23.45,
-    })
-
-    renderPage()
-
-    await screen.findByLabelText('简洁训练任务')
-    fireEvent.change(screen.getByRole('textbox'), { target: { value: '请预测 diff-sorp 下一时间步。' } })
-    fireEvent.click(screen.getByRole('button', { name: /运行测试/ }))
-
-    await waitFor(() => expect(screen.getByText(/预测数值：/)).toBeTruthy())
-    expect(screen.getByText(/第 1-8 点：0\.78702，0\.71876/)).toBeTruthy()
   })
 })

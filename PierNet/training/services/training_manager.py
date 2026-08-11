@@ -14,7 +14,13 @@ from pathlib import Path
 from threading import RLock, Thread
 from typing import Any
 
+from PierNet.new_synth.training_bridge import (
+    list_text2comp_datasets,
+    resolve_paired_text2comp,
+    resolve_router_dataset,
+)
 from PierNet.synth.services import expert_models as uploaded_expert_models
+from PierNet.synth.text2comp.template_store import fill_sample, load_templates
 from PierNet.training.router.data import inspect_router_input_representation
 from PierNet.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from PierNet.shared.tasks import locks as task_locks
@@ -80,7 +86,7 @@ def _env_float(name: str, default: float) -> float:
 
 
 QUICK_TRAINING_DEFAULTS = {
-    "epochs": _env_int("PierNet_QUICK_TRAINING_EPOCHS", 0),
+    "epochs": _env_int("PierNet_QUICK_TRAINING_EPOCHS", 50),
     "eval_interval": _env_int("PierNet_QUICK_TRAINING_EVAL_INTERVAL", 1),
     "keep_last_epochs": _env_int("PierNet_QUICK_TRAINING_KEEP_LAST_EPOCHS", 5),
     "seed": _env_int("PierNet_QUICK_TRAINING_SEED", 42),
@@ -91,28 +97,40 @@ QUICK_TRAINING_DEFAULTS = {
     "num_workers": _env_int("PierNet_QUICK_TRAINING_NUM_WORKERS", 8),
     "prepare_workers": None,
     "test_ratio": _env_float("PierNet_QUICK_TRAINING_TEST_RATIO", 0.10),
-    "max_train_samples": None,
-    "max_test_samples": None,
+    "max_train_samples": _env_int("PierNet_QUICK_TRAINING_MAX_TRAIN_SAMPLES", 200_000),
+    "max_test_samples": _env_int("PierNet_QUICK_TRAINING_MAX_TEST_SAMPLES", 50_000),
     "resume_from": None,
     "input_representation": "embedding",
     "auto_stop_enabled": True,
     "auto_stop_metric": os.getenv("PierNet_QUICK_TRAINING_AUTO_STOP_METRIC", "f1"),
     "auto_stop_threshold": _env_float("PierNet_QUICK_TRAINING_AUTO_STOP_THRESHOLD", 0.98),
-    "auto_stop_min_epochs": _env_int("PierNet_QUICK_TRAINING_AUTO_STOP_MIN_EPOCHS", 1),
+    "auto_stop_min_epochs": _env_int("PierNet_QUICK_TRAINING_AUTO_STOP_MIN_EPOCHS", 5),
 }
 QUICK_TEXT2COMP_DEFAULTS = {
-    "epochs": _env_int("PierNet_QUICK_TEXT2COMP_EPOCHS", 1),
+    "epochs": _env_int("PierNet_QUICK_TEXT2COMP_EPOCHS", 50),
     "batch_size": _env_int("PierNet_QUICK_TEXT2COMP_BATCH_SIZE", 8),
     "test_batch_size": _env_int("PierNet_QUICK_TEXT2COMP_TEST_BATCH_SIZE", 8),
     "learning_rate": _env_float("PierNet_QUICK_TEXT2COMP_LEARNING_RATE", 1e-5),
+    "head_learning_rate": _env_float("PierNet_QUICK_TEXT2COMP_HEAD_LEARNING_RATE", 1e-4),
     "weight_decay": _env_float("PierNet_QUICK_TEXT2COMP_WEIGHT_DECAY", 1e-2),
     "num_workers": _env_int("PierNet_QUICK_TEXT2COMP_NUM_WORKERS", 2),
     "test_ratio": _env_float("PierNet_QUICK_TEXT2COMP_TEST_RATIO", 0.1),
     "max_length": _env_int("PierNet_QUICK_TEXT2COMP_MAX_LENGTH", 512),
     "eval_interval": _env_int("PierNet_QUICK_TEXT2COMP_EVAL_INTERVAL", 1),
-    "freeze_base": True,
-    "max_samples": _env_int("PierNet_QUICK_TEXT2COMP_MAX_SAMPLES", 1024),
+    "loss_fn": os.getenv("PierNet_QUICK_TEXT2COMP_LOSS_FN", "huber"),
+    "freeze_base": False,
+    "trainable_base_layers": _env_int("PierNet_QUICK_TEXT2COMP_TRAINABLE_BASE_LAYERS", 2),
+    "normalize_labels": True,
+    "min_samples": _env_int("PierNet_QUICK_TEXT2COMP_MIN_SAMPLES", 100),
+    "min_epochs": _env_int("PierNet_QUICK_TEXT2COMP_MIN_EPOCHS", 10),
+    "early_stop_patience": _env_int("PierNet_QUICK_TEXT2COMP_EARLY_STOP_PATIENCE", 8),
+    "target_normalized_rmse": _env_float("PierNet_QUICK_TEXT2COMP_TARGET_NORMALIZED_RMSE", 0.15),
+    "max_normalized_rmse": _env_float("PierNet_QUICK_TEXT2COMP_MAX_NORMALIZED_RMSE", 0.25),
+    "require_quality": True,
+    "max_samples": _env_int("PierNet_QUICK_TEXT2COMP_MAX_SAMPLES", 8_000),
 }
+QUICK_ROUTER_MIN_F1 = _env_float("PierNet_QUICK_ROUTER_MIN_F1", 0.95)
+QUICK_ROUTER_MIN_SAMPLES = _env_int("PierNet_QUICK_ROUTER_MIN_SAMPLES", 100)
 PLATFORM_STOP_PENDING_MESSAGE = "Platform stop requested; waiting for checkpoint save."
 PLATFORM_STOP_PENDING_DISPLAY = "已发送停止请求，正在等待当前 checkpoint 安全保存。"
 PLATFORM_STOP_TERMINAL_MESSAGES = {
@@ -123,7 +141,27 @@ PLATFORM_STOP_TERMINAL_MESSAGES = {
 PLATFORM_STOP_EXIT_REASONS = {"platform_stop", "platform_stop_requested"}
 
 _REGISTRY_LOCK = RLock()
+_LAUNCHED_PROCESS_LOCK = RLock()
+_LAUNCHED_PROCESSES: dict[int, subprocess.Popen] = {}
 LOGGER = logging.getLogger(__name__)
+
+
+def _track_launched_process(process: subprocess.Popen) -> None:
+    with _LAUNCHED_PROCESS_LOCK:
+        _LAUNCHED_PROCESSES[process.pid] = process
+
+
+def reap_finished_processes() -> int:
+    """Reap training children launched by this process and release Popen handles."""
+
+    reaped = 0
+    with _LAUNCHED_PROCESS_LOCK:
+        for pid, process in list(_LAUNCHED_PROCESSES.items()):
+            if process.poll() is None:
+                continue
+            _LAUNCHED_PROCESSES.pop(pid, None)
+            reaped += 1
+    return reaped
 
 
 def _ensure_dirs() -> None:
@@ -193,7 +231,9 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
             "config": config,
             "command": normalized.get("command") if isinstance(normalized.get("command"), list) else [],
             "checkpoints": normalized.get("checkpoints") if isinstance(normalized.get("checkpoints"), list) else [],
-            "simple_pipeline": normalized.get("simple_pipeline") if isinstance(normalized.get("simple_pipeline"), dict) else {},
+            "simple_pipeline": normalized.get("simple_pipeline")
+            if isinstance(normalized.get("simple_pipeline"), dict)
+            else {},
         }
     )
     pipeline = normalized.get("simple_pipeline") if isinstance(normalized.get("simple_pipeline"), dict) else {}
@@ -208,8 +248,13 @@ def _normalize_job_entry(entry: dict[str, Any]) -> dict[str, Any] | None:
     normalized["uploaded_expert_id"] = pipeline.get("uploaded_expert_id")
     normalized["uploaded_expert_name"] = pipeline.get("uploaded_expert_name")
     normalized["uploaded_expert_input_dim"] = pipeline.get("uploaded_expert_input_dim")
-    normalized["text2comp_output_dim"] = pipeline.get("text2comp_output_dim") or pipeline.get("uploaded_expert_input_dim")
+    normalized["text2comp_output_dim"] = pipeline.get("text2comp_output_dim") or pipeline.get(
+        "uploaded_expert_input_dim"
+    )
     normalized["text2comp_target_source"] = pipeline.get("text2comp_target_source")
+    normalized["text2comp_quality_passed"] = pipeline.get("text2comp_quality_passed")
+    normalized["router_metrics"] = pipeline.get("router_metrics")
+    normalized["text2comp_metrics"] = pipeline.get("text2comp_metrics")
     return normalized
 
 
@@ -263,7 +308,11 @@ def _should_release_gpu_lock(entry: dict[str, Any]) -> bool:
     if not config.get("simple_pipeline_enabled"):
         return True
     pipeline = entry.get("simple_pipeline") if isinstance(entry.get("simple_pipeline"), dict) else {}
-    if entry.get("status") == "done" and pipeline.get("stage") in {None, "router"} and not pipeline.get("text2comp_job_id"):
+    if (
+        entry.get("status") == "done"
+        and pipeline.get("stage") in {None, "router"}
+        and not pipeline.get("text2comp_job_id")
+    ):
         return False
     return True
 
@@ -358,84 +407,143 @@ def _scenario_h5_path(simulator: str, scenario: str) -> Path:
     return DATA_ROOT / simulator / f"{simulator}_{scenario}.h5"
 
 
-def _label_from_h5_row(
-    handle: Any,
-    row_index: int,
-    expected_dim: int | None = None,
-) -> tuple[list[float], str] | None:
-    try:
-        import numpy as np
-    except Exception as exc:  # pragma: no cover - numpy is part of the runtime
-        raise RuntimeError("numpy is required to prepare Text2Comp data") from exc
-
-    source = None
-    source_name = ""
-    if "params" in handle:
-        source = np.asarray(handle["params"][row_index], dtype=np.float32).reshape(-1)
-        source_name = "params"
-    elif "timeseries" in handle:
-        source = np.asarray(handle["timeseries"][row_index], dtype=np.float32).reshape(-1)
-        source_name = "timeseries"
-    if source is None or source.size == 0 or not np.isfinite(source).all():
-        return None
-    if expected_dim is not None and int(source.size) != expected_dim:
-        return None
-    return [float(x) for x in source], source_name
+def _scenario_template_path(scenario: str) -> Path:
+    return DATA_ROOT / "templates" / f"{scenario}_templates.jsonl"
 
 
 def _prepare_simple_text2comp_dataset(entry: dict[str, Any]) -> dict[str, Any]:
     try:
         import h5py
+        import numpy as np
     except Exception as exc:  # pragma: no cover - h5py is part of the runtime
-        raise RuntimeError("h5py is required to prepare Text2Comp data") from exc
+        raise RuntimeError("h5py and numpy are required to prepare Text2Comp data") from exc
 
     simulator = str(entry.get("simulator") or "")
     scenarios = [str(item) for item in entry.get("scenarios") or []]
     config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    dataset_id = str(config.get("dataset_id") or entry.get("dataset_id") or "").strip()
+    if dataset_id:
+        router_dataset = resolve_router_dataset(dataset_id)
+        text2comp_dataset = resolve_paired_text2comp(router_dataset)
+        if text2comp_dataset is None:
+            raise ValueError(f"Router dataset has no paired Text2Comp dataset: {dataset_id}")
+        metadata = text2comp_dataset.get("metadata") or {}
+        output_dim = int(metadata.get("input_dim") or 0)
+        if output_dim <= 0:
+            raise ValueError(f"Text2Comp dataset has no expert input dimension: {text2comp_dataset['dataset_id']}")
+        return {
+            "path": str(text2comp_dataset["path"]),
+            "generated": int(text2comp_dataset["sample_count"]),
+            "skipped": 0,
+            "output_dim": output_dim,
+            "target_source": "expert_input",
+            "sources": [str(text2comp_dataset["path"])],
+            "dataset_id": text2comp_dataset["dataset_id"],
+        }
     max_samples = max(1, int(config.get("simple_text2comp_max_samples") or QUICK_TEXT2COMP_DEFAULTS["max_samples"]))
     output_path = DATA_ROOT / "text2comp" / f"{simulator}_{entry['job_id']}.jsonl"
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
+    source_specs: list[dict[str, Any]] = []
+    missing_inputs: list[str] = []
+    for scenario in scenarios:
+        h5_path = _scenario_h5_path(simulator, scenario)
+        template_path = _scenario_template_path(scenario)
+        if not h5_path.exists():
+            missing_inputs.append(f"missing HDF5 for {scenario}: {h5_path}")
+            continue
+        if not template_path.exists():
+            missing_inputs.append(f"missing templates for {scenario}: {template_path}")
+            continue
+        templates = [template for template in load_templates(template_path) if template.scenario == scenario]
+        if not templates:
+            missing_inputs.append(f"no valid templates for {scenario}: {template_path}")
+            continue
+        source_specs.append(
+            {
+                "scenario": scenario,
+                "h5_path": h5_path,
+                "templates": templates,
+            }
+        )
+    if missing_inputs:
+        raise ValueError("Text2Comp formal training inputs are incomplete: " + "; ".join(missing_inputs))
+
     generated = 0
     skipped = 0
     output_dim: int | None = None
-    target_source: str | None = None
     used_sources: list[str] = []
     with output_path.open("w", encoding="utf-8") as handle_out:
-        for scenario in scenarios:
-            h5_path = _scenario_h5_path(simulator, scenario)
-            if not h5_path.exists():
-                skipped += 1
-                continue
-            used_sources.append(str(h5_path))
-            with h5py.File(h5_path, "r") as h5:
-                if "params" in h5:
-                    n_rows = int(h5["params"].shape[0])
-                elif "timeseries" in h5:
-                    n_rows = int(h5["timeseries"].shape[0])
-                else:
-                    skipped += 1
+        variant_index = 0
+        while generated < max_samples:
+            wrote_variant = False
+            for source in source_specs:
+                templates = source["templates"]
+                if variant_index >= len(templates):
                     continue
-                for row_index in range(n_rows):
-                    if generated >= max_samples:
-                        break
-                    label_result = _label_from_h5_row(h5, row_index, output_dim)
-                    if label_result is None:
-                        skipped += 1
-                        continue
-                    label, source_name = label_result
-                    if output_dim is None:
-                        output_dim = len(label)
-                        target_source = source_name
-                    prompt = (
-                        f"请根据 {simulator.upper()} / {scenario} 场景训练数据生成 Text2Comp 目标参数。"
-                        f"目标来自训练数据字段 {target_source or source_name}，共 {output_dim} 维。"
-                        f"样本编号：{row_index}。"
-                    )
-                    handle_out.write(json.dumps({"prompt": prompt, "label": label}, ensure_ascii=False) + "\n")
-                    generated += 1
-                if generated >= max_samples:
-                    break
+                wrote_variant = True
+                scenario = str(source["scenario"])
+                h5_path = Path(source["h5_path"])
+                template = templates[variant_index]
+                if str(h5_path) not in used_sources:
+                    used_sources.append(str(h5_path))
+                with h5py.File(h5_path, "r") as h5:
+                    if "params" not in h5 or "timeseries" not in h5:
+                        raise ValueError(
+                            f"Text2Comp formal training requires params and timeseries datasets: {h5_path}"
+                        )
+                    n_rows = min(int(h5["params"].shape[0]), int(h5["timeseries"].shape[0]))
+                    for row_index in range(n_rows):
+                        if generated >= max_samples:
+                            break
+                        params = np.asarray(h5["params"][row_index], dtype=np.float32).reshape(-1)
+                        timeseries = np.asarray(h5["timeseries"][row_index], dtype=np.float32)
+                        if params.size == 0 or timeseries.ndim != 2 or not np.isfinite(params).all():
+                            skipped += 1
+                            continue
+                        channel_indices = template.channel_indices or list(range(timeseries.shape[0]))
+                        time_indices = template.time_indices or list(range(timeseries.shape[1]))
+                        if (
+                            not channel_indices
+                            or not time_indices
+                            or max(channel_indices) >= timeseries.shape[0]
+                            or max(time_indices) >= timeseries.shape[1]
+                        ):
+                            skipped += 1
+                            continue
+                        timeseries_obs = timeseries[np.ix_(channel_indices, time_indices)]
+                        filled = fill_sample(template, params, timeseries_obs, row_index)
+                        label = [float(value) for value in filled["params_transformed"]]
+                        if output_dim is None:
+                            output_dim = len(label)
+                        if len(label) != output_dim or not all(np.isfinite(label)):
+                            skipped += 1
+                            continue
+                        handle_out.write(
+                            json.dumps(
+                                {
+                                    "prompt": filled["input"],
+                                    "label": label,
+                                    "expert_input": label,
+                                    "metadata": {
+                                        "workflow_id": entry["job_id"],
+                                        "dataset_id": f"simple-{entry['job_id']}",
+                                        "simulator": simulator,
+                                        "scenario": scenario,
+                                        "sample_index": row_index,
+                                        "template_variant": variant_index,
+                                        "label_semantics": "expert_input",
+                                        "label_source": "params_transformed",
+                                    },
+                                },
+                                ensure_ascii=False,
+                            )
+                            + "\n"
+                        )
+                        generated += 1
+            if not wrote_variant:
+                break
+            variant_index += 1
 
     if generated == 0 or output_dim is None:
         try:
@@ -449,7 +557,7 @@ def _prepare_simple_text2comp_dataset(entry: dict[str, Any]) -> dict[str, Any]:
         "generated": generated,
         "skipped": skipped,
         "output_dim": output_dim,
-        "target_source": target_source or "unknown",
+        "target_source": "params_transformed",
         "sources": used_sources,
     }
 
@@ -474,6 +582,10 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
     if pipeline.get("text2comp_job_id"):
         return
     dataset = _prepare_simple_text2comp_dataset(entry)
+    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
+    min_samples = int(config.get("simple_text2comp_min_samples") or QUICK_TEXT2COMP_DEFAULTS["min_samples"])
+    if int(dataset["generated"]) < min_samples:
+        raise ValueError(f"Text2Comp 数据只有 {dataset['generated']} 条，正式训练至少需要 {min_samples} 条有效样本")
     pipeline["text2comp_dataset_path"] = dataset["path"]
     pipeline["text2comp_dataset_samples"] = dataset["generated"]
     pipeline["text2comp_output_dim"] = int(dataset["output_dim"])
@@ -486,10 +598,9 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
             f"output_dim={dataset['output_dim']} target_source={dataset['target_source']}"
         ),
     )
-    config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
     text2comp_payload = {
         "name": f"{entry['name']}-Text2Comp",
-        "expert_model": "expert_model",
+        "expert_model": str(entry.get("simulator") or "expert_model"),
         "dataset_path": dataset["path"],
         "gpu_id": int(entry.get("gpu_id") or 0),
         "output_dim": int(dataset["output_dim"]),
@@ -502,11 +613,35 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
         "learning_rate": float(
             config.get("simple_text2comp_learning_rate") or QUICK_TEXT2COMP_DEFAULTS["learning_rate"]
         ),
+        "head_learning_rate": float(
+            config.get("simple_text2comp_head_learning_rate") or QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"]
+        ),
         "weight_decay": float(config.get("simple_text2comp_weight_decay") or QUICK_TEXT2COMP_DEFAULTS["weight_decay"]),
         "num_workers": int(config.get("simple_text2comp_num_workers") or QUICK_TEXT2COMP_DEFAULTS["num_workers"]),
         "test_ratio": float(config.get("simple_text2comp_test_ratio") or QUICK_TEXT2COMP_DEFAULTS["test_ratio"]),
         "max_length": int(config.get("simple_text2comp_max_length") or QUICK_TEXT2COMP_DEFAULTS["max_length"]),
+        "loss_fn": str(config.get("simple_text2comp_loss_fn") or QUICK_TEXT2COMP_DEFAULTS["loss_fn"]),
         "freeze_base": bool(config.get("simple_text2comp_freeze_base", QUICK_TEXT2COMP_DEFAULTS["freeze_base"])),
+        "trainable_base_layers": int(
+            config.get("simple_text2comp_trainable_base_layers", QUICK_TEXT2COMP_DEFAULTS["trainable_base_layers"])
+        ),
+        "normalize_labels": bool(
+            config.get("simple_text2comp_normalize_labels", QUICK_TEXT2COMP_DEFAULTS["normalize_labels"])
+        ),
+        "min_samples": min_samples,
+        "min_epochs": int(config.get("simple_text2comp_min_epochs") or QUICK_TEXT2COMP_DEFAULTS["min_epochs"]),
+        "early_stop_patience": int(
+            config.get("simple_text2comp_early_stop_patience") or QUICK_TEXT2COMP_DEFAULTS["early_stop_patience"]
+        ),
+        "target_normalized_rmse": float(
+            config.get("simple_text2comp_target_normalized_rmse") or QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"]
+        ),
+        "max_normalized_rmse": float(
+            config.get("simple_text2comp_max_normalized_rmse") or QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"]
+        ),
+        "require_quality": bool(
+            config.get("simple_text2comp_require_quality", QUICK_TEXT2COMP_DEFAULTS["require_quality"])
+        ),
     }
     child = text2comp_manager.create_job(text2comp_payload)
     pipeline.update(
@@ -539,6 +674,26 @@ def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
         entry["pipeline_stage"] = pipeline["stage"]
         return entry
 
+    if not pipeline.get("text2comp_job_id"):
+        latest_metrics = entry.get("latest_metrics") if isinstance(entry.get("latest_metrics"), dict) else {}
+        if latest_metrics:
+            pipeline["router_metrics"] = dict(latest_metrics)
+
+    if config.get("simple_quality_gate_enabled") and not pipeline.get("text2comp_job_id"):
+        latest_metrics = entry.get("latest_metrics") if isinstance(entry.get("latest_metrics"), dict) else {}
+        router_f1 = _coerce_float(latest_metrics.get("f1"))
+        min_router_f1 = float(config.get("simple_router_min_f1") or QUICK_ROUTER_MIN_F1)
+        pipeline["router_f1"] = router_f1
+        pipeline["router_min_f1"] = min_router_f1
+        if router_f1 is None or router_f1 < min_router_f1:
+            pipeline["stage"] = "error"
+            entry["status"] = "error"
+            entry["pipeline_stage"] = "error"
+            entry["error_message"] = (
+                f"Router 训练已结束，但验证质量未达到可用门槛（F1={router_f1}, 要求 >= {min_router_f1:.4f}）。"
+            )
+            return entry
+
     try:
         _start_simple_text2comp_stage(entry)
     except Exception as exc:
@@ -568,7 +723,6 @@ def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
                 "steps_per_sec",
                 "eta_seconds",
                 "latest_test_epoch",
-                "latest_metrics",
             ):
                 if child.get(key) is not None:
                     entry[key] = child.get(key)
@@ -579,6 +733,9 @@ def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
                     "text2comp_run_dir": child.get("run_dir"),
                     "text2comp_model_path": _simple_text2comp_model_path(child),
                     "text2comp_error_message": child.get("error_message"),
+                    "text2comp_quality_passed": child.get("quality_passed"),
+                    "text2comp_quality_summary": child.get("quality_summary"),
+                    "text2comp_metrics": child.get("latest_metrics"),
                 }
             )
             entry["pipeline_stage"] = pipeline["stage"]
@@ -611,16 +768,20 @@ def _hash_prepared_name(
     input_representation: str,
     embedding_model: str = "",
     embedding_tokenizer: str = "",
+    dataset_id: str | None = None,
 ) -> str:
+    cache_key = {
+        "simulator": simulator,
+        "scenarios": sorted(scenarios),
+        "test_ratio": test_ratio,
+        "input_representation": input_representation,
+        "embedding_model": embedding_model,
+        "embedding_tokenizer": embedding_tokenizer,
+    }
+    if dataset_id:
+        cache_key["dataset_id"] = dataset_id
     payload = json.dumps(
-        {
-            "simulator": simulator,
-            "scenarios": sorted(scenarios),
-            "test_ratio": test_ratio,
-            "input_representation": input_representation,
-            "embedding_model": embedding_model,
-            "embedding_tokenizer": embedding_tokenizer,
-        },
+        cache_key,
         ensure_ascii=False,
         sort_keys=True,
     )
@@ -815,9 +976,19 @@ def list_datasets() -> list[dict[str, Any]]:
     )
 
 
+def list_simple_datasets() -> list[dict[str, Any]]:
+    return training_datasets.list_simple_datasets(
+        list_datasets(),
+        text2comp_datasets=list_text2comp_datasets(),
+        data_root=DATA_ROOT,
+        min_router_samples=QUICK_ROUTER_MIN_SAMPLES,
+        min_text2comp_samples=QUICK_TEXT2COMP_DEFAULTS["min_samples"],
+    )
+
+
 def get_gpu_inventory() -> list[dict[str, Any]]:
     return training_gpu.build_gpu_inventory(
-        jobs=list_jobs(refresh=True),
+        jobs=list_jobs(refresh=False),
         lock_rows=task_locks.list_locks(prefix="gpu:"),
         active_statuses=TRAINING_ACTIVE_STATUSES,
         free_memory_threshold_mib=GPU_FREE_MEMORY_THRESHOLD_MIB,
@@ -839,7 +1010,7 @@ def _auto_select_gpu_id() -> int:
 
 
 def get_overview() -> dict[str, Any]:
-    jobs = list_jobs(refresh=True)
+    jobs = list_jobs(refresh=False)
     running_job_count = sum(1 for job in jobs if job["status"] in TRAINING_ACTIVE_STATUSES)
     completed_job_count = sum(1 for job in jobs if job["status"] == "done")
     return {
@@ -865,6 +1036,25 @@ def _validate_scenarios(simulator: str, scenarios: list[str]) -> list[str]:
     return requested
 
 
+def _resolve_router_training_source(
+    payload: dict[str, Any],
+) -> tuple[str | None, str, list[str], Path]:
+    dataset_id = str(payload.get("dataset_id") or "").strip() or None
+    if dataset_id:
+        dataset = resolve_router_dataset(dataset_id)
+        simulator = str(dataset["simulator"])
+        available = [str(dataset["scenario"])]
+        requested = sorted({str(item).strip() for item in payload.get("scenarios") or [] if str(item).strip()})
+        scenarios = requested or available
+        missing = sorted(set(scenarios) - set(available))
+        if missing:
+            raise ValueError(f"Unknown scenarios for dataset {dataset_id}: {missing}")
+        return dataset_id, simulator, scenarios, Path(str(dataset["root_path"]))
+    simulator = str(payload.get("simulator") or "modflow").strip() or "modflow"
+    scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
+    return None, simulator, scenarios, ROUTER_DATA_DIR
+
+
 def _training_queue_enabled() -> bool:
     return os.getenv("PierNet_WORKER_QUEUE_TRAINING", "1").strip().lower() not in {"0", "false", "no", "off"}
 
@@ -875,12 +1065,11 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
     if gpu_id not in gpu_map:
         raise ValueError(f"GPU {gpu_id} not found")
 
-    simulator = str(payload["simulator"])
-    scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
+    dataset_id, simulator, scenarios, router_dir = _resolve_router_training_source(payload)
     requested_input_representation = "embedding"
     resolved_input_representation, embedding_metadata = inspect_router_input_representation(
         simulator=simulator,
-        router_dir=ROUTER_DATA_DIR,
+        router_dir=router_dir,
         scenarios=scenarios,
         input_representation=requested_input_representation,
     )
@@ -921,12 +1110,14 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
         input_representation=resolved_input_representation,
         embedding_model=embedding_metadata.embedding_model,
         embedding_tokenizer=embedding_metadata.tokenizer_name,
+        dataset_id=dataset_id,
     )
     return {
         "job_id": job_id,
         "name": job_name,
         "status": "queued",
         "simulator": simulator,
+        "dataset_id": dataset_id,
         "scenarios": scenarios,
         "gpu_id": gpu_id,
         "created_at": created_at,
@@ -955,10 +1146,62 @@ def _queued_training_entry(payload: dict[str, Any]) -> dict[str, Any]:
             "input_representation": resolved_input_representation,
             "embedding_model": embedding_metadata.embedding_model,
             "embedding_tokenizer": embedding_metadata.tokenizer_name,
+            "dataset_id": dataset_id,
+            "router_dir": str(router_dir),
             "simple_pipeline_enabled": bool(payload.get("simple_pipeline_enabled", False)),
+            "simple_quality_gate_enabled": bool(payload.get("simple_quality_gate_enabled", False)),
+            "simple_router_min_f1": float(payload.get("simple_router_min_f1", QUICK_ROUTER_MIN_F1)),
             "simple_text2comp_epochs": int(payload.get("simple_text2comp_epochs", QUICK_TEXT2COMP_DEFAULTS["epochs"])),
             "simple_text2comp_max_samples": int(
                 payload.get("simple_text2comp_max_samples", QUICK_TEXT2COMP_DEFAULTS["max_samples"])
+            ),
+            "simple_text2comp_loss_fn": str(
+                payload.get("simple_text2comp_loss_fn", QUICK_TEXT2COMP_DEFAULTS["loss_fn"])
+            ),
+            "simple_text2comp_head_learning_rate": float(
+                payload.get(
+                    "simple_text2comp_head_learning_rate",
+                    QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"],
+                )
+            ),
+            "simple_text2comp_freeze_base": bool(
+                payload.get("simple_text2comp_freeze_base", QUICK_TEXT2COMP_DEFAULTS["freeze_base"])
+            ),
+            "simple_text2comp_trainable_base_layers": int(
+                payload.get(
+                    "simple_text2comp_trainable_base_layers",
+                    QUICK_TEXT2COMP_DEFAULTS["trainable_base_layers"],
+                )
+            ),
+            "simple_text2comp_normalize_labels": bool(
+                payload.get("simple_text2comp_normalize_labels", QUICK_TEXT2COMP_DEFAULTS["normalize_labels"])
+            ),
+            "simple_text2comp_min_samples": int(
+                payload.get("simple_text2comp_min_samples", QUICK_TEXT2COMP_DEFAULTS["min_samples"])
+            ),
+            "simple_text2comp_min_epochs": int(
+                payload.get("simple_text2comp_min_epochs", QUICK_TEXT2COMP_DEFAULTS["min_epochs"])
+            ),
+            "simple_text2comp_early_stop_patience": int(
+                payload.get(
+                    "simple_text2comp_early_stop_patience",
+                    QUICK_TEXT2COMP_DEFAULTS["early_stop_patience"],
+                )
+            ),
+            "simple_text2comp_target_normalized_rmse": float(
+                payload.get(
+                    "simple_text2comp_target_normalized_rmse",
+                    QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"],
+                )
+            ),
+            "simple_text2comp_max_normalized_rmse": float(
+                payload.get(
+                    "simple_text2comp_max_normalized_rmse",
+                    QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"],
+                )
+            ),
+            "simple_text2comp_require_quality": bool(
+                payload.get("simple_text2comp_require_quality", QUICK_TEXT2COMP_DEFAULTS["require_quality"])
             ),
             **auto_stop_options,
         },
@@ -1015,11 +1258,13 @@ def create_job(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
-    simulator = str(payload.get("simulator") or "modflow").strip() or "modflow"
-    requested_scenarios = [str(item).strip() for item in list(payload.get("scenarios") or []) if str(item).strip()]
-    if not requested_scenarios:
+    requested_dataset_id = str(payload.get("dataset_id") or "").strip()
+    requested_scenarios = [str(item).strip() for item in payload.get("scenarios") or [] if str(item).strip()]
+    if not requested_dataset_id and not requested_scenarios:
         raise ValueError("Please select at least one training scenario")
-    scenarios = _validate_scenarios(simulator, requested_scenarios)
+    dataset_id, simulator, scenarios, _router_dir = _resolve_router_training_source(payload)
+    if not scenarios:
+        raise ValueError("Please select at least one training scenario")
     requested_gpu_id = payload.get("gpu_id")
     gpu_id = _auto_select_gpu_id() if requested_gpu_id is None else int(requested_gpu_id)
     requested_seed = payload.get("seed")
@@ -1033,13 +1278,27 @@ def create_quick_job(payload: dict[str, Any]) -> dict[str, Any]:
             ),
             "simulator": simulator,
             "scenarios": scenarios,
+            "dataset_id": dataset_id,
             "gpu_id": gpu_id,
             "resume_from": payload.get("resume_from") or None,
             "seed": requested_seed if requested_seed is not None else QUICK_TRAINING_DEFAULTS["seed"],
             "simple_pipeline_enabled": True,
+            "simple_quality_gate_enabled": True,
+            "simple_router_min_f1": QUICK_ROUTER_MIN_F1,
             "uploaded_expert_id": uploaded_expert_id,
             "simple_text2comp_epochs": QUICK_TEXT2COMP_DEFAULTS["epochs"],
             "simple_text2comp_max_samples": QUICK_TEXT2COMP_DEFAULTS["max_samples"],
+            "simple_text2comp_loss_fn": QUICK_TEXT2COMP_DEFAULTS["loss_fn"],
+            "simple_text2comp_head_learning_rate": QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"],
+            "simple_text2comp_freeze_base": QUICK_TEXT2COMP_DEFAULTS["freeze_base"],
+            "simple_text2comp_trainable_base_layers": QUICK_TEXT2COMP_DEFAULTS["trainable_base_layers"],
+            "simple_text2comp_normalize_labels": QUICK_TEXT2COMP_DEFAULTS["normalize_labels"],
+            "simple_text2comp_min_samples": QUICK_TEXT2COMP_DEFAULTS["min_samples"],
+            "simple_text2comp_min_epochs": QUICK_TEXT2COMP_DEFAULTS["min_epochs"],
+            "simple_text2comp_early_stop_patience": QUICK_TEXT2COMP_DEFAULTS["early_stop_patience"],
+            "simple_text2comp_target_normalized_rmse": QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"],
+            "simple_text2comp_max_normalized_rmse": QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"],
+            "simple_text2comp_require_quality": QUICK_TEXT2COMP_DEFAULTS["require_quality"],
         }
     )
     return create_job(quick_payload)
@@ -1092,12 +1351,11 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
     gpu = gpu_map.get(gpu_id)
     if gpu is None:
         raise ValueError(f"GPU {gpu_id} not found")
-    simulator = str(payload["simulator"])
-    scenarios = _validate_scenarios(simulator, list(payload.get("scenarios") or []))
+    dataset_id, simulator, scenarios, router_dir = _resolve_router_training_source(payload)
     requested_input_representation = "embedding"
     resolved_input_representation, embedding_metadata = inspect_router_input_representation(
         simulator=simulator,
-        router_dir=ROUTER_DATA_DIR,
+        router_dir=router_dir,
         scenarios=scenarios,
         input_representation=requested_input_representation,
     )
@@ -1124,6 +1382,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         input_representation=resolved_input_representation,
         embedding_model=embedding_metadata.embedding_model,
         embedding_tokenizer=embedding_metadata.tokenizer_name,
+        dataset_id=dataset_id,
     )
     run_dir = artifact_root / "runs" / job_id
     log_path = RUNLOGS_ROOT / f"{job_id}.log"
@@ -1169,7 +1428,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
         "--test-ratio",
         str(test_ratio),
         "--router-dir",
-        str(ROUTER_DATA_DIR),
+        str(router_dir),
         "--artifact-root",
         str(artifact_root),
         "--prepared-name",
@@ -1266,6 +1525,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                     env=env,
                     text=True,
                 )
+                _track_launched_process(process)
             except Exception as exc:
                 _release_gpu_lock({"gpu_id": gpu_id}, job_id)
                 log_handle.write(f"[error] failed to spawn training subprocess: {exc}\n")
@@ -1281,6 +1541,7 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                 "name": job_name,
                 "status": "starting",
                 "simulator": simulator,
+                "dataset_id": dataset_id,
                 "scenarios": scenarios,
                 "gpu_id": gpu_id,
                 "created_at": _coerce_float(payload.get("_created_at"), time.time()) or time.time(),
@@ -1309,12 +1570,70 @@ def _launch_job(payload: dict[str, Any]) -> dict[str, Any] | None:
                     "input_representation": resolved_input_representation,
                     "embedding_model": embedding_metadata.embedding_model,
                     "embedding_tokenizer": embedding_metadata.tokenizer_name,
+                    "dataset_id": dataset_id,
+                    "router_dir": str(router_dir),
                     "simple_pipeline_enabled": bool(payload.get("simple_pipeline_enabled", False)),
+                    "simple_quality_gate_enabled": bool(payload.get("simple_quality_gate_enabled", False)),
+                    "simple_router_min_f1": float(payload.get("simple_router_min_f1", QUICK_ROUTER_MIN_F1)),
                     "simple_text2comp_epochs": int(
                         payload.get("simple_text2comp_epochs", QUICK_TEXT2COMP_DEFAULTS["epochs"])
                     ),
                     "simple_text2comp_max_samples": int(
                         payload.get("simple_text2comp_max_samples", QUICK_TEXT2COMP_DEFAULTS["max_samples"])
+                    ),
+                    "simple_text2comp_loss_fn": str(
+                        payload.get("simple_text2comp_loss_fn", QUICK_TEXT2COMP_DEFAULTS["loss_fn"])
+                    ),
+                    "simple_text2comp_head_learning_rate": float(
+                        payload.get(
+                            "simple_text2comp_head_learning_rate",
+                            QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"],
+                        )
+                    ),
+                    "simple_text2comp_freeze_base": bool(
+                        payload.get("simple_text2comp_freeze_base", QUICK_TEXT2COMP_DEFAULTS["freeze_base"])
+                    ),
+                    "simple_text2comp_trainable_base_layers": int(
+                        payload.get(
+                            "simple_text2comp_trainable_base_layers",
+                            QUICK_TEXT2COMP_DEFAULTS["trainable_base_layers"],
+                        )
+                    ),
+                    "simple_text2comp_normalize_labels": bool(
+                        payload.get(
+                            "simple_text2comp_normalize_labels",
+                            QUICK_TEXT2COMP_DEFAULTS["normalize_labels"],
+                        )
+                    ),
+                    "simple_text2comp_min_samples": int(
+                        payload.get("simple_text2comp_min_samples", QUICK_TEXT2COMP_DEFAULTS["min_samples"])
+                    ),
+                    "simple_text2comp_min_epochs": int(
+                        payload.get("simple_text2comp_min_epochs", QUICK_TEXT2COMP_DEFAULTS["min_epochs"])
+                    ),
+                    "simple_text2comp_early_stop_patience": int(
+                        payload.get(
+                            "simple_text2comp_early_stop_patience",
+                            QUICK_TEXT2COMP_DEFAULTS["early_stop_patience"],
+                        )
+                    ),
+                    "simple_text2comp_target_normalized_rmse": float(
+                        payload.get(
+                            "simple_text2comp_target_normalized_rmse",
+                            QUICK_TEXT2COMP_DEFAULTS["target_normalized_rmse"],
+                        )
+                    ),
+                    "simple_text2comp_max_normalized_rmse": float(
+                        payload.get(
+                            "simple_text2comp_max_normalized_rmse",
+                            QUICK_TEXT2COMP_DEFAULTS["max_normalized_rmse"],
+                        )
+                    ),
+                    "simple_text2comp_require_quality": bool(
+                        payload.get(
+                            "simple_text2comp_require_quality",
+                            QUICK_TEXT2COMP_DEFAULTS["require_quality"],
+                        )
                     ),
                     **auto_stop_options,
                 },

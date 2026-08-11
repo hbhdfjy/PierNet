@@ -35,6 +35,7 @@ from pydantic import BaseModel
 
 from PierNet.synth.services import expert_models as uploaded_expert_models
 from PierNet.training.api.modflow_assembly import ModflowAssemblyProfilePipeline
+from PierNet.training.text2comp.data import PromptNumbersDataset
 
 
 logger = logging.getLogger(__name__)
@@ -210,7 +211,7 @@ def _scan_assembly_profiles() -> list[dict[str, Any]]:
         profiles.append({
             "model_id": model_id,
             "name": str(item.get("name") or manifest.get("name") or model_id),
-            "description": str(item.get("description") or manifest.get("description") or "PierNet assembled model"),
+            "description": str(item.get("description") or manifest.get("description") or "Piern assembled model"),
             "executor": str(item.get("executor") or "modflow_profile"),
             "simulator": str(item.get("simulator") or "modflow"),
             "root": str(root),
@@ -266,8 +267,20 @@ def _text2comp_model_name(path: str) -> str:
     return stem
 
 
+def _text2comp_run_metadata(path: str) -> tuple[str, str]:
+    run_name = Path(path).parent.name
+    match = re.match(
+        r"^text2comp-(?:expert_model_)?(?P<simulator>.+?)_train_(?P<job>[0-9a-f]{8})(?:_|$)",
+        run_name,
+    )
+    if not match:
+        return "", ""
+    return match.group("simulator"), match.group("job")
+
+
 def _text2comp_metadata(path: str) -> tuple[str, int, str]:
     model_path = Path(path)
+    run_simulator, source_job = _text2comp_run_metadata(path)
     config_path = model_path.parent / "config.json"
     if config_path.exists():
         try:
@@ -275,9 +288,18 @@ def _text2comp_metadata(path: str) -> tuple[str, int, str]:
         except Exception:
             config = {}
         if isinstance(config, dict):
-            simulator = str(config.get("simulator") or _infer_simulator_from_path(path))
+            configured_simulator = str(config.get("simulator") or "").strip()
+            simulator = (
+                run_simulator
+                if configured_simulator in {"", "unknown", "expert_model"} and run_simulator
+                else configured_simulator or _infer_simulator_from_path(path)
+            )
             output_dim = int(config.get("output_dim") or (128 if simulator == "diff_sorp" else 32))
             name = str(config.get("task_name") or _text2comp_model_name(path))
+            if name in {"expert_model", "expert_model_train"} and simulator not in {"", "unknown", "expert_model"}:
+                name = f"{simulator}_train"
+            if source_job and source_job not in name:
+                name = f"{name}-{source_job}"
             return simulator, output_dim, name
     simulator = _infer_simulator_from_path(path)
     return simulator, 128 if simulator == "diff_sorp" else 32, _text2comp_model_name(path)
@@ -347,14 +369,31 @@ def _scan_router():
             seen.add(f)
             run_name = os.path.basename(os.path.dirname(f))
             stem = os.path.basename(f).replace(".pt", "")
-            name = run_name if stem in {"router_final", "router_latest"} else f"{run_name}_{stem}"
+            if stem == "router_final":
+                name = run_name
+            elif stem == "router_latest":
+                name = f"{run_name}_latest"
+            else:
+                name = f"{run_name}_{stem}"
+            config_path = Path(f).parent / "config.json"
+            training_config = {}
+            if config_path.exists():
+                try:
+                    config_payload = json.loads(config_path.read_text(encoding="utf-8"))
+                except Exception:
+                    config_payload = {}
+                if isinstance(config_payload, dict) and isinstance(config_payload.get("training"), dict):
+                    training_config = config_payload["training"]
+            simulator = str(training_config.get("simulator") or "").strip()
+            scenarios = [str(item) for item in training_config.get("scenarios") or []]
+            scope = f"{simulator.upper()} · {', '.join(scenarios)}" if simulator else "Platform training"
             models.append({
                 "name": name,
                 "path": f,
                 "num_classes": 2,
-                "class_names": ["normal", "diff_sorp"],
+                "class_names": ["not_target", "target"],
                 "router_type": "fullseq_dilated_conv",
-                "description": "Platform-trained FullSeqDilatedConvRouter",
+                "description": f"{scope} binary Router",
             })
     if not models:
         models.append({
@@ -437,6 +476,8 @@ class UploadedExpertInfo(BaseModel):
     trained: bool
     assembly_enabled: bool
     data_generation_enabled: bool
+    demo_prompt: str = ""
+    demo_prompt_label: str = "演示 Prompt"
     validated_at: Optional[float] = None
     last_error: Optional[str] = None
 
@@ -649,6 +690,12 @@ class LMRegression32D(nn.Module):
             nn.ReLU(),
             nn.Linear(1024, output_dim)
         )
+        self.register_buffer("output_mean", torch.zeros(output_dim), persistent=False)
+        self.register_buffer("output_scale", torch.ones(output_dim), persistent=False)
+
+    def set_output_normalization(self, mean: Any, scale: Any) -> None:
+        self.output_mean.copy_(torch.as_tensor(mean, dtype=torch.float32, device=self.output_mean.device))
+        self.output_scale.copy_(torch.as_tensor(scale, dtype=torch.float32, device=self.output_scale.device))
 
     def forward(self, input_ids, attention_mask):
         outputs = self.base_model.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -656,7 +703,7 @@ class LMRegression32D(nn.Module):
         masked = last_hidden * attention_mask.unsqueeze(-1)
         pooled = masked.sum(dim=1) / attention_mask.sum(dim=1, keepdim=True)
         pooled = pooled.float()  # BFloat16 -> Float32
-        return self.head(pooled)
+        return self.head(pooled) * self.output_scale + self.output_mean
 
 
 class LMRegression128D(nn.Module):
@@ -675,6 +722,12 @@ class LMRegression128D(nn.Module):
             nn.ReLU(),
             nn.Linear(1024, output_dim)
         )
+        self.register_buffer("output_mean", torch.zeros(output_dim), persistent=False)
+        self.register_buffer("output_scale", torch.ones(output_dim), persistent=False)
+
+    def set_output_normalization(self, mean: Any, scale: Any) -> None:
+        self.output_mean.copy_(torch.as_tensor(mean, dtype=torch.float32, device=self.output_mean.device))
+        self.output_scale.copy_(torch.as_tensor(scale, dtype=torch.float32, device=self.output_scale.device))
 
     def forward(self, input_ids, attention_mask):
         outputs = self.base_model.model(input_ids=input_ids, attention_mask=attention_mask)
@@ -682,7 +735,7 @@ class LMRegression128D(nn.Module):
         masked = last_hidden * attention_mask.unsqueeze(-1)
         pooled = masked.sum(dim=1) / attention_mask.sum(dim=1, keepdim=True)
         pooled = pooled.float()  # BFloat16 -> Float32
-        return self.head(pooled)
+        return self.head(pooled) * self.output_scale + self.output_mean
 
 
 # ===== 系统提示词 =====
@@ -720,6 +773,10 @@ PIERN_SYSTEM_PROMPT = '''
 ROUTER_CLASS_NAMES = ["normal", "diff_reaction", "diff_sorp", "burgers"]
 ASSEMBLY_EXPERT_SIMULATOR = "diff_sorp"
 ASSEMBLY_ROUTER_CLASS_NAMES = ["normal", ASSEMBLY_EXPERT_SIMULATOR]
+GCAM_ROUTER_TRIGGER_PREFIX = (
+    "模型计算得到煤炭发电占比、可再生能源发电占比、二氧化碳排放量、"
+    "电力平均价格、全球平均气温异常，各量时序依次为"
+)
 
 
 # ===== 模型注册表 =====
@@ -798,7 +855,7 @@ _LOADED_MODELS = {
     "llm": None,
     "tokenizer": None,
     "router": None,
-    "text2comp_base": None,
+    "text2comp_base": {},
     "text2comp": {},
     "fno": {},
     "grid": {},
@@ -810,7 +867,7 @@ _LOADED_MODELS = {
     "router_path": None,
     "router_type": None,
     "router_meta": {},
-    "text2comp_base_path": None,
+    "text2comp_base_path": {},
     "text2comp_paths": [],
     "fno_paths": [],
     "expert_executor": "fno",
@@ -820,6 +877,7 @@ _LOADED_MODELS = {
     "uploaded_expert_path": None,
     "assembly_profile": None,
     "assembly_profile_info": None,
+    "last_test_at": None,
 }
 
 
@@ -1055,11 +1113,36 @@ def map_router_prediction_for_assembly(raw_pred: int) -> tuple[int, str]:
     """
     模型拼装页只使用二分类路由语义：
     normal 继续LLM生成；其它任何Router类别统一交给当前文生计算+专家链路。
-    现在0124/0103组合对应diff-sorp，所以非normal统一映射为diff_sorp。
+    Uploaded Expert 使用自身注册的 simulator；FNO 链路保持 diff-sorp。
     """
     if raw_pred == 0:
         return 0, "normal"
+    if _LOADED_MODELS.get("expert_executor") == "uploaded":
+        model = _LOADED_MODELS.get("uploaded_expert_model") or {}
+        simulator = str(model.get("simulator") or "").strip()
+        if simulator:
+            return 1, simulator
     return 1, ASSEMBLY_EXPERT_SIMULATOR
+
+
+def _explicit_uploaded_expert_simulator(user_input: str) -> str:
+    """返回用户在当前 Uploaded Expert 链路中明确点名的 simulator。"""
+    if _LOADED_MODELS.get("expert_executor") != "uploaded":
+        return ""
+    model = _LOADED_MODELS.get("uploaded_expert_model") or {}
+    simulator = str(model.get("simulator") or "").strip().lower()
+    if simulator != "gcam":
+        return ""
+    if "gcam" not in str(user_input or "").lower():
+        return ""
+    return simulator
+
+
+def _expert_router_trigger_prefill(user_input: str) -> str:
+    """为显式 GCAM 请求补齐 Text2Comp 训练时使用的 assistant 前缀。"""
+    if _explicit_uploaded_expert_simulator(user_input) != "gcam":
+        return ""
+    return GCAM_ROUTER_TRIGGER_PREFIX
 
 
 def _select_text2comp_for_simulator(simulator: str):
@@ -1072,7 +1155,7 @@ def _select_text2comp_for_simulator(simulator: str):
     return simulator, None
 
 
-def expert_generate_response(simulator, input_ids, attention_mask):
+def expert_generate_response(simulator, input_ids, attention_mask, raw_text: str | None = None):
     """专家模型生成数值预测"""
     text2comp_device = _LOADED_MODELS["text2comp_device"]
     llm_device = _LOADED_MODELS["llm_device"]
@@ -1085,6 +1168,19 @@ def expert_generate_response(simulator, input_ids, attention_mask):
         selected_simulator, text2comp = _select_text2comp_for_simulator(simulator)
         if text2comp is None:
             return np.zeros(64 if simulator == "diff_sorp" else 32)
+        text2comp_tokenizer = getattr(text2comp, "text2comp_tokenizer", None)
+        if raw_text and text2comp_tokenizer is not None:
+            wrapped_prompt = PromptNumbersDataset.wrap_prompt_text(raw_text)
+            encoded = text2comp_tokenizer(
+                wrapped_prompt,
+                return_tensors="pt",
+                padding="max_length",
+                truncation=True,
+                max_length=int(getattr(text2comp, "text2comp_max_length", 512)),
+            )
+            model_device = next(text2comp.parameters()).device
+            input_ids = encoded["input_ids"].to(model_device)
+            attention_mask = encoded["attention_mask"].to(model_device)
         encoding = text2comp(input_ids, attention_mask)
 
         if _LOADED_MODELS.get("expert_executor") == "uploaded":
@@ -1146,6 +1242,51 @@ def _normalize_text2comp_state_dict(state):
     return normalized
 
 
+def _apply_text2comp_output_normalization(model: nn.Module, checkpoint: Any) -> None:
+    if not isinstance(checkpoint, dict):
+        return
+    normalization = checkpoint.get("label_normalization")
+    if not isinstance(normalization, dict) or not normalization.get("enabled"):
+        return
+    setter = getattr(model, "set_output_normalization", None)
+    if not callable(setter):
+        raise ValueError(
+            "Text2Comp checkpoint requires output normalization, but the inference model does not support it"
+        )
+    mean = normalization.get("mean")
+    scale = normalization.get("scale")
+    if not isinstance(mean, list) or not isinstance(scale, list) or len(mean) != len(scale):
+        raise ValueError("Text2Comp checkpoint contains invalid label normalization metadata")
+    setter(mean, scale)
+
+
+def _load_text2comp_checkpoint_model(info: dict[str, Any], device: torch.device) -> tuple[nn.Module, str]:
+    from transformers import AutoTokenizer
+
+    base_path = _resolve_text2comp_base_model_path([info])
+    text_base = _load_causal_lm(base_path).to(device)
+    if int(info["output_dim"]) == 32:
+        model = LMRegression32D(text_base).to(device)
+    else:
+        model = LMRegression128D(text_base, output_dim=int(info["output_dim"])).to(device)
+    checkpoint = _torch_load_compat(info["path"], map_location=device)
+    state = _normalize_text2comp_state_dict(checkpoint)
+    model.load_state_dict(state)
+    _apply_text2comp_output_normalization(model, checkpoint)
+    model.text2comp_tokenizer = AutoTokenizer.from_pretrained(
+        base_path,
+        trust_remote_code=True,
+        use_fast=False,
+        local_files_only=True,
+    )
+    checkpoint_config = checkpoint.get("config") if isinstance(checkpoint, dict) else {}
+    model.text2comp_max_length = int(
+        checkpoint_config.get("max_length", 512) if isinstance(checkpoint_config, dict) else 512
+    )
+    model.eval()
+    return model, base_path
+
+
 def _strip_thinking_content(text: str) -> str:
     """最终答案不展示thinking内容，完整LLM响应仍保留原文。"""
     if not text:
@@ -1157,6 +1298,25 @@ def _strip_thinking_content(text: str) -> str:
 
 def _format_expert_prediction_answer(simulator: str, y_field: Any) -> str:
     arr = np.asarray(y_field, dtype=float).reshape(-1)
+    if simulator == "gcam" and arr.size == 80:
+        years = list(range(2025, 2101, 5))
+        series = (
+            ("煤电占比", arr[0:16]),
+            ("可再生能源占比", arr[16:32]),
+            ("二氧化碳排放量", arr[32:48]),
+            ("电力平均价格", arr[48:64]),
+            ("全球平均气温异常", arr[64:80]),
+        )
+        lines = ["GCAM 能源-气候专家已完成 2025—2100 年预测。", ""]
+        trend_parts = []
+        for label, values in series:
+            rendered = "，".join(f"{year}: {float(value):.5f}" for year, value in zip(years, values, strict=True))
+            lines.append(f"{label}：{rendered}")
+            direction = "上升" if values[-1] > values[0] else "下降" if values[-1] < values[0] else "基本持平"
+            trend_parts.append(f"{label}{direction}")
+        lines.extend(("", "趋势概览：" + "；".join(trend_parts) + "。"))
+        return "\n".join(lines)
+
     simulator_label = {
         "diff_sorp": "diff-sorp",
         "burgers": "Burgers",
@@ -1214,16 +1374,30 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
     llm_device = _LOADED_MODELS["llm_device"]
     router_device = _LOADED_MODELS["router_device"]
 
-    messages = [
-        {"role": "system", "content": PIERN_SYSTEM_PROMPT},
-        {"role": "user", "content": user_input}
-    ]
+    explicit_expert_simulator = _explicit_uploaded_expert_simulator(user_input)
+    if explicit_expert_simulator:
+        messages = [{"role": "user", "content": user_input}]
+    else:
+        messages = [
+            {"role": "system", "content": PIERN_SYSTEM_PROMPT},
+            {"role": "user", "content": user_input},
+        ]
 
     encode_start = time.perf_counter()
     text = tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True, enable_thinking=True)
     inputs = tokenizer([text], return_tensors="pt", padding=True, truncation=True).to(llm_device)
     generated_ids = inputs["input_ids"]
     prompt_len = generated_ids.shape[1]
+    trigger_prefill = _expert_router_trigger_prefill(user_input)
+    trigger_prefill_tokens = 0
+    if trigger_prefill:
+        trigger_ids = tokenizer.encode(
+            trigger_prefill,
+            add_special_tokens=False,
+            return_tensors="pt",
+        ).to(llm_device)
+        generated_ids = torch.cat([generated_ids, trigger_ids], dim=1)
+        trigger_prefill_tokens = trigger_ids.shape[1]
     encode_ms = (time.perf_counter() - encode_start) * 1000
 
     router_pred = 0
@@ -1241,9 +1415,34 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
     first_trigger_token = None
     eos_reached = False
     stopped_after_expert = False
+    explicit_expert_dispatch = False
     past_key_values = None
 
+    if explicit_expert_simulator:
+        attention_mask = torch.ones_like(generated_ids)
+        expert_start = time.perf_counter()
+        y_field = expert_generate_response(
+            explicit_expert_simulator,
+            generated_ids,
+            attention_mask,
+            raw_text=user_input,
+        )
+        _sync_device(_LOADED_MODELS["fno_device"])
+        expert_ms += (time.perf_counter() - expert_start) * 1000
+        expert_calls = 1
+        router_pred = 1
+        first_trigger_token = 0
+        expert_output = np.array2string(y_field, precision=5, separator=", ", threshold=np.inf)
+        final_answer = _format_expert_prediction_answer(explicit_expert_simulator, y_field)
+        result_ids = tokenizer.encode(final_answer, add_special_tokens=False, return_tensors="pt").to(llm_device)
+        expert_token_count = result_ids.shape[1]
+        generated_ids = torch.cat([generated_ids, result_ids], dim=1)
+        stopped_after_expert = True
+        explicit_expert_dispatch = True
+
     for step in range(max_new_tokens):
+        if stopped_after_expert:
+            break
         with torch.no_grad():
             # LLM生成下一个token（generated_ids在llm_device上）
             llm_start = time.perf_counter()
@@ -1284,7 +1483,12 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
                     })
                 router_pred = mapped_pred
                 expert_start = time.perf_counter()
-                y_field = expert_generate_response(simulator, generated_ids, attention_mask)
+                y_field = expert_generate_response(
+                    simulator,
+                    generated_ids,
+                    attention_mask,
+                    raw_text=user_input,
+                )
                 _sync_device(_LOADED_MODELS["fno_device"])
                 expert_ms += (time.perf_counter() - expert_start) * 1000
                 expert_calls += 1
@@ -1302,15 +1506,23 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
     if expert_token_count:
         llm_generated_ids = llm_generated_ids[:-expert_token_count]
     llm_response = tokenizer.decode(llm_generated_ids, skip_special_tokens=True).strip()
+    if explicit_expert_dispatch:
+        llm_response = ""
     decode_ms = (time.perf_counter() - decode_start) * 1000
     debug_info = {
         "max_new_tokens": max_new_tokens,
         "router_type": _LOADED_MODELS.get("router_type"),
         "router_meta": _LOADED_MODELS.get("router_meta") or {},
         "prompt_tokens": prompt_len,
+        "trigger_prefill": trigger_prefill,
+        "trigger_prefill_tokens": trigger_prefill_tokens,
         "generated_llm_tokens": generated_llm_tokens,
         "router_checks": router_checks,
         "expert_calls": expert_calls,
+        "routing_source": "explicit_expert_request" if explicit_expert_dispatch else "router",
+        "routed_simulator": explicit_expert_simulator or (
+            map_router_prediction_for_assembly(router_pred)[1] if router_pred else "normal"
+        ),
         "first_trigger_token": first_trigger_token,
         "stopped_after_expert": stopped_after_expert,
         "raw_router_hits": raw_router_hits,
@@ -1399,6 +1611,8 @@ def _uploaded_expert_info(model: dict[str, Any]) -> UploadedExpertInfo:
         trained=bool(model.get("exists")),
         assembly_enabled=bool(model.get("assembly_enabled")),
         data_generation_enabled=bool(model.get("data_generation_enabled")),
+        demo_prompt=str(model.get("demo_prompt") or ""),
+        demo_prompt_label=str(model.get("demo_prompt_label") or "演示 Prompt"),
         validated_at=model.get("validated_at"),
         last_error=model.get("last_error"),
     )
@@ -1500,6 +1714,7 @@ async def get_status():
         "fno_experts": await list_fnos(),
         "gpus": get_gpu_info(),  # 实时GPU状态
         "loaded_models": loaded_models,
+        "last_test_at": _LOADED_MODELS.get("last_test_at"),
         "gpu_available": torch.cuda.is_available(),
         "disk_space_gb": 100,
         "custom_experts": await list_uploaded_experts(),
@@ -1513,25 +1728,27 @@ async def get_status():
 def _clear_profile_state() -> None:
     _LOADED_MODELS["assembly_profile"] = None
     _LOADED_MODELS["assembly_profile_info"] = None
+    _LOADED_MODELS["last_test_at"] = None
 
 
 def _clear_standard_model_state() -> None:
     _LOADED_MODELS["llm"] = None
     _LOADED_MODELS["tokenizer"] = None
     _LOADED_MODELS["router"] = None
-    _LOADED_MODELS["text2comp_base"] = None
+    _LOADED_MODELS["text2comp_base"] = {}
     _LOADED_MODELS["text2comp"] = {}
     _LOADED_MODELS["fno"] = {}
     _LOADED_MODELS["grid"] = {}
     _LOADED_MODELS["router_type"] = None
     _LOADED_MODELS["router_meta"] = {}
-    _LOADED_MODELS["text2comp_base_path"] = None
+    _LOADED_MODELS["text2comp_base_path"] = {}
     _LOADED_MODELS["text2comp_paths"] = []
     _LOADED_MODELS["fno_paths"] = []
     _LOADED_MODELS["uploaded_expert_model"] = None
     _LOADED_MODELS["uploaded_expert_predict"] = None
     _LOADED_MODELS["uploaded_expert_id"] = None
     _LOADED_MODELS["uploaded_expert_path"] = None
+    _LOADED_MODELS["last_test_at"] = None
 
 
 async def _load_assembly_profile_models(req: LoadAllRequest):
@@ -1728,27 +1945,19 @@ async def load_all_models(req: LoadAllRequest):
     if req.text2comp_path and not selected_text2comps:
         raise HTTPException(status_code=404, detail=f"Text2Comp not found: {req.text2comp_path}")
 
-    # 3. 加载Text2Comp基础模型。legacy diff-sorp checkpoint 使用 Qwen3-0.6B，其它模型保持配置默认值。
-    text2comp_base_path = _resolve_text2comp_base_model_path(selected_text2comps)
-    text_base = _load_causal_lm(text2comp_base_path).to(text2comp_device)
-    text_base.eval()
-    _LOADED_MODELS["text2comp_base"] = text_base
-    _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
-
+    # 每个Text2Comp拥有独立base；正式训练会微调末层，不能在多个模型间共享同一实例。
+    _LOADED_MODELS["text2comp_base"] = {}
+    _LOADED_MODELS["text2comp_base_path"] = {}
     _LOADED_MODELS["text2comp"] = {}
     _LOADED_MODELS["text2comp_paths"] = []
 
     # 加载页面选择的Text2Comp；未传选择时保持兼容，加载全部
     for t in selected_text2comps:
         if os.path.exists(t["path"]):
-            if t["output_dim"] == 32:
-                model = LMRegression32D(text_base).to(text2comp_device)
-            else:
-                model = LMRegression128D(text_base, output_dim=t["output_dim"]).to(text2comp_device)
-            state = _normalize_text2comp_state_dict(torch.load(t["path"], map_location=text2comp_device))
-            model.load_state_dict(state)
-            model.eval()
+            model, base_path = _load_text2comp_checkpoint_model(t, text2comp_device)
             _LOADED_MODELS["text2comp"][t["simulator"]] = model
+            _LOADED_MODELS["text2comp_base"][t["simulator"]] = model.base_model
+            _LOADED_MODELS["text2comp_base_path"][t["simulator"]] = base_path
             _LOADED_MODELS["text2comp_paths"].append(t["path"])
 
     expert_executor = str(req.expert_executor or "fno").strip().lower()
@@ -1886,34 +2095,20 @@ async def load_text2comp(req: LoadText2CompRequest):
     device = torch.device(f"cuda:{req.gpu_id}")
     _LOADED_MODELS["text2comp_device"] = device
 
-    # 加载基础模型
     t_info = next((t for t in _scan_text2comp() if t["simulator"] == req.simulator), None)
-    text2comp_base_path = _resolve_text2comp_base_model_path([t_info] if t_info else None)
-    if _LOADED_MODELS["text2comp_base"] is None:
-        text_base = _load_causal_lm(text2comp_base_path).to(device)
-        text_base.eval()
-        _LOADED_MODELS["text2comp_base"] = text_base
-        _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
-    elif _LOADED_MODELS.get("text2comp_base_path") != text2comp_base_path:
-        _LOADED_MODELS["text2comp_base"] = None
-        torch.cuda.empty_cache()
-        text_base = _load_causal_lm(text2comp_base_path).to(device)
-        text_base.eval()
-        _LOADED_MODELS["text2comp_base"] = text_base
-        _LOADED_MODELS["text2comp_base_path"] = text2comp_base_path
-    else:
-        text_base = _LOADED_MODELS["text2comp_base"]
-
-    # 加载对应simulator的Text2Comp
     if t_info and os.path.exists(t_info["path"]):
-        if t_info["output_dim"] == 32:
-            model = LMRegression32D(text_base).to(device)
-        else:
-            model = LMRegression128D(text_base, output_dim=t_info["output_dim"]).to(device)
-        state = _normalize_text2comp_state_dict(torch.load(t_info["path"], map_location=device))
-        model.load_state_dict(state)
-        model.eval()
+        model, base_path = _load_text2comp_checkpoint_model(t_info, device)
         _LOADED_MODELS["text2comp"][req.simulator] = model
+        bases = _LOADED_MODELS.get("text2comp_base")
+        if not isinstance(bases, dict):
+            bases = {}
+            _LOADED_MODELS["text2comp_base"] = bases
+        base_paths = _LOADED_MODELS.get("text2comp_base_path")
+        if not isinstance(base_paths, dict):
+            base_paths = {}
+            _LOADED_MODELS["text2comp_base_path"] = base_paths
+        bases[req.simulator] = model.base_model
+        base_paths[req.simulator] = base_path
         existing_paths = [p for p in _LOADED_MODELS.get("text2comp_paths", []) if p != t_info["path"]]
         _LOADED_MODELS["text2comp_paths"] = existing_paths + [t_info["path"]]
 
@@ -1965,7 +2160,7 @@ async def unload_all():
     _LOADED_MODELS["llm"] = None
     _LOADED_MODELS["tokenizer"] = None
     _LOADED_MODELS["router"] = None
-    _LOADED_MODELS["text2comp_base"] = None
+    _LOADED_MODELS["text2comp_base"] = {}
     _LOADED_MODELS["text2comp"] = {}
     _LOADED_MODELS["fno"] = {}
     _LOADED_MODELS["grid"] = {}
@@ -1977,7 +2172,7 @@ async def unload_all():
     _LOADED_MODELS["router_path"] = None
     _LOADED_MODELS["router_type"] = None
     _LOADED_MODELS["router_meta"] = {}
-    _LOADED_MODELS["text2comp_base_path"] = None
+    _LOADED_MODELS["text2comp_base_path"] = {}
     _LOADED_MODELS["text2comp_paths"] = []
     _LOADED_MODELS["fno_paths"] = []
     _LOADED_MODELS["expert_executor"] = "fno"
@@ -1985,6 +2180,7 @@ async def unload_all():
     _LOADED_MODELS["uploaded_expert_predict"] = None
     _LOADED_MODELS["uploaded_expert_id"] = None
     _LOADED_MODELS["uploaded_expert_path"] = None
+    _LOADED_MODELS["last_test_at"] = None
     _clear_profile_state()
 
     torch.cuda.empty_cache()
@@ -2006,7 +2202,9 @@ async def test_assembly(req: AssemblyTestRequest):
             force_split=bool(req.config.get("force_split", False)),
         ))
     if profile_id and _LOADED_MODELS.get("assembly_profile") is not None:
-        return _test_assembly_profile(req)
+        result = _test_assembly_profile(req)
+        _LOADED_MODELS["last_test_at"] = time.time()
+        return result
 
     # 如果模型未加载，先加载
     if _LOADED_MODELS["llm"] is None:
@@ -2036,8 +2234,11 @@ async def test_assembly(req: AssemblyTestRequest):
     else:
         display_answer = final_answer or cleaned_response
 
-    return AssemblyTestResponse(
-        router_prediction=ASSEMBLY_ROUTER_CLASS_NAMES[router_pred],
+    result = AssemblyTestResponse(
+        router_prediction=str(
+            debug_info.get("routed_simulator")
+            or ASSEMBLY_ROUTER_CLASS_NAMES[router_pred]
+        ),
         first_cot_result=response,
         final_answer=display_answer,
         llm_response=response,
@@ -2046,6 +2247,8 @@ async def test_assembly(req: AssemblyTestRequest):
         latency_ms=latency,
         debug_info=debug_info
     )
+    _LOADED_MODELS["last_test_at"] = time.time()
+    return result
 
 
 # ===== Prompt管理API =====
