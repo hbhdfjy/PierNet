@@ -480,3 +480,71 @@ test('conversation training workflow renders as a standalone entry', async ({ pa
   await expect(page.getByLabel('选择可复用场景')).toHaveValue('modflow/unified_aquifer')
   await expectNoHorizontalOverflow(page)
 })
+
+test('conversation training resumes data preparation after a reload', async ({ page }) => {
+  const workflowId = 'new-synth-recovery-test'
+  const datasetId = 'router-recovery-test'
+  const nowMs = Date.now()
+  await page.addInitScript(
+    ({ currentKey, historyKey, record }) => {
+      localStorage.setItem(currentKey, record.id)
+      localStorage.setItem(historyKey, JSON.stringify([record]))
+    },
+    {
+      currentKey: 'piern-conversation-training-current-v1',
+      historyKey: 'piern-conversation-training-history-v1',
+      record: {
+        id: 'conversation-recovery-test',
+        title: '恢复数据工作流',
+        createdAt: nowMs,
+        updatedAt: nowMs,
+        phase: 'preparing',
+        goal: '训练一个能源系统预测模型',
+        messages: [{ id: 1, role: 'assistant', content: '正在准备数据。' }],
+        jobId: null,
+        job: null,
+        workflow: { workflow_id: workflowId, name: '恢复数据工作流', status: 'running' },
+        selectedDataset: null,
+        completionBoundaryId: null,
+        assemblyProfile: null,
+      },
+    },
+  )
+  await page.route(`**/api/new-synth/workflows/${workflowId}`, route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        workflow_id: workflowId,
+        name: '恢复数据工作流',
+        status: 'succeeded',
+        current_step: 'complete',
+        artifacts: {
+          progress: 1,
+          router: { dataset_id: datasetId, sample_count: 2000 },
+          text2comp: { dataset_id: 't2c-recovery-test', sample_count: 1000 },
+        },
+      }),
+    }),
+  )
+  await page.route('**/api/training/simple-datasets', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          dataset_id: datasetId,
+          display_name: '恢复数据工作流',
+          simulator: 'gcam',
+          total_count: 2000,
+          scenarios: [{ scenario: 'carbon_pricing', simulator: 'gcam', router_count: 2000 }],
+        },
+      ]),
+    }),
+  )
+
+  await gotoApp(page, '/conversation-training-demo.html')
+  await expect(page.getByText(/数据准备已恢复并完成/)).toBeVisible()
+  await expect(page.getByRole('button', { name: '确认并开始训练' })).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+})

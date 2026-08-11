@@ -173,6 +173,7 @@ export function App() {
   const assemblyStarted = useRef(false)
   const restoringConversation = useRef(Boolean(bootstrap.current.jobId))
   const activeConversationId = useRef(conversationId)
+  const preparingOwned = useRef(false)
 
   const addMessage = (role: ConversationMessage['role'], content: string): number => {
     const id = nextId.current++
@@ -403,7 +404,52 @@ export function App() {
     throw new Error('训练数据已生成，但尚未进入简洁训练列表，请稍后刷新重试')
   }
 
+  useEffect(() => {
+    const workflowId = workflow?.workflow_id
+    if (phase !== 'preparing' || !workflowId || preparingOwned.current) return
+
+    let cancelled = false
+    setBusy(true)
+    setError(null)
+    setPreparingMessage('正在恢复数据工作流进度')
+
+    void waitForWorkflow(workflowId, update => {
+      if (cancelled) return
+      setWorkflow(update)
+      setPreparingMessage(update.artifacts?.message || '正在恢复数据生成进度')
+    })
+      .then(async snapshot => {
+        if (cancelled) return
+        const routerId = snapshot.artifacts?.router?.dataset_id
+        if (!routerId) throw new Error('数据工作流已结束，但没有找到 Router 数据集编号')
+        const dataset = await refreshReadyDataset(routerId)
+        if (cancelled) return
+        setWorkflow(snapshot)
+        setSelectedDataset(dataset)
+        setPhase('ready')
+        addMessage(
+          'assistant',
+          `数据准备已恢复并完成：Router ${snapshot.artifacts?.router?.sample_count || dataset.total_count} 条，Text2Comp ${snapshot.artifacts?.text2comp?.sample_count || '—'} 条。可以继续创建真实训练任务。`,
+        )
+      })
+      .catch(reason => {
+        if (cancelled) return
+        const message = reason instanceof Error ? reason.message : '恢复数据工作流失败'
+        setError(message)
+        setPhase('error')
+        addMessage('assistant', `数据工作流恢复失败：${message}`)
+      })
+      .finally(() => {
+        if (!cancelled) setBusy(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [phase, workflow?.workflow_id])
+
   async function prepareWorkflow(source: (workflowId: string) => Promise<WorkflowSnapshot>, sourceLabel: string) {
+    preparingOwned.current = true
     setBusy(true)
     setError(null)
     setDataOpen(false)
@@ -453,6 +499,7 @@ export function App() {
       setPhase('error')
       addMessage('assistant', `数据准备没有完成：${message}`)
     } finally {
+      preparingOwned.current = false
       setBusy(false)
     }
   }
@@ -666,6 +713,7 @@ export function App() {
     setChatBusy(false)
     assemblyStarted.current = false
     restoringConversation.current = false
+    preparingOwned.current = false
   }
 
   function openConversation(record: ConversationRecord) {
@@ -696,6 +744,7 @@ export function App() {
     setChatBusy(false)
     assemblyStarted.current = false
     restoringConversation.current = record.phase === 'complete'
+    preparingOwned.current = false
 
     if (record.jobId) {
       const targetConversationId = record.id
