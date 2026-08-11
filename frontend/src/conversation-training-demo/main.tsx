@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, StrictMode, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import {
   AlertTriangle,
@@ -14,7 +14,6 @@ import {
   FileCheck2,
   FileUp,
   FlaskConical,
-  Layers3,
   LoaderCircle,
   MessageSquare,
   MessageSquarePlus,
@@ -22,6 +21,7 @@ import {
   Play,
   RefreshCw,
   Send,
+  Trash2,
   Upload,
   User,
   X,
@@ -37,16 +37,26 @@ import {
   waitForWorkflow,
   workflowApi,
 } from './workflowApi'
+import {
+  CURRENT_CONVERSATION_KEY,
+  conversationTitle,
+  createConversationId,
+  loadConversationHistory,
+  removeConversation,
+  saveConversationHistory,
+  type ConversationMessage,
+  type ConversationPhase,
+  type ConversationRecord,
+  upsertConversation,
+} from './conversationHistory'
 import { goalSimulatorMismatch, recommendedSimulationKey } from './goalRouting'
 import './styles.css'
 
-type Phase = 'goal' | 'data' | 'preparing' | 'ready' | 'training' | 'complete' | 'error'
 type DataMode = 'existing' | 'simulation' | 'upload'
 type AssemblyState = 'idle' | 'loading' | 'ready' | 'error'
-type ChatItem = { id: number; role: 'assistant' | 'user'; content: string }
 const DEMO_MODE = false
 
-const initialMessages: ChatItem[] = [
+const initialMessages: ConversationMessage[] = [
   {
     id: 1,
     role: 'assistant',
@@ -61,6 +71,40 @@ const exampleGoals = [
 ]
 
 const terminalStatuses = new Set(['done', 'error', 'terminated', 'external_terminated'])
+
+function createBlankConversation(): ConversationRecord {
+  const now = Date.now()
+  return {
+    id: createConversationId(),
+    title: '新对话',
+    createdAt: now,
+    updatedAt: now,
+    phase: 'goal',
+    goal: '',
+    messages: initialMessages,
+    jobId: null,
+    job: null,
+    workflow: null,
+    selectedDataset: null,
+    completionBoundaryId: null,
+    assemblyProfile: null,
+  }
+}
+
+function loadConversationBootstrap(): { current: ConversationRecord; history: ConversationRecord[] } {
+  const history = loadConversationHistory(window.localStorage)
+  const currentId = window.localStorage.getItem(CURRENT_CONVERSATION_KEY)
+  const saved = history.find(item => item.id === currentId)
+  if (saved) return { current: saved, history }
+
+  const blank = createBlankConversation()
+  const legacyJobId = window.localStorage.getItem('piern-conversation-training-job')
+  if (legacyJobId) {
+    blank.jobId = legacyJobId
+    blank.phase = 'training'
+  }
+  return { current: blank, history }
+}
 
 function percent(value: number | null | undefined): string {
   return value == null || !Number.isFinite(value) ? '—' : `${(value * 100).toFixed(1)}%`
@@ -95,9 +139,13 @@ function jobProgress(job: TrainingJob | null): number {
 }
 
 export function App() {
-  const [phase, setPhase] = useState<Phase>('goal')
-  const [goal, setGoal] = useState('')
-  const [messages, setMessages] = useState<ChatItem[]>(initialMessages)
+  const [bootstrap] = useState(loadConversationBootstrap)
+  const [conversationId, setConversationId] = useState(bootstrap.current.id)
+  const [conversationCreatedAt, setConversationCreatedAt] = useState(bootstrap.current.createdAt)
+  const [history, setHistory] = useState<ConversationRecord[]>(bootstrap.history)
+  const [phase, setPhase] = useState<ConversationPhase>(bootstrap.current.phase)
+  const [goal, setGoal] = useState(bootstrap.current.goal)
+  const [messages, setMessages] = useState<ConversationMessage[]>(bootstrap.current.messages)
   const [input, setInput] = useState('')
   const [dataOpen, setDataOpen] = useState(false)
   const [dataMode, setDataMode] = useState<DataMode>('simulation')
@@ -105,23 +153,31 @@ export function App() {
   const [datasets, setDatasets] = useState<TrainingDataset[]>([])
   const [simulations, setSimulations] = useState<SimulationPreset[]>([])
   const [simulationKey, setSimulationKey] = useState('modflow/unified_aquifer')
-  const [selectedDataset, setSelectedDataset] = useState<TrainingDataset | null>(null)
-  const [workflow, setWorkflow] = useState<WorkflowSnapshot | null>(null)
+  const [selectedDataset, setSelectedDataset] = useState<TrainingDataset | null>(bootstrap.current.selectedDataset)
+  const [workflow, setWorkflow] = useState<WorkflowSnapshot | null>(bootstrap.current.workflow)
   const [preparingMessage, setPreparingMessage] = useState('正在建立数据工作流')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [advancedOpen, setAdvancedOpen] = useState(false)
-  const [job, setJob] = useState<TrainingJob | null>(null)
-  const [completionAnnounced, setCompletionAnnounced] = useState(false)
+  const [jobId, setJobId] = useState<string | null>(bootstrap.current.jobId)
+  const [job, setJob] = useState<TrainingJob | null>(bootstrap.current.job)
+  const [completionAnnounced, setCompletionAnnounced] = useState(bootstrap.current.phase === 'complete')
+  const [completionBoundaryId, setCompletionBoundaryId] = useState<number | null>(
+    bootstrap.current.completionBoundaryId,
+  )
   const [assemblyState, setAssemblyState] = useState<AssemblyState>('idle')
-  const [assemblyProfile, setAssemblyProfile] = useState<AssemblyProfile | null>(null)
+  const [assemblyProfile, setAssemblyProfile] = useState<AssemblyProfile | null>(bootstrap.current.assemblyProfile)
   const [chatBusy, setChatBusy] = useState(false)
   const messagesRef = useRef<HTMLDivElement>(null)
-  const nextId = useRef(2)
+  const nextId = useRef(Math.max(1, ...bootstrap.current.messages.map(message => message.id)) + 1)
   const assemblyStarted = useRef(false)
+  const restoringConversation = useRef(Boolean(bootstrap.current.jobId))
+  const activeConversationId = useRef(conversationId)
 
-  const addMessage = (role: ChatItem['role'], content: string) => {
-    setMessages(current => [...current, { id: nextId.current++, role, content }])
+  const addMessage = (role: ConversationMessage['role'], content: string): number => {
+    const id = nextId.current++
+    setMessages(current => [...current, { id, role, content }])
+    return id
   }
 
   useEffect(() => {
@@ -130,13 +186,49 @@ export function App() {
   }, [messages, phase, workflow, job])
 
   useEffect(() => {
+    const record: ConversationRecord = {
+      id: conversationId,
+      title: conversationTitle(goal || job?.name || ''),
+      createdAt: conversationCreatedAt,
+      updatedAt: Date.now(),
+      phase,
+      goal,
+      messages,
+      jobId: job?.job_id || jobId,
+      job,
+      workflow,
+      selectedDataset,
+      completionBoundaryId,
+      assemblyProfile,
+    }
+    const updated = upsertConversation(loadConversationHistory(window.localStorage), record)
+    saveConversationHistory(window.localStorage, updated)
+    window.localStorage.setItem(CURRENT_CONVERSATION_KEY, conversationId)
+    if (job?.job_id || jobId) window.localStorage.setItem('piern-conversation-training-job', job?.job_id || jobId || '')
+    else window.localStorage.removeItem('piern-conversation-training-job')
+    setHistory(updated)
+  }, [
+    assemblyProfile,
+    completionBoundaryId,
+    conversationCreatedAt,
+    conversationId,
+    goal,
+    job,
+    jobId,
+    messages,
+    phase,
+    selectedDataset,
+    workflow,
+  ])
+
+  useEffect(() => {
     void Promise.all([workflowApi.simpleDatasets(), workflowApi.presets()])
       .then(([readyDatasets, presets]) => {
         setDatasets(readyDatasets)
         setSimulations(presets.simulations.filter(item => item.has_data))
       })
       .catch(() => undefined)
-    const savedJobId = window.localStorage.getItem('piern-conversation-training-job')
+    const savedJobId = bootstrap.current.jobId || window.localStorage.getItem('piern-conversation-training-job')
     if (DEMO_MODE) {
       window.localStorage.removeItem('piern-conversation-training-job')
       return
@@ -145,12 +237,14 @@ export function App() {
     void workflowApi
       .trainingJob(savedJobId)
       .then(savedJob => {
+        if (activeConversationId.current !== bootstrap.current.id) return
+        setJobId(savedJob.job_id)
         setJob(savedJob)
         setPhase(savedJob.status === 'done' ? 'complete' : terminalStatuses.has(savedJob.status) ? 'error' : 'training')
         setGoal(savedJob.name)
       })
       .catch(() => window.localStorage.removeItem('piern-conversation-training-job'))
-  }, [])
+  }, [bootstrap])
 
   useEffect(() => {
     const recommendedKey = recommendedSimulationKey(goal, simulations)
@@ -199,27 +293,45 @@ export function App() {
     if (DEMO_MODE || phase !== 'complete' || job?.status !== 'done' || assemblyStarted.current) return
     assemblyStarted.current = true
     setAssemblyState('loading')
-    addMessage('assistant', '训练产物已生成，正在注册完整拼装模型并自动加载到可用 GPU。')
+    const restoring = restoringConversation.current
+    const targetConversationId = conversationId
+    if (!restoring) addMessage('assistant', '训练产物已生成，正在注册完整拼装模型并自动加载到可用 GPU。')
     void workflowApi
       .registerAndLoad(job.job_id)
       .then(result => {
+        if (activeConversationId.current !== targetConversationId) return
         setAssemblyProfile(result.profile)
         setAssemblyState('ready')
-        addMessage(
-          'assistant',
-          `模型“${result.profile.name}”已加入“已注册拼装模型”并加载完成。现在可以直接在这里继续对话。`,
-        )
+        if (!restoring) {
+          const boundaryId = addMessage(
+            'assistant',
+            `模型“${result.profile.name}”已加入“已注册拼装模型”并加载完成。现在可以直接在这里继续对话。`,
+          )
+          setCompletionBoundaryId(boundaryId)
+        }
       })
       .catch(reason => {
+        if (activeConversationId.current !== targetConversationId) return
         const message = reason instanceof Error ? reason.message : '自动注册并加载模型失败'
         setAssemblyState('error')
         setError(message)
-        addMessage('assistant', `训练已完成，但自动拼装加载失败：${message}`)
+        if (!restoring) addMessage('assistant', `训练已完成，但自动拼装加载失败：${message}`)
       })
-  }, [job?.job_id, job?.status, phase])
+      .finally(() => {
+        if (activeConversationId.current === targetConversationId) restoringConversation.current = false
+      })
+  }, [conversationId, job?.job_id, job?.status, phase])
 
   const steps = useMemo(() => {
-    const rank: Record<Phase, number> = { goal: 0, data: 1, preparing: 1, ready: 2, training: 3, complete: 4, error: 3 }
+    const rank: Record<ConversationPhase, number> = {
+      goal: 0,
+      data: 1,
+      preparing: 1,
+      ready: 2,
+      training: 3,
+      complete: 4,
+      error: 3,
+    }
     const currentRank = rank[phase]
     const rows = [
       { label: '训练目标', detail: goal || '正在了解您的需求' },
@@ -454,6 +566,7 @@ export function App() {
     setError(null)
     try {
       const created = await workflowApi.createQuickJob(selectedDataset)
+      setJobId(created.job_id)
       setJob(created)
       window.localStorage.setItem('piern-conversation-training-job', created.job_id)
       setPhase('training')
@@ -523,8 +636,13 @@ export function App() {
   }
 
   function startNewConversation() {
+    const blank = createBlankConversation()
+    activeConversationId.current = blank.id
     window.localStorage.removeItem('piern-conversation-training-job')
+    window.localStorage.setItem(CURRENT_CONVERSATION_KEY, blank.id)
     nextId.current = 2
+    setConversationId(blank.id)
+    setConversationCreatedAt(blank.createdAt)
     setPhase('goal')
     setGoal('')
     setMessages(initialMessages)
@@ -539,17 +657,133 @@ export function App() {
     setBusy(false)
     setError(null)
     setAdvancedOpen(false)
+    setJobId(null)
     setJob(null)
     setCompletionAnnounced(false)
+    setCompletionBoundaryId(null)
     setAssemblyState('idle')
     setAssemblyProfile(null)
     setChatBusy(false)
     assemblyStarted.current = false
+    restoringConversation.current = false
+  }
+
+  function openConversation(record: ConversationRecord) {
+    if (record.id === conversationId) return
+    activeConversationId.current = record.id
+    window.localStorage.setItem(CURRENT_CONVERSATION_KEY, record.id)
+    if (record.jobId) window.localStorage.setItem('piern-conversation-training-job', record.jobId)
+    else window.localStorage.removeItem('piern-conversation-training-job')
+    nextId.current = Math.max(1, ...record.messages.map(message => message.id)) + 1
+    setConversationId(record.id)
+    setConversationCreatedAt(record.createdAt)
+    setPhase(record.phase)
+    setGoal(record.goal)
+    setMessages(record.messages.length ? record.messages : initialMessages)
+    setInput('')
+    setDataOpen(false)
+    setSelectedFile(null)
+    setSelectedDataset(record.selectedDataset)
+    setWorkflow(record.workflow)
+    setBusy(false)
+    setError(null)
+    setJobId(record.jobId)
+    setJob(record.job)
+    setCompletionAnnounced(record.phase === 'complete')
+    setCompletionBoundaryId(record.completionBoundaryId)
+    setAssemblyState('idle')
+    setAssemblyProfile(record.assemblyProfile)
+    setChatBusy(false)
+    assemblyStarted.current = false
+    restoringConversation.current = record.phase === 'complete'
+
+    if (record.jobId) {
+      const targetConversationId = record.id
+      void workflowApi
+        .trainingJob(record.jobId)
+        .then(current => {
+          if (activeConversationId.current !== targetConversationId) return
+          setJobId(current.job_id)
+          setJob(current)
+          setPhase(current.status === 'done' ? 'complete' : terminalStatuses.has(current.status) ? 'error' : 'training')
+        })
+        .catch(reason => {
+          if (activeConversationId.current !== targetConversationId) return
+          setError(reason instanceof Error ? reason.message : '无法恢复训练任务')
+          setPhase('error')
+        })
+    }
+  }
+
+  function deleteConversation(record: ConversationRecord) {
+    if (!window.confirm(`删除历史对话“${record.title}”？训练产物和已注册模型不会被删除。`)) return
+    const updated = removeConversation(loadConversationHistory(window.localStorage), record.id)
+    saveConversationHistory(window.localStorage, updated)
+    setHistory(updated)
+    if (record.id === conversationId) startNewConversation()
   }
 
   const progress = jobProgress(job)
   const routerMetrics = job?.router_metrics || job?.latest_metrics
   const text2compNeedsTuning = Number(job?.text2comp_metrics?.normalized_rmse ?? 0) > 0.25
+  const completionCard =
+    phase === 'complete' && job ? (
+      <div className="action-block result-card">
+        <div className="result-banner">
+          <div className="result-check">
+            <Check size={24} />
+          </div>
+          <div>
+            <div className="eyebrow">真实训练完成</div>
+            <div className="action-title">{job.name}</div>
+          </div>
+          <span className="ready-badge">
+            {assemblyState === 'loading'
+              ? '正在自动加载'
+              : assemblyState === 'ready'
+                ? '已注册并加载'
+                : '训练产物已生成'}
+          </span>
+        </div>
+        <div className="metric-row">
+          <div>
+            <span>Router F1</span>
+            <strong>{percent(routerMetrics?.f1)}</strong>
+          </div>
+          <div>
+            <span>Text2Comp R²</span>
+            <strong>{metric(job.text2comp_metrics?.r2)}</strong>
+          </div>
+          <div>
+            <span>Text2Comp NRMSE</span>
+            <strong>{metric(job.text2comp_metrics?.normalized_rmse)}</strong>
+          </div>
+        </div>
+        <div className="artifact-note">
+          <FileCheck2 size={17} />
+          <span>
+            {assemblyState === 'ready'
+              ? `“${assemblyProfile?.name || '完整拼装模型'}”已加入已注册拼装模型，可以直接在下方输入框对话。`
+              : assemblyState === 'loading'
+                ? '正在将训练产物与对应 Expert 注册为完整拼装模型，并自动加载到可用 GPU。'
+                : text2compNeedsTuning
+                  ? '真实产物已进入模型扫描目录；当前 Text2Comp 指标低于严格质量要求，建议增加数据或调参后重训。'
+                  : 'Router checkpoint 与 Text2Comp 模型已进入模型扫描目录，可以在模型拼装页自由选择。'}
+          </span>
+        </div>
+        <div className="button-row result-actions">
+          <a className="primary-button" href="/training/simple/chat">
+            <MessageSquare size={16} />
+            打开模型对话
+          </a>
+          <a className="secondary-button" href={`/training/simple/jobs/${encodeURIComponent(job.job_id)}`}>
+            查看训练任务
+          </a>
+        </div>
+      </div>
+    ) : null
+  const hasCompletionBoundary =
+    completionBoundaryId != null && messages.some(message => message.id === completionBoundaryId)
 
   return (
     <div className="app-shell">
@@ -580,7 +814,41 @@ export function App() {
       </header>
 
       <main className="workspace">
-        <aside className="workflow-panel" aria-label="训练流程">
+        <aside className="workflow-panel" aria-label="历史对话与训练流程">
+          <div className="history-heading">
+            <span>历史对话</span>
+            <span>{history.length}</span>
+          </div>
+          <div className="history-list">
+            {history.map(record => (
+              <div className={`history-item ${record.id === conversationId ? 'active' : ''}`} key={record.id}>
+                <button className="history-open" type="button" onClick={() => openConversation(record)}>
+                  <MessageSquare size={15} />
+                  <span>
+                    <strong>{record.title}</strong>
+                    <small>
+                      {new Date(record.updatedAt).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </small>
+                  </span>
+                </button>
+                <button
+                  className="history-delete"
+                  type="button"
+                  title="删除历史对话"
+                  aria-label={`删除历史对话 ${record.title}`}
+                  onClick={() => deleteConversation(record)}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+          <div className="panel-divider" />
           <div className="panel-heading">本次训练</div>
           <div className="workflow-list">
             {steps.map((step, index) => (
@@ -638,14 +906,18 @@ export function App() {
 
           <div className="messages" aria-live="polite" ref={messagesRef}>
             {messages.map(message => (
-              <div className={`message-row ${message.role}`} key={message.id}>
-                <div className="avatar">{message.role === 'assistant' ? <Bot size={18} /> : <User size={18} />}</div>
-                <div className="message-body">
-                  <div className="message-author">{message.role === 'assistant' ? '训练助手' : '您'}</div>
-                  <div className="bubble">{message.content}</div>
+              <Fragment key={message.id}>
+                <div className={`message-row ${message.role}`}>
+                  <div className="avatar">{message.role === 'assistant' ? <Bot size={18} /> : <User size={18} />}</div>
+                  <div className="message-body">
+                    <div className="message-author">{message.role === 'assistant' ? '训练助手' : '您'}</div>
+                    <div className="bubble">{message.content}</div>
+                  </div>
                 </div>
-              </div>
+                {message.id === completionBoundaryId && completionCard}
+              </Fragment>
             ))}
+            {!hasCompletionBoundary && completionCard}
 
             {phase === 'goal' && (
               <div className="action-block intro-actions">
@@ -829,62 +1101,6 @@ export function App() {
                   查看任务详情
                   <ExternalLink size={14} />
                 </a>
-              </div>
-            )}
-
-            {phase === 'complete' && job && (
-              <div className="action-block result-card">
-                <div className="result-banner">
-                  <div className="result-check">
-                    <Check size={24} />
-                  </div>
-                  <div>
-                    <div className="eyebrow">真实训练完成</div>
-                    <div className="action-title">{job.name}</div>
-                  </div>
-                  <span className="ready-badge">
-                    {assemblyState === 'loading'
-                      ? '正在自动加载'
-                      : assemblyState === 'ready'
-                        ? '已注册并加载'
-                        : '训练产物已生成'}
-                  </span>
-                </div>
-                <div className="metric-row">
-                  <div>
-                    <span>Router F1</span>
-                    <strong>{percent(routerMetrics?.f1)}</strong>
-                  </div>
-                  <div>
-                    <span>Text2Comp R²</span>
-                    <strong>{metric(job.text2comp_metrics?.r2)}</strong>
-                  </div>
-                  <div>
-                    <span>Text2Comp NRMSE</span>
-                    <strong>{metric(job.text2comp_metrics?.normalized_rmse)}</strong>
-                  </div>
-                </div>
-                <div className="artifact-note">
-                  <FileCheck2 size={17} />
-                  <span>
-                    {assemblyState === 'ready'
-                      ? `“${assemblyProfile?.name || '完整拼装模型'}”已加入已注册拼装模型，可以直接在下方输入框对话。`
-                      : assemblyState === 'loading'
-                        ? '正在将训练产物与对应 Expert 注册为完整拼装模型，并自动加载到可用 GPU。'
-                        : text2compNeedsTuning
-                          ? '真实产物已进入模型扫描目录；当前 Text2Comp 指标低于严格质量要求，建议增加数据或调参后重训。'
-                          : 'Router checkpoint 与 Text2Comp 模型已进入模型扫描目录，可以在模型拼装页自由选择。'}
-                  </span>
-                </div>
-                <div className="button-row result-actions">
-                  <a className="primary-button" href="/training/simple/assembly">
-                    <Layers3 size={16} />
-                    前往模型拼装
-                  </a>
-                  <a className="secondary-button" href={`/training/simple/jobs/${encodeURIComponent(job.job_id)}`}>
-                    查看训练任务
-                  </a>
-                </div>
               </div>
             )}
 
