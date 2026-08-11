@@ -239,6 +239,7 @@ function apiPayloadFor(pathname: string): unknown {
     }
   }
   if (pathname === '/api/training/datasets') return trainingDatasets
+  if (pathname === '/api/training/simple-datasets') return trainingDatasets
   if (pathname === '/api/training/gpus') return trainingGpus
   if (pathname === '/api/training/jobs') return []
   if (pathname === '/api/expert-models') return uploadedExpertModels
