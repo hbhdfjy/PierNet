@@ -145,3 +145,52 @@ def test_create_job_rejects_missing_training_data(monkeypatch: pytest.MonkeyPatc
                 "epochs": 1,
             }
         )
+
+
+@pytest.mark.parametrize("status", ["done", "error", "terminated"])
+def test_refresh_entry_never_revives_terminal_job_when_pid_is_reused(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    status: str,
+) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    log_path = run_dir / "train.log"
+    log_path.write_text("[done] training complete\n", encoding="utf-8")
+    monkeypatch.setattr(text2comp_manager, "_pid_alive", lambda _pid: True)
+    entry = {
+        "job_id": "text2comp-finished",
+        "name": "finished",
+        "status": status,
+        "pid": 4321,
+        "run_dir": str(run_dir),
+        "log_path": str(log_path),
+        "expert_model": "modflow",
+    }
+
+    refreshed = text2comp_manager._refresh_entry(entry)
+
+    assert refreshed["status"] == status
+
+
+def test_refresh_entry_recovers_completed_job_after_pid_reuse(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    run_dir = tmp_path / "run"
+    run_dir.mkdir()
+    (run_dir / "final_model.pt").write_bytes(b"model")
+    log_path = run_dir / "train.log"
+    log_path.write_text("[done] training complete\n", encoding="utf-8")
+    monkeypatch.setattr(text2comp_manager, "_pid_alive", lambda _pid: True)
+    entry = {
+        "job_id": "text2comp-finished",
+        "name": "finished",
+        "status": "running",
+        "pid": 4321,
+        "run_dir": str(run_dir),
+        "log_path": str(log_path),
+        "expert_model": "modflow",
+    }
+
+    refreshed = text2comp_manager._refresh_entry(entry)
+
+    assert refreshed["status"] == "done"
+    assert refreshed["ended_at"] is not None

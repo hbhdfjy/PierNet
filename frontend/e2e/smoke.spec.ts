@@ -453,3 +453,13 @@ test('desktop shell keeps brand, navigation and utility controls visible on deep
     await expectNoHorizontalOverflow(page)
   }
 })
+
+test('conversation training workflow renders as a standalone entry', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await gotoApp(page, '/conversation-training-demo.html')
+
+  await expect(page.getByRole('heading', { name: '创建完整模型' })).toBeVisible()
+  await expect(page.getByRole('button', { name: /新建对话/ })).toBeVisible()
+  await expect(page.getByText('完整模型工作流')).toBeVisible()
+  await expectNoHorizontalOverflow(page)
+})

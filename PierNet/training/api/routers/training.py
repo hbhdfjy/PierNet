@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Response
+from pydantic import BaseModel
 
 from PierNet.training.api.schemas.training import (
     GPUInfo,
@@ -13,9 +14,13 @@ from PierNet.training.api.schemas.training import (
     TrainingLogResponse,
     TrainingOverviewResponse,
 )
-from PierNet.training.services import training_manager
+from PierNet.training.services import assembly_registration, training_manager
 
 router = APIRouter(prefix="/training", tags=["training"])
+
+
+class RegisterLoadTrainingJobRequest(BaseModel):
+    gpu_id: int | None = None
 
 
 @router.get("/overview", response_model=TrainingOverviewResponse)
@@ -69,6 +74,38 @@ def get_training_job(job_id: str):
         return TrainingJobDetail(**training_manager.get_job(job_id, refresh=False))
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
+
+
+@router.post("/jobs/{job_id}/register-load")
+async def register_and_load_training_job(job_id: str, req: RegisterLoadTrainingJobRequest):
+    try:
+        job = training_manager.get_job(job_id, refresh=True)
+        registered = assembly_registration.register_training_job(job)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=f"Training job not found: {job_id}") from exc
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+    from PierNet.training.api.routers import assembly
+
+    gpu_id = req.gpu_id
+    if gpu_id is None:
+        gpus = [item for item in assembly.get_gpu_info() if item.available]
+        if not gpus:
+            raise HTTPException(status_code=409, detail="No GPU is available for loading the assembled model")
+        gpu_id = int(max(gpus, key=lambda item: int(item.memory_free_mb or 0)).index)
+    await assembly.unload_all()
+    loaded = await assembly.load_all_models(
+        assembly.LoadAllRequest(
+            assembly_profile_id=registered["model_id"],
+            llm_gpu_id=gpu_id,
+            router_gpu_id=gpu_id,
+            force_split=bool(registered.get("force_split", False)),
+            auto_sync=True,
+        )
+    )
+    profile = assembly._get_assembly_profile(registered["model_id"])
+    return {"status": "ready", "profile": profile, "loaded": loaded}
 
 
 @router.post("/jobs/{job_id}/stop", response_model=TrainingJobSummary)

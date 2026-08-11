@@ -2210,6 +2210,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/training/jobs/{job_id}/register-load": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register And Load Training Job */
+        post: operations["register_and_load_training_job_api_training_jobs__job_id__register_load_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/training/jobs/{job_id}/stop": {
         parameters: {
             query?: never;
@@ -2788,6 +2805,14 @@ export interface components {
             text2comp_path?: string | null;
             /** Uploaded Expert Id */
             uploaded_expert_id?: string | null;
+            /** Uploaded Expert Input Dim */
+            uploaded_expert_input_dim?: number | null;
+            /** Uploaded Expert Name */
+            uploaded_expert_name?: string | null;
+            /** Uploaded Expert Output Dim */
+            uploaded_expert_output_dim?: number | null;
+            /** Uploaded Expert Path */
+            uploaded_expert_path?: string | null;
         };
         /**
          * LoadFNORequest
@@ -3067,6 +3092,11 @@ export interface components {
             oldest_queued_age_seconds?: number | null;
             /** Queued */
             queued: number;
+        };
+        /** RegisterLoadTrainingJobRequest */
+        RegisterLoadTrainingJobRequest: {
+            /** Gpu Id */
+            gpu_id?: number | null;
         };
         /** ResourceMetrics */
         ResourceMetrics: {
@@ -8254,6 +8284,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TrainingLogResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    register_and_load_training_job_api_training_jobs__job_id__register_load_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterLoadTrainingJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description Validation Error */

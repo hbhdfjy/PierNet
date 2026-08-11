@@ -102,3 +102,22 @@ def test_gcam_prediction_formats_five_trajectories() -> None:
     assert "可再生能源占比：2025: 16.00000" in answer
     assert "全球平均气温异常：2025: 64.00000" in answer
     assert "2100: 79.00000" in answer
+
+
+def test_training_job_profile_routes_only_complete_prediction_requests() -> None:
+    snapshot = dict(assembly._LOADED_MODELS)
+    try:
+        assembly._LOADED_MODELS["assembly_profile_info"] = {
+            "executor": "training_job_profile",
+            "prediction_keywords": ["预测", "predict"],
+            "task_keywords": ["modflow", "地下水"],
+            "expert_input_dim": 3,
+            "min_user_numeric_values": 3,
+        }
+        assert assembly._router_enabled_for_input("你好") is False
+        assert assembly._router_enabled_for_input("介绍地下水") is False
+        assert assembly._router_enabled_for_input("预测参数 [35.3, 5.6] 的结果") is False
+        assert assembly._router_enabled_for_input("预测参数 [35.3, 5.6, 2.0] 的结果") is True
+        assert assembly._training_profile_input_validation("1")["state"] == "ambiguous_input"
+    finally:
+        _restore_loaded_models(snapshot)

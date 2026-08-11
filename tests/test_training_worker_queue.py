@@ -768,3 +768,53 @@ def test_quick_training_worker_preserves_custom_router_dataset(monkeypatch, tmp_
         ["custom_scenario"],
         router_dir,
     )
+
+
+def test_refresh_entry_never_revives_completed_job_when_pid_is_reused(monkeypatch, tmp_path):
+    _use_tmp_runtime(monkeypatch, tmp_path)
+    _mock_training_prereqs(monkeypatch)
+    entry = training_manager._queued_training_entry(_payload())
+    entry["status"] = "done"
+    entry["pid"] = 4321
+    entry["ended_at"] = 3.0
+    run_dir = Path(entry["run_dir"])
+    run_dir.mkdir(parents=True)
+    (run_dir / "router_final.pt").write_bytes(b"ok")
+    Path(entry["log_path"]).parent.mkdir(parents=True)
+    Path(entry["log_path"]).write_text("[done]\n", encoding="utf-8")
+    monkeypatch.setattr(training_manager, "_pid_alive", lambda _pid: True)
+
+    refreshed = training_manager._refresh_entry(entry)
+
+    assert refreshed["status"] == "done"
+    assert refreshed["ended_at"] == 3.0
+
+
+def test_completed_simple_pipeline_registers_assembly_profile_once(monkeypatch, tmp_path):
+    from PierNet.training.services import assembly_registration
+
+    log_path = tmp_path / "training.log"
+    entry = {
+        "job_id": "train-auto-register",
+        "name": "auto register",
+        "status": "done",
+        "pipeline_stage": "done",
+        "simulator": "modflow",
+        "run_dir": str(tmp_path / "run"),
+        "log_path": str(log_path),
+        "config": {"simple_pipeline_enabled": True},
+        "simple_pipeline": {"stage": "done"},
+    }
+    calls = []
+
+    def fake_register(job):
+        calls.append(job["job_id"])
+        return {"model_id": "conversation_train-auto-register", "name": "auto register 拼装模型"}
+
+    monkeypatch.setattr(assembly_registration, "register_training_job", fake_register)
+    training_manager._register_completed_simple_pipeline(entry)
+    training_manager._register_completed_simple_pipeline(entry)
+
+    assert calls == ["train-auto-register"]
+    assert entry["simple_pipeline"]["assembly_profile_id"] == "conversation_train-auto-register"
+    assert "stage=assembly_registered" in log_path.read_text(encoding="utf-8")

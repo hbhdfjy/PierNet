@@ -18,6 +18,14 @@ const allowedHosts =
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        conversationTraining: 'conversation-training-demo.html',
+      },
+    },
+  },
   server: {
     host: '0.0.0.0',
     port: frontendPort,

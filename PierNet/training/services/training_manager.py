@@ -657,6 +657,41 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
     _append_launch_log(Path(entry["log_path"]), f"[pipeline] stage=text2comp_launch job_id={child.get('job_id')}")
 
 
+def _refresh_assembly_router_registry() -> None:
+    try:
+        from PierNet.training.api.routers import assembly
+
+        assembly._ROUTER_REGISTRY = assembly._scan_router()
+    except Exception as exc:
+        LOGGER.warning("Unable to refresh assembly Router registry: %s", exc)
+
+
+def _register_completed_simple_pipeline(entry: dict[str, Any]) -> None:
+    pipeline = _simple_pipeline_fields(entry)
+    if pipeline.get("assembly_profile_id") or pipeline.get("assembly_registration_attempted"):
+        return
+    pipeline["assembly_registration_attempted"] = True
+    try:
+        from PierNet.training.services import assembly_registration
+
+        normalized = _normalize_job_entry(entry) or entry
+        profile = assembly_registration.register_training_job(normalized)
+        pipeline["assembly_profile_id"] = profile["model_id"]
+        pipeline["assembly_profile_name"] = profile["name"]
+        pipeline["assembly_registration_error"] = None
+        _append_launch_log(
+            Path(entry["log_path"]),
+            f"[pipeline] stage=assembly_registered profile_id={profile['model_id']}",
+        )
+    except Exception as exc:
+        pipeline["assembly_registration_error"] = str(exc)
+        _append_launch_log(
+            Path(entry["log_path"]),
+            f"[pipeline] stage=assembly_registration_error error={exc}",
+        )
+        LOGGER.warning("Unable to register completed simple-training model %s: %s", entry.get("job_id"), exc)
+
+
 def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
     config = entry.get("config") if isinstance(entry.get("config"), dict) else {}
     if not config.get("simple_pipeline_enabled"):
@@ -750,6 +785,8 @@ def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
                 entry["error_message"] = None
                 entry["pipeline_stage"] = "done"
                 pipeline["stage"] = "done"
+                _refresh_assembly_router_registry()
+                _register_completed_simple_pipeline(entry)
                 return entry
             if child_status in {"error", "terminated"}:
                 entry["status"] = "error" if child_status == "error" else "terminated"
@@ -841,7 +878,7 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     if entry.get("status") == "queued":
         return entry
     pid = entry.get("pid")
-    alive = _pid_alive(pid)
+    alive = entry.get("status") not in TRAINING_TERMINAL_STATUSES and _pid_alive(pid)
     latest_point = training_progress.latest_training_point(run_dir)
     if latest_point:
         entry["latest_epoch"] = _coerce_int(latest_point.get("epoch")) or None

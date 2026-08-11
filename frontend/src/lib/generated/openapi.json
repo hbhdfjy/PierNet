@@ -1167,6 +1167,50 @@
               }
             ],
             "title": "Uploaded Expert Id"
+          },
+          "uploaded_expert_input_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Input Dim"
+          },
+          "uploaded_expert_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Name"
+          },
+          "uploaded_expert_output_dim": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Output Dim"
+          },
+          "uploaded_expert_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uploaded Expert Path"
           }
         },
         "title": "LoadAllRequest",
@@ -1831,6 +1875,23 @@
           "queued"
         ],
         "title": "QueueSummary",
+        "type": "object"
+      },
+      "RegisterLoadTrainingJobRequest": {
+        "properties": {
+          "gpu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Id"
+          }
+        },
+        "title": "RegisterLoadTrainingJobRequest",
         "type": "object"
       },
       "ResourceMetrics": {
@@ -11129,6 +11190,56 @@
           }
         },
         "summary": "Get Training Logs",
+        "tags": [
+          "training"
+        ]
+      }
+    },
+    "/api/training/jobs/{job_id}/register-load": {
+      "post": {
+        "operationId": "register_and_load_training_job_api_training_jobs__job_id__register_load_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "job_id",
+            "required": true,
+            "schema": {
+              "title": "Job Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterLoadTrainingJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register And Load Training Job",
         "tags": [
           "training"
         ]

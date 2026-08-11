@@ -34,7 +34,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from PierNet.synth.services import expert_models as uploaded_expert_models
-from PierNet.training.api.modflow_assembly import ModflowAssemblyProfilePipeline
+from PierNet.training.api.modflow_assembly import MLP, ModflowAssemblyProfilePipeline
 from PierNet.training.text2comp.data import PromptNumbersDataset
 
 
@@ -106,6 +106,12 @@ import glob as _glob
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 _CONFIG_PATH = _REPO_ROOT / "configs" / "assembly" / "models.yaml"
 _ASSEMBLED_PROFILES_DEFAULT_CONFIG = _REPO_ROOT / "configs" / "assembly" / "assembled_profiles.yaml"
+_RUNTIME_ASSEMBLED_PROFILES_CONFIG = Path(
+    os.getenv(
+        "PIERN_CONVERSATION_ASSEMBLY_PROFILES",
+        str(_REPO_ROOT / ".runlogs" / "conversation_assembly_profiles.yaml"),
+    )
+).expanduser()
 _ARTIFACTS_ROOT = Path(os.getenv("PIERN_ARTIFACTS_ROOT", str(_REPO_ROOT / "artifacts"))).expanduser()
 _TEXT2COMP_MODELS_ROOT = Path(
     os.getenv("PIERN_TEXT2COMP_MODELS_DIR", str(_ARTIFACTS_ROOT / "text2comp_models"))
@@ -164,10 +170,13 @@ def _profile_explicit_or_artifact_path(
 
 def _scan_assembly_profiles() -> list[dict[str, Any]]:
     config_path = _assembly_profiles_config_path()
-    if not config_path.exists():
-        return []
-    data = _yaml.safe_load(config_path.read_text(encoding="utf-8")) or {}
-    items = data.get("profiles", data if isinstance(data, list) else [])
+    items: list[dict[str, Any]] = []
+    for source_path in (config_path, _RUNTIME_ASSEMBLED_PROFILES_CONFIG):
+        if not source_path.exists():
+            continue
+        data = _yaml.safe_load(source_path.read_text(encoding="utf-8")) or {}
+        source_items = data.get("profiles", data if isinstance(data, list) else [])
+        items.extend(item for item in source_items if isinstance(item, dict))
     profiles: list[dict[str, Any]] = []
     for item in items:
         if not isinstance(item, dict):
@@ -229,8 +238,20 @@ def _scan_assembly_profiles() -> list[dict[str, Any]]:
             "trained": trained,
             "chat_enabled": bool(item.get("chat_enabled", True)) and trained,
             "force_split": bool(item.get("force_split", False)),
+            "max_new_tokens": int(item.get("max_new_tokens") or 8000),
             "source_thread_id": item.get("source_thread_id"),
             "source": item.get("source") or "registered_profile",
+            "source_job_id": item.get("source_job_id"),
+            "expert_kind": item.get("expert_kind"),
+            "uploaded_expert_id": item.get("uploaded_expert_id"),
+            "expert_input_dim": int(item.get("expert_input_dim") or 0),
+            "expert_output_dim": int(item.get("expert_output_dim") or 0),
+            "task_label": str(item.get("task_label") or ""),
+            "task_keywords": [str(value) for value in item.get("task_keywords") or []],
+            "prediction_keywords": [str(value) for value in item.get("prediction_keywords") or []],
+            "parameter_names": [str(value) for value in item.get("parameter_names") or []],
+            "min_user_numeric_values": int(item.get("min_user_numeric_values") or 0),
+            "system_prompt": str(item.get("system_prompt") or ""),
             "demo_prompt": str(item.get("demo_prompt") or manifest.get("demo_prompt") or ""),
             "demo_prompt_label": str(item.get("demo_prompt_label") or manifest.get("demo_prompt_label") or "演示 Prompt"),
             "missing_paths": [p for p in required_paths if not p or not os.path.exists(p)],
@@ -524,6 +545,10 @@ class LoadAllRequest(BaseModel):
     fno_path: Optional[str] = None
     expert_executor: str = "fno"
     uploaded_expert_id: Optional[str] = None
+    uploaded_expert_path: Optional[str] = None
+    uploaded_expert_name: Optional[str] = None
+    uploaded_expert_input_dim: Optional[int] = None
+    uploaded_expert_output_dim: Optional[int] = None
     assembly_profile_id: Optional[str] = None
     force_split: bool = False
     auto_sync: bool = True  # 自动处理跨设备同步
@@ -1355,6 +1380,71 @@ def _sync_device(device):
         torch.cuda.synchronize(device)
 
 
+def _training_profile_input_validation(user_input: str) -> dict[str, Any]:
+    profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    if str(profile.get("executor") or "").strip().lower() != "training_job_profile":
+        return {"state": "not_applicable", "router_enabled": True}
+    text = str(user_input or "")
+    lowered = text.lower()
+    prediction_keywords = [str(item).lower() for item in profile.get("prediction_keywords") or []]
+    has_prediction_intent = any(keyword and keyword in lowered for keyword in prediction_keywords)
+    numbers = re.findall(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?", text)
+    required = int(profile.get("min_user_numeric_values") or profile.get("expert_input_dim") or 0)
+    task_keywords = [str(item).lower() for item in profile.get("task_keywords") or []]
+    has_task_keyword = any(keyword and keyword in lowered for keyword in task_keywords)
+    state = "conversation"
+    short_text = text.strip().lower()
+    known_greetings = {"你好", "您好", "hi", "hello"}
+    if not has_prediction_intent and len(short_text) <= 2 and short_text not in known_greetings:
+        state = "ambiguous_input"
+    elif has_prediction_intent and required > 0 and len(numbers) < required:
+        state = "incomplete_task"
+    elif has_prediction_intent and (required <= 0 or len(numbers) >= required):
+        state = "eligible_task"
+    return {
+        "state": state,
+        "router_enabled": state == "eligible_task",
+        "has_prediction_intent": has_prediction_intent,
+        "has_task_keyword": has_task_keyword,
+        "numeric_value_count": len(numbers),
+        "required_numeric_values": required,
+    }
+
+
+def _router_enabled_for_input(user_input: str) -> bool:
+    return bool(_training_profile_input_validation(user_input).get("router_enabled"))
+
+
+def _active_system_prompt() -> str:
+    profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    profile_prompt = str(profile.get("system_prompt") or "").strip()
+    if profile_prompt:
+        return profile_prompt
+    if PROMPT_CONFIG_PATH.exists():
+        try:
+            data = yaml.safe_load(PROMPT_CONFIG_PATH.read_text(encoding="utf-8")) or {}
+            configured = str(data.get("piern_system_prompt") or "").strip()
+            if configured:
+                return configured
+        except (OSError, ValueError, TypeError):
+            logger.warning("Unable to read Assembly prompt config", exc_info=True)
+    return PIERN_SYSTEM_PROMPT
+
+
+def _system_prompt_for_input(input_validation: dict[str, Any]) -> str:
+    profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    if (
+        str(profile.get("executor") or "").strip().lower() == "training_job_profile"
+        and input_validation.get("state") == "conversation"
+        and not input_validation.get("has_task_keyword")
+    ):
+        return (
+            "你是一个通用中文助手。请直接、准确地回答用户的问题。"
+            "不要把无关问题关联到当前科学计算任务，也不要声称已经调用模型进行预测。"
+        )
+    return _active_system_prompt()
+
+
 def generate_response_with_router(user_input, max_new_tokens=8000):
     """
     PiERN生成流程（遵循single_eval.py）
@@ -1374,12 +1464,43 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
     llm_device = _LOADED_MODELS["llm_device"]
     router_device = _LOADED_MODELS["router_device"]
 
+    input_validation = _training_profile_input_validation(user_input)
+    if input_validation.get("state") == "ambiguous_input":
+        return "请补充您想咨询的问题或需要完成的任务。", 0, "", "", {
+            "routing_source": "input_validation",
+            "routed_simulator": "normal",
+            "router_checks": 0,
+            "router_enabled_for_input": False,
+            "expert_calls": 0,
+            "input_validation": input_validation,
+        }
+    if input_validation.get("state") == "incomplete_task":
+        profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+        required = int(input_validation.get("required_numeric_values") or 0)
+        parameter_names = [str(item) for item in profile.get("parameter_names") or []]
+        parameter_hint = "、".join(parameter_names) if parameter_names else f"按训练约定顺序排列的 {required} 个参数"
+        task_label = str(profile.get("task_label") or profile.get("simulator") or "科学计算")
+        answer = f"这是一个{task_label}请求，但输入参数不完整。请提供至少 {required} 个数值参数，顺序为：{parameter_hint}。"
+        return answer, 0, "", "", {
+            "routing_source": "input_validation",
+            "routed_simulator": "normal",
+            "router_checks": 0,
+            "router_enabled_for_input": False,
+            "expert_calls": 0,
+            "input_validation": input_validation,
+        }
+
     explicit_expert_simulator = _explicit_uploaded_expert_simulator(user_input)
-    if explicit_expert_simulator:
+    profile = _LOADED_MODELS.get("assembly_profile_info") or {}
+    training_profile_routing = (
+        str(profile.get("executor") or "").strip().lower() == "training_job_profile"
+        and input_validation.get("state") == "eligible_task"
+    )
+    if explicit_expert_simulator or training_profile_routing:
         messages = [{"role": "user", "content": user_input}]
     else:
         messages = [
-            {"role": "system", "content": PIERN_SYSTEM_PROMPT},
+            {"role": "system", "content": _system_prompt_for_input(input_validation)},
             {"role": "user", "content": user_input},
         ]
 
@@ -1389,6 +1510,7 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
     generated_ids = inputs["input_ids"]
     prompt_len = generated_ids.shape[1]
     trigger_prefill = _expert_router_trigger_prefill(user_input)
+    router_enabled_for_input = bool(input_validation.get("router_enabled"))
     trigger_prefill_tokens = 0
     if trigger_prefill:
         trigger_ids = tokenizer.encode(
@@ -1461,6 +1583,8 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
             generated_llm_tokens += 1
 
             # Router判断（如果在不同GPU，会自动传输）
+            if not router_enabled_for_input:
+                continue
             attention_mask = torch.ones_like(generated_ids)
             router_start = time.perf_counter()
             pred, prob = inference_router(generated_ids, attention_mask)
@@ -1518,6 +1642,8 @@ def generate_response_with_router(user_input, max_new_tokens=8000):
         "trigger_prefill_tokens": trigger_prefill_tokens,
         "generated_llm_tokens": generated_llm_tokens,
         "router_checks": router_checks,
+        "router_enabled_for_input": router_enabled_for_input,
+        "input_validation": input_validation,
         "expert_calls": expert_calls,
         "routing_source": "explicit_expert_request" if explicit_expert_dispatch else "router",
         "routed_simulator": explicit_expert_simulator or (
@@ -1649,6 +1775,103 @@ def _load_uploaded_expert(model_id: str, expected_input_dim: int | None = None) 
     return _uploaded_expert_info(model)
 
 
+def _load_direct_uploaded_expert(req: LoadAllRequest, expected_input_dim: int) -> None:
+    expert_path = str(req.uploaded_expert_path or "").strip()
+    if not expert_path or not Path(expert_path).exists():
+        raise HTTPException(status_code=404, detail=f"Uploaded Expert path not found: {expert_path}")
+    descriptor: dict[str, Any] = {}
+    descriptor_path = Path(expert_path) / "piernet_expert_model.json"
+    if descriptor_path.is_file():
+        try:
+            descriptor = json.loads(descriptor_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as exc:
+            raise HTTPException(status_code=400, detail=f"Invalid Uploaded Expert descriptor: {exc}") from exc
+    configured_input_dim = int(req.uploaded_expert_input_dim or expected_input_dim)
+    if configured_input_dim != expected_input_dim:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text2Comp 输出维度与 Uploaded Expert 输入维度不匹配: {expected_input_dim} != {configured_input_dim}",
+        )
+    model = {
+        "model_id": str(req.uploaded_expert_name or Path(expert_path).name),
+        "name": str(req.uploaded_expert_name or Path(expert_path).name),
+        "simulator": str(descriptor.get("simulator") or "gcam"),
+        "domain": str(descriptor.get("domain") or "energy_climate"),
+        "input_dim": configured_input_dim,
+        "output_dim": int(req.uploaded_expert_output_dim or 0),
+        "runtime": "python",
+        "status": "active",
+        "path": expert_path,
+        "entrypoint": descriptor.get("entrypoint"),
+        "callable": descriptor.get("callable") or "predict",
+    }
+    _LOADED_MODELS["uploaded_expert_model"] = model
+    _LOADED_MODELS["uploaded_expert_predict"] = uploaded_expert_models.load_predict(model)
+    _LOADED_MODELS["uploaded_expert_id"] = model["model_id"]
+    _LOADED_MODELS["uploaded_expert_path"] = expert_path
+    _LOADED_MODELS["expert_executor"] = "uploaded"
+
+
+def _load_modflow_dnn_expert(req: LoadAllRequest, expected_input_dim: int) -> None:
+    expert_path = Path(str(req.uploaded_expert_path or "")).expanduser()
+    manifest_path = expert_path.parent / "manifest.json"
+    if not expert_path.is_file():
+        raise HTTPException(status_code=404, detail=f"MODFLOW Expert checkpoint not found: {expert_path}")
+    if not manifest_path.is_file():
+        raise HTTPException(status_code=404, detail=f"MODFLOW Expert manifest not found: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    checkpoint = _torch_load_compat(str(expert_path), map_location="cpu")
+    input_dim = int(checkpoint.get("input_dim") or 0)
+    output_dim = int(checkpoint.get("output_dim") or 0)
+    if input_dim != expected_input_dim:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Text2Comp 输出维度与 MODFLOW Expert 输入维度不匹配: {expected_input_dim} != {input_dim}",
+        )
+    architecture = checkpoint.get("architecture") or {}
+    model = MLP(
+        input_dim,
+        output_dim,
+        architecture.get("hidden", [128]),
+        float(architecture.get("dropout", 0.05)),
+    )
+    model.load_state_dict(checkpoint["model_state"])
+    device = _LOADED_MODELS.get("fno_device") or torch.device("cpu")
+    model.to(device)
+    model.eval()
+    param_mean = np.asarray(manifest.get("param_mean") or [], dtype=np.float32)
+    param_std = np.maximum(np.asarray(manifest.get("param_std") or [], dtype=np.float32), 1e-6)
+    target_mean = np.asarray(manifest.get("target_mean") or [], dtype=np.float32)
+    target_std = np.asarray(manifest.get("target_std") or [], dtype=np.float32)
+    if param_mean.size != input_dim or target_mean.size != output_dim:
+        raise HTTPException(status_code=400, detail="MODFLOW Expert manifest dimensions do not match checkpoint")
+
+    def predict(inputs: list[float]) -> list[float]:
+        values = np.asarray(inputs, dtype=np.float32).reshape(-1)
+        if values.size != input_dim:
+            raise ValueError(f"MODFLOW Expert expected {input_dim} inputs, got {values.size}")
+        normalized = (values - param_mean) / param_std
+        with torch.no_grad():
+            tensor = torch.from_numpy(normalized).reshape(1, -1).to(device)
+            prediction = model(tensor).detach().float().cpu().numpy().reshape(-1)
+        return (prediction * target_std + target_mean).astype(float).tolist()
+
+    model_id = str(req.uploaded_expert_name or expert_path.stem)
+    _LOADED_MODELS["uploaded_expert_model"] = {
+        "model_id": model_id,
+        "name": model_id,
+        "simulator": "modflow",
+        "domain": "groundwater",
+        "input_dim": input_dim,
+        "output_dim": output_dim,
+        "path": str(expert_path),
+    }
+    _LOADED_MODELS["uploaded_expert_predict"] = predict
+    _LOADED_MODELS["uploaded_expert_id"] = model_id
+    _LOADED_MODELS["uploaded_expert_path"] = str(expert_path)
+    _LOADED_MODELS["expert_executor"] = "uploaded"
+
+
 @router.post("/uploaded-experts/load")
 async def load_uploaded_expert(req: LoadUploadedExpertRequest):
     expert = _load_uploaded_expert(req.model_id, req.expected_input_dim)
@@ -1758,6 +1981,36 @@ async def _load_assembly_profile_models(req: LoadAllRequest):
         raise HTTPException(status_code=400, detail=f"Assembly profile is incomplete: {missing}")
     executor = str(profile.get("executor") or "").strip().lower()
 
+    if executor == "training_job_profile":
+        expert_kind = str(profile.get("expert_kind") or "uploaded").strip().lower()
+        result = await load_all_models(
+            LoadAllRequest(
+                llm_path=profile.get("llm_path"),
+                llm_gpu_id=req.llm_gpu_id,
+                router_gpu_id=req.router_gpu_id,
+                router_path=profile.get("router_path"),
+                text2comp_path=profile.get("text2comp_path"),
+                expert_executor="modflow_dnn" if expert_kind == "modflow_dnn" else "uploaded",
+                uploaded_expert_id=profile.get("uploaded_expert_id"),
+                uploaded_expert_path=profile.get("expert_path"),
+                uploaded_expert_name=f"{profile.get('model_id')}_expert",
+                uploaded_expert_input_dim=int(profile.get("expert_input_dim") or 0),
+                uploaded_expert_output_dim=int(profile.get("expert_output_dim") or 0),
+                force_split=bool(profile.get("force_split", req.force_split)),
+                auto_sync=req.auto_sync,
+            )
+        )
+        _LOADED_MODELS["assembly_profile"] = {"executor": executor}
+        _LOADED_MODELS["assembly_profile_info"] = profile
+        result.update(
+            {
+                "profile": profile,
+                "message": f"训练任务拼装模型 {profile.get('name')} 已加载完成",
+                "architecture": "LLM + trained Router + trained Text2Comp + Expert",
+            }
+        )
+        return result
+
     if executor in {"fno_profile", "standard_fno_profile"}:
         result = await load_all_models(
             LoadAllRequest(
@@ -1832,10 +2085,13 @@ def _test_assembly_profile(req: AssemblyTestRequest) -> AssemblyTestResponse:
     if pipeline is None:
         raise HTTPException(status_code=400, detail="Assembly profile 尚未加载")
     executor = str(profile.get("executor") or "").strip().lower()
-    if executor in {"fno_profile", "standard_fno_profile"}:
+    if executor in {"fno_profile", "standard_fno_profile", "training_job_profile"}:
         start_time = time.time()
         try:
-            response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(req.test_input)
+            response, router_pred, final_answer, expert_output, debug_info = generate_response_with_router(
+                req.test_input,
+                max_new_tokens=int(profile.get("max_new_tokens") or 8000),
+            )
         except uploaded_expert_models.ExpertModelError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except Exception:
@@ -1846,7 +2102,7 @@ def _test_assembly_profile(req: AssemblyTestRequest) -> AssemblyTestResponse:
         display_answer = f"{cleaned_response}\n\n{final_answer}" if final_answer and cleaned_response else final_answer or cleaned_response
         debug_info["assembly_profile"] = profile
         return AssemblyTestResponse(
-            router_prediction=ASSEMBLY_ROUTER_CLASS_NAMES[router_pred],
+            router_prediction=str(debug_info.get("routed_simulator") or "normal"),
             first_cot_result=response,
             final_answer=display_answer,
             llm_response=response,
@@ -1942,6 +2198,16 @@ async def load_all_models(req: LoadAllRequest):
         if req.text2comp_path
         else text2comp_registry
     )
+    if req.text2comp_path and not selected_text2comps and Path(req.text2comp_path).is_file():
+        simulator, output_dim, name = _text2comp_metadata(req.text2comp_path)
+        selected_text2comps = [
+            {
+                "name": name,
+                "simulator": simulator,
+                "output_dim": output_dim,
+                "path": req.text2comp_path,
+            }
+        ]
     if req.text2comp_path and not selected_text2comps:
         raise HTTPException(status_code=404, detail=f"Text2Comp not found: {req.text2comp_path}")
 
@@ -1961,8 +2227,8 @@ async def load_all_models(req: LoadAllRequest):
             _LOADED_MODELS["text2comp_paths"].append(t["path"])
 
     expert_executor = str(req.expert_executor or "fno").strip().lower()
-    if expert_executor not in {"fno", "uploaded"}:
-        raise HTTPException(status_code=400, detail="expert_executor must be fno or uploaded")
+    if expert_executor not in {"fno", "uploaded", "modflow_dnn"}:
+        raise HTTPException(status_code=400, detail="expert_executor must be fno, uploaded or modflow_dnn")
     _LOADED_MODELS["expert_executor"] = expert_executor
     _LOADED_MODELS["uploaded_expert_model"] = None
     _LOADED_MODELS["uploaded_expert_predict"] = None
@@ -1974,12 +2240,23 @@ async def load_all_models(req: LoadAllRequest):
     _LOADED_MODELS["grid"] = {}
     _LOADED_MODELS["fno_paths"] = []
     selected_fnos = []
-    if expert_executor == "uploaded":
-        if not req.uploaded_expert_id:
-            raise HTTPException(status_code=400, detail="选择 Uploaded Expert 时必须提供 uploaded_expert_id")
+    if expert_executor == "modflow_dnn":
+        if not selected_text2comps:
+            raise HTTPException(status_code=400, detail="选择 MODFLOW DNN Expert 时必须选择 Text2Comp")
+        _load_modflow_dnn_expert(req, int(selected_text2comps[0]["output_dim"]))
+    elif expert_executor == "uploaded":
         if not selected_text2comps:
             raise HTTPException(status_code=400, detail="选择 Uploaded Expert 时必须选择 Text2Comp")
-        _load_uploaded_expert(req.uploaded_expert_id, int(selected_text2comps[0]["output_dim"]))
+        expected_input_dim = int(selected_text2comps[0]["output_dim"])
+        if req.uploaded_expert_path:
+            _load_direct_uploaded_expert(req, expected_input_dim)
+        elif req.uploaded_expert_id:
+            _load_uploaded_expert(req.uploaded_expert_id, expected_input_dim)
+        else:
+            raise HTTPException(
+                status_code=400,
+                detail="选择 Uploaded Expert 时必须提供 uploaded_expert_id 或 uploaded_expert_path",
+            )
     else:
         selected_fnos = (
             [f for f in _FNO_REGISTRY if f["path"] == req.fno_path]

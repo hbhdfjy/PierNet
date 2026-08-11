@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, Check, Database, Layers3, PlayCircle } from 'lucide-react'
+import { AlertTriangle, Check, Database, Layers3, MessageSquare, PlayCircle } from 'lucide-react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import useSWR, { useSWRConfig } from 'swr'
 import { api } from '../../lib/api'
@@ -145,15 +145,21 @@ export default function TrainingSimpleJobPage() {
                   : '正在读取训练数据'}
               </p>
             </div>
-            <button
-              type="button"
-              className="btn-primary training-simple-hero__action"
-              onClick={submit}
-              disabled={!canSubmit}
-            >
-              <PlayCircle size={15} />
-              {submitting ? '启动中...' : '开始训练'}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <a href="/conversation-training-demo.html" className="btn-ghost training-simple-hero__action">
+                <MessageSquare size={15} />
+                对话训练
+              </a>
+              <button
+                type="button"
+                className="btn-primary training-simple-hero__action"
+                onClick={submit}
+                disabled={!canSubmit}
+              >
+                <PlayCircle size={15} />
+                {submitting ? '启动中...' : '开始训练'}
+              </button>
+            </div>
           </section>
 
           {(error || datasetError) && (

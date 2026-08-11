@@ -392,7 +392,9 @@ def _refresh_entry(entry: dict[str, Any]) -> dict[str, Any]:
     run_dir = Path(run_dir_str)
     log_path = Path(log_path_str)
     pid = entry.get("pid")
-    alive = _pid_alive(pid)
+    terminal = entry.get("status") in {"done", "error", "terminated"}
+    completed_artifact = (run_dir / "final_model.pt").exists()
+    alive = not terminal and not completed_artifact and _pid_alive(pid)
 
     # 更新训练进度
     latest_point = _latest_training_point(run_dir)
