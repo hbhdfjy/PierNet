@@ -227,6 +227,10 @@ def frontend_api_method_path_templates(api_text: str) -> set[tuple[str, str]]:
 FRONTEND_IMPORT_RE = re.compile(
     r"(?:import\s+(?:[^'\"()]+?\s+from\s+)?|import\s*\(|export\s+[^'\"()]+?\s+from\s+)(['\"])(.*?)\1"
 )
+FRONTEND_HTML_ENTRY_RE = re.compile(
+    r"<script\b[^>]*\bsrc\s*=\s*(['\"])/?src/([^'\"]+)\1",
+    re.IGNORECASE,
+)
 
 
 def frontend_production_files(src_root: Path) -> list[Path]:
@@ -256,11 +260,26 @@ def resolve_frontend_import(source: Path, specifier: str, production_files: set[
     return None
 
 
+def frontend_entry_files(src_root: Path, production_files: set[Path]) -> set[Path]:
+    entries: set[Path] = set()
+    main_entry = (src_root / "main.tsx").resolve()
+    if main_entry in production_files:
+        entries.add(main_entry)
+
+    for html_path in src_root.parent.glob("*.html"):
+        text = html_path.read_text(encoding="utf-8")
+        for match in FRONTEND_HTML_ENTRY_RE.finditer(text):
+            entry = (src_root / match.group(2)).resolve()
+            if entry in production_files:
+                entries.add(entry)
+    return entries
+
+
 def frontend_reachable_files(src_root: Path) -> set[Path]:
     files = frontend_production_files(src_root)
     file_set = {path.resolve() for path in files}
-    entry = (src_root / "main.tsx").resolve()
-    if entry not in file_set:
+    entries = frontend_entry_files(src_root, file_set)
+    if not entries:
         return set()
 
     imports: dict[Path, set[Path]] = {path.resolve(): set() for path in files}
@@ -272,8 +291,8 @@ def frontend_reachable_files(src_root: Path) -> set[Path]:
             if target is not None:
                 imports[resolved_path].add(target)
 
-    reachable = {entry}
-    stack = [entry]
+    reachable = set(entries)
+    stack = list(entries)
     while stack:
         path = stack.pop()
         for target in imports.get(path, set()):

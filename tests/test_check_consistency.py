@@ -176,6 +176,31 @@ def test_frontend_import_graph_errors_for_orphan_production_file(monkeypatch, tm
     ]
 
 
+def test_frontend_import_graph_accepts_secondary_html_entry(monkeypatch, tmp_path: Path) -> None:
+    frontend = tmp_path / "frontend"
+    src = frontend / "src"
+    secondary = src / "secondary"
+    secondary.mkdir(parents=True)
+    (frontend / "index.html").write_text(
+        '<script type="module" src="/src/main.tsx"></script>\n',
+        encoding="utf-8",
+    )
+    (frontend / "secondary.html").write_text(
+        '<script type="module" src="/src/secondary/main.tsx"></script>\n',
+        encoding="utf-8",
+    )
+    (src / "main.tsx").write_text("export const main = true\n", encoding="utf-8")
+    (secondary / "main.tsx").write_text("import './workflow'\n", encoding="utf-8")
+    (secondary / "workflow.ts").write_text("export const workflow = true\n", encoding="utf-8")
+
+    monkeypatch.setattr(check_consistency, "ROOT", tmp_path)
+    checker = check_consistency.Checker()
+
+    checker.check_frontend_import_graph()
+
+    assert checker.errors == []
+
+
 def test_stale_setup_py_warns_but_documented_note_does_not(monkeypatch, tmp_path: Path) -> None:
     (tmp_path / "setup.py").write_text("from setuptools import setup\n", encoding="utf-8")
     (tmp_path / "README.md").write_text("README\n", encoding="utf-8")
