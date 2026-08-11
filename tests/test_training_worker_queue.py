@@ -76,11 +76,25 @@ def test_simple_pipeline_registers_text2comp_with_training_simulator(monkeypatch
         return {
             "job_id": "text2comp-gcam",
             "status": "starting",
+            "gpu_id": payload["gpu_id"],
             "run_dir": str(tmp_path / "text2comp-run"),
             "error_message": None,
         }
 
     monkeypatch.setattr(training_manager.text2comp_manager, "create_job", fake_create_job)
+    monkeypatch.setattr(
+        training_manager.text2comp_manager,
+        "get_gpu_inventory",
+        lambda: [
+            {
+                "index": 0,
+                "available": True,
+                "memory_used_mib": 0,
+                "memory_total_mib": 80_000,
+                "utilization_gpu": 0,
+            }
+        ],
+    )
     entry = {
         "job_id": "train-gcam",
         "name": "GCAM 简洁训练",
@@ -100,6 +114,38 @@ def test_simple_pipeline_registers_text2comp_with_training_simulator(monkeypatch
     assert captured["require_quality"] is True
     assert captured["trainable_base_layers"] == 2
     assert captured["head_learning_rate"] == training_manager.QUICK_TEXT2COMP_DEFAULTS["head_learning_rate"]
+    assert entry["simple_pipeline"]["text2comp_gpu_id"] == 0
+
+
+def test_simple_pipeline_waits_instead_of_failing_when_text2comp_gpu_is_busy(monkeypatch, tmp_path):
+    log_path = tmp_path / "train.log"
+    entry = {
+        "job_id": "train-waiting",
+        "name": "Waiting pipeline",
+        "status": "done",
+        "simulator": "gcam",
+        "gpu_id": 3,
+        "log_path": str(log_path),
+        "latest_metrics": {"f1": 1.0},
+        "config": {"simple_pipeline_enabled": True, "simple_quality_gate_enabled": True},
+        "simple_pipeline": {},
+    }
+    monkeypatch.setattr(
+        training_manager,
+        "_start_simple_text2comp_stage",
+        lambda _entry: (_ for _ in ()).throw(
+            training_manager.conversation_pipeline.Text2CompGPUUnavailableError("GPU 3 is not available")
+        ),
+    )
+
+    result = training_manager._sync_simple_pipeline(entry)
+
+    assert result["status"] == "starting"
+    assert result["pipeline_stage"] == "text2comp"
+    assert result["error_message"] is None
+    assert result["simple_pipeline"]["text2comp_status"] == "queued"
+    assert result["simple_pipeline"]["text2comp_waiting_for_gpu"] is True
+    assert "stage=text2comp_waiting_gpu" in log_path.read_text(encoding="utf-8")
 
 
 def _use_tmp_runtime(monkeypatch, tmp_path: Path):

@@ -37,6 +37,7 @@ import {
   waitForWorkflow,
   workflowApi,
 } from './workflowApi'
+import { goalSimulatorMismatch, recommendedSimulationKey } from './goalRouting'
 import './styles.css'
 
 type Phase = 'goal' | 'data' | 'preparing' | 'ready' | 'training' | 'complete' | 'error'
@@ -152,6 +153,11 @@ export function App() {
   }, [])
 
   useEffect(() => {
+    const recommendedKey = recommendedSimulationKey(goal, simulations)
+    if (recommendedKey) setSimulationKey(recommendedKey)
+  }, [goal, simulations])
+
+  useEffect(() => {
     if (DEMO_MODE) return
     if (phase !== 'training' || !job?.job_id) return
     let cancelled = false
@@ -260,6 +266,8 @@ export function App() {
     const normalized = value.trim()
     if (!normalized) return
     setGoal(normalized)
+    const recommendedKey = recommendedSimulationKey(normalized, simulations)
+    if (recommendedKey) setSimulationKey(recommendedKey)
     addMessage('user', normalized)
     setInput('')
     window.setTimeout(() => {
@@ -299,6 +307,8 @@ export function App() {
       setWorkflow(snapshot)
       if (snapshot.status === 'running') snapshot = await waitForWorkflow(created.workflow_id, setWorkflow)
       if (!snapshot.source?.ready || !snapshot.definition) throw new Error('源数据校验后没有生成可用的数据定义')
+      const mismatch = goalSimulatorMismatch(goal, snapshot.definition.simulator || snapshot.source.simulator || '')
+      if (mismatch) throw new Error(mismatch)
       const sourceCount = Number(snapshot.source.sample_count || 0)
       if (sourceCount < 13) throw new Error('至少需要 13 条源样本，才能生成满足完整训练要求的数据集')
       setPreparingMessage('正在确认输入输出定义')
@@ -335,6 +345,12 @@ export function App() {
   }
 
   function chooseExisting(dataset: TrainingDataset) {
+    const mismatch = goalSimulatorMismatch(goal, dataset.simulator)
+    if (mismatch) {
+      setError(mismatch)
+      addMessage('assistant', mismatch)
+      return
+    }
     setSelectedDataset(dataset)
     setDataOpen(false)
     setPhase('ready')
@@ -349,6 +365,12 @@ export function App() {
     const preset = simulations.find(item => `${item.simulator}/${item.scenario}` === simulationKey)
     if (!preset) {
       setError('请选择一个可用的内置仿真场景')
+      return
+    }
+    const mismatch = goalSimulatorMismatch(goal, preset.simulator)
+    if (mismatch) {
+      setError(mismatch)
+      addMessage('assistant', mismatch)
       return
     }
     void prepareWorkflow(
@@ -367,6 +389,12 @@ export function App() {
 
   async function beginTraining() {
     if (!selectedDataset) return
+    const mismatch = goalSimulatorMismatch(goal, selectedDataset.simulator)
+    if (mismatch) {
+      setError(mismatch)
+      addMessage('assistant', mismatch)
+      return
+    }
     if (DEMO_MODE) {
       const demoJob: TrainingJob = {
         job_id: 'demo-training-workflow',

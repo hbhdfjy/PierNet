@@ -25,6 +25,7 @@ from PierNet.training.router.data import inspect_router_input_representation
 from PierNet.shared.runtime.paths import ARTIFACT_ROOT, DATA_ROOT, PROJECT_ROOT, RUNLOG_ROOT
 from PierNet.shared.tasks import locks as task_locks
 from PierNet.training.services import job_store as training_job_store
+from PierNet.training.services import conversation_pipeline
 from PierNet.training.text2comp import text2comp_manager
 from PierNet.training.services.checkpoint_store import (
     checkpoint_entries as _checkpoint_entries,
@@ -643,7 +644,16 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
             config.get("simple_text2comp_require_quality", QUICK_TEXT2COMP_DEFAULTS["require_quality"])
         ),
     }
-    child = text2comp_manager.create_job(text2comp_payload)
+    child = conversation_pipeline.create_text2comp_job_with_gpu_retry(
+        text2comp_payload,
+        preferred_gpu_id=int(entry.get("gpu_id") or 0),
+        create_job=text2comp_manager.create_job,
+        get_gpu_inventory=text2comp_manager.get_gpu_inventory,
+        attempts=3,
+        allow_fallback=False,
+    )
+    pipeline.pop("text2comp_waiting_for_gpu", None)
+    pipeline.pop("text2comp_waiting_since", None)
     pipeline.update(
         {
             "stage": "text2comp",
@@ -652,6 +662,7 @@ def _start_simple_text2comp_stage(entry: dict[str, Any]) -> None:
             "text2comp_run_dir": child.get("run_dir"),
             "text2comp_model_path": _simple_text2comp_model_path(child),
             "text2comp_error_message": child.get("error_message"),
+            "text2comp_gpu_id": child.get("gpu_id"),
         }
     )
     _append_launch_log(Path(entry["log_path"]), f"[pipeline] stage=text2comp_launch job_id={child.get('job_id')}")
@@ -731,6 +742,22 @@ def _sync_simple_pipeline(entry: dict[str, Any]) -> dict[str, Any]:
 
     try:
         _start_simple_text2comp_stage(entry)
+    except conversation_pipeline.Text2CompGPUUnavailableError as exc:
+        first_wait = not pipeline.get("text2comp_waiting_for_gpu")
+        pipeline["stage"] = "text2comp"
+        pipeline["text2comp_status"] = "queued"
+        pipeline["text2comp_error_message"] = str(exc)
+        pipeline["text2comp_waiting_for_gpu"] = True
+        pipeline.setdefault("text2comp_waiting_since", time.time())
+        entry["status"] = "starting"
+        entry["error_message"] = None
+        entry["pipeline_stage"] = "text2comp"
+        if first_wait:
+            _append_launch_log(
+                Path(entry["log_path"]),
+                f"[pipeline] stage=text2comp_waiting_gpu reason={exc}",
+            )
+        return entry
     except Exception as exc:
         pipeline["stage"] = "error"
         pipeline["text2comp_status"] = "error"

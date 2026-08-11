@@ -229,6 +229,20 @@ const fileCatalog = {
 }
 
 function apiPayloadFor(pathname: string): unknown {
+  if (pathname === '/api/new-synth/presets') {
+    return {
+      simulations: [
+        { simulator: 'gcam', scenario: 'carbon_pricing', sample_count: 100, has_data: true, output_shape: [80] },
+        {
+          simulator: 'modflow',
+          scenario: 'unified_aquifer',
+          sample_count: 100,
+          has_data: true,
+          output_shape: [60],
+        },
+      ],
+    }
+  }
   if (pathname === '/api/training/overview') {
     return {
       completed_job_count: 0,
@@ -461,5 +475,8 @@ test('conversation training workflow renders as a standalone entry', async ({ pa
   await expect(page.getByRole('heading', { name: '创建完整模型' })).toBeVisible()
   await expect(page.getByRole('button', { name: /新建对话/ })).toBeVisible()
   await expect(page.getByText('完整模型工作流')).toBeVisible()
+  await page.getByRole('button', { name: /训练一个地下水水位预测模型/ }).click()
+  await expect(page.getByRole('dialog', { name: '选择数据来源' })).toBeVisible()
+  await expect(page.getByLabel('选择可复用场景')).toHaveValue('modflow/unified_aquifer')
   await expectNoHorizontalOverflow(page)
 })
